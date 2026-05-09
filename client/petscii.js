@@ -277,18 +277,30 @@ class PETSCIIRenderer {
         const baseCode = isReversed ? charCode - 128 : charCode;
         
         if (isReversed) {
-            // Reversed: solid foreground colour block with character shape in background
+            // Reversed: solid foreground colour block, with character shape
+            // drawn in background colour (the shape is "cut out")
+            const bgCol = cellBg !== undefined ? cellBg : this.bgColour;
+            
+            // Fill entire cell with foreground colour
             ctx.fillStyle = C64_PALETTE[colourIdx];
             ctx.fillRect(x, y, 8, 8);
-            // Cut out character shape in background colour
-            const bgCol = cellBg !== undefined ? cellBg : this.bgColour;
-            ctx.fillStyle = C64_PALETTE[bgCol];
+            
+            // Draw character shape pixels in background colour (cut out)
             const romOffset = baseCode * 8;
+            let hasPixels = false;
             for (let row = 0; row < 8; row++) {
-                const byte = this.charROM[romOffset + row];
-                for (let col = 0; col < 8; col++) {
-                    if (!(byte & (0x80 >> col))) {
-                        ctx.fillRect(x + col, y + row, 1, 1);
+                if (this.charROM[romOffset + row] !== 0) { hasPixels = true; break; }
+            }
+            
+            if (hasPixels) {
+                ctx.fillStyle = C64_PALETTE[bgCol];
+                for (let row = 0; row < 8; row++) {
+                    const byte = this.charROM[romOffset + row];
+                    if (byte === 0) continue;
+                    for (let col = 0; col < 8; col++) {
+                        if (byte & (0x80 >> col)) {
+                            ctx.fillRect(x + col, y + row, 1, 1);
+                        }
                     }
                 }
             }
