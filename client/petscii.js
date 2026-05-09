@@ -144,70 +144,46 @@ class PETSCIIRenderer {
     
     /**
      * Convert PETSCII to C64 screen code.
-     * Used for SEQ file rendering and raw PETSCII data.
-     * Must be charset-aware for letter ranges.
+     * This matches the C64 KERNAL's conversion at $E9CB.
      *
-     * PETSCII $41-$5A and $C1-$DA are uppercase letters.
-     * In charset 1: uppercase at screen codes 1-26
-     * In charset 2: uppercase at screen codes 64-89, lowercase at 1-26
+     * PETSCII $20-$3F -> screen $20-$3F (no change)
+     * PETSCII $40-$5F -> screen $00-$1F (subtract $40)
+     * PETSCII $60-$7F -> screen $40-$5F (subtract $20)
+     * PETSCII $A0-$BF -> screen $60-$7F (subtract $40)
+     * PETSCII $C0-$DF -> screen $40-$5F (subtract $80)
+     * PETSCII $E0-$FE -> screen $60-$7E (subtract $80)
      */
     _toScreenCode(petscii) {
-        if (petscii >= 0x20 && petscii <= 0x3F) return petscii;          // space, digits, punct
-        
-        if (petscii >= 0x40 && petscii <= 0x5F) {
-            // @, A-Z, [, \, ], ^, _
-            if (this.currentCharset === 1 && petscii >= 0x41 && petscii <= 0x5A) {
-                return petscii - 0x40 + 63;  // A-Z -> screen 64-89 (uppercase in charset 2)
-            }
-            return petscii - 0x40;           // screen 0-31 (uppercase in charset 1)
-        }
-        
-        if (petscii >= 0x60 && petscii <= 0x7F) {
-            // In PETSCII, $60-$7F are graphics (charset 1) or lowercase (charset 2)
-            if (this.currentCharset === 1 && petscii >= 0x61 && petscii <= 0x7A) {
-                return petscii - 0x60;       // a-z -> screen 1-26 (lowercase in charset 2)
-            }
-            return petscii - 0x20;           // graphics -> screen 64-95
-        }
-        
-        if (petscii >= 0xA0 && petscii <= 0xBF) return petscii - 0x40;   // shifted graphics -> 96-127
-        
-        if (petscii >= 0xC0 && petscii <= 0xDF) {
-            // Same as $40-$5F (uppercase letters)
-            if (this.currentCharset === 1 && petscii >= 0xC1 && petscii <= 0xDA) {
-                return petscii - 0xC0 + 63;  // A-Z -> screen 64-89 (uppercase in charset 2)
-            }
-            return petscii - 0xC0;           // screen 0-31 (uppercase in charset 1)
-        }
-        
-        if (petscii >= 0xE0 && petscii <= 0xFE) return petscii - 0x80;   // same as $A0-$BE -> 96-126
-        if (petscii === 0xFF) return 94;                                  // pi character
-        return 32;
+        if (petscii >= 0x20 && petscii <= 0x3F) return petscii;
+        if (petscii >= 0x40 && petscii <= 0x5F) return petscii - 0x40;
+        if (petscii >= 0x60 && petscii <= 0x7F) return petscii - 0x20;
+        if (petscii >= 0xA0 && petscii <= 0xBF) return petscii - 0x40;
+        if (petscii >= 0xC0 && petscii <= 0xDF) return petscii - 0x80;
+        if (petscii >= 0xE0 && petscii <= 0xFE) return petscii - 0x80;
+        if (petscii === 0xFF) return 0x5E;
+        return 0x20;
     }
     
     /**
      * Convert ASCII character code to screen code.
      * Used by print() and printAt() which receive ASCII text from JavaScript strings.
-     * Respects the current charset setting.
+     * ASCII uppercase A-Z should always display as uppercase regardless of charset.
      */
     _asciiToScreenCode(ascii) {
-        if (ascii >= 32 && ascii <= 63) return ascii;          // space, digits, punctuation (same)
+        if (ascii >= 32 && ascii <= 63) return ascii;          // space, digits, punctuation
         if (ascii === 64) return 0;                            // @
         if (ascii >= 91 && ascii <= 95) return ascii - 64;     // [ \ ] ^ _ -> 27-31
         
         if (this.currentCharset === 1) {
-            // Charset 2: lowercase/uppercase
-            // Screen codes 1-26 = lowercase, 64-89 = uppercase
-            if (ascii >= 65 && ascii <= 90) return ascii - 1;   // A-Z -> screen 64-89 (uppercase)
-            if (ascii >= 97 && ascii <= 122) return ascii - 96; // a-z -> screen 1-26 (lowercase)
+            // Charset 2: uppercase at screen 64-89, lowercase at 1-26
+            if (ascii >= 65 && ascii <= 90) return ascii - 1;   // A(65)->64, B(66)->65...Z(90)->89
+            if (ascii >= 97 && ascii <= 122) return ascii - 96; // a(97)->1, b(98)->2...z(122)->26
         } else {
-            // Charset 1: uppercase/graphics
-            // Screen codes 1-26 = uppercase A-Z
-            if (ascii >= 65 && ascii <= 90) return ascii - 64;  // A-Z -> screen 1-26
-            if (ascii >= 97 && ascii <= 122) return ascii - 96; // a-z -> screen 1-26 (same as uppercase)
+            // Charset 1: uppercase at screen 1-26
+            if (ascii >= 65 && ascii <= 90) return ascii - 64;  // A->1, B->2...Z->26
+            if (ascii >= 97 && ascii <= 122) return ascii - 96; // a->1 (same as uppercase)
         }
         
-        if (ascii >= 96 && ascii <= 127) return ascii - 32;    // other -> 64-95
         return 32;
     }
     
