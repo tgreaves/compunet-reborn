@@ -54,6 +54,8 @@ class CompunetTerminal {
             this._handleReadyKey(e);
         } else if (this.state === 'editor') {
             this.editor.handleKey(e);
+        } else if (this.connectState === 'userid' || this.connectState === 'password') {
+            this._handleConnectKey(e);
         }
     }
     
@@ -145,35 +147,25 @@ class CompunetTerminal {
     
     _connect() {
         const r = this.renderer;
-        r.print('\nNUMBER? ', 1);
-        // For web client, we skip the phone number and connect directly
-        r.print('LOCALHOST\n', 14);
         r.print('\nCONNECTING...\n', 1);
         
         this.protocol = new CompunetProtocol();
+        this.connectState = 'connecting';
         
         this.protocol.onConnect = () => {
             r.print('CONNECTED\n\n', 5);
-            r.print('ENTER USER ID: ', 1);
-            // For now, auto-login
-            r.print('GUEST\n', 14);
-            r.print('PASSWORD: ', 1);
-            r.print('****\n\n', 14);
-            r.print('LINKING...', 1);
-            
-            // Send login
-            this.protocol.login('GUEST', 'GUEST');
+            r.print('  COMPUNET SYSTEM LOGON.\n\n', 1);
+            r.print('  ENTER USER ID: ', 1);
+            this.connectState = 'userid';
+            this.inputBuffer = '';
         };
         
         this.protocol.onDirectory = (data) => {
-            // Received directory listing - render it as a frame
-            r.print('DONE\n', 5);
             this.state = 'online';
             this._renderDirectoryData(data);
         };
         
         this.protocol.onFrame = (data) => {
-            // Received frame data - render using SEQ renderer
             const seq = new SEQRenderer(r);
             seq.render(data, 23);
             this.duckshoot.setCommands(DUCKSHOOT_SHOW);
@@ -181,7 +173,6 @@ class CompunetTerminal {
         };
         
         this.protocol.onError = (data) => {
-            // Display error message
             let msg = '';
             for (let i = 0; i < data.length && data[i] !== 0; i++) {
                 const b = data[i];
@@ -197,11 +188,47 @@ class CompunetTerminal {
             r.print('\nDISCONNECTED\n', 2);
             r.print('\nREADY.\n', 5);
             this.state = 'ready';
+            this.connectState = null;
             this.duckshoot.hide();
         };
         
-        // Connect to server
         this.protocol.connect('ws://localhost:6502');
+    }
+    
+    _handleConnectKey(e) {
+        const r = this.renderer;
+        
+        if (e.key === 'Enter') {
+            const input = this.inputBuffer.trim();
+            r.print('\n', 1);
+            
+            if (this.connectState === 'userid') {
+                this._loginUserId = input || 'NEW-USER';
+                r.print('  PASSWORD: ', 1);
+                this.connectState = 'password';
+                this.inputBuffer = '';
+            } else if (this.connectState === 'password') {
+                const password = input || 'INTRO';
+                r.print('\n  LINKING...', 1);
+                this.connectState = 'linking';
+                this.protocol.login(this._loginUserId, password);
+            }
+        } else if (e.key === 'Backspace') {
+            if (this.inputBuffer.length > 0) {
+                this.inputBuffer = this.inputBuffer.slice(0, -1);
+                r.cursorX--;
+                if (r.cursorX < 0) { r.cursorX = 39; r.cursorY--; }
+                r.setCharASCII(r.cursorX, r.cursorY, 32, 1);
+            }
+        } else if (e.key.length === 1) {
+            const ch = e.key.toUpperCase();
+            this.inputBuffer += ch;
+            if (this.connectState === 'password') {
+                r.print('*', 1);  // mask password
+            } else {
+                r.print(ch, 14);
+            }
+        }
     }
     
     _renderDirectoryData(data) {
