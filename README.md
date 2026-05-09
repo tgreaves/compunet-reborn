@@ -8,6 +8,16 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 ## Repository Contents
 
+### Web Client
+
+- **[client/](client/)** — Browser-based Compunet terminal emulator
+  - Authentic C64 PETSCII rendering using the real chargen ROM (both character sets)
+  - Duckshoot menu with horizontal scrolling and reverse-video highlight
+  - Frame editor with multi-page support (NEW, LAST, NEXT, COPY, ERASE)
+  - SEQ file renderer with full control code support
+  - GET command loads `.seq` files from disk into the editor
+  - Open `client/index.html` in a browser to use
+
 ### Analysis
 
 - **[PROTOCOL.md](PROTOCOL.md)** — Full reverse-engineered protocol specification including modem hardware interface, connection sequence, packet format, command tokens, flow control, and CRC details. This is the key document for reimplementation.
@@ -27,6 +37,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - **[historical/chip0_bank0_8000.bin](historical/chip0_bank0_8000.bin)** — Extracted 8K ROM binary (raw bytes at $8000-$9FFF).
 - **[historical/cnet.prg](historical/cnet.prg)** — The downloaded terminal software (7.5KB). This is the code sent during "linking" that provides the full interactive experience: directory navigation, duckshoot, Courier mail, uploads, downloads, etc. Provided by Charles Headey.
 - **[historical/cnboot.prg](historical/cnboot.prg)** — Multi-mode boot loader (2.1KB) offering CNET, TTY, Viewdata, and user-to-user modes. Provided by Charles Headey.
+- **[historical/seq/](historical/seq/)** — 106 original Compunet page SEQ files (frames from pages and interviews).
 - **[historical/Terminal Disassembly.txt](historical/Terminal%20Disassembly.txt)** — Third-party disassembly found online, used for cross-referencing.
 - **[historical/compunet-instructions-uk.pdf](historical/compunet-instructions-uk.pdf)** — Scanned original Compunet instruction manual.
 - **[historical/compunet-instructions-extracted.txt](historical/compunet-instructions-extracted.txt)** — OCR text extraction of the instruction manual.
@@ -45,8 +56,33 @@ The full interactive terminal (duckshoot navigation, directory browsing, frame r
 
 ## What's Missing
 
-- **Server-side protocol details** — the application-layer commands and responses beyond what can be inferred from the client code.
-- **Frame format specification** — how pages (text, graphics, colour) are encoded in the data stream (partially recoverable from cnet.prg analysis).
+- **Server implementation** — needed to handle CONNECT, directory browsing, SHOW, BUY, MAIL, etc.
+- **Full application-layer protocol testing** — requires a server to validate command/response sequences.
+
+## Frame Format
+
+The Compunet frame format (SEQ files) has been fully reverse-engineered:
+
+| Bytes | Meaning |
+|-------|---------|
+| `$00` | Frame start marker |
+| `$Fx` | Border colour (low nibble = colour 0-15) |
+| `$Fx` | Background colour (low nibble = colour 0-15) |
+| Stream | PETSCII data with control codes |
+| `$00` | End of frame |
+
+Special control codes within the stream:
+
+| Code | Meaning |
+|------|---------|
+| `$06 <N>` | Repeat space N times (N in range 1-31) |
+| `$06` | Single space (when followed by printable char) |
+| `$07 <char> <count>` | RLE: repeat character count times |
+| `$0D` | Carriage return |
+| `$0E` | Switch to lowercase/uppercase charset |
+| `$8E` | Switch to uppercase/graphics charset |
+| `$12` / `$92` | Reverse video on/off |
+| Colour codes | Standard PETSCII colour changes |
 
 ## Acknowledgements
 
