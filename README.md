@@ -12,9 +12,9 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 - **[PROTOCOL.md](PROTOCOL.md)** — Full reverse-engineered protocol specification including modem hardware interface, connection sequence, packet format, command tokens, flow control, and CRC details. This is the key document for reimplementation.
 
-- **[compunet_terminal_v122.asm](compunet_terminal_v122.asm)** — Annotated 6502 disassembly of the Compunet Terminal cartridge ROM (v1.22, September 1984). The bootstrap loader: modem control, dialling, login, protocol engine.
+- **[modem_bootstrap.asm](modem_bootstrap.asm)** — Annotated 6502 disassembly of the Compunet Terminal cartridge ROM (v1.22, September 1984). The bootstrap loader: modem control, dialling, login, protocol engine.
 
-- **[cnet_terminal_disasm.asm](cnet_terminal_disasm.asm)** — Annotated 6502 disassembly of the downloaded terminal software (cnet.prg). The application layer: directory navigation, duckshoot, SHOW, BUY, MAIL, UPLOAD, VOTE, etc. Runs at $9FF0-$BE02.
+- **[terminal_app.asm](terminal_app.asm)** — Annotated 6502 disassembly of the downloaded terminal software (cnet.prg). The application layer: directory navigation, duckshoot, SHOW, BUY, MAIL, UPLOAD, VOTE, etc. Runs at $9FF0-$BE02.
 
 ### Tools
 
