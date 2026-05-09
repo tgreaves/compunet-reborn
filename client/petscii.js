@@ -124,50 +124,51 @@ class PETSCIIRenderer {
     setChar(x, y, charCode, colour) {
         if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
             const idx = y * this.cols + x;
-            // Convert PETSCII/ASCII to C64 screen code
+            // Convert to screen code (input is PETSCII)
             this.screenChars[idx] = this._toScreenCode(charCode);
             this.screenColours[idx] = colour !== undefined ? colour : this.textColour;
         }
     }
     
     /**
-     * Convert ASCII/PETSCII character code to C64 screen code.
-     * The C64 character ROM is indexed by screen codes, not PETSCII.
-     * 
-     * In charset 1 (uppercase/graphics):
-     *   ASCII 32-63 -> screen code 32-63 (space, digits, punctuation)
-     *   ASCII 64 (@) -> screen code 0
-     *   ASCII 65-90 (A-Z) -> screen code 1-26
-     *   ASCII 91-95 -> screen code 27-31
-     *   ASCII 96-127 -> screen code 64-95 (graphics)
-     *
-     * In charset 2 (lowercase/uppercase):
-     *   ASCII 32-63 -> screen code 32-63
-     *   ASCII 64 (@) -> screen code 0
-     *   ASCII 65-90 (A-Z) -> screen code 64-89 (uppercase in set 2)
-     *   ASCII 91-95 -> screen code 27-31
-     *   ASCII 97-122 (a-z) -> screen code 1-26 (lowercase in set 2)
+     * Set a character using ASCII input (for print() convenience).
+     * Converts ASCII to PETSCII first, then to screen code.
      */
-    _toScreenCode(ascii) {
-        if (ascii >= 32 && ascii <= 63) return ascii;        // space, digits, punctuation
-        
-        if (this.currentCharset === 1) {
-            // Charset 2: lowercase/uppercase mode
-            if (ascii >= 65 && ascii <= 90) return ascii - 1;    // A-Z -> screen 64-89
-            if (ascii >= 97 && ascii <= 122) return ascii - 96;  // a-z -> screen 1-26
-        } else {
-            // Charset 1: uppercase/graphics mode
-            if (ascii >= 65 && ascii <= 90) return ascii - 64;   // A-Z -> screen 1-26
-            if (ascii >= 97 && ascii <= 122) return ascii - 96;  // a-z -> same as A-Z (screen 1-26)
+    setCharASCII(x, y, charCode, colour) {
+        if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
+            const idx = y * this.cols + x;
+            this.screenChars[idx] = this._asciiToScreenCode(charCode);
+            this.screenColours[idx] = colour !== undefined ? colour : this.textColour;
         }
-        
-        if (ascii === 64) return 0;                          // @
-        if (ascii >= 91 && ascii <= 95) return ascii - 64;   // [ \ ] ^ _ -> 27-31
-        if (ascii >= 96 && ascii <= 127) return ascii - 32;  // graphics range
-        if (ascii >= 160 && ascii <= 191) return ascii - 128; // shifted graphics
-        if (ascii >= 192 && ascii <= 255) return ascii - 128; // more shifted
-        if (ascii >= 0 && ascii <= 31) return ascii + 128;    // control -> reversed
-        return 32; // default to space
+    }
+    
+    /**
+     * Convert PETSCII to C64 screen code.
+     * Used for SEQ file rendering and raw PETSCII data.
+     */
+    _toScreenCode(petscii) {
+        if (petscii >= 0x20 && petscii <= 0x3F) return petscii;          // space, digits, punct
+        if (petscii >= 0x40 && petscii <= 0x5F) return petscii - 0x40;   // @=0, A=1..Z=26
+        if (petscii >= 0x60 && petscii <= 0x7F) return petscii - 0x20;   // graphics -> 64-95
+        if (petscii >= 0xA0 && petscii <= 0xBF) return petscii - 0x40;   // shifted graphics -> 96-127
+        if (petscii >= 0xC0 && petscii <= 0xDF) return petscii - 0xC0;   // same as $40-$5F -> 0-31
+        if (petscii >= 0xE0 && petscii <= 0xFE) return petscii - 0x80;   // same as $A0-$BE -> 96-126
+        if (petscii === 0xFF) return 94;                                  // pi character
+        return 32;
+    }
+    
+    /**
+     * Convert ASCII character code to screen code.
+     * Used by print() and printAt() which receive ASCII text from JavaScript strings.
+     */
+    _asciiToScreenCode(ascii) {
+        if (ascii >= 32 && ascii <= 63) return ascii;          // space, digits, punctuation (same)
+        if (ascii === 64) return 0;                            // @
+        if (ascii >= 65 && ascii <= 90) return ascii - 64;     // A-Z -> screen 1-26
+        if (ascii >= 91 && ascii <= 95) return ascii - 64;     // [ \ ] ^ _ -> 27-31
+        if (ascii >= 97 && ascii <= 122) return ascii - 96;    // a-z -> screen 1-26 (same as uppercase in charset 1)
+        if (ascii >= 96 && ascii <= 127) return ascii - 32;    // other -> 64-95
+        return 32;
     }
     
     getChar(x, y) {
@@ -179,7 +180,7 @@ class PETSCIIRenderer {
     
     printAt(x, y, text, colour) {
         for (let i = 0; i < text.length; i++) {
-            this.setChar(x + i, y, text.charCodeAt(i), colour);
+            this.setCharASCII(x + i, y, text.charCodeAt(i), colour);
         }
     }
     
@@ -195,7 +196,7 @@ class PETSCIIRenderer {
                     this.cursorY = this.rows - 1;
                 }
             } else {
-                this.setChar(this.cursorX, this.cursorY, ch, col);
+                this.setCharASCII(this.cursorX, this.cursorY, ch, col);
                 this.cursorX++;
                 if (this.cursorX >= this.cols) {
                     this.cursorX = 0;

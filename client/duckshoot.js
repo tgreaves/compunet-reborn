@@ -113,7 +113,7 @@ class Duckshoot {
             const idx = row * r.cols + x;
             const charPos = x - (sel.start + offset);
             if (charPos >= 0 && charPos < sel.text.length) {
-                const sc = r._toScreenCode(sel.text.charCodeAt(charPos));
+                const sc = r._asciiToScreenCode(sel.text.charCodeAt(charPos));
                 r.screenChars[idx] = sc + 128; // reversed
                 r.screenColours[idx] = 1; // white
             } else {
@@ -130,7 +130,7 @@ class Duckshoot {
                 const x = p.start + offset + j;
                 if (x >= 0 && x < r.cols) {
                     const idx = row * r.cols + x;
-                    r.screenChars[idx] = r._toScreenCode(p.text.charCodeAt(j));
+                    r.screenChars[idx] = r._asciiToScreenCode(p.text.charCodeAt(j));
                     r.screenColours[idx] = 1; // white
                 }
             }

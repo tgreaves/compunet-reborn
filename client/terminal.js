@@ -348,7 +348,7 @@ class FrameEditor {
         
         // Printable character
         if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
-            r.setChar(this.cursorX, this.cursorY, e.key.charCodeAt(0), this.currentColour);
+            r.setCharASCII(this.cursorX, this.cursorY, e.key.charCodeAt(0), this.currentColour);
             this.cursorX++;
             if (this.cursorX >= 40) {
                 this.cursorX = 0;
