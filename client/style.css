@@ -1,0 +1,35 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: monospace;
+    color: #888;
+}
+
+#terminal {
+    border: 4px solid #555;
+    border-radius: 8px;
+    padding: 16px;
+    background: #111;
+}
+
+#screen {
+    display: block;
+    image-rendering: pixelated;
+    width: 640px;
+    height: 400px;
+}
+
+#info {
+    margin-top: 12px;
+    font-size: 12px;
+}
