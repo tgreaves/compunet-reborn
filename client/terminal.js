@@ -419,6 +419,11 @@ class FrameEditor {
                 this._showStatus('FREE: ' + (15 - this.frames.length) + ' PAGES');
                 break;
                 
+            case 'FINISH':
+                this.duckshoot.setCommands(DUCKSHOOT_EDITOR);
+                this.duckshoot.render();
+                break;
+                
             case 'GET':
                 this._getFile();
                 break;
