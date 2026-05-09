@@ -222,10 +222,7 @@ class PETSCIIRenderer {
         const w = this.canvas.width;
         const h = this.canvas.height;
         
-        // C64 display layout:
-        // Total visible area: 404x284 pixels (PAL)
-        // Border surrounds the 320x200 screen area
-        // Border is approximately 42px on sides, 42px top/bottom
+        // C64 display layout with border
         const borderSize = 32;
         const screenX = borderSize;
         const screenY = borderSize;
@@ -240,6 +237,16 @@ class PETSCIIRenderer {
         ctx.fillStyle = C64_PALETTE[this.bgColour];
         ctx.fillRect(screenX, screenY, screenW, screenH);
         
+        // Apply per-row background overrides (used by duckshoot)
+        if (this.rowBgColours) {
+            for (let row = 0; row < this.rows; row++) {
+                if (this.rowBgColours[row] !== undefined) {
+                    ctx.fillStyle = C64_PALETTE[this.rowBgColours[row]];
+                    ctx.fillRect(screenX, screenY + row * this.charHeight, screenW, this.charHeight);
+                }
+            }
+        }
+        
         // Render each character
         for (let row = 0; row < this.rows; row++) {
             for (let col = 0; col < this.cols; col++) {
@@ -247,18 +254,22 @@ class PETSCIIRenderer {
                 const charCode = this.screenChars[idx];
                 const colour = this.screenColours[idx];
                 
-                if (charCode === 32) continue; // skip spaces (background shows through)
+                if (charCode === 32) continue; // skip spaces
+                
+                // Determine the background for this cell (for reversed chars)
+                const cellBg = (this.rowBgColours && this.rowBgColours[row] !== undefined) 
+                    ? this.rowBgColours[row] : this.bgColour;
                 
                 this._renderChar(
                     screenX + col * this.charWidth,
                     screenY + row * this.charHeight,
-                    charCode, colour
+                    charCode, colour, cellBg
                 );
             }
         }
     }
     
-    _renderChar(x, y, charCode, colourIdx) {
+    _renderChar(x, y, charCode, colourIdx, cellBg) {
         const ctx = this.ctx;
         
         // Screen codes 128-255 are "reversed" (inverted) versions of 0-127
@@ -266,15 +277,15 @@ class PETSCIIRenderer {
         const baseCode = isReversed ? charCode - 128 : charCode;
         
         if (isReversed) {
-            // Draw solid block in foreground colour, then character in background colour
+            // Reversed: solid foreground colour block with character shape in background
             ctx.fillStyle = C64_PALETTE[colourIdx];
             ctx.fillRect(x, y, 8, 8);
-            // Draw the character shape in background colour (cut out)
-            ctx.fillStyle = C64_PALETTE[this.bgColour];
+            // Cut out character shape in background colour
+            const bgCol = cellBg !== undefined ? cellBg : this.bgColour;
+            ctx.fillStyle = C64_PALETTE[bgCol];
             const romOffset = baseCode * 8;
             for (let row = 0; row < 8; row++) {
                 const byte = this.charROM[romOffset + row];
-                if (byte === 0xFF) continue; // fully set = no bg pixels to draw
                 for (let col = 0; col < 8; col++) {
                     if (!(byte & (0x80 >> col))) {
                         ctx.fillRect(x + col, y + row, 1, 1);

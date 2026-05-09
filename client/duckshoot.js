@@ -2,13 +2,12 @@
  * Duckshoot menu implementation.
  * 
  * Based on the Compunet terminal disassembly:
- * - Horizontal scrolling command list displayed on the bottom row(s)
+ * - Horizontal scrolling command list on the bottom rows
  * - Left/right cursor keys scroll the menu
  * - The highlighted (centre) command is the active selection
  * - RETURN executes the highlighted command
  * 
- * The duckshoot occupies the bottom 2 rows of the screen (rows 23-24).
- * Row 24 shows the commands, row 23 is a separator bar.
+ * The duckshoot occupies rows 23-24 of the screen.
  */
 
 class Duckshoot {
@@ -17,23 +16,16 @@ class Duckshoot {
         this.commands = [];
         this.selectedIndex = 0;
         this.visible = false;
-        this.onSelect = null; // callback when command is selected
+        this.onSelect = null;
         
-        // Display parameters
-        this.menuRow = 24;      // bottom row for commands
-        this.barRow = 23;       // separator bar row
-        this.highlightWidth = 6; // width of highlighted area (chars)
-        this.scrollOffset = 0;  // horizontal scroll position
+        this.menuRow = 24;
+        this.barRow = 23;
+        this.highlightWidth = 6;
     }
     
-    /**
-     * Set the command list for this duckshoot context.
-     * Commands are strings like: ['HELP', 'DIR', 'SHOW', 'BACK', ...]
-     */
     setCommands(commands) {
         this.commands = commands;
         this.selectedIndex = 0;
-        this.scrollOffset = 0;
     }
     
     show() {
@@ -43,12 +35,14 @@ class Duckshoot {
     
     hide() {
         this.visible = false;
+        // Clear row background overrides
+        const r = this.renderer;
+        if (r.rowBgColours) {
+            delete r.rowBgColours[this.barRow];
+            delete r.rowBgColours[this.menuRow];
+        }
     }
     
-    /**
-     * Handle keyboard input.
-     * Returns the selected command name if RETURN pressed, null otherwise.
-     */
     handleKey(key) {
         if (!this.visible) return null;
         
@@ -79,13 +73,6 @@ class Duckshoot {
         return null;
     }
     
-    /**
-     * Render the duckshoot to the screen buffer.
-     * 
-     * The original Compunet duckshoot displays commands in a scrolling
-     * horizontal strip. The selected command is highlighted in reverse
-     * video (dark text on light background). The bar itself is dark.
-     */
     render() {
         if (!this.visible) return;
         
@@ -93,72 +80,97 @@ class Duckshoot {
         const row = this.menuRow;
         const barRow = this.barRow;
         
-        // Clear the duckshoot rows with a dark background
-        // Row 23: separator bar (solid light blue)
+        // Set per-row backgrounds for the duckshoot area
+        if (!r.rowBgColours) r.rowBgColours = {};
+        r.rowBgColours[barRow] = 14; // light blue separator
+        r.rowBgColours[row] = 6;     // blue command area
+        
+        // Row 23: separator - just use the row background (no chars needed)
         for (let x = 0; x < r.cols; x++) {
             const idx = barRow * r.cols + x;
-            r.screenChars[idx] = 160; // reversed space = solid block
-            r.screenColours[idx] = 14; // light blue
+            r.screenChars[idx] = 32; // space (shows row bg)
+            r.screenColours[idx] = 14;
         }
         
-        // Row 24: command row (dark blue background via reversed spaces)
+        // Row 24: clear to spaces (shows blue row bg)
         for (let x = 0; x < r.cols; x++) {
             const idx = row * r.cols + x;
-            r.screenChars[idx] = 160; // solid block for background
-            r.screenColours[idx] = 6; // blue (dark background)
+            r.screenChars[idx] = 32;
+            r.screenColours[idx] = 15;
         }
         
-        // Build the display string with the selected command centred
+        // Pad commands to fixed width
         const padded = this.commands.map(cmd => {
-            return cmd.length >= 6 ? cmd.substring(0, 6) : cmd + ' '.repeat(6 - cmd.length);
+            return (cmd + '      ').substring(0, 6);
         });
         
-        // Calculate the centre position
+        // Centre position for highlight
         const centreX = Math.floor(r.cols / 2) - Math.floor(this.highlightWidth / 2);
         
-        // Render selected command at centre - REVERSE VIDEO (white bg, blue text)
-        const selectedCmd = padded[this.selectedIndex];
+        // Draw highlight background: reversed spaces in white = white solid block
         for (let i = 0; i < this.highlightWidth; i++) {
             const idx = row * r.cols + centreX + i;
-            if (i < selectedCmd.length && selectedCmd[i] !== ' ') {
-                // Character on white background: use reversed char
-                r.screenChars[idx] = r._toScreenCode(selectedCmd.charCodeAt(i)) + 128; // reversed
-                r.screenColours[idx] = 1; // white (this becomes the "background" for reversed chars)
-            } else {
-                r.screenChars[idx] = 160; // solid block
-                r.screenColours[idx] = 1; // white background for highlight area
+            r.screenChars[idx] = 160; // reversed space = solid block
+            r.screenColours[idx] = 1; // white
+        }
+        
+        // Draw selected command text as reversed chars on the white block
+        // Reversed char in blue colour on white row-bg = blue solid with white letter cutout
+        // That gives us: blue text appearance on white background
+        const selectedCmd = padded[this.selectedIndex];
+        for (let i = 0; i < selectedCmd.length; i++) {
+            if (selectedCmd[i] !== ' ') {
+                const idx = row * r.cols + centreX + i;
+                const sc = r._toScreenCode(selectedCmd.charCodeAt(i));
+                r.screenChars[idx] = sc + 128; // reversed character
+                r.screenColours[idx] = 6; // blue - shows as blue block with letter in row-bg (white? no...)
             }
         }
         
-        // Render commands to the left of selected (light text on dark bg)
+        // Hmm - reversed char in colour 6 on row-bg 6 won't work either.
+        // Let's think about this differently.
+        //
+        // On C64: reversed char = solid foreground colour with char shape in bg colour
+        // Row bg = 6 (blue). If we put reversed char colour=1 (white):
+        //   -> white solid block with letter shape in blue (row bg)
+        //   -> Result: white block with blue letters = PERFECT!
+        
+        // Redo: highlight uses reversed chars in WHITE colour
+        for (let i = 0; i < selectedCmd.length; i++) {
+            const idx = row * r.cols + centreX + i;
+            if (selectedCmd[i] !== ' ') {
+                const sc = r._toScreenCode(selectedCmd.charCodeAt(i));
+                r.screenChars[idx] = sc + 128; // reversed
+                r.screenColours[idx] = 1; // white fg -> white block, letter in row-bg (blue)
+            } else {
+                r.screenChars[idx] = 160; // reversed space = solid white block
+                r.screenColours[idx] = 1;
+            }
+        }
+        
+        // Draw commands to the left (light grey text on blue bg)
         let x = centreX - 1;
         for (let cmdIdx = this.selectedIndex - 1; cmdIdx >= 0 && x >= 0; cmdIdx--) {
             const cmd = padded[cmdIdx];
             for (let i = cmd.length - 1; i >= 0 && x >= 0; i--) {
-                const idx = row * r.cols + x;
                 if (cmd[i] !== ' ') {
+                    const idx = row * r.cols + x;
                     r.screenChars[idx] = r._toScreenCode(cmd.charCodeAt(i));
-                    r.screenColours[idx] = 15; // light grey text
-                } else {
-                    r.screenChars[idx] = 160;
-                    r.screenColours[idx] = 6; // dark bg
+                    r.screenColours[idx] = 15; // light grey
                 }
                 x--;
             }
         }
         
-        // Render commands to the right of selected
+        // Draw commands to the right (light grey text on blue bg)
         x = centreX + this.highlightWidth;
         for (let cmdIdx = this.selectedIndex + 1; cmdIdx < padded.length && x < r.cols; cmdIdx++) {
             const cmd = padded[cmdIdx];
             for (let i = 0; i < cmd.length && x < r.cols; i++) {
-                const idx = row * r.cols + x;
                 if (cmd[i] !== ' ') {
+                    const idx = row * r.cols + x;
                     r.screenChars[idx] = r._toScreenCode(cmd.charCodeAt(i));
-                    r.screenColours[idx] = 15; // light grey text
-                } else {
-                    r.screenChars[idx] = 160;
-                    r.screenColours[idx] = 6; // dark bg
+                    r.screenColours[idx] = 15; // light grey
                 }
                 x++;
             }
@@ -166,7 +178,7 @@ class Duckshoot {
     }
 }
 
-// Predefined duckshoot command sets (from the disassembly)
+// Predefined duckshoot command sets
 const DUCKSHOOT_DIRECTORY = [
     'HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL',
     'ACCNT', 'EDITR', 'LEAVE', 'PRINT', 'LIFE', 'BUY',
