@@ -422,6 +422,10 @@ class FrameEditor {
                 this._showStatus('FREE: ' + (15 - this.frames.length) + ' PAGES');
                 break;
                 
+            case 'GET':
+                this._getFile();
+                break;
+                
             case 'HELP':
                 this._showHelp();
                 break;
@@ -443,6 +447,33 @@ class FrameEditor {
         // Show message on row 22 briefly
         r.printAt(0, 22, ' '.repeat(40), 0);
         r.printAt(1, 22, msg, 2); // Red text
+    }
+    
+    /**
+     * GET - Load a SEQ file from disk into the editor.
+     * Opens a file picker, loads the SEQ data, and renders it as the current frame.
+     */
+    _getFile() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.seq';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                const data = new Uint8Array(reader.result);
+                const seq = new SEQRenderer(this.renderer);
+                seq.render(data, 23);
+                // Save the rendered screen as the current frame
+                this._saveCurrentFrame();
+                // Re-render duckshoot on top
+                this.duckshoot.render();
+                this._showStatus('LOADED: ' + file.name);
+            };
+            reader.readAsArrayBuffer(file);
+        };
+        input.click();
     }
     
     _showHelp() {
