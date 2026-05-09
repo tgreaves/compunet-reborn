@@ -25,8 +25,8 @@ body {
 #screen {
     display: block;
     image-rendering: pixelated;
-    width: 640px;
-    height: 400px;
+    width: 768px;
+    height: 528px;
 }
 
 #info {

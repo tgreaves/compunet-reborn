@@ -222,19 +222,23 @@ class PETSCIIRenderer {
         const w = this.canvas.width;
         const h = this.canvas.height;
         
-        // Fill with border colour
+        // C64 display layout:
+        // Total visible area: 404x284 pixels (PAL)
+        // Border surrounds the 320x200 screen area
+        // Border is approximately 42px on sides, 42px top/bottom
+        const borderSize = 32;
+        const screenX = borderSize;
+        const screenY = borderSize;
+        const screenW = this.cols * this.charWidth;  // 320
+        const screenH = this.rows * this.charHeight; // 200
+        
+        // Fill entire canvas with border colour
         ctx.fillStyle = C64_PALETTE[this.borderColour];
         ctx.fillRect(0, 0, w, h);
         
-        // Screen area (with border)
-        const borderX = 0;
-        const borderY = 0;
-        const screenW = this.cols * this.charWidth;
-        const screenH = this.rows * this.charHeight;
-        
-        // Fill background
+        // Fill screen area with background colour
         ctx.fillStyle = C64_PALETTE[this.bgColour];
-        ctx.fillRect(borderX, borderY, screenW, screenH);
+        ctx.fillRect(screenX, screenY, screenW, screenH);
         
         // Render each character
         for (let row = 0; row < this.rows; row++) {
@@ -246,8 +250,8 @@ class PETSCIIRenderer {
                 if (charCode === 32) continue; // skip spaces (background shows through)
                 
                 this._renderChar(
-                    borderX + col * this.charWidth,
-                    borderY + row * this.charHeight,
+                    screenX + col * this.charWidth,
+                    screenY + row * this.charHeight,
                     charCode, colour
                 );
             }
@@ -256,15 +260,38 @@ class PETSCIIRenderer {
     
     _renderChar(x, y, charCode, colourIdx) {
         const ctx = this.ctx;
-        ctx.fillStyle = C64_PALETTE[colourIdx];
         
-        const romOffset = charCode * 8;
-        for (let row = 0; row < 8; row++) {
-            const byte = this.charROM[romOffset + row];
-            if (byte === 0) continue;
-            for (let col = 0; col < 8; col++) {
-                if (byte & (0x80 >> col)) {
-                    ctx.fillRect(x + col, y + row, 1, 1);
+        // Screen codes 128-255 are "reversed" (inverted) versions of 0-127
+        const isReversed = charCode >= 128;
+        const baseCode = isReversed ? charCode - 128 : charCode;
+        
+        if (isReversed) {
+            // Draw solid block in foreground colour, then character in background colour
+            ctx.fillStyle = C64_PALETTE[colourIdx];
+            ctx.fillRect(x, y, 8, 8);
+            // Draw the character shape in background colour (cut out)
+            ctx.fillStyle = C64_PALETTE[this.bgColour];
+            const romOffset = baseCode * 8;
+            for (let row = 0; row < 8; row++) {
+                const byte = this.charROM[romOffset + row];
+                if (byte === 0xFF) continue; // fully set = no bg pixels to draw
+                for (let col = 0; col < 8; col++) {
+                    if (!(byte & (0x80 >> col))) {
+                        ctx.fillRect(x + col, y + row, 1, 1);
+                    }
+                }
+            }
+        } else {
+            // Normal: draw character pixels in foreground colour
+            ctx.fillStyle = C64_PALETTE[colourIdx];
+            const romOffset = charCode * 8;
+            for (let row = 0; row < 8; row++) {
+                const byte = this.charROM[romOffset + row];
+                if (byte === 0) continue;
+                for (let col = 0; col < 8; col++) {
+                    if (byte & (0x80 >> col)) {
+                        ctx.fillRect(x + col, y + row, 1, 1);
+                    }
                 }
             }
         }

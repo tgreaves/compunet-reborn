@@ -83,8 +83,8 @@ class Duckshoot {
      * Render the duckshoot to the screen buffer.
      * 
      * The original Compunet duckshoot displays commands in a scrolling
-     * horizontal strip. The selected command is highlighted in the centre.
-     * Commands to the left and right are visible but dimmed.
+     * horizontal strip. The selected command is highlighted in reverse
+     * video (dark text on light background). The bar itself is dark.
      */
     render() {
         if (!this.visible) return;
@@ -93,14 +93,22 @@ class Duckshoot {
         const row = this.menuRow;
         const barRow = this.barRow;
         
-        // Clear the duckshoot rows
+        // Clear the duckshoot rows with a dark background
+        // Row 23: separator bar (solid light blue)
         for (let x = 0; x < r.cols; x++) {
-            r.setChar(x, barRow, 160, 14);  // Light blue bar (separator)
-            r.setChar(x, row, 32, 1);       // Clear command row
+            const idx = barRow * r.cols + x;
+            r.screenChars[idx] = 160; // reversed space = solid block
+            r.screenColours[idx] = 14; // light blue
+        }
+        
+        // Row 24: command row (dark blue background via reversed spaces)
+        for (let x = 0; x < r.cols; x++) {
+            const idx = row * r.cols + x;
+            r.screenChars[idx] = 160; // solid block for background
+            r.screenColours[idx] = 6; // blue (dark background)
         }
         
         // Build the display string with the selected command centred
-        // Each command is padded to 6 characters
         const padded = this.commands.map(cmd => {
             return cmd.length >= 6 ? cmd.substring(0, 6) : cmd + ' '.repeat(6 - cmd.length);
         });
@@ -108,23 +116,33 @@ class Duckshoot {
         // Calculate the centre position
         const centreX = Math.floor(r.cols / 2) - Math.floor(this.highlightWidth / 2);
         
-        // Render commands around the selected one
+        // Render selected command at centre - REVERSE VIDEO (white bg, blue text)
         const selectedCmd = padded[this.selectedIndex];
-        
-        // Place selected command at centre, highlighted
         for (let i = 0; i < this.highlightWidth; i++) {
-            const ch = i < selectedCmd.length ? selectedCmd.charCodeAt(i) : 32;
-            r.setChar(centreX + i, row, ch, 1); // White on blue (highlighted)
+            const idx = row * r.cols + centreX + i;
+            if (i < selectedCmd.length && selectedCmd[i] !== ' ') {
+                // Character on white background: use reversed char
+                r.screenChars[idx] = r._toScreenCode(selectedCmd.charCodeAt(i)) + 128; // reversed
+                r.screenColours[idx] = 1; // white (this becomes the "background" for reversed chars)
+            } else {
+                r.screenChars[idx] = 160; // solid block
+                r.screenColours[idx] = 1; // white background for highlight area
+            }
         }
         
-        // Render commands to the left of selected
+        // Render commands to the left of selected (light text on dark bg)
         let x = centreX - 1;
         for (let cmdIdx = this.selectedIndex - 1; cmdIdx >= 0 && x >= 0; cmdIdx--) {
             const cmd = padded[cmdIdx];
-            // Place command right-to-left
-            const startX = x - cmd.length;
             for (let i = cmd.length - 1; i >= 0 && x >= 0; i--) {
-                r.setChar(x, row, cmd.charCodeAt(i), 15); // Light grey
+                const idx = row * r.cols + x;
+                if (cmd[i] !== ' ') {
+                    r.screenChars[idx] = r._toScreenCode(cmd.charCodeAt(i));
+                    r.screenColours[idx] = 15; // light grey text
+                } else {
+                    r.screenChars[idx] = 160;
+                    r.screenColours[idx] = 6; // dark bg
+                }
                 x--;
             }
         }
@@ -134,13 +152,17 @@ class Duckshoot {
         for (let cmdIdx = this.selectedIndex + 1; cmdIdx < padded.length && x < r.cols; cmdIdx++) {
             const cmd = padded[cmdIdx];
             for (let i = 0; i < cmd.length && x < r.cols; i++) {
-                r.setChar(x, row, cmd.charCodeAt(i), 15); // Light grey
+                const idx = row * r.cols + x;
+                if (cmd[i] !== ' ') {
+                    r.screenChars[idx] = r._toScreenCode(cmd.charCodeAt(i));
+                    r.screenColours[idx] = 15; // light grey text
+                } else {
+                    r.screenChars[idx] = 160;
+                    r.screenColours[idx] = 6; // dark bg
+                }
                 x++;
             }
         }
-        
-        // Draw highlight background for the selected command
-        // (We'll handle this in the render pass by using reverse video)
     }
 }
 
