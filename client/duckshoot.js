@@ -75,9 +75,9 @@ class Duckshoot {
         const r = this.renderer;
         const row = this.menuRow;
         
-        // Set light blue row background for the duckshoot bar
+        // Set black row background for the duckshoot bar
         if (!r.rowBgColours) r.rowBgColours = {};
-        r.rowBgColours[row] = 14; // light blue
+        r.rowBgColours[row] = 0; // black
         
         // Clear row to spaces (light blue bg shows through)
         for (let x = 0; x < r.cols; x++) {
