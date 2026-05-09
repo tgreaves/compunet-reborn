@@ -160,13 +160,25 @@ class PETSCIIRenderer {
     /**
      * Convert ASCII character code to screen code.
      * Used by print() and printAt() which receive ASCII text from JavaScript strings.
+     * Respects the current charset setting.
      */
     _asciiToScreenCode(ascii) {
         if (ascii >= 32 && ascii <= 63) return ascii;          // space, digits, punctuation (same)
         if (ascii === 64) return 0;                            // @
-        if (ascii >= 65 && ascii <= 90) return ascii - 64;     // A-Z -> screen 1-26
         if (ascii >= 91 && ascii <= 95) return ascii - 64;     // [ \ ] ^ _ -> 27-31
-        if (ascii >= 97 && ascii <= 122) return ascii - 96;    // a-z -> screen 1-26 (same as uppercase in charset 1)
+        
+        if (this.currentCharset === 1) {
+            // Charset 2: lowercase/uppercase
+            // Screen codes 1-26 = lowercase, 64-89 = uppercase
+            if (ascii >= 65 && ascii <= 90) return ascii - 1;   // A-Z -> screen 64-89 (uppercase)
+            if (ascii >= 97 && ascii <= 122) return ascii - 96; // a-z -> screen 1-26 (lowercase)
+        } else {
+            // Charset 1: uppercase/graphics
+            // Screen codes 1-26 = uppercase A-Z
+            if (ascii >= 65 && ascii <= 90) return ascii - 64;  // A-Z -> screen 1-26
+            if (ascii >= 97 && ascii <= 122) return ascii - 96; // a-z -> screen 1-26 (same as uppercase)
+        }
+        
         if (ascii >= 96 && ascii <= 127) return ascii - 32;    // other -> 64-95
         return 32;
     }
