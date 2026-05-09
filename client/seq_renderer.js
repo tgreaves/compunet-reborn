@@ -124,8 +124,23 @@ class SEQRenderer {
             
             // Control codes
             if (byte === 0x06) {
-                // Space shorthand
-                byte = 0x20;
+                // $06 followed by a count byte = repeat space N times
+                // If next byte is a printable char or another control, treat as single space
+                if (pos < data.length) {
+                    const nextByte = data[pos];
+                    if (nextByte > 0 && nextByte < 0x20) {
+                        // Next byte is a count (1-31)
+                        pos++;
+                        rleChar = 0x20; // space
+                        rleCount = nextByte - 1;
+                        byte = 0x20;
+                    } else {
+                        // Just a single space
+                        byte = 0x20;
+                    }
+                } else {
+                    byte = 0x20;
+                }
             } else if (byte === 0x07) {
                 // RLE: next byte = char, byte after = count
                 if (pos + 1 < data.length) {
