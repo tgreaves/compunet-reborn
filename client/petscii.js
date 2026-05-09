@@ -62,13 +62,23 @@ class PETSCIIRenderer {
     
     _generateCharROM() {
         // Use the real C64 character ROM if available
+        if (typeof C64_CHARROM_SET1 !== 'undefined') {
+            this.charROMs = [C64_CHARROM_SET1, C64_CHARROM_SET2];
+            this.charROM = this.charROMs[0]; // Start with uppercase/graphics
+            this.currentCharset = 0;
+            return;
+        }
         if (typeof C64_CHARROM !== 'undefined') {
+            this.charROMs = [C64_CHARROM, C64_CHARROM];
             this.charROM = C64_CHARROM;
+            this.currentCharset = 0;
             return;
         }
         
         // Fallback: generate approximation from canvas text
         this.charROM = new Uint8Array(256 * 8);
+        this.charROMs = [this.charROM, this.charROM];
+        this.currentCharset = 0;
         const tmpCanvas = document.createElement('canvas');
         tmpCanvas.width = 8;
         tmpCanvas.height = 8;
@@ -94,6 +104,16 @@ class PETSCIIRenderer {
         }
     }
     
+    /**
+     * Switch character set.
+     * 0 = uppercase/graphics (set 1)
+     * 1 = lowercase/uppercase (set 2)
+     */
+    setCharset(set) {
+        this.currentCharset = set;
+        this.charROM = this.charROMs[set];
+    }
+    
     clear() {
         this.screenChars.fill(32); // space
         this.screenColours.fill(this.textColour);
@@ -113,17 +133,41 @@ class PETSCIIRenderer {
     /**
      * Convert ASCII/PETSCII character code to C64 screen code.
      * The C64 character ROM is indexed by screen codes, not PETSCII.
+     * 
+     * In charset 1 (uppercase/graphics):
+     *   ASCII 32-63 -> screen code 32-63 (space, digits, punctuation)
+     *   ASCII 64 (@) -> screen code 0
+     *   ASCII 65-90 (A-Z) -> screen code 1-26
+     *   ASCII 91-95 -> screen code 27-31
+     *   ASCII 96-127 -> screen code 64-95 (graphics)
+     *
+     * In charset 2 (lowercase/uppercase):
+     *   ASCII 32-63 -> screen code 32-63
+     *   ASCII 64 (@) -> screen code 0
+     *   ASCII 65-90 (A-Z) -> screen code 64-89 (uppercase in set 2)
+     *   ASCII 91-95 -> screen code 27-31
+     *   ASCII 97-122 (a-z) -> screen code 1-26 (lowercase in set 2)
      */
-    _toScreenCode(petscii) {
-        if (petscii >= 0 && petscii <= 31) return petscii + 128;  // control chars -> reversed
-        if (petscii >= 32 && petscii <= 63) return petscii;        // space, digits, punctuation
-        if (petscii >= 64 && petscii <= 95) return petscii - 64;   // @, A-Z, [, \, ], ^, _
-        if (petscii >= 96 && petscii <= 127) return petscii - 32;  // graphics chars
-        if (petscii >= 128 && petscii <= 159) return petscii + 64;  // reversed control
-        if (petscii >= 160 && petscii <= 191) return petscii - 128; // reversed space/digits
-        if (petscii >= 192 && petscii <= 223) return petscii - 128; // reversed graphics
-        if (petscii >= 224 && petscii <= 254) return petscii - 128; // more reversed
-        return petscii & 0x7F;
+    _toScreenCode(ascii) {
+        if (ascii >= 32 && ascii <= 63) return ascii;        // space, digits, punctuation
+        
+        if (this.currentCharset === 1) {
+            // Charset 2: lowercase/uppercase mode
+            if (ascii >= 65 && ascii <= 90) return ascii - 1;    // A-Z -> screen 64-89
+            if (ascii >= 97 && ascii <= 122) return ascii - 96;  // a-z -> screen 1-26
+        } else {
+            // Charset 1: uppercase/graphics mode
+            if (ascii >= 65 && ascii <= 90) return ascii - 64;   // A-Z -> screen 1-26
+            if (ascii >= 97 && ascii <= 122) return ascii - 96;  // a-z -> same as A-Z (screen 1-26)
+        }
+        
+        if (ascii === 64) return 0;                          // @
+        if (ascii >= 91 && ascii <= 95) return ascii - 64;   // [ \ ] ^ _ -> 27-31
+        if (ascii >= 96 && ascii <= 127) return ascii - 32;  // graphics range
+        if (ascii >= 160 && ascii <= 191) return ascii - 128; // shifted graphics
+        if (ascii >= 192 && ascii <= 255) return ascii - 128; // more shifted
+        if (ascii >= 0 && ascii <= 31) return ascii + 128;    // control -> reversed
+        return 32; // default to space
     }
     
     getChar(x, y) {
@@ -226,14 +270,15 @@ class PETSCIIRenderer {
         }
     }
     
-    // Fill a row with a colour (for the duckshoot bar)
+    // Fill a row with a solid colour bar
     fillRow(y, colour) {
         for (let x = 0; x < this.cols; x++) {
             const idx = y * this.cols + x;
+            // Use screen code 160 (reversed space = solid block) 
+            // Actually in screen codes, 32 is space and 160 is reversed space (solid)
+            // But we should use screen code 96 which is the full block in the graphics set
+            this.screenChars[idx] = 160; // reversed space = solid block
             this.screenColours[idx] = colour;
-            if (this.screenChars[idx] === 32) {
-                this.screenChars[idx] = 160; // full block for solid bar
-            }
         }
     }
     

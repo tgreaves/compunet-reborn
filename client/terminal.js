@@ -26,11 +26,11 @@ class CompunetTerminal {
     boot() {
         const r = this.renderer;
         
-        // Set Compunet colours (from ROM: background=1 white initially,
-        // but the terminal uses blue background with white text)
+        // Set Compunet colours
         r.bgColour = 6;       // Blue background
         r.borderColour = 14;  // Light blue border
         r.textColour = 1;     // White text
+        r.setCharset(1);      // Use lowercase/uppercase charset
         r.clear();
         
         // Display boot message (from ROM version string at $807A)
