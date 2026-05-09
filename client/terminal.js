@@ -478,4 +478,22 @@ class FrameEditor {
 // Start the terminal when the page loads
 window.addEventListener('DOMContentLoaded', () => {
     window.terminal = new CompunetTerminal();
+    
+    // SEQ file loader
+    document.getElementById('seq-file').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const data = new Uint8Array(reader.result);
+            const t = window.terminal;
+            const seq = new SEQRenderer(t.renderer);
+            seq.render(data, 23);
+            // Show the SHOW duckshoot after loading
+            t.state = 'editor';
+            t.duckshoot.setCommands(DUCKSHOOT_SHOW);
+            t.duckshoot.show();
+        };
+        reader.readAsArrayBuffer(file);
+    });
 });
