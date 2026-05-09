@@ -544,7 +544,126 @@ The protocol layer uses these routines to send structured data:
 This "send space, wait for space" handshake confirms the connection is
 bidirectional before proceeding with the login sequence.
 
-## Content Model
+## Application-Layer Protocol
+
+The terminal software (terminal_app) communicates with the server using a
+simple command/response protocol layered on top of the X.25 transport.
+
+### Packet Preparation
+
+All commands go through the same preparation routine at $A784:
+1. Store ASCII command letter at `$C100`
+2. Store parameters at `$C101+`
+3. Set Y = total packet length
+4. Call `$A784` which stores 'C' ($43) at `$8034` (marks as COM packet type)
+5. Call `$96D2` (PROTO_SEND_DATA) to transmit
+
+### Client Command Codes
+
+The client sends single ASCII letters as command identifiers:
+
+| Code | ASCII | Command | Parameters | Description |
+|------|-------|---------|------------|-------------|
+| $41  | 'A'   | ACCNT   | None (Y=1) | Request account information |
+| $42  | 'B'   | BUY     | None (Y=1) | Buy/download highlighted entry |
+| $43  | 'C'   | BACK    | None (Y=1) | Go to parent directory |
+| $44  | 'D'   | DIR     | Page data (Y=3) | Request directory listing |
+| $45  | 'E'   | EDITR   | None (Y=1) | Enter editor mode online |
+| $49  | 'I'   | ID      | User ID string | Check user ID |
+| $4D  | 'M'   | MAIL    | None (Y=1) | Access Courier mailbox |
+| $50  | 'P'   | SHOW    | Page info (Y=3) | Show/read text frames |
+| $55  | 'U'   | UPLD    | None (Y=1) | Start upload process |
+| $56  | 'V'   | VOTE    | Vote value (Y=4) | Vote 1-9 on content |
+
+### GOTO Command
+
+GOTO sends the page number as ASCII digits:
+```
+$C100: command letter (from context)
+$C103-$C107: page number (5 ASCII digits from input buffer at $0804)
+Y = $08 (8 bytes total)
+```
+
+### VOTE Command
+
+```
+$C100: (command context)
+$C103: vote value (ASCII digit '1'-'9')
+Y = $04
+```
+
+### Server Response Handling
+
+After sending a command, the client calls `$A4FE` (RECV_STATUS) which does:
+```
+JSR $96CC       ; RECV_BYTE - get first response byte
+CMP #$00        ; zero = no more data
+RTS             ; return with Z flag set if done
+```
+
+The server response byte at `$C019` determines the action:
+- `$4C` ('L') = Linking required (re-download terminal software)
+- `$41` ('A') = ACK / proceed with data transfer
+- Other = directory/frame data follows
+
+### Frame Data Reception
+
+When receiving page content (SHOW, DIR responses), the client:
+1. Calls `$96CC` (RECV_BYTE) in a loop
+2. Each byte is passed to `$A595` (character output/store routine)
+3. `$00` = end of data stream
+4. `$0D` = newline (carriage return)
+5. `$07` followed by 2 bytes = repeat character (RLE: char, count)
+6. All other bytes = literal character data (PETSCII)
+
+### Directory Data Format
+
+Directory entries received from the server contain:
+- Entry title (text)
+- Type letter (T/P/PP/L/S/D)
+- Size number
+- Price (if applicable)
+- Author name
+- Vote score
+- Sub-directory indicator (+)
+
+These are separated by `$0D` (CR) delimiters and `$00` terminates the listing.
+
+### BUY/Download Sequence
+
+1. Client sends 'B' ($42) command with Y=1
+2. Server responds with account/price info (received at $C100+, displayed)
+3. If item has a price, client displays "BUY FOR [price] - SURE?"
+4. On confirmation, server sends program data via MODEM_INIT_DOWNLOAD ($810F)
+5. Client displays "DOWNLOADING" during transfer
+6. On completion, prompts "SAVE FILENAME?"
+
+### SHOW Sequence
+
+1. Client sends 'P' ($50) with page info (Y=3)
+2. Server responds with frame data (received byte-by-byte via RECV_BYTE)
+3. Client renders each byte to screen via CHROUT
+4. `$00` marks end of frame
+5. If more pages: duckshoot shows MORE/FINISH/ALL options
+
+### Upload Sequence
+
+1. Client sends 'U' ($55) with Y=1
+2. Prompts for: title, type (T/P), price, lifetime
+3. Sends upload header via SEND_DATA
+4. For text: sends frame data page by page
+5. For programs: sends binary data from memory
+6. Server acknowledges with response byte
+
+### Connection State
+
+- `$C000` bit 7: online flag (set = connected to Compunet)
+- `$C016`: current command mode ('D'=directory, etc.)
+- `$C019`: last server response code
+- `$C021`: sub-command state
+- `$8033`: current duckshoot command index
+- `$8034`: protocol command type ('C' for COM)
+- `$8035`: server status flags (bit 7 = more data)
 
 ### Frames
 
