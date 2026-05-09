@@ -1,29 +1,34 @@
 """
 Compunet Server - Recreated from reverse-engineered protocol.
 
-Provides two interfaces:
-  - WebSocket (port 6502) for the web client
-  - TCP (port 6400) for real C64 clients via WiFi modem
+Both WebSocket and TCP clients speak the same binary protocol:
 
-Protocol:
-  Client sends COM packets: single ASCII letter + parameters
-  Server responds with frames (DAT) or status codes
+  Client -> Server: COM packets
+    Byte 0: Command letter (A, B, C, D, E, I, M, P, U, V)
+    Bytes 1+: Parameters (variable length)
 
-Application-layer commands:
-  'A' = ACCNT (account info)
-  'B' = BUY (download program/show paid text)
-  'C' = BACK (parent directory)
-  'D' = DIR (directory listing)
-  'E' = EDITR (enter editor online)
-  'I' = ID (check user ID)
-  'M' = MAIL (Courier mailbox)
-  'P' = SHOW (read text frames)
-  'U' = UPLD (upload content)
-  'V' = VOTE (vote on content)
+  Server -> Client: Response packets
+    Byte 0: Response type
+      $41 'A' = ACK / proceed (followed by data)
+      $4C 'L' = Linking required (followed by terminal software)
+      $44 'D' = Directory data follows
+      $46 'F' = Frame data follows
+      $45 'E' = Error (followed by message)
+    Byte 1+: Payload
+
+  Frame data format (same as SEQ files):
+    $00 = end of frame
+    $06 <N> = repeat space N times
+    $07 <char> <count> = RLE
+    $0D = carriage return
+    Standard PETSCII control codes for colours, reverse, charset
+
+Transport:
+  WebSocket (port 6502): binary frames containing raw protocol bytes
+  TCP (port 6400): raw protocol bytes over stream
 """
 
 import asyncio
-import json
 import os
 import glob
 import logging
@@ -43,43 +48,120 @@ WS_PORT = 6502
 TCP_PORT = 6400
 CONTENT_DIR = os.path.join(os.path.dirname(__file__), 'content')
 
+# Protocol constants
+RESP_ACK = 0x41       # 'A' - acknowledge/proceed
+RESP_LINKING = 0x4C   # 'L' - linking required
+RESP_DIR = 0x44       # 'D' - directory data
+RESP_FRAME = 0x46     # 'F' - frame data
+RESP_ERROR = 0x45     # 'E' - error
+
+CMD_ACCNT = 0x41      # 'A'
+CMD_BUY = 0x42        # 'B'
+CMD_BACK = 0x43       # 'C'
+CMD_DIR = 0x44        # 'D'
+CMD_EDITR = 0x45      # 'E'
+CMD_ID = 0x49         # 'I'
+CMD_MAIL = 0x4D       # 'M'
+CMD_SHOW = 0x50       # 'P'
+CMD_UPLD = 0x55       # 'U'
+CMD_VOTE = 0x56       # 'V'
+
+# PETSCII helpers
+PETSCII_RETURN = 0x0D
+PETSCII_RED = 0x1C
+PETSCII_BLUE = 0x1F
+PETSCII_WHITE = 0x05
+PETSCII_GREEN = 0x1E
+PETSCII_PURPLE = 0x9C
+PETSCII_LRED = 0x96
+PETSCII_CYAN = 0x9F
+PETSCII_YELLOW = 0x9E
+PETSCII_LBLUE = 0x9A
+PETSCII_LGREY = 0x9B
+PETSCII_DGREY = 0x97
+PETSCII_BLACK = 0x90
+PETSCII_RVS_ON = 0x12
+PETSCII_RVS_OFF = 0x92
+PETSCII_UPPER = 0x8E
+PETSCII_LOWER = 0x0E
+PETSCII_CLR = 0x93
+
+
+def ascii_to_petscii(text):
+    """Convert ASCII string to PETSCII bytes (uppercase)."""
+    result = bytearray()
+    for ch in text:
+        code = ord(ch)
+        if 65 <= code <= 90:      # A-Z -> PETSCII $C1-$DA
+            result.append(code + 0x80)
+        elif 97 <= code <= 122:   # a-z -> PETSCII $41-$5A
+            result.append(code - 32)
+        elif 32 <= code <= 63:    # space, digits, punctuation
+            result.append(code)
+        else:
+            result.append(code & 0x7F)
+    return bytes(result)
+
+
+def make_space_run(count):
+    """Encode a run of spaces using $06 <count>."""
+    if count <= 0:
+        return b''
+    if count == 1:
+        return b'\x20'
+    # $06 <count> for runs of 2-31
+    result = bytearray()
+    while count > 0:
+        run = min(count, 31)
+        if run == 1:
+            result.append(0x20)
+        else:
+            result.append(0x06)
+            result.append(run)
+        count -= run
+    return bytes(result)
+
 
 class CompunetPage:
-    """A single page/frame in the Compunet directory tree."""
+    """A page in the Compunet directory tree."""
     
-    def __init__(self, page_num, title, page_type='T', size=0, price=0, author='SYSTEM'):
+    def __init__(self, page_num, title, page_type='T', size=0, author='SYSTEM'):
         self.page_num = page_num
         self.title = title
-        self.page_type = page_type  # T=text, P=program, PP=protected, D=directory, L=link
+        self.page_type = page_type
         self.size = size
-        self.price = price
         self.author = author
         self.vote = 0
-        self.vote_count = 0
-        self.children = []  # sub-directory entries
-        self.frames = []    # list of frame data (bytes) for text pages
+        self.children = []
+        self.frames = []    # list of bytes objects (raw frame data)
         self.parent = None
     
     def has_subdir(self):
         return len(self.children) > 0
+    
+    def type_string(self):
+        """Generate the type suffix shown in directory listings."""
+        s = self.page_type
+        if self.size > 0:
+            s += str(self.size)
+        if self.has_subdir():
+            s += '+'
+        return s
 
 
 class CompunetDirectory:
-    """The Compunet content tree."""
+    """The content tree."""
     
     def __init__(self):
-        self.pages = {}  # page_num -> CompunetPage
+        self.pages = {}
         self.root = None
-        self._build_default_tree()
+        self._build_tree()
     
-    def _build_default_tree(self):
-        """Build a default directory structure."""
-        # Root directory
+    def _build_tree(self):
         root = CompunetPage(1, 'COMPUNET', 'D')
         self.root = root
         self.pages[1] = root
         
-        # Main directory entries (from the manual)
         entries = [
             (100, 'WELCOME', 'T', 8),
             (107, 'COMPUNET NEWS', 'T', 0),
@@ -100,213 +182,281 @@ class CompunetDirectory:
             root.children.append(page)
             self.pages[page_num] = page
         
-        # Load any SEQ files as content
-        self._load_seq_content()
+        self._load_content()
     
-    def _load_seq_content(self):
-        """Load SEQ files from the content directory as page frames."""
-        seq_dir = os.path.join(CONTENT_DIR, 'pages')
-        if not os.path.exists(seq_dir):
+    def _load_content(self):
+        """Load SEQ files from content/pages/ as servable frames."""
+        pages_dir = os.path.join(CONTENT_DIR, 'pages')
+        if not os.path.exists(pages_dir):
             return
         
-        for seq_file in sorted(glob.glob(os.path.join(seq_dir, '*.seq'))):
+        page_num = 10001
+        for seq_file in sorted(glob.glob(os.path.join(pages_dir, '*.seq'))):
             name = Path(seq_file).stem
             with open(seq_file, 'rb') as f:
                 frame_data = f.read()
             
-            # Find or create a page for this file
-            # Use hash of filename as page number (above 10000)
-            page_num = 10000 + (hash(name) % 90000)
-            if page_num in self.pages:
-                page_num += 1
-            
-            page = CompunetPage(page_num, name.upper(), 'T', 1)
+            page = CompunetPage(page_num, name.upper()[:20], 'T', 1)
             page.frames = [frame_data]
             page.parent = self.root
             self.root.children.append(page)
             self.pages[page_num] = page
-    
-    def get_page(self, page_num):
-        return self.pages.get(page_num)
-    
-    def get_directory_listing(self, page):
-        """Generate directory listing data for a page."""
-        if not page.children:
-            return None
-        
-        entries = []
-        for child in page.children:
-            type_str = child.page_type
-            if child.size > 0:
-                type_str += str(child.size)
-            if child.has_subdir():
-                type_str += '+'
-            entries.append({
-                'page_num': child.page_num,
-                'title': child.title,
-                'type': type_str,
-                'author': child.author,
-                'vote': child.vote,
-            })
-        return entries
+            page_num += 1
 
 
 class CompunetSession:
-    """A single client session."""
+    """A client session - same logic for WebSocket and TCP clients."""
     
     def __init__(self, directory):
         self.directory = directory
         self.user_id = None
         self.authenticated = False
         self.current_page = directory.root
+        self.selected_entry = 0
         self.credit = 0.0
     
-    def login(self, user_id, password):
-        """Authenticate a user. For now, accept anything."""
+    def handle_login(self, user_id, password):
+        """Process login. Returns response bytes."""
         self.user_id = user_id
         self.authenticated = True
-        log.info('User logged in: %s', user_id)
-        return True
+        log.info('Login: %s', user_id)
+        # Respond with ACK + initial directory
+        return self._make_dir_response()
     
-    def handle_command(self, cmd_byte, params):
+    def handle_command(self, data):
         """
-        Handle an application-layer command.
-        Returns a response dict with type and data.
+        Process a command packet from the client.
+        data[0] = command byte
+        data[1:] = parameters
+        Returns response bytes to send back.
         """
-        cmd = chr(cmd_byte) if isinstance(cmd_byte, int) else cmd_byte
+        if len(data) == 0:
+            return self._make_error(b'NO COMMAND')
         
-        log.info('Command: %s params=%s', cmd, params.hex() if params else '')
+        cmd = data[0]
+        params = data[1:] if len(data) > 1 else b''
         
-        if cmd == 'D':
+        log.info('Command: %s (%02X) params=%s', chr(cmd), cmd, params.hex() if params else '')
+        
+        if cmd == CMD_DIR:
             return self._cmd_dir(params)
-        elif cmd == 'P':
+        elif cmd == CMD_SHOW:
             return self._cmd_show(params)
-        elif cmd == 'A':
+        elif cmd == CMD_ACCNT:
             return self._cmd_accnt()
-        elif cmd == 'V':
-            return self._cmd_vote(params)
-        elif cmd == 'C':
+        elif cmd == CMD_BACK:
             return self._cmd_back()
-        elif cmd == 'M':
+        elif cmd == CMD_VOTE:
+            return self._cmd_vote(params)
+        elif cmd == CMD_MAIL:
             return self._cmd_mail()
+        elif cmd == CMD_BUY:
+            return self._cmd_buy(params)
         else:
-            log.warning('Unknown command: %s', cmd)
-            return {'type': 'error', 'message': 'UNKNOWN COMMAND'}
+            return self._make_error(ascii_to_petscii('UNKNOWN COMMAND'))
+    
+    def handle_goto(self, page_num):
+        """Handle GOTO to a specific page number."""
+        page = self.directory.pages.get(page_num)
+        if page is None:
+            return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
+        
+        self.current_page = page
+        if page.has_subdir():
+            return self._make_dir_response()
+        elif page.frames:
+            return self._make_frame_response(page.frames[0])
+        else:
+            return self._make_error(ascii_to_petscii('NO CONTENT'))
+    
+    def handle_select(self, index):
+        """Handle selection of a directory entry by index."""
+        if 0 <= index < len(self.current_page.children):
+            self.selected_entry = index
+        return b''  # No response needed for selection change
     
     def _cmd_dir(self, params):
-        """DIR - return directory listing."""
-        listing = self.directory.get_directory_listing(self.current_page)
-        if listing is None:
-            return {'type': 'error', 'message': 'NO DIRECTORY'}
-        return {'type': 'directory', 'entries': listing, 'page': self.current_page.page_num}
+        """DIR command - enter sub-directory of selected entry."""
+        if self.selected_entry < len(self.current_page.children):
+            child = self.current_page.children[self.selected_entry]
+            if child.has_subdir():
+                self.current_page = child
+                self.selected_entry = 0
+        return self._make_dir_response()
     
     def _cmd_show(self, params):
-        """SHOW - return page frames."""
-        # For now, show the first frame of the current highlighted entry
-        # In a full implementation, params would contain the page number
-        return {'type': 'frame', 'data': None, 'message': 'NO CONTENT'}
+        """SHOW command - display frames of selected entry."""
+        if self.selected_entry < len(self.current_page.children):
+            child = self.current_page.children[self.selected_entry]
+            if child.frames:
+                return self._make_frame_response(child.frames[0])
+        return self._make_error(ascii_to_petscii('NO TEXT'))
     
     def _cmd_accnt(self):
-        """ACCNT - return account info."""
-        return {
-            'type': 'account',
-            'user_id': self.user_id,
-            'credit': self.credit,
-        }
-    
-    def _cmd_vote(self, params):
-        """VOTE - register a vote."""
-        return {'type': 'ok', 'message': 'VOTE REGISTERED'}
+        """ACCNT command - return account info frame."""
+        # Build a simple account info frame
+        frame = bytearray()
+        frame.append(0x00)  # frame start
+        frame.append(0xF6)  # border = blue
+        frame.append(0xF1)  # bg = white
+        frame.append(PETSCII_UPPER)
+        frame.append(PETSCII_RETURN)
+        frame.append(PETSCII_RETURN)
+        frame.extend(b'\x06\x03')  # 3 spaces
+        frame.append(PETSCII_RED)
+        frame.extend(ascii_to_petscii('ACCOUNT INFORMATION'))
+        frame.append(PETSCII_RETURN)
+        frame.append(PETSCII_RETURN)
+        frame.extend(b'\x06\x03')
+        frame.append(PETSCII_BLUE)
+        frame.extend(ascii_to_petscii('USER ID : '))
+        frame.extend(ascii_to_petscii(self.user_id or 'GUEST'))
+        frame.append(PETSCII_RETURN)
+        frame.extend(b'\x06\x03')
+        frame.extend(ascii_to_petscii('CREDIT  : '))
+        frame.extend(ascii_to_petscii('{:.2f}'.format(self.credit)))
+        frame.append(PETSCII_RETURN)
+        frame.append(0x00)  # end of frame
+        
+        return bytes([RESP_FRAME]) + bytes(frame)
     
     def _cmd_back(self):
-        """BACK - go to parent directory."""
+        """BACK command - go to parent directory."""
         if self.current_page.parent:
             self.current_page = self.current_page.parent
-        return self._cmd_dir(b'')
+            self.selected_entry = 0
+        return self._make_dir_response()
+    
+    def _cmd_vote(self, params):
+        """VOTE command."""
+        return bytes([RESP_ACK])
     
     def _cmd_mail(self):
-        """MAIL - access Courier."""
-        return {'type': 'mail', 'messages': [], 'message': 'NO MAIL'}
+        """MAIL command - no mail for now."""
+        frame = bytearray()
+        frame.append(0x00)
+        frame.append(0xF6)  # border blue
+        frame.append(0xF1)  # bg white
+        frame.append(PETSCII_UPPER)
+        frame.append(PETSCII_RETURN)
+        frame.append(PETSCII_RETURN)
+        frame.extend(b'\x06\x03')
+        frame.append(PETSCII_RED)
+        frame.extend(ascii_to_petscii('COURIER'))
+        frame.append(PETSCII_RETURN)
+        frame.append(PETSCII_RETURN)
+        frame.extend(b'\x06\x03')
+        frame.append(PETSCII_BLUE)
+        frame.extend(ascii_to_petscii('NO MAIL WAITING'))
+        frame.append(PETSCII_RETURN)
+        frame.append(0x00)
+        
+        return bytes([RESP_FRAME]) + bytes(frame)
+    
+    def _cmd_buy(self, params):
+        """BUY command."""
+        return self._make_error(ascii_to_petscii('NOTHING TO BUY'))
+    
+    def _make_dir_response(self):
+        """Build a directory listing response in protocol format."""
+        page = self.current_page
+        
+        # Directory response: RESP_DIR + PETSCII-encoded listing
+        # Each entry: page_num(5 ascii digits) + space + title + space + type + $0D
+        # Terminated by $00
+        data = bytearray()
+        data.append(RESP_DIR)
+        
+        # Header: page number and routing
+        data.append(PETSCII_RETURN)
+        data.append(PETSCII_RED)
+        data.extend(b'\x06\x02')  # 2 spaces
+        data.extend(ascii_to_petscii(page.title))
+        data.append(PETSCII_RETURN)
+        data.append(PETSCII_RETURN)
+        
+        # Entries
+        for child in page.children:
+            data.append(PETSCII_BLUE)
+            # Page number (right-aligned in 5 chars)
+            num_str = str(child.page_num).rjust(5)
+            data.extend(ascii_to_petscii(num_str))
+            data.append(0x20)  # space
+            
+            # Title
+            data.append(PETSCII_WHITE)
+            title = child.title[:20].ljust(20)
+            data.extend(ascii_to_petscii(title))
+            
+            # Type
+            data.append(PETSCII_GREEN)
+            data.extend(ascii_to_petscii(child.type_string()))
+            
+            data.append(PETSCII_RETURN)
+        
+        data.append(0x00)  # end of listing
+        return bytes(data)
+    
+    def _make_frame_response(self, frame_data):
+        """Wrap frame data in a response packet."""
+        return bytes([RESP_FRAME]) + frame_data
+    
+    def _make_error(self, message_petscii):
+        """Build an error response."""
+        return bytes([RESP_ERROR]) + message_petscii + b'\x00'
 
 
 # ============================================================
-# WebSocket interface (for web client)
+# WebSocket interface - binary protocol over WebSocket frames
 # ============================================================
 
 async def ws_handler(websocket):
-    """Handle a WebSocket connection from the web client."""
+    """Handle a WebSocket connection. Same protocol as TCP but over WebSocket binary frames."""
     directory = CompunetDirectory()
     session = CompunetSession(directory)
     
     log.info('WebSocket client connected: %s', websocket.remote_address)
     
     try:
-        # Send welcome/login prompt
-        await websocket.send(json.dumps({
-            'type': 'login_prompt',
-        }))
+        # Wait for login
+        # Client sends: user_id + $00 + password + $00
+        login_data = await websocket.recv()
+        if isinstance(login_data, str):
+            login_data = login_data.encode('latin-1')
         
+        parts = login_data.split(b'\x00')
+        user_id = parts[0].decode('latin-1') if len(parts) > 0 else 'GUEST'
+        password = parts[1].decode('latin-1') if len(parts) > 1 else ''
+        
+        # Authenticate and send initial response
+        response = session.handle_login(user_id, password)
+        await websocket.send(response)
+        
+        # Command loop
         async for message in websocket:
-            try:
-                msg = json.loads(message)
-            except json.JSONDecodeError:
+            if isinstance(message, str):
+                message = message.encode('latin-1')
+            
+            if len(message) == 0:
                 continue
             
-            msg_type = msg.get('type', '')
+            # Check for GOTO (special: starts with 'G' + page number as ASCII)
+            if message[0] == ord('G') and len(message) > 1:
+                try:
+                    page_num = int(message[1:].decode('latin-1'))
+                    response = session.handle_goto(page_num)
+                except ValueError:
+                    response = session._make_error(ascii_to_petscii('INVALID PAGE'))
+            # Check for SELECT (highlight change: 'S' + index byte)
+            elif message[0] == ord('S') and len(message) > 1:
+                session.handle_select(message[1])
+                continue  # no response
+            else:
+                # Standard command
+                response = session.handle_command(message)
             
-            if msg_type == 'login':
-                user_id = msg.get('user_id', 'GUEST')
-                password = msg.get('password', '')
-                if session.login(user_id, password):
-                    # Send initial directory
-                    listing = directory.get_directory_listing(directory.root)
-                    await websocket.send(json.dumps({
-                        'type': 'login_ok',
-                        'user_id': user_id,
-                        'directory': listing,
-                    }))
-                else:
-                    await websocket.send(json.dumps({
-                        'type': 'login_fail',
-                        'message': 'INVALID ID OR PASSWORD',
-                    }))
-            
-            elif msg_type == 'command':
-                cmd = msg.get('cmd', '')
-                params = bytes.fromhex(msg.get('params', ''))
-                response = session.handle_command(cmd, params)
-                await websocket.send(json.dumps(response))
-            
-            elif msg_type == 'goto':
-                page_num = msg.get('page', 0)
-                page = directory.get_page(page_num)
-                if page:
-                    session.current_page = page
-                    if page.frames:
-                        # Send frame data as base64
-                        import base64
-                        await websocket.send(json.dumps({
-                            'type': 'frame',
-                            'data': base64.b64encode(page.frames[0]).decode('ascii'),
-                            'title': page.title,
-                        }))
-                    elif page.has_subdir():
-                        listing = directory.get_directory_listing(page)
-                        await websocket.send(json.dumps({
-                            'type': 'directory',
-                            'entries': listing,
-                            'page': page.page_num,
-                        }))
-                    else:
-                        await websocket.send(json.dumps({
-                            'type': 'error',
-                            'message': 'NO CONTENT',
-                        }))
-                else:
-                    await websocket.send(json.dumps({
-                        'type': 'error',
-                        'message': 'PAGE NOT FOUND',
-                    }))
+            if response:
+                await websocket.send(response)
     
     except websockets.exceptions.ConnectionClosed:
         pass
@@ -315,25 +465,56 @@ async def ws_handler(websocket):
 
 
 # ============================================================
-# TCP interface (for real C64 clients)
+# TCP interface - raw protocol for C64 clients
 # ============================================================
 
 async def tcp_handler(reader, writer):
-    """Handle a TCP connection from a real C64 client."""
+    """Handle a TCP connection from a real C64 via WiFi modem."""
     addr = writer.get_extra_info('peername')
     log.info('TCP client connected: %s', addr)
     
-    # TODO: Implement the raw Compunet protocol
-    # This would handle:
-    # 1. Login sequence (receive user ID + password)
-    # 2. Send linking payload (cnet.prg binary)
-    # 3. Enter command/response loop using the X.25 packet protocol
+    directory = CompunetDirectory()
+    session = CompunetSession(directory)
     
-    writer.write(b'COMPUNET SERVER - NOT YET IMPLEMENTED\r\n')
-    await writer.drain()
-    writer.close()
-    await writer.wait_closed()
-    log.info('TCP client disconnected: %s', addr)
+    # TODO: Implement full X.25 packet framing ($01 header $02)
+    # For now, use a simplified framing: length byte + data
+    
+    try:
+        # Send login prompt (simplified - real protocol would use packet framing)
+        # For now just close - full implementation needed
+        writer.write(b'\x00')  # placeholder
+        await writer.drain()
+        
+        # Read login
+        data = await reader.read(256)
+        if not data:
+            return
+        
+        parts = data.split(b'\x00')
+        user_id = parts[0].decode('latin-1', errors='replace') if parts else 'GUEST'
+        password = parts[1].decode('latin-1', errors='replace') if len(parts) > 1 else ''
+        
+        response = session.handle_login(user_id, password)
+        writer.write(response)
+        await writer.drain()
+        
+        # Command loop
+        while True:
+            data = await reader.read(256)
+            if not data:
+                break
+            
+            response = session.handle_command(data)
+            if response:
+                writer.write(response)
+                await writer.drain()
+    
+    except (ConnectionResetError, BrokenPipeError):
+        pass
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        log.info('TCP client disconnected: %s', addr)
 
 
 # ============================================================
@@ -341,22 +522,16 @@ async def tcp_handler(reader, writer):
 # ============================================================
 
 async def main():
-    # Create content directory if it doesn't exist
     os.makedirs(os.path.join(CONTENT_DIR, 'pages'), exist_ok=True)
     
-    # Start WebSocket server
     ws_server = await websockets.serve(ws_handler, '0.0.0.0', WS_PORT)
-    log.info('WebSocket server listening on port %d', WS_PORT)
+    log.info('WebSocket server on port %d', WS_PORT)
     
-    # Start TCP server
     tcp_server = await asyncio.start_server(tcp_handler, '0.0.0.0', TCP_PORT)
-    log.info('TCP server listening on port %d', TCP_PORT)
+    log.info('TCP server on port %d', TCP_PORT)
     
     log.info('Compunet server ready.')
-    log.info('  Web client: ws://localhost:%d', WS_PORT)
-    log.info('  C64 client: tcp://localhost:%d', TCP_PORT)
     
-    # Run forever
     async with ws_server, tcp_server:
         await asyncio.gather(
             ws_server.serve_forever(),

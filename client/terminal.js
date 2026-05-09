@@ -94,8 +94,7 @@ class CompunetTerminal {
                 
             case 'CONNECT':
             case 'C':
-                r.print('?NOT CONNECTED - NO SERVER\n', 2);
-                r.print('\nREADY.\n', 5);
+                this._connect();
                 break;
                 
             case 'HELP':
@@ -142,6 +141,88 @@ class CompunetTerminal {
             requestAnimationFrame(loop);
         };
         requestAnimationFrame(loop);
+    }
+    
+    _connect() {
+        const r = this.renderer;
+        r.print('\nNUMBER? ', 1);
+        // For web client, we skip the phone number and connect directly
+        r.print('LOCALHOST\n', 14);
+        r.print('\nCONNECTING...\n', 1);
+        
+        this.protocol = new CompunetProtocol();
+        
+        this.protocol.onConnect = () => {
+            r.print('CONNECTED\n\n', 5);
+            r.print('ENTER USER ID: ', 1);
+            // For now, auto-login
+            r.print('GUEST\n', 14);
+            r.print('PASSWORD: ', 1);
+            r.print('****\n\n', 14);
+            r.print('LINKING...', 1);
+            
+            // Send login
+            this.protocol.login('GUEST', 'GUEST');
+        };
+        
+        this.protocol.onDirectory = (data) => {
+            // Received directory listing - render it as a frame
+            r.print('DONE\n', 5);
+            this.state = 'online';
+            this._renderDirectoryData(data);
+        };
+        
+        this.protocol.onFrame = (data) => {
+            // Received frame data - render using SEQ renderer
+            const seq = new SEQRenderer(r);
+            seq.render(data, 23);
+            this.duckshoot.setCommands(DUCKSHOOT_SHOW);
+            this.duckshoot.show();
+        };
+        
+        this.protocol.onError = (data) => {
+            // Display error message
+            let msg = '';
+            for (let i = 0; i < data.length && data[i] !== 0; i++) {
+                const b = data[i];
+                if (b >= 0xC1 && b <= 0xDA) msg += String.fromCharCode(b - 0x80);
+                else if (b >= 0x41 && b <= 0x5A) msg += String.fromCharCode(b);
+                else if (b >= 0x20 && b <= 0x3F) msg += String.fromCharCode(b);
+                else msg += '?';
+            }
+            r.printAt(1, 22, msg, 2);
+        };
+        
+        this.protocol.onDisconnect = () => {
+            r.print('\nDISCONNECTED\n', 2);
+            r.print('\nREADY.\n', 5);
+            this.state = 'ready';
+            this.duckshoot.hide();
+        };
+        
+        // Connect to server
+        this.protocol.connect('ws://localhost:6502');
+    }
+    
+    _renderDirectoryData(data) {
+        const r = this.renderer;
+        r.clear();
+        r.bgColour = 6;  // blue
+        r.borderColour = 14;
+        
+        // Render the directory data as PETSCII (it's already in PETSCII format)
+        const seq = new SEQRenderer(r);
+        // Wrap in a minimal frame header for the renderer
+        const frame = new Uint8Array(3 + data.length);
+        frame[0] = 0x00;  // frame start
+        frame[1] = 0xFE;  // border = light blue
+        frame[2] = 0xF6;  // bg = blue
+        frame.set(data, 3);
+        seq.render(frame, 23);
+        
+        // Show directory duckshoot
+        this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
+        this.duckshoot.show();
     }
 }
 
