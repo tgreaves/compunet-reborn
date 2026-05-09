@@ -1,0 +1,3771 @@
+$c140 Address pair pointer #1
+$c141 Address pair pointer #2
+
+$c154 stack pointer
+$c15d
+$c15f
+$c160
+
+$C228 list of values
+$C22C list of values
+$C209 index for $C228 and $C22C
+----------------------------------------------------------
+ACK	20
+DIR	21
+DAT	22
+OK	23
+ERR	24
+FTL	25
+COM	26
+----------------------------------------------------------
+.C:8000  60          RTS
+.C:8001  81 5E       STA ($5E,X)
+.C:8003  FE C3 C2    INC $C2C3,X
+.C:8006  CD 38 30    CMP $3038
+.C:8009  7C 80 A4    NOOP $A480,X
+.C:800c  80 00       NOOP #$00
+.C:800e  00          BRK
+.C:800f  00          BRK
+.C:8010  00          BRK
+.C:8011  80 04       NOOP #$04
+.C:8013  01 06       ORA ($06,X)
+.C:8015  00          BRK
+.C:8016  E0 04       CPX #$04
+.C:8018  E0 00       CPX #$00
+.C:801a  E0 40       CPX #$40
+.C:801c  30 3A       BMI $8058
+.C:801e  00          BRK
+.C:801f  00          BRK
+.C:8020  00          BRK
+.C:8021  00          BRK
+.C:8022  00          BRK
+.C:8023  00          BRK
+.C:8024  00          BRK
+.C:8025  00          BRK
+.C:8026  00          BRK
+.C:8027  00          BRK
+.C:8028  00          BRK
+.C:8029  00          BRK
+.C:802a  00          BRK
+.C:802b  00          BRK
+.C:802c  00          BRK
+.C:802d  00          BRK
+.C:802e  00          BRK
+.C:802f  00          BRK
+.C:8030  00          BRK
+.C:8031  00          BRK
+
+>C:8032  53 0d 43 00  02 a0 00 09  08 14 08 11  07 36 34 31   S.C..........641
+>C:8042  32 03 14 3e  1a 00 03 24  01 ff ff 2a  43 4f 4e 1d   2..>...$...*CON.
+>C:8052  43 20 43 4e  45 54 0d 33  32 32 35 30  30 2f 31 30   C CNET.322500/10
+>C:8062  30 0d 41 44  50 0d 4e 4f  0d 52 55 4e  0d 00 00      0.ADP.NO.RUN...
+
+.C:8071  00          BRK
+.C:8072  00          BRK
+.C:8073  00          BRK
+.C:8074  00          BRK
+.C:8075  00          BRK
+.C:8076  00          BRK
+.C:8077  00          BRK
+.C:8078  00          BRK
+.C:8079  00          BRK
+
+>C:807a  0d 20 43 4f  4d 50 55 4e  45 54 20 54  45 52 4d 49   . COMPUNET TERMI
+>C:808a  4e 41 4c 20  31 2e 32 32  0d 00 20 53  45 50 54 45   NAL 1.22.. SEPTE
+>C:809a  4d 42 45 52  20 31 39 38  34 20 41 52  49 41 44 4e   MBER 1984 ARIADN
+>C:80aa  45 20 53 4f  46 54 57 41  52 45 20 4c  54 44 2e 0d   E SOFTWARE LTD..
+
+.C:80bb  00          BRK
+.C:80bc  00          BRK
+.C:80bd  00          BRK
+.C:80be  00          BRK
+.C:80bf  00          BRK
+.C:80c0  00          BRK
+.C:80c1  00          BRK
+.C:80c2  00          BRK
+.C:80c3  00          BRK
+.C:80c4  00          BRK
+.C:80c5  00          BRK
+.C:80c6  00          BRK
+.C:80c7  00          BRK
+.C:80c8  00          BRK
+.C:80c9  00          BRK
+.C:80ca  00          BRK
+.C:80cb  00          BRK
+.C:80cc  00          BRK
+.C:80cd  00          BRK
+.C:80ce  00          BRK
+.C:80cf  00          BRK
+.C:80d0  00          BRK
+.C:80d1  00          BRK
+.C:80d2  00          BRK
+.C:80d3  00          BRK
+.C:80d4  00          BRK
+.C:80d5  00          BRK
+.C:80d6  00          BRK
+.C:80d7  00          BRK
+.C:80d8  00          BRK
+.C:80d9  00          BRK
+.C:80da  00          BRK
+.C:80db  00          BRK
+.C:80dc  00          BRK
+.C:80dd  00          BRK
+.C:80de  00          BRK
+.C:80df  00          BRK
+.C:80e0  00          BRK
+.C:80e1  00          BRK
+.C:80e2  00          BRK
+.C:80e3  00          BRK
+.C:80e4  00          BRK
+.C:80e5  00          BRK
+.C:80e6  00          BRK
+.C:80e7  00          BRK
+.C:80e8  00          BRK
+.C:80e9  00          BRK
+.C:80ea  00          BRK
+.C:80eb  00          BRK
+.C:80ec  00          BRK
+.C:80ed  00          BRK
+.C:80ee  00          BRK
+.C:80ef  00          BRK
+.C:80f0  00          BRK
+.C:80f1  00          BRK
+.C:80f2  00          BRK
+.C:80f3  00          BRK
+.C:80f4  00          BRK
+.C:80f5  00          BRK
+.C:80f6  00          BRK
+.C:80f7  00          BRK
+.C:80f8  00          BRK
+.C:80f9  00          BRK
+.C:80fa  00          BRK
+.C:80fb  00          BRK
+.C:80fc  00          BRK
+.C:80fd  00          BRK
+.C:80fe  00          BRK
+.C:80ff  00          BRK
+.C:8100  4C A0 81    JMP $81A0	;36144 -- Compunet Terminal 1.22 READY.
+.C:8103  4C 55 83    JMP $8355	;33621 -- Editor
+.C:8106  4C 30 8D    JMP $8D30	;36144 -- Modem Fault
+.C:8109  4C C1 94    JMP $94C1	;38081 -- Disconnected - bad line?
+.C:810c  4C D5 94    JMP $94D5	;38101 -- 
+.C:810f  4C EF 8E    JMP $8EEF	;36591 --
+.C:8112  4C 47 8F    JMP $8F47	;36679 --
+.C:8115  4C C9 93    JMP $93C9	;37833 --
+.C:8118  4C D0 93    JMP $93D0	;37840 -- Duckshoot (help help help..)
+.C:811b  4C C8 90    JMP $90C8	;37064 -- 
+.C:811e  4C DF 90    JMP $90DF	;37087 --
+.C:8121  4C D0 89    JMP $89D0	;35280 --
+.C:8124  4C E2 89    JMP $89E2	;35072 --
+.C:8127  4C BE 8A    JMP $8ABE	;35518 --
+.C:812a  4C EB 8A    JMP $8AEB	;35563 --
+.C:812d  4C E4 85    JMP $85E4	;34276 --
+.C:8130  4C 9B 84    JMP $849B	;33947 --
+.C:8133  4C 46 84    JMP $8446	;33862 --
+.C:8136  4C 77 84    JMP $8477	;33911 --
+.C:8139  4C 00 85    JMP $8500	;34048 --
+.C:813c  4C 9E 86    JMP $869E	;34462 --
+.C:813f  4C B7 90    JMP $90B7	;37047 -- Prints "/7" ??? Called a lot
+.C:8142  4C 93 90    JMP $9093	;37011 -- Duckshoot item?
+.C:8145  4C 7B 90    JMP $907B	;36987 -- White block bottom of screen
+.C:8148  4C FB 8F    JMP $8FFB	;36859 -- Press Any Key
+.C:814b  4C 02 90    JMP $9002	;36866 --
+.C:814e  4C 1E 90    JMP $901E	;36894 -- Input
+.C:8151  4C 8B 93    JMP $938B	;37771 -- White bar
+.C:8154  4C A8 94    JMP $94A8	;38056 -- 
+.C:8157  4C 71 91    JMP $9171	;37233 -- CNSAVE??
+.C:815a  4C B2 91    JMP $91B2	;37298 --
+.C:815d  4C CD 92    JMP $92CD	;37581 -- Disk Error (CNLOAD?)
+
+****  BEGIN *******************************
+.C:8160  20 84 FF    JSR $FF84	; RAM TEST
+.C:8163  20 87 FF    JSR $FF87	; Restore I/O vectors
+.C:8166  20 8A FF    JSR $FF8A	; Read/set vectored I/O
+.C:8169  20 81 FF    JSR $FF81	; Init SID/CIA/IRQ
+
+--- Starting here is Cnet boot screen (from $8160 is init for warm/cold start only)
+.C:816c  58          CLI
+.C:816d  A9 01       LDA #$01
+.C:816f  8D 21 D0    STA $D021
+.C:8172  20 53 E4    JSR $E453	; Init BASIC vectors
+.C:8175  20 BF E3    JSR $E3BF	; Init BASIC RAM locations
+.C:8178  20 22 E4    JSR $E422	; Print startup msg and init mem pointers
+.C:817b  A2 04       LDX #$04
+.C:817d  BD B7 81    LDA $81B7,X
+.C:8180  9D 00 E0    STA $E000,X
+.C:8183  CA          DEX
+.C:8184  10 F7       BPL $817D
+.C:8186  A0 00       LDY #$00
+.C:8188  84 1D       STY $1D
+.C:818a  A9 80       LDA #$80
+.C:818c  85 1E       STA $1E
+.C:818e  B1 1D       LDA ($1D),Y
+.C:8190  91 1D       STA ($1D),Y
+.C:8192  C8          INY
+.C:8193  D0 F9       BNE $818E
+.C:8195  E6 1E       INC $1E
+.C:8197  A5 1E       LDA $1E
+.C:8199  C9 A0       CMP #$A0
+.C:819b  D0 F1       BNE $818E
+.C:819d  20 35 83    JSR $8335
+.C:81a0  A2 7A       LDX #$7A
+.C:81a2  A0 80       LDY #$80
+.C:81a4  20 B7 90    JSR $90B7
+.C:81a7  A2 BC       LDX #$BC
+.C:81a9  A0 81       LDY #$81
+.C:81ab  8E 02 03    STX $0302	; BASIC jump address
+.C:81ae  8C 03 03    STY $0303	; BASIC jump address
+.C:81b1  A2 FB       LDX #$FB
+.C:81b3  9A          TXS
+.C:81b4  4C 74 A4    JMP $A474	; Warm start
+
+.C:81b7  00          BRK
+.C:81b8  F6 F1       INC $F1,X
+.C:81ba  0E 00 20    ASL $2000
+
+-----------------------------------------
+.C:81bc  20 60 A5    JSR $A560	; BASIC input
+.C:81bf  86 7A       STX $7A
+.C:81c1  84 7B       STY $7B
+.C:81c3  20 73 00    JSR $0073
+.C:81c6  AA          TAX
+.C:81c7  F0 F3       BEQ $81BC
+.C:81c9  A2 FF       LDX #$FF
+.C:81cb  86 3A       STX $3A
+.C:81cd  B0 03       BCS $81D2
+.C:81cf  4C 9C A4    JMP $A49C	; Handle new BASIC line
+.C:81d2  A6 7A       LDX $7A
+.C:81d4  A0 00       LDY #$00
+.C:81d6  84 1A       STY $1A
+.C:81d8  BD 00 02    LDA $0200,X	; Input buffer
+.C:81db  38          SEC
+.C:81dc  F9 49 82    SBC $8249,Y	; Cnet commands
+.C:81df  D0 04       BNE $81E5
+.C:81e1  E8          INX
+.C:81e2  C8          INY
+.C:81e3  D0 F3       BNE $81D8
+
+.C:81e5  C9 80       CMP #$80
+.C:81e7  F0 01       BEQ $81EA
+.C:81e9  18          CLC
+.C:81ea  A5 1A       LDA $1A
+.C:81ec  B0 12       BCS $8200
+.C:81ee  88          DEY
+.C:81ef  A6 7A       LDX $7A
+.C:81f1  E6 1A       INC $1A
+.C:81f3  C9 05       CMP #$05
+.C:81f5  F0 40       BEQ $8237
+.C:81f7  C8          INY
+.C:81f8  B9 49 82    LDA $8249,Y
+.C:81fb  10 FA       BPL $81F7
+.C:81fd  C8          INY
+.C:81fe  D0 D8       BNE $81D8
+
+.C:8200  AE 20 D0    LDX $D020
+.C:8203  8E 51 C1    STX $C151
+.C:8206  AE 21 D0    LDX $D021
+.C:8209  8E 52 C1    STX $C152
+.C:820c  AE 86 02    LDX $0286
+.C:820f  8E 53 C1    STX $C153
+.C:8212  A2 36       LDX #$36
+.C:8214  86 01       STX $01
+.C:8216  20 3E 82    JSR $823E
+.C:8219  AD 51 C1    LDA $C151
+.C:821c  8D 20 D0    STA $D020
+.C:821f  AD 52 C1    LDA $C152
+.C:8222  8D 21 D0    STA $D021
+.C:8225  AD 53 C1    LDA $C153
+.C:8228  8D 86 02    STA $0286
+.C:822b  A2 37       LDX #$37
+.C:822d  86 01       STX $01
+.C:822f  A9 09       LDA #$09
+.C:8231  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8234  4C 74 A4    JMP $A474	; Warm start
+
+.C:8237  A2 FF       LDX #$FF
+.C:8239  A0 01       LDY #$01
+.C:823b  4C 86 A4    JMP $A486	; BASIC warm start
+
+.C:823e  0A          ASL A
+.C:823f  A8          TAY
+.C:8240  B9 6A 82    LDA $826A,Y
+.C:8243  48          PHA
+.C:8244  B9 69 82    LDA $8269,Y
+.C:8247  48          PHA
+.C:8248  60          RTS
+
+--- COMMANDS -------------------------
+>C:8249  45 44 49 54  4f d2 43 4f  4e 4e 45 43  d4 43 4e 4c   EDITO.CONNEC.CNL
+>C:8259  4f 41 c4 43  4e 53 41 56  c5 48 45 4c  d0 4f 46 c6   OA.CNSAV.HEL.OF.
+
+--------------------------------------
+>C:8269  4c 83	; 33612 -- Editor (834d/33613)
+>C:826b  2f 8d	; 36143 -- CONNECT? (8d30/36144)
+>C:826d  ab 82	; 33451 -- CNLOAD
+>C:826f  a8 82	; 33448 -- CNSAVE (82a9/33449)
+>C:8271  74 82	; 33396 -- HELP (8275/33397)
+>C:8273  9d 82	; 33437 -- OFF (829e/33438)
+
+*** HELP ******************************
+.C:8275  A2 7A       LDX #$7A
+.C:8277  A0 80       LDY #$80
+.C:8279  20 B7 90    JSR $90B7
+.C:827c  A2 94       LDX #$94
+.C:827e  A0 80       LDY #$80
+.C:8280  20 B7 90    JSR $90B7
+.C:8283  A2 06       LDX #$06
+.C:8285  A0 00       LDY #$00
+.C:8287  20 6A 90    JSR $906A	; Print Space
+.C:828a  B9 49 82    LDA $8249,Y
+.C:828d  08          PHP
+.C:828e  29 7F       AND #$7F
+.C:8290  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8293  C8          INY
+.C:8294  28          PLP
+.C:8295  10 F3       BPL $828A
+.C:8297  20 6E 90    JSR $906E	; Print Carriage return
+.C:829a  CA          DEX
+.C:829b  D0 EA       BNE $8287
+.C:829d  60          RTS
+
+*** OFF ******************************
+.C:829e  A2 83       LDX #$83
+.C:82a0  A0 A4       LDY #$A4
+.C:82a2  8E 02 03    STX $0302
+.C:82a5  8C 03 03    STY $0303
+.C:82a8  60          RTS
+
+*** CNSAVE?? ******************************
+.C:82a9  38          SEC
+.C:82aa  B0 01       BCS $82AD
+
+*** CNLOAD ******************************
+.C:82ac  18          CLC
+.C:82ad  66 19       ROR $19
+.C:82af  20 AD 92    JSR $92AD
+.C:82b2  B0 0F       BCS $82C3
+.C:82b4  A9 08       LDA #$08
+.C:82b6  48          PHA
+.C:82b7  24 19       BIT $19
+.C:82b9  10 0B       BPL $82C6
+.C:82bb  A9 07       LDA #$07
+.C:82bd  A2 2E       LDX #$2E
+.C:82bf  A0 83       LDY #$83
+.C:82c1  D0 09       BNE $82CC
+.C:82c3  A9 01       LDA #$01
+.C:82c5  48          PHA
+.C:82c6  A9 04       LDA #$04
+.C:82c8  A2 31       LDX #$31
+.C:82ca  A0 83       LDY #$83
+.C:82cc  20 BD FF    JSR $FFBD	; Open a logical file
+.C:82cf  68          PLA
+.C:82d0  AA          TAX
+.C:82d1  A0 01       LDY #$01
+.C:82d3  20 BA FF    JSR $FFBA	; Set filename
+.C:82d6  A2 F0       LDX #$F0	; Start mem location
+.C:82d8  A0 9F       LDY #$9F	; Start mem location
+.C:82da  86 1D       STX $1D
+.C:82dc  84 1E       STY $1E
+.C:82de  24 19       BIT $19
+.C:82e0  10 12       BPL $82F4
+.C:82e2  A9 1D       LDA #$1D
+.C:82e4  AE 36 80    LDX $8036
+.C:82e7  AC 37 80    LDY $8037
+.C:82ea  20 D8 FF    JSR $FFD8	; Set RTC clock
+.C:82ed  20 5F 93    JSR $935F
+.C:82f0  D0 25       BNE $8317
+.C:82f2  F0 37       BEQ $832B
+.C:82f4  20 35 83    JSR $8335
+.C:82f7  A9 00       LDA #$00
+.C:82f9  20 D5 FF    JSR $FFD5	; Save RAM to device
+.C:82fc  90 06       BCC $8304
+.C:82fe  20 5F 93    JSR $935F
+.C:8301  4C 0F 83    JMP $830F
+.C:8304  8E 36 80    STX $8036
+.C:8307  8C 37 80    STY $8037
+.C:830a  20 5F 93    JSR $935F
+.C:830d  F0 1C       BEQ $832B
+.C:830f  20 35 83    JSR $8335
+.C:8312  2C 56 C1    BIT $C156
+.C:8315  30 14       BMI $832B
+.C:8317  20 6E 90    JSR $906E	; Print Carriage return
+.C:831a  A2 53       LDX #$53
+.C:831c  A0 93       LDY #$93
+.C:831e  20 B7 90    JSR $90B7
+.C:8321  A2 00       LDX #$00
+.C:8323  A0 02       LDY #$02
+.C:8325  20 B7 90    JSR $90B7
+.C:8328  20 6E 90    JSR $906E	; Print Carriage return
+.C:832b  4C E0 92    JMP $92E0
+.C:832e  40          RTI
+
+--------------------------------------
+.C:832f  30 3A       BMI $836B
+.C:8331  43 4E       SRE ($4E,X)
+.C:8333  45 54       EOR $54
+.C:8335  A9 00       LDA #$00
+.C:8337  8D F0 9F    STA $9FF0	; Phone number/Start of CNLOAD area
+.C:833a  A9 30       LDA #$30
+.C:833c  8D 00 A0    STA $A000
+.C:833f  8D 01 A0    STA $A001
+.C:8342  A2 02       LDX #$02
+.C:8344  A0 A0       LDY #$A0
+.C:8346  8E 36 80    STX $8036
+.C:8349  8C 37 80    STY $8037
+.C:834c  60          RTS
+
+--------------------------------------
+.C:834d  A9 FF       LDA #$FF
+.C:834f  8D 4B 80    STA $804B
+.C:8352  8D 4C 80    STA $804C
+
+*** EDITOR ***********************************************************************************************
+.C:8355  20 DC 89    JSR $89DC
+.C:8358  AD 4B 80    LDA $804B
+.C:835b  85 1D       STA $1D
+.C:835d  AD 4C 80    LDA $804C
+.C:8360  85 1E       STA $1E
+.C:8362  A0 00       LDY #$00
+.C:8364  A2 01       LDX #$01
+.C:8366  06 1E       ASL $1E
+.C:8368  26 1D       ROL $1D
+.C:836a  90 16       BCC $8382
+.C:836c  E0 0E       CPX #$0E
+.C:836e  D0 07       BNE $8377
+.C:8370  20 4B 87    JSR $874B
+.C:8373  A2 0E       LDX #$0E
+.C:8375  B0 0B       BCS $8382
+.C:8377  8A          TXA
+.C:8378  99 75 C1    STA $C175,Y
+.C:837b  BD FD 83    LDA $83FD,X
+.C:837e  99 66 C1    STA $C166,Y
+.C:8381  C8          INY
+.C:8382  E8          INX
+.C:8383  E0 0F       CPX #$0F
+.C:8385  D0 DF       BNE $8366
+.C:8387  8C 65 C1    STY $C165
+.C:838a  A2 AA       LDX #$AA
+.C:838c  A0 83       LDY #$83
+.C:838e  20 C9 93    JSR $93C9
+.C:8391  A9 01       LDA #$01
+.C:8393  8D 33 80    STA $8033
+.C:8396  A9 08       LDA #$08
+.C:8398  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:839b  A2 65       LDX #$65
+.C:839d  A0 C1       LDY #$C1
+.C:839f  20 D0 93    JSR $93D0
+.C:83a2  B0 F2       BCS $8396
+.C:83a4  20 0C 84    JSR $840C
+.C:83a7  4C 96 83    JMP $8396
+.C:83aa  20 48 45    JSR $4548
+.C:83ad  4C 50 20    JMP $2050
+.C:83b0  20 45 44    JSR $4445
+.C:83b3  49 54       EOR #$54
+.C:83b5  20 20 4C    JSR $4C20
+.C:83b8  41 53       EOR ($53,X)
+.C:83ba  54 20       NOOP $20,X
+.C:83bc  20 4E 45    JSR $454E
+.C:83bf  58          CLI
+.C:83c0  54 20       NOOP $20,X
+.C:83c2  20 4E 45    JSR $454E
+.C:83c5  57 20       SRE $20,X
+.C:83c7  20 20 43    JSR $4320
+.C:83ca  4F 50 59    SRE $5950
+.C:83cd  20 45 52    JSR $5245
+.C:83d0  41 53       EOR ($53,X)
+.C:83d2  45 20       EOR $20
+.C:83d4  20 47 45    JSR $4547
+.C:83d7  54 20       NOOP $20,X
+.C:83d9  20 20 50    JSR $5020
+.C:83dc  55 54       EOR $54,X
+.C:83de  20 20 53    JSR $5320
+.C:83e1  54 4F       NOOP $4F,X
+.C:83e3  52          JAM
+.C:83e4  45 20       EOR $20
+.C:83e6  50 52       BVC $843A
+.C:83e8  49 4E       EOR #$4E
+.C:83ea  54 20       NOOP $20,X
+.C:83ec  20 46 52    JSR $5246
+.C:83ef  45 45       EOR $45
+.C:83f1  20 20 44    JSR $4420
+.C:83f4  4F 53 20    SRE $2053
+.C:83f7  20 52 45    JSR $4552
+.C:83fa  54 55       NOOP $55,X
+.C:83fc  52          JAM
+.C:83fd  4E 00 06    LSR $0600
+.C:8400  0C 12 18    NOOP $1812
+.C:8403  1E 24 2A    ASL $2A24,X
+.C:8406  30 36       BMI $843E
+.C:8408  3C 42 4E    NOOP $4E42,X
+.C:840b  48          PHA
+.C:840c  AE 33 80    LDX $8033
+.C:840f  BD 74 C1    LDA $C174,X
+.C:8412  0A          ASL A
+.C:8413  AA          TAX
+.C:8414  BD 1C 84    LDA $841C,X
+.C:8417  48          PHA
+.C:8418  BD 1B 84    LDA $841B,X
+.C:841b  48          PHA
+.C:841c  60          RTS
+
+--------------------------------------
+.C:841D  38          SEC
+.C:841e  84 5F       STY $5F
+.C:8420  87 45       SAX $45
+.C:8422  84 76       STY $76
+.C:8424  84 94       STY $94
+.C:8426  84 CA       STY $CA
+.C:8428  84 D3       STY $D3
+.C:842a  84 FF       STY $FF
+.C:842c  84 40       STY $40
+.C:842e  85 7F       STA $7F
+.C:8430  85 DD       STA $DD
+.C:8432  85 9B       STA $9B
+.C:8434  89 5A       NOOP #$5A
+.C:8436  87 9D       SAX $9D
+.C:8438  86 A2       STX $A2
+.C:843a  89 A0       NOOP #$A0
+.C:843c  95 20       STA $20,X
+.C:843e  E2 89       NOOP #$89
+.C:8440  20 FB 8F    JSR $8FFB
+.C:8443  4C DC 89    JMP $89DC
+.C:8446  AE 19 80    LDX $8019
+.C:8449  AC 1A 80    LDY $801A
+.C:844c  EC 15 80    CPX $8015
+.C:844f  D0 06       BNE $8457
+.C:8451  CC 16 80    CPY $8016
+.C:8454  D0 01       BNE $8457
+.C:8456  60          RTS
+
+--------------------------------------
+.C:8457  86 1D       STX $1D
+.C:8459  84 1E       STY $1E
+.C:845b  A5 1D       LDA $1D
+.C:845d  D0 02       BNE $8461
+.C:845f  C6 1E       DEC $1E
+.C:8461  C6 1D       DEC $1D
+.C:8463  20 B6 8C    JSR $8CB6
+.C:8466  C9 00       CMP #$00
+.C:8468  D0 F1       BNE $845B
+.C:846a  A5 1D       LDA $1D
+.C:846c  8D 19 80    STA $8019
+.C:846f  A5 1E       LDA $1E
+.C:8471  8D 1A 80    STA $801A
+.C:8474  4C DC 89    JMP $89DC
+.C:8477  20 AB 8C    JSR $8CAB
+.C:847a  20 C5 8C    JSR $8CC5
+.C:847d  A6 1D       LDX $1D
+.C:847f  A4 1E       LDY $1E
+.C:8481  EC 17 80    CPX $8017
+.C:8484  D0 06       BNE $848C
+.C:8486  CC 18 80    CPY $8018
+.C:8489  D0 01       BNE $848C
+.C:848b  60          RTS
+
+--------------------------------------
+.C:848c  8E 19 80    STX $8019
+.C:848f  8C 1A 80    STY $801A
+.C:8492  4C DC 89    JMP $89DC
+.C:8495  20 9B 84    JSR $849B
+.C:8498  4C DC 89    JMP $89DC
+.C:849b  18          CLC
+.C:849c  AD 17 80    LDA $8017
+.C:849f  8D 19 80    STA $8019
+.C:84a2  85 1D       STA $1D
+.C:84a4  69 04       ADC #$04
+.C:84a6  AA          TAX
+.C:84a7  AD 18 80    LDA $8018
+.C:84aa  8D 1A 80    STA $801A
+.C:84ad  85 1E       STA $1E
+.C:84af  69 00       ADC #$00
+.C:84b1  90 06       BCC $84B9
+.C:84b3  20 40 8C    JSR $8C40
+.C:84b6  4C 9B 84    JMP $849B
+.C:84b9  8E 17 80    STX $8017
+.C:84bc  8D 18 80    STA $8018
+.C:84bf  20 05 8C    JSR $8C05
+.C:84c2  8A          TXA
+.C:84c3  20 C0 8B    JSR $8BC0
+.C:84c6  A9 00       LDA #$00
+.C:84c8  4C C0 8B    JMP $8BC0
+.C:84cb  20 9B 84    JSR $849B
+.C:84ce  20 BE 8A    JSR $8ABE
+.C:84d1  4C DC 89    JMP $89DC
+.C:84d4  AE 19 80    LDX $8019
+.C:84d7  AC 1A 80    LDY $801A
+.C:84da  20 70 8C    JSR $8C70
+.C:84dd  AE 19 80    LDX $8019
+.C:84e0  AC 1A 80    LDY $801A
+.C:84e3  EC 17 80    CPX $8017
+.C:84e6  D0 05       BNE $84ED
+.C:84e8  CC 18 80    CPY $8018
+.C:84eb  F0 03       BEQ $84F0
+.C:84ed  4C DC 89    JMP $89DC
+.C:84f0  EC 15 80    CPX $8015
+.C:84f3  D0 05       BNE $84FA
+.C:84f5  CC 16 80    CPY $8016
+.C:84f8  F0 03       BEQ $84FD
+.C:84fa  4C 46 84    JMP $8446
+.C:84fd  4C 95 84    JMP $8495
+.C:8500  A2 3D       LDX #$3D
+.C:8502  A0 85       LDY #$85
+.C:8504  20 93 90    JSR $9093
+.C:8507  A9 52       LDA #$52
+.C:8509  A2 53       LDX #$53
+.C:850b  20 71 91    JSR $9171
+.C:850e  B0 66       BCS $8576
+.C:8510  20 95 84    JSR $8495
+.C:8513  A9 8C       LDA #$8C
+.C:8515  8D 40 C1    STA $C140
+.C:8518  A9 8A       LDA #$8A
+.C:851a  8D 41 C1    STA $C141
+.C:851d  A2 08       LDX #$08
+.C:851f  20 C6 FF    JSR $FFC6	; Open channel for output
+.C:8522  B0 13       BCS $8537
+.C:8524  20 F0 89    JSR $89F0
+.C:8527  B0 0E       BCS $8537
+.C:8529  20 CC FF    JSR $FFCC	; Input character from channel
+.C:852c  20 BE 8A    JSR $8ABE
+.C:852f  AD 5D C1    LDA $C15D
+.C:8532  F0 DC       BEQ $8510
+.C:8534  4C CD 92    JMP $92CD
+.C:8537  20 E7 FF    JSR $FFE7	; Increment RTC clock
+.C:853a  4C D4 84    JMP $84D4
+.C:853d  47 45       SRE $45
+.C:853f  54 00       NOOP $00,X
+.C:8541  A2 7C       LDX #$7C
+.C:8543  A0 85       LDY #$85
+.C:8545  20 93 90    JSR $9093
+.C:8548  A9 57       LDA #$57
+.C:854a  A2 53       LDX #$53
+.C:854c  20 71 91    JSR $9171
+.C:854f  B0 25       BCS $8576
+.C:8551  20 AB 8C    JSR $8CAB
+.C:8554  A2 08       LDX #$08
+.C:8556  20 C9 FF    JSR $FFC9	; Close in and out channels
+.C:8559  B0 1B       BCS $8576
+.C:855b  20 D4 85    JSR $85D4
+.C:855e  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8561  B0 13       BCS $8576
+.C:8563  E6 1D       INC $1D
+.C:8565  D0 02       BNE $8569
+.C:8567  E6 1E       INC $1E
+.C:8569  20 B6 8C    JSR $8CB6
+.C:856c  C9 00       CMP #$00
+.C:856e  D0 EE       BNE $855E
+.C:8570  20 CC FF    JSR $FFCC	; Input character from channel
+.C:8573  4C CD 92    JMP $92CD
+.C:8576  20 E7 FF    JSR $FFE7	; Increment RTC clock
+.C:8579  4C DC 89    JMP $89DC
+.C:857c  50 55       BVC $85D3
+.C:857e  54 00       NOOP $00,X
+.C:8580  A2 CE       LDX #$CE
+.C:8582  A0 85       LDY #$85
+.C:8584  20 93 90    JSR $9093
+.C:8587  A9 57       LDA #$57
+.C:8589  A2 53       LDX #$53
+.C:858b  20 71 91    JSR $9171
+.C:858e  B0 E6       BCS $8576
+.C:8590  AE 15 80    LDX $8015
+.C:8593  AC 16 80    LDY $8016
+.C:8596  86 1D       STX $1D
+.C:8598  84 1E       STY $1E
+.C:859a  A2 08       LDX #$08
+.C:859c  20 C9 FF    JSR $FFC9	; Close in and out channels
+.C:859f  B0 D5       BCS $8576
+.C:85a1  20 D4 85    JSR $85D4
+.C:85a4  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:85a7  B0 CD       BCS $8576
+.C:85a9  E6 1D       INC $1D
+.C:85ab  D0 02       BNE $85AF
+.C:85ad  E6 1E       INC $1E
+.C:85af  20 B6 8C    JSR $8CB6
+.C:85b2  C9 00       CMP #$00
+.C:85b4  D0 EE       BNE $85A4
+.C:85b6  A6 1D       LDX $1D
+.C:85b8  EC 17 80    CPX $8017
+.C:85bb  D0 07       BNE $85C4
+.C:85bd  A6 1E       LDX $1E
+.C:85bf  EC 18 80    CPX $8018
+.C:85c2  F0 AC       BEQ $8570
+.C:85c4  20 D4 85    JSR $85D4
+.C:85c7  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:85ca  B0 AA       BCS $8576
+.C:85cc  90 D6       BCC $85A4
+.C:85ce  53 54       SRE ($54),Y
+.C:85d0  4F 52 45    SRE $4552
+.C:85d3  00          BRK
+.C:85d4  A9 00       LDA #$00
+.C:85d6  2C 56 C1    BIT $C156
+.C:85d9  10 02       BPL $85DD
+.C:85db  A9 01       LDA #$01
+.C:85dd  60          RTS
+
+--------------------------------------
+.C:85de  AE 19 80    LDX $8019
+.C:85e1  AC 1A 80    LDY $801A
+.C:85e4  86 1D       STX $1D
+.C:85e6  84 1E       STY $1E
+.C:85e8  A9 81       LDA #$81
+.C:85ea  8D 40 C1    STA $C140
+.C:85ed  A9 8A       LDA #$8A
+.C:85ef  8D 41 C1    STA $C141
+.C:85f2  20 7E 8A    JSR $8A7E
+.C:85f5  20 7E 8A    JSR $8A7E
+.C:85f8  20 7E 8A    JSR $8A7E
+.C:85fb  A9 00       LDA #$00
+.C:85fd  8D 5F C1    STA $C15F
+.C:8600  20 4B 8A    JSR $8A4B
+.C:8603  8D 5E C1    STA $C15E
+.C:8606  A9 04       LDA #$04
+.C:8608  AA          TAX
+.C:8609  A0 00       LDY #$00
+.C:860b  20 BA FF    JSR $FFBA	; Set filename
+.C:860e  A9 00       LDA #$00
+.C:8610  20 BD FF    JSR $FFBD	; Open a logical file
+.C:8613  20 C0 FF    JSR $FFC0
+.C:8616  A2 04       LDX #$04
+.C:8618  20 C9 FF    JSR $FFC9	; Close in and out channels
+.C:861b  B0 5A       BCS $8677
+.C:861d  20 E4 FF    JSR $FFE4	; Close all channels and files
+.C:8620  C9 03       CMP #$03
+.C:8622  F0 50       BEQ $8674
+.C:8624  20 4B 8A    JSR $8A4B
+.C:8627  C9 00       CMP #$00
+.C:8629  F0 49       BEQ $8674
+.C:862b  C9 0D       CMP #$0D
+.C:862d  D0 08       BNE $8637
+.C:862f  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8632  B0 43       BCS $8677
+.C:8634  4C 1D 86    JMP $861D
+.C:8637  48          PHA
+.C:8638  A2 14       LDX #$14
+.C:863a  20 6A 90    JSR $906A	; Print Space
+.C:863d  B0 38       BCS $8677
+.C:863f  CA          DEX
+.C:8640  D0 F8       BNE $863A
+.C:8642  2C 5E C1    BIT $C15E
+.C:8645  30 07       BMI $864E
+.C:8647  A9 11       LDA #$11
+.C:8649  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:864c  B0 29       BCS $8677
+.C:864e  68          PLA
+.C:864f  D0 12       BNE $8663
+.C:8651  20 4B 8A    JSR $8A4B
+.C:8654  C9 00       CMP #$00
+.C:8656  F0 1C       BEQ $8674
+.C:8658  C9 0D       CMP #$0D
+.C:865a  D0 07       BNE $8663
+.C:865c  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:865f  B0 16       BCS $8677
+.C:8661  90 BA       BCC $861D
+.C:8663  A2 0F       LDX #$0F
+.C:8665  DD F5 8B    CMP $8BF5,X
+.C:8668  F0 E7       BEQ $8651
+.C:866a  CA          DEX
+.C:866b  10 F8       BPL $8665
+.C:866d  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8670  B0 05       BCS $8677
+.C:8672  90 DD       BCC $8651
+.C:8674  20 6E 90    JSR $906E	; Print Carriage return
+.C:8677  08          PHP
+.C:8678  20 CC FF    JSR $FFCC	; Input char from channel
+.C:867b  A9 04       LDA #$04
+.C:867d  20 C3 FF    JSR $FFC3	; Open channel for input
+.C:8680  28          PLP
+.C:8681  90 20       BCC $86A3
+.C:8683  A2 90       LDX #$90
+.C:8685  A0 86       LDY #$86
+.C:8687  20 7B 90    JSR $907B
+.C:868a  20 02 90    JSR $9002
+.C:868d  4C 8B 93    JMP $938B
+.C:8690  50 52       BVC $86E4
+.C:8692  49 4E       EOR #$4E
+.C:8694  54 45       NOOP $45,X
+.C:8696  52          JAM
+.C:8697  20 45 52    JSR $5245
+.C:869a  52          JAM
+.C:869b  4F 52 00    SRE $0052
+.C:869e  20 4B 87    JSR $874B
+.C:86a1  90 01       BCC $86A4
+.C:86a3  60          RTS
+
+--------------------------------------
+.C:86a4  AD 13 80    LDA $8013
+.C:86a7  8D 21 D0    STA $D021
+.C:86aa  AD 14 80    LDA $8014
+.C:86ad  8D 86 02    STA $0286
+.C:86b0  A2 2A       LDX #$2A
+.C:86b2  A0 87       LDY #$87
+.C:86b4  20 B7 90    JSR $90B7
+.C:86b7  A6 7A       LDX $7A
+.C:86b9  A4 7B       LDY $7B
+.C:86bb  8E 61 C1    STX $C161
+.C:86be  8C 62 C1    STY $C162
+.C:86c1  A9 40       LDA #$40
+.C:86c3  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:86c6  A2 26       LDX #$26
+.C:86c8  A9 00       LDA #$00
+.C:86ca  A8          TAY
+.C:86cb  18          CLC
+.C:86cc  20 C8 90    JSR $90C8
+.C:86cf  A2 00       LDX #$00
+.C:86d1  A0 02       LDY #$02
+.C:86d3  86 7A       STX $7A
+.C:86d5  84 7B       STY $7B
+.C:86d7  E8          INX
+.C:86d8  20 DF 90    JSR $90DF
+.C:86db  90 0D       BCC $86EA
+.C:86dd  AE 61 C1    LDX $C161
+.C:86e0  AC 62 C1    LDY $C162
+.C:86e3  86 7A       STX $7A
+.C:86e5  84 7B       STY $7B
+.C:86e7  4C DC 89    JMP $89DC
+.C:86ea  20 6E 90    JSR $906E	; Print Carriage return
+.C:86ed  A9 00       LDA #$00
+.C:86ef  A4 1A       LDY $1A
+.C:86f1  99 01 02    STA $0201,Y
+.C:86f4  AE 14 03    LDX $0314	; IRQ
+.C:86f7  AC 15 03    LDY $0315	; IRQ
+.C:86fa  8E 63 C1    STX $C163
+.C:86fd  8C 64 C1    STY $C164
+.C:8700  A2 31       LDX #$31
+.C:8702  A0 EA       LDY #$EA
+.C:8704  78          SEI
+.C:8705  8E 14 03    STX $0314	; IRQ
+.C:8708  8C 15 03    STY $0315	; IRQ
+.C:870b  58          CLI
+.C:870c  A2 37       LDX #$37
+.C:870e  86 01       STX $01
+.C:8710  A9 40       LDA #$40
+.C:8712  20 10 CD    JSR $CD10
+.C:8715  A2 36       LDX #$36
+.C:8717  86 01       STX $01
+.C:8719  AE 63 C1    LDX $C163
+.C:871c  AC 64 C1    LDY $C164
+.C:871f  78          SEI
+.C:8720  8E 14 03    STX $0314	; IRQ
+.C:8723  8C 15 03    STY $0315	; IRQ
+.C:8726  58          CLI
+.C:8727  4C C1 86    JMP $86C1
+.C:872a  93 0E       SHA ($0E),Y
+.C:872c  92          JAM
+.C:872d  11 C9       ORA ($C9),Y
+.C:872f  4E 50 55    LSR $5550
+.C:8732  54 20       NOOP $20,X
+.C:8734  C4 CF       CPY $CF
+.C:8736  D3 20       DCP ($20),Y
+.C:8738  43 4F       SRE ($4F,X)
+.C:873a  4D 4D 41    EOR $414D
+.C:873d  4E 44 53    LSR $5344
+.C:8740  20 4F 52    JSR $524F
+.C:8743  20 D3 D4    JSR $D4D3
+.C:8746  CF D0 0D    DCP $0DD0
+.C:8749  0D 00 A2    ORA $A200
+.C:874c  02          JAM
+.C:874d  B5 7C       LDA $7C,X
+.C:874f  DD DE CC    CMP $CCDE,X
+.C:8752  D0 05       BNE $8759
+.C:8754  CA          DEX
+.C:8755  10 F6       BPL $874D
+.C:8757  18          CLC
+.C:8758  60          RTS
+.C:8759  38          SEC
+.C:875a  60          RTS
+
+--------------------------------------
+.C:875b  68          PLA
+.C:875c  68          PLA
+.C:875d  4C 62 90    JMP $9062
+.C:8760  A9 09       LDA #$09
+.C:8762  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8765  A9 02       LDA #$02
+.C:8767  8D 86 02    STA $0286
+.C:876a  A2 19       LDX #$19
+.C:876c  B5 D9       LDA $D9,X
+.C:876e  09 80       ORA #$80
+.C:8770  95 D9       STA $D9,X
+.C:8772  CA          DEX
+.C:8773  10 F7       BPL $876C
+.C:8775  18          CLC
+.C:8776  6E 5B C1    ROR $C15B
+.C:8779  A2 9B       LDX #$9B
+.C:877b  A0 88       LDY #$88
+.C:877d  20 7B 90    JSR $907B
+.C:8780  20 66 90    JSR $9066
+.C:8783  A9 00       LDA #$00
+.C:8785  85 D4       STA $D4
+.C:8787  85 D8       STA $D8
+.C:8789  20 26 8C    JSR $8C26	; 40 column screen output
+.C:878c  A5 D6       LDA $D6
+.C:878e  C9 18       CMP #$18
+.C:8790  D0 05       BNE $8797
+.C:8792  A9 91       LDA #$91
+.C:8794  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8797  A4 D3       LDY $D3
+.C:8799  B1 D1       LDA ($D1),Y
+.C:879b  8D 57 C1    STA $C157
+.C:879e  20 24 EA    JSR $EA24	; Calc pointer to colour RAM
+.C:87a1  B1 F3       LDA ($F3),Y
+.C:87a3  2C 5B C1    BIT $C15B
+.C:87a6  10 03       BPL $87AB
+.C:87a8  AD 86 02    LDA $0286
+.C:87ab  8D 58 C1    STA $C158
+.C:87ae  A9 FF       LDA #$FF
+.C:87b0  8D 59 C1    STA $C159
+.C:87b3  8D 5A C1    STA $C15A
+.C:87b6  20 E4 FF    JSR $FFE4	; Close all channels and files
+.C:87b9  D0 2A       BNE $87E5
+.C:87bb  EE 59 C1    INC $C159
+.C:87be  D0 F6       BNE $87B6
+.C:87c0  EE 5A C1    INC $C15A
+.C:87c3  D0 F1       BNE $87B6
+.C:87c5  A9 E0       LDA #$E0
+.C:87c7  8D 5A C1    STA $C15A
+.C:87ca  A4 D3       LDY $D3
+.C:87cc  B1 D1       LDA ($D1),Y
+.C:87ce  49 80       EOR #$80
+.C:87d0  91 D1       STA ($D1),Y
+.C:87d2  AE 86 02    LDX $0286
+.C:87d5  8A          TXA
+.C:87d6  51 F3       EOR ($F3),Y
+.C:87d8  29 0F       AND #$0F
+.C:87da  D0 03       BNE $87DF
+.C:87dc  AE 58 C1    LDX $C158
+.C:87df  8A          TXA
+.C:87e0  91 F3       STA ($F3),Y
+.C:87e2  4C B6 87    JMP $87B6
+.C:87e5  48          PHA
+.C:87e6  AD 57 C1    LDA $C157
+.C:87e9  A4 D3       LDY $D3
+.C:87eb  91 D1       STA ($D1),Y
+.C:87ed  AD 58 C1    LDA $C158
+.C:87f0  91 F3       STA ($F3),Y
+.C:87f2  68          PLA
+.C:87f3  C9 03       CMP #$03
+.C:87f5  D0 73       BNE $886A
+.C:87f7  20 8B 93    JSR $938B
+.C:87fa  AE 19 80    LDX $8019
+.C:87fd  AC 1A 80    LDY $801A
+.C:8800  20 70 8C    JSR $8C70
+.C:8803  AE 17 80    LDX $8017
+.C:8806  AC 18 80    LDY $8018
+.C:8809  20 EB 8A    JSR $8AEB
+.C:880c  AE 17 80    LDX $8017
+.C:880f  AC 18 80    LDY $8018
+.C:8812  86 1F       STX $1F
+.C:8814  84 20       STY $20
+.C:8816  A5 1D       LDA $1D
+.C:8818  D0 02       BNE $881C
+.C:881a  C6 1E       DEC $1E
+.C:881c  C6 1D       DEC $1D
+.C:881e  A5 1D       LDA $1D
+.C:8820  8D 17 80    STA $8017
+.C:8823  A5 1E       LDA $1E
+.C:8825  8D 18 80    STA $8018
+.C:8828  EC 19 80    CPX $8019
+.C:882b  D0 05       BNE $8832
+.C:882d  CC 1A 80    CPY $801A
+.C:8830  F0 37       BEQ $8869
+.C:8832  A0 00       LDY #$00
+.C:8834  A2 34       LDX #$34
+.C:8836  78          SEI
+.C:8837  86 01       STX $01
+.C:8839  B1 1F       LDA ($1F),Y
+.C:883b  A2 36       LDX #$36
+.C:883d  86 01       STX $01
+.C:883f  58          CLI
+.C:8840  91 1D       STA ($1D),Y
+.C:8842  A5 1D       LDA $1D
+.C:8844  D0 02       BNE $8848
+.C:8846  C6 1E       DEC $1E
+.C:8848  C6 1D       DEC $1D
+.C:884a  A5 1F       LDA $1F
+.C:884c  D0 02       BNE $8850
+.C:884e  C6 20       DEC $20
+.C:8850  C6 1F       DEC $1F
+.C:8852  A6 1F       LDX $1F
+.C:8854  EC 19 80    CPX $8019
+.C:8857  D0 DB       BNE $8834
+.C:8859  A6 20       LDX $20
+.C:885b  EC 1A 80    CPX $801A
+.C:885e  D0 D4       BNE $8834
+.C:8860  AE 19 80    LDX $8019
+.C:8863  AC 1A 80    LDY $801A
+.C:8866  20 EB 8A    JSR $8AEB
+.C:8869  60          RTS
+
+--------------------------------------
+.C:886a  C9 83       CMP #$83
+.C:886c  D0 03       BNE $8871
+.C:886e  4C DC 89    JMP $89DC
+.C:8871  C9 85       CMP #$85
+.C:8873  90 1A       BCC $888F
+.C:8875  C9 8D       CMP #$8D
+.C:8877  90 2F       BCC $88A8
+.C:8879  C9 93       CMP #$93
+.C:887b  D0 06       BNE $8883
+.C:887d  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8880  4C 79 87    JMP $8779
+.C:8883  C9 94       CMP #$94
+.C:8885  D0 08       BNE $888F
+.C:8887  A9 20       LDA #$20
+.C:8889  A0 27       LDY #$27
+.C:888b  91 D1       STA ($D1),Y
+.C:888d  A9 94       LDA #$94
+.C:888f  C9 A0       CMP #$A0
+.C:8891  D0 02       BNE $8895
+.C:8893  A9 20       LDA #$20
+.C:8895  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8898  4C 83 87    JMP $8783
+.C:889b  53 54       SRE ($54),Y
+.C:889d  4F 50 20    SRE $2050
+.C:88a0  54 4F       NOOP $4F,X
+.C:88a2  20 45 58    JSR $5845
+.C:88a5  49 54       EOR #$54
+.C:88a7  00          BRK
+.C:88a8  38          SEC
+.C:88a9  E9 85       SBC #$85
+.C:88ab  0A          ASL A
+.C:88ac  AA          TAX
+.C:88ad  20 B3 88    JSR $88B3
+.C:88b0  4C 83 87    JMP $8783
+.C:88b3  BD BD 88    LDA $88BD,X
+.C:88b6  48          PHA
+.C:88b7  BD BC 88    LDA $88BC,X
+.C:88ba  48          PHA
+.C:88bb  60          RTS
+
+--------------------------------------
+.C:88bc  BA          TSX
+.C:88bd  88          DEY
+.C:88be  F0 88       BEQ $8848
+.C:88c0  DE 88 CB    DEC $CB88,X
+.C:88c3  88          DEY
+.C:88c4  BA          TSX
+.C:88c5  88          DEY
+.C:88c6  3D 89 E7    AND $E789,X
+.C:88c9  88          DEY
+.C:88ca  D1 88       CMP ($88),Y
+.C:88cc  EE 21 D0    INC $D021
+.C:88cf  4C D5 88    JMP $88D5
+.C:88d2  EE 20 D0    INC $D020
+.C:88d5  20 8B 93    JSR $938B
+.C:88d8  A2 9B       LDX #$9B
+.C:88da  A0 88       LDY #$88
+.C:88dc  4C 7B 90    JMP $907B
+.C:88df  AD 8A 02    LDA $028A
+.C:88e2  49 80       EOR #$80
+.C:88e4  8D 8A 02    STA $028A
+.C:88e7  60          RTS
+
+--------------------------------------
+.C:88e8  AD 5B C1    LDA $C15B
+.C:88eb  49 80       EOR #$80
+.C:88ed  8D 5B C1    STA $C15B
+.C:88f0  60          RTS
+
+--------------------------------------
+.C:88f1  A6 D6       LDX $D6
+.C:88f3  F0 48       BEQ $893D
+.C:88f5  A5 D1       LDA $D1
+.C:88f7  85 1D       STA $1D
+.C:88f9  38          SEC
+.C:88fa  E9 28       SBC #$28
+.C:88fc  85 D1       STA $D1
+.C:88fe  85 1F       STA $1F
+.C:8900  A5 D2       LDA $D2
+.C:8902  85 1E       STA $1E
+.C:8904  E9 00       SBC #$00
+.C:8906  85 D2       STA $D2
+.C:8908  85 20       STA $20
+.C:890a  C6 D6       DEC $D6
+.C:890c  20 83 89    JSR $8983
+.C:890f  A0 27       LDY #$27
+.C:8911  B1 1D       LDA ($1D),Y
+.C:8913  91 1F       STA ($1F),Y
+.C:8915  B1 21       LDA ($21),Y	; Temp area ($0022 - $0025)
+.C:8917  91 23       STA ($23),Y	; Temp area ($0022 - $0025)
+.C:8919  88          DEY
+.C:891a  10 F5       BPL $8911
+.C:891c  E8          INX
+.C:891d  E0 18       CPX #$18
+.C:891f  F0 13       BEQ $8934
+.C:8921  18          CLC
+.C:8922  A5 1D       LDA $1D
+.C:8924  85 1F       STA $1F
+.C:8926  69 28       ADC #$28
+.C:8928  85 1D       STA $1D
+.C:892a  A5 1E       LDA $1E
+.C:892c  85 20       STA $20
+.C:892e  90 DC       BCC $890C
+.C:8930  E6 1E       INC $1E
+.C:8932  B0 D8       BCS $890C
+.C:8934  A9 20       LDA #$20
+.C:8936  A0 27       LDY #$27
+.C:8938  91 1D       STA ($1D),Y
+.C:893a  88          DEY
+.C:893b  10 FB       BPL $8938
+.C:893d  60          RTS
+
+--------------------------------------
+.C:893e  A9 98       LDA #$98
+.C:8940  85 1D       STA $1D
+.C:8942  A9 07       LDA #$07
+.C:8944  85 1E       STA $1E
+.C:8946  A9 70       LDA #$70
+.C:8948  85 1F       STA $1F
+.C:894a  A9 07       LDA #$07
+.C:894c  85 20       STA $20
+.C:894e  A2 17       LDX #$17
+.C:8950  E4 D6       CPX $D6
+.C:8952  D0 0A       BNE $895E
+.C:8954  A9 20       LDA #$20
+.C:8956  A0 27       LDY #$27
+.C:8958  91 1D       STA ($1D),Y
+.C:895a  88          DEY
+.C:895b  10 FB       BPL $8958
+.C:895d  60          RTS
+
+--------------------------------------
+.C:895e  20 83 89    JSR $8983
+.C:8961  A0 27       LDY #$27
+.C:8963  B1 1F       LDA ($1F),Y
+.C:8965  91 1D       STA ($1D),Y
+.C:8967  B1 23       LDA ($23),Y	; Temp area ($0022 - $0025)
+.C:8969  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:896b  88          DEY
+.C:896c  10 F5       BPL $8963
+.C:896e  A5 1F       LDA $1F
+.C:8970  85 1D       STA $1D
+.C:8972  38          SEC
+.C:8973  E9 28       SBC #$28
+.C:8975  85 1F       STA $1F
+.C:8977  A5 20       LDA $20
+.C:8979  85 1E       STA $1E
+.C:897b  E9 00       SBC #$00
+.C:897d  85 20       STA $20
+.C:897f  CA          DEX
+.C:8980  4C 50 89    JMP $8950
+.C:8983  A5 1D       LDA $1D
+.C:8985  85 21       STA $21	; String stack
+.C:8987  A5 1F       LDA $1F
+.C:8989  85 23       STA $23	; Temp area ($0022 - $0025)
+.C:898b  A5 1E       LDA $1E
+.C:898d  29 03       AND #$03
+.C:898f  09 D8       ORA #$D8
+.C:8991  85 22       STA $22	; Temp area ($0022 - $0025)
+.C:8993  A5 20       LDA $20	; String stack
+.C:8995  29 03       AND #$03
+.C:8997  09 D8       ORA #$D8
+.C:8999  85 24       STA $24	; Temp area ($0022 - $0025)
+.C:899b  60          RTS
+
+--------------------------------------
+.C:899c  A2 CF       LDX #$CF
+.C:899e  A0 89       LDY #$89
+.C:89a0  20 93 90    JSR $9093
+.C:89a3  38          SEC
+.C:89a4  A9 00       LDA #$00
+.C:89a6  ED 17 80    SBC $8017
+.C:89a9  AA          TAX
+.C:89aa  A9 00       LDA #$00
+.C:89ac  ED 18 80    SBC $8018
+.C:89af  A0 37       LDY #$37
+.C:89b1  84 01       STY $01
+.C:89b3  20 CD BD    JSR $BDCD	; Print XA as unsigned INT
+.C:89b6  A0 36       LDY #$36
+.C:89b8  84 01       STY $01
+.C:89ba  A2 C4       LDX #$C4
+.C:89bc  A0 89       LDY #$89
+.C:89be  20 B7 90    JSR $90B7
+.C:89c1  4C 02 90    JMP $9002
+
+>C:89c4  20 43 48 41  52 53 20 46  52 45 45 00                 CHARS FREE.
+
+--------------------------------------
+.C:89d0  A9 AD       LDA #$AD
+.C:89d2  8D 40 C1    STA $C140
+.C:89d5  A9 8A       LDA #$8A
+.C:89d7  8D 41 C1    STA $C141
+.C:89da  D0 14       BNE $89F0
+.C:89dc  AE 19 80    LDX $8019	; 00
+.C:89df  AC 1A 80    LDY $801A	; E0
+
+.C:89e2  86 1D       STX $1D	; String stack
+.C:89e4  84 1E       STY $1E	; String stack
+.C:89e6  A9 81       LDA #$81
+.C:89e8  8D 40 C1    STA $C140	; Pointer to $8A81
+.C:89eb  A9 8A       LDA #$8A
+.C:89ed  8D 41 C1    STA $C141	; Pointer to $8A81
+
+.C:89f0  A9 00       LDA #$00
+.C:89f2  8D 5D C1    STA $C15D
+.C:89f5  20 7E 8A    JSR $8A7E	; ($8AAD) Comms
+							   OR ($8A81) Get Kernal RAM area into accum
+.C:89f8  B0 41       BCS $8A3B	; Return
+.C:89fa  8D 35 80    STA $8035
+.C:89fd  20 50 90    JSR $9050	; Init screen
+.C:8a00  20 7E 8A    JSR $8A7E	; ($8AAD) Comms
+							   OR ($8A81) Get Kernal RAM area into accum
+.C:8a03  B0 36       BCS $8A3B	; Return
+.C:8a05  8D 20 D0    STA $D020	; Border colour
+.C:8a08  20 8B 93    JSR $938B	; Create screen message bar (again!)
+.C:8a0b  20 7E 8A    JSR $8A7E	; ($8AAD) Comms
+							   OR ($8A81) Get Kernal RAM area into accum
+.C:8a0e  B0 2B       BCS $8A3B	; Return
+.C:8a10  8D 21 D0    STA $D021	; Background colour
+.C:8a13  A9 00       LDA #$00
+.C:8a15  8D 5F C1    STA $C15F
+.C:8a18  20 4B 8A    JSR $8A4B	; Get other RAM values
+.C:8a1b  B0 1E       BCS $8A3B	; Return
+.C:8a1d  C9 00       CMP #$00
+.C:8a1f  F0 16       BEQ $8A37
+.C:8a21  C9 0D       CMP #$0D	; Carriage Return
+.C:8a23  D0 0C       BNE $8A31
+.C:8a25  20 26 8C    JSR $8C26	; 40 column screen output
+.C:8a28  90 05       BCC $8A2F
+.C:8a2a  A9 91       LDA #$91	; Cursor up
+.C:8a2c  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8a2f  A9 0D       LDA #$0D	; Carriage Return
+.C:8a31  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8a34  4C 18 8A    JMP $8A18
+
+.C:8a37  20 26 8C    JSR $8C26	; 40 column screen output
+.C:8a3a  18          CLC
+.C:8a3b  A9 00       LDA #$00	; Quotation mode = "normal"
+.C:8a3d  85 D4       STA $D4	; Quotation mode
+.C:8a3f  60          RTS
+
+--------------------------------------
+.C:8a40  A0 00       LDY #$00
+.C:8a42  91 D1       STA ($D1),Y
+.C:8a44  E6 D1       INC $D1
+.C:8a46  D0 02       BNE $8A4A
+.C:8a48  E6 D2       INC $D2
+.C:8a4a  60          RTS
+
+--------------------------------------
+.C:8a4b  AD 5F C1    LDA $C15F
+.C:8a4e  F0 08       BEQ $8A58	; Always branches?
+.C:8a50  CE 5F C1    DEC $C15F
+.C:8a53  AD 60 C1    LDA $C160
+.C:8a56  18          CLC
+.C:8a57  60          RTS
+
+.C:8a58  20 7E 8A    JSR $8A7E	; ($8AAD) Comms
+							   OR ($8A81) Get Kernal RAM area into accum
+.C:8a5b  B0 20       BCS $8A7D	; Return
+.C:8a5d  C9 06       CMP #$06
+.C:8a5f  D0 04       BNE $8A65
+.C:8a61  A9 20       LDA #$20
+.C:8a63  D0 09       BNE $8A6E
+.C:8a65  C9 07       CMP #$07
+.C:8a67  D0 13       BNE $8A7C	; Skip
+.C:8a69  20 7E 8A    JSR $8A7E	; ($8AAD) Comms
+							   OR ($8A81) Get Kernal RAM area into accum
+.C:8a6c  B0 0F       BCS $8A7D
+.C:8a6e  8D 60 C1    STA $C160
+.C:8a71  20 7E 8A    JSR $8A7E	; ($8AAD) Comms
+							   OR ($8A81) Get Kernal RAM area into accum
+.C:8a74  B0 07       BCS $8A7D
+.C:8a76  8D 5F C1    STA $C15F
+.C:8a79  AD 60 C1    LDA $C160
+.C:8a7c  18          CLC
+.C:8a7d  60          RTS
+
+--------------------------------------
+.C:8a7e  6C 40 C1    JMP ($C140)
+
+-- Get RAM value and increment pointer
+.C:8a81  20 B6 8C    JSR $8CB6	; Get value from RAM after switch mem banks
+.C:8a84  E6 1D       INC $1D	; Increment addr pointer
+.C:8a86  D0 02       BNE $8A8A
+.C:8a88  E6 1E       INC $1E
+.C:8a8a  18          CLC
+.C:8a8b  60          RTS
+
+--------------------------------------
+.C:8a8c  AE 5D C1    LDX $C15D
+.C:8a8f  F0 03       BEQ $8A94
+.C:8a91  A9 00       LDA #$00
+.C:8a93  60          RTS
+
+--------------------------------------
+.C:8a94  A2 08       LDX #$08
+.C:8a96  20 C6 FF    JSR $FFC6	; Open channel for output
+.C:8a99  B0 11       BCS $8AAC
+.C:8a9b  20 CF FF    JSR $FFCF	; Output char to channel
+.C:8a9e  B0 0C       BCS $8AAC
+.C:8aa0  C9 01       CMP #$01
+.C:8aa2  D0 02       BNE $8AA6
+.C:8aa4  A9 00       LDA #$00
+.C:8aa6  A6 90       LDX $90
+.C:8aa8  8E 5D C1    STX $C15D
+.C:8aab  18          CLC
+.C:8aac  60          RTS
+
+-- $C228/$C22C Comms
+.C:8aad  2C 5D C1    BIT $C15D
+.C:8ab0  10 04       BPL $8AB6
+.C:8ab2  A9 00       LDA #$00
+.C:8ab4  18          CLC
+.C:8ab5  60          RTS
+
+.C:8ab6  20 CC 96    JSR $96CC	; ($996B) $C228/$C22C processing and comms ack
+.C:8ab9  6E 5D C1    ROR $C15D
+.C:8abc  18          CLC
+.C:8abd  60          RTS
+
+--------------------------------------
+.C:8abe  AE 19 80    LDX $8019
+.C:8ac1  AC 1A 80    LDY $801A
+.C:8ac4  20 70 8C    JSR $8C70
+.C:8ac7  AE 17 80    LDX $8017
+.C:8aca  AC 18 80    LDY $8018
+.C:8acd  20 EB 8A    JSR $8AEB
+.C:8ad0  AE 17 80    LDX $8017
+.C:8ad3  AC 18 80    LDY $8018
+.C:8ad6  8E 19 80    STX $8019
+.C:8ad9  8C 1A 80    STY $801A
+.C:8adc  A4 1E       LDY $1E
+.C:8ade  A6 1D       LDX $1D
+.C:8ae0  D0 01       BNE $8AE3
+.C:8ae2  88          DEY
+.C:8ae3  CA          DEX
+.C:8ae4  8E 17 80    STX $8017
+.C:8ae7  8C 18 80    STY $8018
+.C:8aea  60          RTS
+
+--------------------------------------
+.C:8aeb  86 1D       STX $1D
+.C:8aed  84 1E       STY $1E
+.C:8aef  20 05 8C    JSR $8C05
+.C:8af2  86 19       STX $19
+.C:8af4  A9 00       LDA #$00
+.C:8af6  85 1A       STA $1A
+.C:8af8  A9 FF       LDA #$FF
+.C:8afa  8D 58 C1    STA $C158
+.C:8afd  20 66 90    JSR $9066
+.C:8b00  20 24 EA    JSR $EA24	; Calc pointer to colour RAM
+.C:8b03  A9 12       LDA #$12
+.C:8b05  8D 5C C1    STA $C15C
+.C:8b08  A0 00       LDY #$00
+.C:8b0a  B1 D1       LDA ($D1),Y
+.C:8b0c  C9 20       CMP #$20
+.C:8b0e  D0 07       BNE $8B17
+.C:8b10  C8          INY
+.C:8b11  C0 28       CPY #$28
+.C:8b13  D0 F5       BNE $8B0A
+.C:8b15  F0 52       BEQ $8B69
+.C:8b17  C0 00       CPY #$00
+.C:8b19  F0 0C       BEQ $8B27
+.C:8b1b  84 D3       STY $D3
+.C:8b1d  A9 20       LDA #$20
+.C:8b1f  20 7D 8B    JSR $8B7D
+.C:8b22  A4 D3       LDY $D3
+.C:8b24  88          DEY
+.C:8b25  84 1A       STY $1A
+.C:8b27  A4 D3       LDY $D3
+.C:8b29  B1 D1       LDA ($D1),Y
+.C:8b2b  48          PHA
+.C:8b2c  C9 20       CMP #$20
+.C:8b2e  F0 15       BEQ $8B45
+.C:8b30  B1 F3       LDA ($F3),Y
+.C:8b32  29 0F       AND #$0F
+.C:8b34  CD 58 C1    CMP $C158
+.C:8b37  F0 0A       BEQ $8B43
+.C:8b39  8D 58 C1    STA $C158
+.C:8b3c  A8          TAY
+.C:8b3d  B9 F5 8B    LDA $8BF5,Y
+.C:8b40  20 7D 8B    JSR $8B7D
+.C:8b43  68          PLA
+.C:8b44  48          PHA
+.C:8b45  4D 5C C1    EOR $C15C
+.C:8b48  10 0E       BPL $8B58
+.C:8b4a  AD 5C C1    LDA $C15C
+.C:8b4d  20 7D 8B    JSR $8B7D
+.C:8b50  AD 5C C1    LDA $C15C
+.C:8b53  49 80       EOR #$80
+.C:8b55  8D 5C C1    STA $C15C
+.C:8b58  68          PLA
+.C:8b59  20 A8 94    JSR $94A8
+.C:8b5c  20 7D 8B    JSR $8B7D
+.C:8b5f  A4 D3       LDY $D3
+.C:8b61  C0 27       CPY #$27
+.C:8b63  F0 04       BEQ $8B69
+.C:8b65  E6 D3       INC $D3
+.C:8b67  D0 BE       BNE $8B27
+.C:8b69  20 6E 90    JSR $906E	; Print Carriage return
+.C:8b6c  20 7D 8B    JSR $8B7D
+.C:8b6f  A5 D6       LDA $D6
+.C:8b71  C9 18       CMP #$18
+.C:8b73  F0 03       BEQ $8B78
+.C:8b75  4C 00 8B    JMP $8B00
+.C:8b78  A9 00       LDA #$00
+.C:8b7a  4C C0 8B    JMP $8BC0
+.C:8b7d  C5 19       CMP $19
+.C:8b7f  D0 03       BNE $8B84
+.C:8b81  E6 1A       INC $1A
+.C:8b83  60          RTS
+
+--------------------------------------
+.C:8b84  A6 19       LDX $19
+.C:8b86  85 19       STA $19
+.C:8b88  C9 0D       CMP #$0D
+.C:8b8a  D0 09       BNE $8B95
+.C:8b8c  E0 20       CPX #$20
+.C:8b8e  D0 05       BNE $8B95
+.C:8b90  2C 5C C1    BIT $C15C
+.C:8b93  10 26       BPL $8BBB
+.C:8b95  8A          TXA
+.C:8b96  A6 1A       LDX $1A
+.C:8b98  E0 02       CPX #$02
+.C:8b9a  B0 08       BCS $8BA4
+.C:8b9c  20 C0 8B    JSR $8BC0
+.C:8b9f  CA          DEX
+.C:8ba0  10 FA       BPL $8B9C
+.C:8ba2  30 17       BMI $8BBB
+.C:8ba4  C9 20       CMP #$20
+.C:8ba6  D0 04       BNE $8BAC
+.C:8ba8  A9 06       LDA #$06
+.C:8baa  D0 07       BNE $8BB3
+.C:8bac  AA          TAX
+.C:8bad  A9 07       LDA #$07
+.C:8baf  20 C0 8B    JSR $8BC0
+.C:8bb2  8A          TXA
+.C:8bb3  20 C0 8B    JSR $8BC0
+.C:8bb6  A5 1A       LDA $1A
+.C:8bb8  20 C0 8B    JSR $8BC0
+.C:8bbb  A9 00       LDA #$00
+.C:8bbd  85 1A       STA $1A
+.C:8bbf  60          RTS
+.C:8bc0  A0 00       LDY #$00
+.C:8bc2  91 1D       STA ($1D),Y
+.C:8bc4  E6 1D       INC $1D
+.C:8bc6  F0 01       BEQ $8BC9
+.C:8bc8  60          RTS
+.C:8bc9  E6 1E       INC $1E
+.C:8bcb  F0 01       BEQ $8BCE
+.C:8bcd  60          RTS
+
+--------------------------------------
+.C:8bce  48          PHA
+.C:8bcf  8A          TXA
+.C:8bd0  48          PHA
+.C:8bd1  20 40 8C    JSR $8C40
+.C:8bd4  20 B6 8C    JSR $8CB6
+.C:8bd7  A0 00       LDY #$00
+.C:8bd9  91 1F       STA ($1F),Y
+.C:8bdb  E6 1F       INC $1F
+.C:8bdd  D0 02       BNE $8BE1
+.C:8bdf  E6 20       INC $20
+.C:8be1  E6 1D       INC $1D
+.C:8be3  D0 EF       BNE $8BD4
+.C:8be5  E6 1E       INC $1E
+.C:8be7  D0 EB       BNE $8BD4
+.C:8be9  A5 1F       LDA $1F
+.C:8beb  85 1D       STA $1D
+.C:8bed  A5 20       LDA $20
+.C:8bef  85 1E       STA $1E
+.C:8bf1  68          PLA
+.C:8bf2  AA          TAX
+.C:8bf3  68          PLA
+.C:8bf4  60          RTS
+
+--------------------------------------
+.C:8bf5  90 05       BCC $8BFC
+.C:8bf7  1C 9F 9C    NOOP $9C9F,X
+.C:8bfa  1E 1F 9E    ASL $9E1F,X
+.C:8bfd  81 95       STA ($95,X)
+.C:8bff  96 97       STX $97,Y
+.C:8c01  98          TYA
+.C:8c02  99 9A 9B    STA $9B9A,Y
+.C:8c05  A9 00       LDA #$00
+.C:8c07  20 C0 8B    JSR $8BC0
+.C:8c0a  AD 20 D0    LDA $D020
+.C:8c0d  09 F0       ORA #$F0
+.C:8c0f  20 C0 8B    JSR $8BC0
+.C:8c12  AD 21 D0    LDA $D021
+.C:8c15  09 F0       ORA #$F0
+.C:8c17  20 C0 8B    JSR $8BC0
+.C:8c1a  A2 0E       LDX #$0E
+.C:8c1c  AD 18 D0    LDA $D018
+.C:8c1f  29 02       AND #$02
+.C:8c21  D0 02       BNE $8C25
+.C:8c23  A2 8E       LDX #$8E
+.C:8c25  60          RTS
+
+-- Handle 40 column screen output
+.C:8c26  A5 D3       LDA $D3	; Current cursor col
+.C:8c28  C9 28       CMP #$28	; 40
+.C:8c2a  F0 02       BEQ $8C2E
+.C:8c2c  18          CLC
+.C:8c2d  60          RTS
+
+.C:8c2e  38          SEC
+.C:8c2f  20 F0 FF    JSR $FFF0	; Return the base addr of IO devices
+.C:8c32  A0 00       LDY #$00
+.C:8c34  B5 D9       LDA $D9,X	; Get high-byte of screen line
+.C:8c36  09 80       ORA #$80	; >$80 = no pointer, this is extension line
+.C:8c38  95 D9       STA $D9,X	; Store high-byte of screen line
+.C:8c3a  18          CLC
+.C:8c3b  20 F0 FF    JSR $FFF0	; Return the base addr of IO devices
+.C:8c3e  38          SEC
+.C:8c3f  60          RTS
+
+--------------------------------------
+.C:8c40  AE 15 80    LDX $8015
+.C:8c43  AC 16 80    LDY $8016
+.C:8c46  20 70 8C    JSR $8C70
+.C:8c49  AE 19 80    LDX $8019
+.C:8c4c  AC 1A 80    LDY $801A
+.C:8c4f  EC 15 80    CPX $8015
+.C:8c52  D0 05       BNE $8C59
+.C:8c54  CC 16 80    CPY $8016
+.C:8c57  F0 16       BEQ $8C6F
+.C:8c59  38          SEC
+.C:8c5a  8A          TXA
+.C:8c5b  E5 1D       SBC $1D
+.C:8c5d  AA          TAX
+.C:8c5e  98          TYA
+.C:8c5f  E5 1E       SBC $1E
+.C:8c61  A8          TAY
+.C:8c62  18          CLC
+.C:8c63  8A          TXA
+.C:8c64  65 1F       ADC $1F
+.C:8c66  8D 19 80    STA $8019
+.C:8c69  98          TYA
+.C:8c6a  65 20       ADC $20
+.C:8c6c  8D 1A 80    STA $801A
+.C:8c6f  60          RTS
+
+-------------------------------------
+.C:8c70  86 1D       STX $1D
+.C:8c72  86 1F       STX $1F
+.C:8c74  84 1E       STY $1E
+.C:8c76  84 20       STY $20
+.C:8c78  20 C5 8C    JSR $8CC5	; Pointless stuff with string stack
+.C:8c7b  20 B6 8C    JSR $8CB6	; Pointless stuff with string stack
+.C:8c7e  A0 00       LDY #$00
+.C:8c80  91 1F       STA ($1F),Y
+.C:8c82  D0 0E       BNE $8C92
+.C:8c84  A5 1D       LDA $1D
+.C:8c86  CD 17 80    CMP $8017
+.C:8c89  D0 07       BNE $8C92
+.C:8c8b  A5 1E       LDA $1E
+.C:8c8d  CD 18 80    CMP $8018
+.C:8c90  F0 0E       BEQ $8CA0
+.C:8c92  E6 1D       INC $1D	; String stack
+.C:8c94  D0 02       BNE $8C98
+.C:8c96  E6 1E       INC $1E	; String stack
+.C:8c98  E6 1F       INC $1F	; String stack
+.C:8c9a  D0 DF       BNE $8C7B
+.C:8c9c  E6 20       INC $20	; String stack
+.C:8c9e  D0 DB       BNE $8C7B
+.C:8ca0  A5 1F       LDA $1F	; String stack
+.C:8ca2  8D 17 80    STA $8017
+.C:8ca5  A5 20       LDA $20	; String stack
+.C:8ca7  8D 18 80    STA $8018
+.C:8caa  60          RTS
+
+-------------------------------------
+.C:8cab  AD 19 80    LDA $8019
+.C:8cae  85 1D       STA $1D
+.C:8cb0  AD 1A 80    LDA $801A
+.C:8cb3  85 1E       STA $1E
+.C:8cb5  60          RTS
+
+-- Gets a single RAM value into accum after switching mem banks
+.C:8cb6  A0 34       LDY #$34	; BASIC & KERNAL off
+.C:8cb8  78          SEI
+.C:8cb9  84 01       STY $01	; Memory bank set
+.C:8cbb  A0 00       LDY #$00
+.C:8cbd  B1 1D       LDA ($1D),Y	; Get from string stack location
+.C:8cbf  A0 36       LDY #$36	; BASIC off only
+.C:8cc1  84 01       STY $01	; Memory bank set
+.C:8cc3  58          CLI
+.C:8cc4  60          RTS
+
+----------------------------------------
+.C:8cc5  A0 34       LDY #$34	; BASIC & KERNAL off
+.C:8cc7  78          SEI
+.C:8cc8  84 01       STY $01	; Memory bank set
+.C:8cca  A0 00       LDY #$00
+.C:8ccc  E6 1D       INC $1D
+.C:8cce  D0 02       BNE $8CD2
+.C:8cd0  E6 1E       INC $1E
+.C:8cd2  B1 1D       LDA ($1D),Y	; Get from string stack location
+.C:8cd4  D0 F6       BNE $8CCC
+.C:8cd6  A0 36       LDY #$36	; BASIC off only
+.C:8cd8  84 01       STY $01	; Memory bank set
+.C:8cda  58          CLI
+.C:8cdb  60          RTS
+
+---------------------------------------
+>C:8cdc  0e cd 4f 44  45 4d 20 46  41 55 4c 54  0d 00 93 0e   ..ODEM FAULT....
+>C:8cec  08 11 c9 4e  50 55 54 20  50 48 4f 4e  45 20 4e 55   ...NPUT PHONE NU
+>C:8cfc  4d 42 45 52  00 20 4f 52  20 d2 c5 d4  d5 d2 ce 2e   MBER. OR .......
+>C:8d0c  00 0d 11 ce  55 4d 42 45  52 3f 20 20  00 11 c4 49   ....UMBER?  ...I
+>C:8d1c  41 4c 4c 49  4e 47 20 00  50 4c 45 41  53 45 20 57   ALLING .PLEASE W
+>C:8d2c  41 49 54 00                                          AIT.
+
+
+*** CONNECT ********************************************************************************************************
+-- check modem is ok
+.C:8d30  BA          TSX		; Stack pointer
+.C:8d31  8E 54 C1    STX $C154	; Store stack pointer
+.C:8d34  A2 03       LDX #$03
+.C:8d36  A9 20       LDA #$20
+.C:8d38  20 F0 94    JSR $94F0	; Modem send X and A
+.C:8d3b  20 FA 94    JSR $94FA	; Modem read A
+.C:8d3e  C9 20       CMP #$20
+.C:8d40  D0 09       BNE $8D4B
+.C:8d42  20 FA 94    JSR $94FA	; Modem read A
+.C:8d45  F0 0B       BEQ $8D52
+.C:8d47  C9 20       CMP #$20
+.C:8d49  F0 F7       BEQ $8D42
+.C:8d4b  A2 DC       LDX #$DC	; modem fault message
+.C:8d4d  A0 8C       LDY #$8C	; modem fault message
+.C:8d4f  4C B7 90    JMP $90B7	; Print
+
+-- Input phone number
+.C:8d52  20 50 90    JSR $9050	; Init screen
+.C:8d55  AD 13 80    LDA $8013	; 01 White
+.C:8d58  8D 21 D0    STA $D021	; Background colour
+.C:8d5b  AD 14 80    LDA $8014	; 06
+.C:8d5e  8D 86 02    STA $0286	; Cursor colour
+.C:8d61  A2 EA       LDX #$EA	; Input phone number message
+.C:8d63  A0 8C       LDY #$8C	; Input phone number message
+.C:8d65  20 B7 90    JSR $90B7	; Print
+.C:8d68  A0 01       LDY #$01
+.C:8d6a  AD F0 9F    LDA $9FF0	; Phone number/CNLOAD area
+.C:8d6d  F0 09       BEQ $8D78	; If zero, CNLOAD not loaded ("or return" not possible)
+.C:8d6f  A2 01       LDX #$01	; "or return" message (if there's a default number?)
+.C:8d71  A0 8D       LDY #$8D	; "or return" message
+.C:8d73  20 B7 90    JSR $90B7	; Print
+.C:8d76  A0 00       LDY #$00
+.C:8d78  A2 10       LDX #$10
+.C:8d7a  A9 2D       LDA #$2D
+.C:8d7c  38          SEC
+.C:8d7d  20 C8 90    JSR $90C8
+.C:8d80  A2 0D       LDX #$0D	; number prompt
+.C:8d82  A0 8D       LDY #$8D	; number prompt
+.C:8d84  20 B7 90    JSR $90B7	; Print
+.C:8d87  A2 00       LDX #$00
+.C:8d89  A0 02       LDY #$02
+.C:8d8b  20 DF 90    JSR $90DF	; Input?
+.C:8d8e  90 01       BCC $8D91
+.C:8d90  60          RTS
+
+.C:8d91  20 6E 90    JSR $906E	; Print Carriage return
+.C:8d94  A6 1A       LDX $1A	; String stack ($0019 - $0021)
+.C:8d96  F0 0C       BEQ $8DA4
+.C:8d98  8E F0 9F    STX $9FF0
+
+-- Loop to store input phone number at $9FF0
+.C:8d9b  BD FF 01    LDA $01FF,X	; Input buffer ($0200 - $0258)
+.C:8d9e  9D F0 9F    STA $9FF0,X
+.C:8da1  CA          DEX
+.C:8da2  D0 F7       BNE $8D9B
+
+-- Print dialling message
+.C:8da4  A2 19       LDX #$19	; Dialling please wait message
+.C:8da6  A0 8D       LDY #$8D	; Dialling please wait message
+.C:8da8  20 B7 90    JSR $90B7	; Print
+.C:8dab  20 C0 96    JSR $96C0	; Get modem response
+.C:8dae  20 C6 96    JSR $96C6	; Open phoneline
+
+-- Got dialtone? (try 3 times)
+.C:8db1  A0 03       LDY #$03
+.C:8db3  A2 08       LDX #$08
+.C:8db5  A9 10       LDA #$10
+.C:8db7  20 F0 94    JSR $94F0	; Modem send X and A
+.C:8dba  20 FA 94    JSR $94FA	; Modem read A
+.C:8dbd  29 10       AND #$10
+.C:8dbf  F0 0A       BEQ $8DCB
+.C:8dc1  20 E4 FF    JSR $FFE4	; Close all channels and files
+.C:8dc4  C9 03       CMP #$03
+.C:8dc6  D0 F2       BNE $8DBA
+.C:8dc8  4C C0 96    JMP $96C0	; Get modem response
+.C:8dcb  88          DEY
+.C:8dcc  D0 E7       BNE $8DB5
+
+-- Dial number
+.C:8dce  A0 00       LDY #$00
+.C:8dd0  B9 F1 9F    LDA $9FF1,Y	; Get phone number char
+.C:8dd3  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8dd6  C9 2D       CMP #$2D	; "dash" char in number
+.C:8dd8  D0 10       BNE $8DEA
+.C:8dda  A2 08       LDX #$08
+.C:8ddc  A9 10       LDA #$10
+.C:8dde  20 F0 94    JSR $94F0	; Modem send X and A
+.C:8de1  20 FA 94    JSR $94FA	; Modem read A
+.C:8de4  29 10       AND #$10
+.C:8de6  D0 F9       BNE $8DE1
+.C:8de8  F0 12       BEQ $8DFC
+
+.C:8dea  29 0F       AND #$0F
+.C:8dec  D0 02       BNE $8DF0
+.C:8dee  A9 0A       LDA #$0A
+.C:8df0  09 A0       ORA #$A0
+.C:8df2  20 F0 94    JSR $94F0	; Modem send X and A
+.C:8df5  20 FA 94    JSR $94FA	; Modem read A
+.C:8df8  29 20       AND #$20
+.C:8dfa  D0 F9       BNE $8DF5
+.C:8dfc  20 E4 FF    JSR $FFE4	; Close all channels and files
+.C:8dff  C9 03       CMP #$03
+.C:8e01  F0 19       BEQ $8E1C
+.C:8e03  C8          INY
+.C:8e04  CC F0 9F    CPY $9FF0
+.C:8e07  D0 C7       BNE $8DD0
+
+-- Please wait
+.C:8e09  A2 03       LDX #$03
+.C:8e0b  A9 90       LDA #$90
+.C:8e0d  20 F0 94    JSR $94F0	; Modem send X and A
+.C:8e10  A2 08       LDX #$08
+.C:8e12  A9 40       LDA #$40
+.C:8e14  20 F0 94    JSR $94F0	; Modem send X and A
+.C:8e17  20 D5 96    JSR $96D5	; CONNECT TO COMPUNET
+.C:8e1a  90 03       BCC $8E1F
+.C:8e1c  4C C0 96    JMP $96C0	; Get modem response
+.C:8e1f  A2 24       LDX #$24	; Please wait (message bar)
+.C:8e21  A0 8D       LDY #$8D	; Please wait (message bar)
+.C:8e23  20 7B 90    JSR $907B	; Message bar
+.C:8e26  18          CLC
+.C:8e27  6E 55 C1    ROR $C155
+.C:8e2a  20 D2 96    JSR $96D2	; Jumps to $9B3B
+.C:8e2d  90 06       BCC $8E35
+.C:8e2f  20 C0 96    JSR $96C0	; Get modem response
+.C:8e32  4C 62 90    JMP $9062
+
+-- Login screen (8 char ID, 6 char password)
+.C:8e35  20 50 90    JSR $9050	; Init screen
+.C:8e38  A2 07       LDX #$07
+.C:8e3a  A0 95       LDY #$95
+.C:8e3c  20 E2 89    JSR $89E2	; Print login window (at $9507)
+.C:8e3f  A9 02       LDA #$02	; Red
+.C:8e41  8D 86 02    STA $0286	; Cursor colour value
+.C:8e44  A9 5A       LDA #$5A	; "Z"
+.C:8e46  8D 00 C1    STA $C100
+.C:8e49  A2 10       LDX #$10
+.C:8e4b  A0 12       LDY #$12
+.C:8e4d  18          CLC
+.C:8e4e  20 F0 FF    JSR $FFF0	; Return the base addr of IO devices
+.C:8e51  A2 08       LDX #$08
+.C:8e53  A0 01       LDY #$01
+.C:8e55  A9 00       LDA #$00
+.C:8e57  18          CLC
+.C:8e58  20 C8 90    JSR $90C8	; Sets vals in $c143 - $c146
+.C:8e5b  A2 01       LDX #$01
+.C:8e5d  A0 C1       LDY #$C1
+.C:8e5f  20 DF 90    JSR $90DF
+.C:8e62  B0 D4       BCS $8E38
+.C:8e64  A4 1A       LDY $1A
+.C:8e66  A9 20       LDA #$20
+.C:8e68  99 01 C1    STA $C101,Y
+.C:8e6b  C8          INY
+.C:8e6c  C0 08       CPY #$08
+.C:8e6e  90 F8       BCC $8E68
+.C:8e70  A2 12       LDX #$12
+.C:8e72  A0 0D       LDY #$0D
+.C:8e74  18          CLC
+.C:8e75  20 F0 FF    JSR $FFF0	; Return the base addr of IO devices
+.C:8e78  A2 00       LDX #$00
+.C:8e7a  A9 5F       LDA #$5F	; Back arrow
+.C:8e7c  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8e7f  A9 9D       LDA #$9D	; Cursor left
+.C:8e81  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8e84  20 02 90    JSR $9002	; Close channels?
+.C:8e87  C9 0D       CMP #$0D	; Carriage Return
+.C:8e89  F0 18       BEQ $8EA3	; Enter pressed, do next
+.C:8e8b  E0 06       CPX #$06	; 6 chars max?
+.C:8e8d  F0 EB       BEQ $8E7A	; Loop (can't enter more than 6)
+.C:8e8f  9D 09 C1    STA $C109,X	; Store ID at $C109
+.C:8e92  C9 30       CMP #$30	; "0"
+.C:8e94  90 E4       BCC $8E7A
+.C:8e96  C9 5B       CMP #$5B	; "["
+.C:8e98  B0 E0       BCS $8E7A
+.C:8e9a  E8          INX
+.C:8e9b  A9 2A       LDA #$2A	; "*" (masked password)
+.C:8e9d  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:8ea0  4C 7A 8E    JMP $8E7A
+
+.C:8ea3  20 6A 90    JSR $906A	; Print Space
+.C:8ea6  A9 20       LDA #$20	; Loop to blank password at $C109
+.C:8ea8  9D 09 C1    STA $C109,X
+.C:8eab  E8          INX
+.C:8eac  E0 06       CPX #$06
+.C:8eae  90 F8       BCC $8EA8	; End loop
+.C:8eb0  A2 37       LDX #$37	; Normalise memory banks
+.C:8eb2  86 01       STX $01	; Normalise memory banks
+.C:8eb4  A2 09       LDX #$09	; Loop to move 9 codes to $C10F
+.C:8eb6  BD 39 80    LDA $8039,X
+.C:8eb9  9D 0F C1    STA $C10F,X
+.C:8ebc  CA          DEX
+.C:8ebd  10 F7       BPL $8EB6	; End loop
+.C:8ebf  A2 36       LDX #$36	; Switch off BASIC
+.C:8ec1  86 01       STX $01	; Switch off BASIC
+.C:8ec3  AD 00 A0    LDA $A000
+.C:8ec6  8D 19 C1    STA $C119
+.C:8ec9  AD 01 A0    LDA $A001
+.C:8ecc  8D 1A C1    STA $C11A
+.C:8ecf  A2 24       LDX #$24	; Please wait (message bar)
+.C:8ed1  A0 8D       LDY #$8D	; Please wait (message bar)
+.C:8ed3  20 7B 90    JSR $907B	; Message bar
+.C:8ed6  A9 43       LDA #$43	; "C"
+.C:8ed8  8D 34 80    STA $8034
+.C:8edb  A0 1B       LDY #$1B
+.C:8edd  20 C1 94    JSR $94C1
+.C:8ee0  20 D2 96    JSR $96D2
+.C:8ee3  90 03       BCC $8EE8	; Login successful? Go to Linking
+.C:8ee5  4C 38 8E    JMP $8E38	; Back to login
+
+-- Linking
+.C:8ee8  20 D0 89    JSR $89D0
+.C:8eeb  38          SEC
+.C:8eec  6E 55 C1    ROR $C155
+.C:8eef  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:8ef2  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:8ef5  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:8ef8  85 1F       STA $1F	; String stack
+.C:8efa  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:8efd  85 20       STA $20	; String stack
+.C:8eff  B0 37       BCS $8F38	; Exit
+
+.C:8f01  A2 3F       LDX #$3F	; Linking (message bar)
+.C:8f03  A0 8F       LDY #$8F	; Linking (message bar)
+.C:8f05  20 7B 90    JSR $907B	; Message bar
+.C:8f08  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:8f0b  85 1D       STA $1D
+.C:8f0d  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:8f10  85 1E       STA $1E
+.C:8f12  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:8f15  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:8f18  A0 00       LDY #$00
+.C:8f1a  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:8f1d  91 1D       STA ($1D),Y
+.C:8f1f  B0 08       BCS $8F29
+.C:8f21  E6 1D       INC $1D
+.C:8f23  D0 F5       BNE $8F1A
+.C:8f25  E6 1E       INC $1E
+.C:8f27  D0 F1       BNE $8F1A
+.C:8f29  2C 55 C1    BIT $C155
+.C:8f2c  10 0A       BPL $8F38	; Exit
+.C:8f2e  A6 1D       LDX $1D
+.C:8f30  A4 1E       LDY $1E
+.C:8f32  8E 36 80    STX $8036
+.C:8f35  8C 37 80    STY $8037
+
+.C:8f38  18          CLC
+.C:8f39  6E 55 C1    ROR $C155
+.C:8f3c  6C 1F 00    JMP ($001F)
+
+>C:8f3f  4c 49 4e 4b  49 4e 47 00                             LINKING.
+
+--------------------------------------
+.C:8f47  E0 00       CPX #$00
+.C:8f49  F0 33       BEQ $8F7E
+.C:8f4b  8E 50 C1    STX $C150
+.C:8f4e  AE 54 C1    LDX $C154	; Get stored stack pointer
+.C:8f51  9A          TXS
+.C:8f52  20 C0 96    JSR $96C0	; Get modem response
+.C:8f55  20 CC FF    JSR $FFCC	; Input char from channel
+.C:8f58  20 F2 8F    JSR $8FF2
+.C:8f5b  AD 51 C1    LDA $C151
+.C:8f5e  8D 20 D0    STA $D020	; Background colour
+.C:8f61  AC 50 C1    LDY $C150
+.C:8f64  BE AF 8F    LDX $8FAF,Y
+.C:8f67  B9 B4 8F    LDA $8FB4,Y
+.C:8f6a  A8          TAY
+.C:8f6b  20 7B 90    JSR $907B
+.C:8f6e  20 02 90    JSR $9002	; Close channels
+.C:8f71  AD 53 C1    LDA $C153
+.C:8f74  8D 86 02    STA $0286
+.C:8f77  A2 DA       LDX #$DA	; Connect again please message
+.C:8f79  A0 8F       LDY #$8F	; Connect again please message
+.C:8f7b  4C B7 90    JMP $90B7	; Print
+
+.C:8f7e  AE 54 C1    LDX $C154	; Get stored stack pointer
+.C:8f81  9A          TXS
+.C:8f82  20 CC FF    JSR $FFCC	; Input char from channel
+.C:8f85  AD 14 80    LDA $8014
+.C:8f88  8D 86 02    STA $0286
+.C:8f8b  A2 F4       LDX #$F4	; Aborted message
+.C:8f8d  A0 9C       LDY #$9C	; Aborted message
+.C:8f8f  20 B7 90    JSR $90B7	; Print
+.C:8f92  AD 01 DC    LDA $DC01	; Keyboard matrix/Joy port #1
+.C:8f95  CD 01 DC    CMP $DC01	; Keyboard matrix/Joy port #1
+.C:8f98  D0 F8       BNE $8F92
+.C:8f9a  C9 FF       CMP #$FF
+.C:8f9c  D0 F4       BNE $8F92
+
+.C:8f9e  A9 00       LDA #$00	; Zeroise keyboard buffer
+.C:8fa0  85 C6       STA $C6	; Length of keyboard buffer
+.C:8fa2  2C 10 80    BIT $8010
+.C:8fa5  10 03       BPL $8FAA
+.C:8fa7  20 D8 96    JSR $96D8
+.C:8faa  20 F2 8F    JSR $8FF2
+.C:8fad  4C C0 96    JMP $96C0	; Get modem response
+
+
+>C:8fb0  00 ba bb d4  d7 c1 8f 8f  8f 8f 20 44  49 53 43 4f   .......... DISCO
+>C:8fc0  4e 4e 45 43  54 45 44 20  2d 20 42 41  44 20 4c 49   NNECTED - BAD LI
+>C:8fd0  4e 45 3f 00  57 52 00 52  57 00 93 0e  43 4f 4e 4e   NE?.WR.RW...CONN
+>C:8fe0  45 43 54 20  41 47 41 49  4e 20 50 4c  45 41 53 45   ECT AGAIN PLEASE
+>C:8ff0  0d 00 2c 55  c1 10 03 20  3a 83 60                   ..,U... :.`
+
+--------------------------------------
+.C:8ffb  A2 10       LDX #$10	; Press any key (message bar)
+.C:8ffd  A0 90       LDY #$90	; Press any key (message bar)
+.C:8fff  20 7B 90    JSR $907B	; Message bar
+
+.C:9002  A9 00       LDA #$00
+.C:9004  85 C6       STA $C6
+.C:9006  86 19       STX $19
+.C:9008  20 E4 FF    JSR $FFE4	; Close all channels and files
+.C:900b  F0 FB       BEQ $9008
+.C:900d  A6 19       LDX $19
+.C:900f  60          RTS
+
+--------------------------------------
+.C:9010  50 52       BVC $9064
+.C:9012  45 53       EOR $53
+.C:9014  53 20       SRE ($20),Y
+.C:9016  41 4E       EOR ($4E,X)
+.C:9018  59 20 4B    EOR $4B20,Y
+.C:901b  45 59       EOR $59
+.C:901d  00          BRK
+.C:901e  A2 01       LDX #$01
+.C:9020  A0 01       LDY #$01
+.C:9022  A9 00       LDA #$00
+.C:9024  18          CLC
+.C:9025  20 C8 90    JSR $90C8
+.C:9028  A2 00       LDX #$00
+.C:902a  A0 02       LDY #$02
+.C:902c  20 DF 90    JSR $90DF
+.C:902f  B0 0D       BCS $903E
+.C:9031  AD 00 02    LDA $0200
+.C:9034  29 DF       AND #$DF
+.C:9036  C9 59       CMP #$59
+.C:9038  F0 13       BEQ $904D
+.C:903a  C9 4E       CMP #$4E
+.C:903c  F0 0F       BEQ $904D
+.C:903e  A9 9D       LDA #$9D
+.C:9040  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:9043  C0 00       CPY #$00
+.C:9045  F0 D7       BEQ $901E
+.C:9047  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:904a  4C 1E 90    JMP $901E
+.C:904d  C9 59       CMP #$59
+.C:904f  60          RTS
+
+-- Initialise Screen
+.C:9050  20 62 90    JSR $9062	; Clear screen
+.C:9053  20 8B 93    JSR $938B	; Create screen message bar
+.C:9056  20 76 90    JSR $9076	; Print Rvs Off
+.C:9059  A9 00       LDA #$00	; Switch off all sprites
+.C:905b  8D 15 D0    STA $D015	; Sprite register
+.C:905e  A9 0E       LDA #$0E	; Switch lower/upper case
+.C:9060  D0 16       BNE $9078
+.C:9062  A9 93       LDA #$93	; Clear screen
+.C:9064  D0 12       BNE $9078
+.C:9066  A9 13       LDA #$13	; Home
+.C:9068  D0 0E       BNE $9078
+.C:906A  A9 20       LDA #$20	; Space
+.C:906c  D0 0A       BNE $9078
+.C:906e  A9 0D       LDA #$0D	; Carriage return
+.C:9070  D0 06       BNE $9078
+.C:9072  A9 12       LDA #$12	; Rvs On
+.C:9074  D0 02       BNE $9078
+.C:9076  A9 92       LDA #$92	; Rvs Off
+.C:9078  4C D2 FF    JMP $FFD2	; Output char to channel
+
+*** Display message in message bar ********
+.C:907b  86 1B       STX $1B
+.C:907d  84 1C       STY $1C
+.C:907f  20 B4 93    JSR $93B4
+.C:9082  AD 86 02    LDA $0286
+.C:9085  48          PHA
+.C:9086  20 97 90    JSR $9097
+.C:9089  20 76 90    JSR $9076	; Print Rvs Off
+.C:908c  68          PLA
+.C:908d  8D 86 02    STA $0286
+.C:9090  4C BF 93    JMP $93BF
+
+-------------------------------------------
+.C:9093  86 1B       STX $1B
+.C:9095  84 1C       STY $1C
+.C:9097  20 8B 93    JSR $938B
+.C:909a  20 AF 90    JSR $90AF
+.C:909d  20 72 90    JSR $9072	; Print Rvs On
+.C:90a0  AD 21 D0    LDA $D021
+.C:90a3  29 0F       AND #$0F
+.C:90a5  AA          TAX
+.C:90a6  BD A4 93    LDA $93A4,X
+.C:90a9  8D 86 02    STA $0286
+.C:90ac  4C BB 90    JMP $90BB
+.C:90af  A2 18       LDX #$18
+.C:90b1  A0 00       LDY #$00
+.C:90b3  18          CLC
+.C:90b4  4C F0 FF    JMP $FFF0	; Return the base addr of IO devices
+
+*** Print screen message ***************
+.C:90b7  86 1B       STX $1B
+.C:90b9  84 1C       STY $1C
+.C:90bb  A0 00       LDY #$00
+.C:90bd  B1 1B       LDA ($1B),Y
+.C:90bf  F0 06       BEQ $90C7
+.C:90c1  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:90c4  C8          INY
+.C:90c5  D0 F6       BNE $90BD
+.C:90c7  60          RTS
+
+-- Sets values in $c143 - $c146
+.C:90c8  8E 43 C1    STX $C143
+.C:90cb  8C 44 C1    STY $C144
+.C:90ce  8D 46 C1    STA $C146
+.C:90d1  AA          TAX
+.C:90d2  A9 00       LDA #$00
+.C:90d4  6A          ROR A
+.C:90d5  E0 00       CPX #$00
+.C:90d7  F0 02       BEQ $90DB
+.C:90d9  09 40       ORA #$40
+.C:90db  8D 45 C1    STA $C145
+.C:90de  60          RTS
+
+---------------------------------------
+.C:90df  86 1D       STX $1D
+.C:90e1  84 1E       STY $1E
+.C:90e3  A0 00       LDY #$00
+.C:90e5  84 1A       STY $1A
+.C:90e7  84 C6       STY $C6
+.C:90e9  A9 00       LDA #$00
+.C:90eb  85 D4       STA $D4
+.C:90ed  A9 5F       LDA #$5F	; Back arrow
+.C:90ef  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:90f2  A9 9D       LDA #$9D	; Cursor left
+.C:90f4  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:90f7  20 E4 FF    JSR $FFE4	; Close all channels and files
+.C:90fa  F0 FB       BEQ $90F7
+.C:90fc  A4 1A       LDY $1A
+.C:90fe  C9 03       CMP #$03
+.C:9100  D0 05       BNE $9107
+.C:9102  20 6A 90    JSR $906A	; Print Space
+.C:9105  38          SEC
+.C:9106  60          RTS
+
+------------------------------------------
+.C:9107  CC 44 C1    CPY $C144
+.C:910a  90 04       BCC $9110
+.C:910c  C9 0D       CMP #$0D
+.C:910e  F0 5C       BEQ $916C
+.C:9110  C0 00       CPY #$00
+.C:9112  F0 14       BEQ $9128
+.C:9114  C9 14       CMP #$14
+.C:9116  D0 10       BNE $9128
+.C:9118  20 6A 90    JSR $906A	; Print Space
+.C:911b  A9 9D       LDA #$9D
+.C:911d  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:9120  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:9123  C6 1A       DEC $1A
+.C:9125  4C E9 90    JMP $90E9
+.C:9128  CC 43 C1    CPY $C143
+.C:912b  F0 CA       BEQ $90F7
+.C:912d  2C 45 C1    BIT $C145
+.C:9130  50 07       BVC $9139
+.C:9132  CD 46 C1    CMP $C146
+.C:9135  F0 2B       BEQ $9162
+.C:9137  D0 02       BNE $913B
+.C:9139  10 0A       BPL $9145
+.C:913b  C9 30       CMP #$30
+.C:913d  90 B8       BCC $90F7
+.C:913f  C9 3A       CMP #$3A
+.C:9141  B0 B4       BCS $90F7
+.C:9143  90 1D       BCC $9162
+.C:9145  C9 22       CMP #$22
+.C:9147  F0 AE       BEQ $90F7
+.C:9149  C9 20       CMP #$20
+.C:914b  90 AA       BCC $90F7
+.C:914d  C9 60       CMP #$60
+.C:914f  90 11       BCC $9162
+.C:9151  AA          TAX
+.C:9152  AD 18 D0    LDA $D018
+.C:9155  29 02       AND #$02
+.C:9157  F0 9E       BEQ $90F7
+.C:9159  8A          TXA
+.C:915a  C9 A0       CMP #$A0
+.C:915c  90 99       BCC $90F7
+.C:915e  C9 E0       CMP #$E0
+.C:9160  B0 95       BCS $90F7
+.C:9162  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:9165  91 1D       STA ($1D),Y
+.C:9167  E6 1A       INC $1A
+.C:9169  4C E9 90    JMP $90E9
+.C:916c  20 6A 90    JSR $906A	; Print Space
+.C:916f  18          CLC
+.C:9170  60          RTS
+
+----------------------------------------
+.C:9171  8D 47 C1    STA $C147
+.C:9174  8E 32 80    STX $8032
+.C:9177  A2 56       LDX #$56	; File name input prompt
+.C:9179  A0 92       LDY #$92	; File name input prompt
+.C:917b  20 B7 90    JSR $90B7	; Print
+.C:917e  20 AD 92    JSR $92AD
+.C:9181  A0 00       LDY #$00
+.C:9183  B0 01       BCS $9186
+.C:9185  C8          INY
+.C:9186  A9 00       LDA #$00
+.C:9188  A2 10       LDX #$10
+.C:918a  18          CLC
+.C:918b  20 C8 90    JSR $90C8
+.C:918e  AD 18 D0    LDA $D018	; Memory bank setting; char mem vs. VIC
+.C:9191  48          PHA
+.C:9192  A2 1E       LDX #$1E
+.C:9194  A0 80       LDY #$80
+.C:9196  20 DF 90    JSR $90DF
+.C:9199  84 19       STY $19
+.C:919b  68          PLA
+.C:919c  8D 18 D0    STA $D018	; Memory bank setting; char mem vs. VIC
+.C:919f  08          PHP
+.C:91a0  A9 08       LDA #$08
+.C:91a2  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:91a5  28          PLP
+.C:91a6  90 03       BCC $91AB
+.C:91a8  4C 4C 92    JMP $924C
+.C:91ab  2C 56 C1    BIT $C156
+.C:91ae  10 4A       BPL $91FA
+.C:91b0  30 0D       BMI $91BF
+.C:91b2  8D 47 C1    STA $C147
+.C:91b5  8E 32 80    STX $8032
+.C:91b8  84 19       STY $19
+.C:91ba  20 AD 92    JSR $92AD
+.C:91bd  90 3B       BCC $91FA
+.C:91bf  A5 19       LDA $19
+.C:91c1  A2 1E       LDX #$1E
+.C:91c3  A0 80       LDY #$80
+.C:91c5  20 BD FF    JSR $FFBD	; Open a logical file
+.C:91c8  AD 32 80    LDA $8032
+.C:91cb  C9 50       CMP #$50
+.C:91cd  F0 28       BEQ $91F7
+.C:91cf  A0 00       LDY #$00
+.C:91d1  AD 47 C1    LDA $C147
+.C:91d4  C9 57       CMP #$57
+.C:91d6  D0 01       BNE $91D9
+.C:91d8  C8          INY
+.C:91d9  A2 01       LDX #$01
+.C:91db  A9 08       LDA #$08
+.C:91dd  20 BA FF    JSR $FFBA	; Set the filename
+.C:91e0  A2 6D       LDX #$6D
+.C:91e2  A0 92       LDY #$92
+.C:91e4  20 93 90    JSR $9093
+.C:91e7  20 90 92    JSR $9290
+.C:91ea  20 C0 FF    JSR $FFC0	; Close a specified logical file
+.C:91ed  20 A2 92    JSR $92A2
+.C:91f0  90 5E       BCC $9250
+.C:91f2  A9 08       LDA #$08
+.C:91f4  20 C3 FF    JSR $FFC3	; Open a channel for input
+.C:91f7  38          SEC
+.C:91f8  B0 56       BCS $9250
+.C:91fa  A4 19       LDY $19
+.C:91fc  AD 47 C1    LDA $C147
+.C:91ff  99 21 80    STA $8021,Y
+.C:9202  AD 32 80    LDA $8032
+.C:9205  99 1F 80    STA $801F,Y
+.C:9208  A9 2C       LDA #$2C
+.C:920a  99 1E 80    STA $801E,Y
+.C:920d  99 20 80    STA $8020,Y
+.C:9210  98          TYA
+.C:9211  18          CLC
+.C:9212  69 06       ADC #$06
+.C:9214  8D 48 C1    STA $C148
+.C:9217  A2 1C       LDX #$1C
+.C:9219  A0 80       LDY #$80
+.C:921b  20 BD FF    JSR $FFBD	; Open a logical file
+.C:921e  A9 08       LDA #$08
+.C:9220  AA          TAX
+.C:9221  A8          TAY
+.C:9222  20 BA FF    JSR $FFBA	; Set the filename
+.C:9225  20 C0 FF    JSR $FFC0	; Close a specified logical file
+.C:9228  20 E8 92    JSR $92E8
+.C:922b  90 23       BCC $9250
+.C:922d  10 21       BPL $9250
+.C:922f  A2 64       LDX #$64
+.C:9231  A0 92       LDY #$92
+.C:9233  20 93 90    JSR $9093
+.C:9236  20 1E 90    JSR $901E
+.C:9239  D0 11       BNE $924C
+.C:923b  20 AD 92    JSR $92AD
+.C:923e  B0 10       BCS $9250
+.C:9240  A2 1B       LDX #$1B
+.C:9242  A0 80       LDY #$80
+.C:9244  EE 48 C1    INC $C148
+.C:9247  AD 48 C1    LDA $C148
+.C:924a  D0 CF       BNE $921B
+.C:924c  20 E0 92    JSR $92E0
+.C:924f  38          SEC
+.C:9250  08          PHP
+.C:9251  20 76 90    JSR $9076	; Print Rvs Off
+.C:9254  28          PLP
+.C:9255  60          RTS
+
+--------------------------------------
+.C:9256  09 20       ORA #$20
+.C:9258  46 49       LSR $49
+.C:925a  4C 45 20    JMP $2045
+.C:925d  4E 41 4D    LSR $4D41
+.C:9260  45 3F       EOR $3F
+.C:9262  20 00 52    JSR $5200
+.C:9265  45 50       EOR $50
+.C:9267  4C 41 43    JMP $4341
+.C:926a  45 3F       EOR $3F
+.C:926c  20 00 C9    JSR $C900
+.C:926f  0D D0 04    ORA $04D0
+.C:9272  38          SEC
+.C:9273  66 19       ROR $19
+.C:9275  60          RTS
+.C:9276  24 19       BIT $19
+.C:9278  10 13       BPL $928D
+.C:927a  18          CLC
+.C:927b  66 19       ROR $19
+.C:927d  48          PHA
+.C:927e  8A          TXA
+.C:927f  48          PHA
+.C:9280  98          TYA
+.C:9281  48          PHA
+.C:9282  20 8B 93    JSR $938B
+.C:9285  20 AF 90    JSR $90AF
+.C:9288  68          PLA
+.C:9289  A8          TAY
+.C:928a  68          PLA
+.C:928b  AA          TAX
+.C:928c  68          PLA
+.C:928d  4C CA F1    JMP $F1CA	; Output a char to channel
+.C:9290  A2 6E       LDX #$6E
+.C:9292  A0 92       LDY #$92
+.C:9294  8E 26 03    STX $0326
+.C:9297  8C 27 03    STY $0327
+.C:929a  18          CLC
+.C:929b  66 19       ROR $19
+.C:929d  A9 80       LDA #$80
+.C:929f  4C 90 FF    JMP $FF90	; Send secondary addr after Listen
+.C:92a2  A2 CA       LDX #$CA
+.C:92a4  A0 F1       LDY #$F1
+.C:92a6  8E 26 03    STX $0326
+.C:92a9  8C 27 03    STY $0327
+.C:92ac  60          RTS
+
+------------------------------------------
+.C:92ad  A9 00       LDA #$00
+.C:92af  20 BD FF    JSR $FFBD	; Open a logical file
+.C:92b2  A9 0F       LDA #$0F
+.C:92b4  A8          TAY
+.C:92b5  A2 08       LDX #$08
+.C:92b7  20 BA FF    JSR $FFBA	; Set the filename
+.C:92ba  20 C0 FF    JSR $FFC0	; Close a specified logical file
+.C:92bd  A2 0F       LDX #$0F
+.C:92bf  20 C9 FF    JSR $FFC9	; Close in and out channels
+.C:92c2  08          PHP
+.C:92c3  6E 56 C1    ROR $C156
+.C:92c6  20 CC FF    JSR $FFCC	; Input char from channel
+.C:92c9  28          PLP
+.C:92ca  B0 14       BCS $92E0
+.C:92cc  60          RTS
+.C:92cd  20 90 92    JSR $9290
+.C:92d0  A9 08       LDA #$08
+.C:92d2  20 C3 FF    JSR $FFC3	; Open a channel for input
+.C:92d5  90 03       BCC $92DA
+.C:92d7  20 E7 FF    JSR $FFE7	; Increment RTC clock
+.C:92da  20 A2 92    JSR $92A2
+.C:92dd  20 E8 92    JSR $92E8
+.C:92e0  08          PHP
+.C:92e1  A9 0F       LDA #$0F
+.C:92e3  20 C3 FF    JSR $FFC3	; Open a channel for input
+.C:92e6  28          PLP
+.C:92e7  60          RTS
+
+------------------------------------------
+.C:92e8  20 5F 93    JSR $935F
+.C:92eb  08          PHP
+.C:92ec  A2 00       LDX #$00
+.C:92ee  28          PLP
+.C:92ef  F0 15       BEQ $9306
+.C:92f1  A2 A0       LDX #$A0
+.C:92f3  C9 32       CMP #$32
+.C:92f5  F0 0F       BEQ $9306
+.C:92f7  A2 80       LDX #$80
+.C:92f9  C9 36       CMP #$36
+.C:92fb  D0 09       BNE $9306
+.C:92fd  AC 01 02    LDY $0201
+.C:9300  C0 33       CPY #$33
+.C:9302  D0 02       BNE $9306
+.C:9304  A2 C0       LDX #$C0
+.C:9306  8E 49 C1    STX $C149
+.C:9309  A9 20       LDA #$20
+.C:930b  2C 49 C1    BIT $C149
+.C:930e  10 29       BPL $9339
+.C:9310  70 27       BVS $9339
+.C:9312  D0 17       BNE $932B
+.C:9314  A2 00       LDX #$00
+.C:9316  BD 00 02    LDA $0200,X
+.C:9319  E8          INX
+.C:931a  C9 2C       CMP #$2C
+.C:931c  D0 F8       BNE $9316
+.C:931e  BD 00 02    LDA $0200,X	; Input buffer
+.C:9321  E8          INX
+.C:9322  C9 2C       CMP #$2C
+.C:9324  D0 F8       BNE $931E
+.C:9326  A9 00       LDA #$00
+.C:9328  9D FF 01    STA $01FF,X	; Processor stack
+.C:932b  A2 53       LDX #$53
+.C:932d  A0 93       LDY #$93
+.C:932f  20 93 90    JSR $9093
+.C:9332  A2 00       LDX #$00
+.C:9334  A0 02       LDY #$02
+.C:9336  20 B7 90    JSR $90B7
+.C:9339  0E 49 C1    ASL $C149
+.C:933c  90 14       BCC $9352
+.C:933e  A9 08       LDA #$08
+.C:9340  20 C3 FF    JSR $FFC3	; Open a channel for input
+.C:9343  20 E0 92    JSR $92E0
+.C:9346  AD 49 C1    LDA $C149
+.C:9349  30 06       BMI $9351
+.C:934b  20 02 90    JSR $9002
+.C:934e  AD 49 C1    LDA $C149
+.C:9351  38          SEC
+.C:9352  60          RTS
+
+---------------------------------------
+.C:9353  44 49       NOOP $49
+.C:9355  53 4B       SRE ($4B),Y
+.C:9357  20 45 52    JSR $5245
+.C:935a  52          JAM
+.C:935b  4F 52 20    SRE $2052
+.C:935e  00          BRK
+.C:935f  2C 56 C1    BIT $C156
+.C:9362  10 03       BPL $9367
+.C:9364  A9 00       LDA #$00
+.C:9366  60          RTS
+.C:9367  A2 0F       LDX #$0F
+.C:9369  20 C6 FF    JSR $FFC6	; Open a channel for output
+.C:936c  A2 00       LDX #$00
+.C:936e  20 E4 FF    JSR $FFE4	; Close all channels and files
+.C:9371  C9 0D       CMP #$0D
+.C:9373  F0 06       BEQ $937B
+.C:9375  9D 00 02    STA $0200,X
+.C:9378  E8          INX
+.C:9379  D0 F3       BNE $936E
+.C:937b  A9 00       LDA #$00
+.C:937d  9D 00 02    STA $0200,X
+.C:9380  85 90       STA $90
+.C:9382  20 CC FF    JSR $FFCC	; Input char from channel
+.C:9385  AD 00 02    LDA $0200
+.C:9388  C9 30       CMP #$30
+.C:938a  60          RTS
+
+-- Create screen message bar
+.C:938b  AD 21 D0    LDA $D021
+.C:938e  29 0F       AND #$0F
+.C:9390  AA          TAX
+.C:9391  BD A4 93    LDA $93A4,X
+.C:9394  AA          TAX
+.C:9395  A0 27       LDY #$27	; Do 40 chars
+.C:9397  A9 A0       LDA #$A0	; Empty space char
+.C:9399  99 C0 07    STA $07C0,Y	; Bottom row of screen
+.C:939c  8A          TXA
+.C:939d  99 C0 DB    STA $DBC0,Y	; Colour mem (white)
+.C:93a0  88          DEY
+.C:93a1  10 F4       BPL $9397
+.C:93a3  60          RTS
+
+--------------------------------------
+.C:93a4  01 00       ORA ($00,X)
+.C:93a6  01 00       ORA ($00,X)
+.C:93a8  01 01       ORA ($01,X)
+.C:93aa  01 00       ORA ($00,X)
+.C:93ac  00          BRK
+.C:93ad  01 00       ORA ($00,X)
+.C:93af  01 01       ORA ($01,X)
+.C:93b1  00          BRK
+.C:93b2  01 00       ORA ($00,X)
+.C:93b4  38          SEC
+.C:93b5  20 F0 FF    JSR $FFF0	; Return the base addr of IO devices
+.C:93b8  8E 4A C1    STX $C14A
+.C:93bb  8C 4B C1    STY $C14B
+.C:93be  60          RTS
+
+---------------------------------------
+.C:93bf  18          CLC
+.C:93c0  AE 4A C1    LDX $C14A
+.C:93c3  AC 4B C1    LDY $C14B
+.C:93c6  4C F0 FF    JMP $FFF0	; Return the base addr of IO devices
+.C:93c9  8E 4E C1    STX $C14E
+.C:93cc  8C 4F C1    STY $C14F
+.C:93cf  60          RTS
+
+---------------------------------------
+.C:93d0  86 1D       STX $1D	; String stack ($0019 - $0021)
+.C:93d2  84 1E       STY $1E	; String stack ($0019 - $0021)
+.C:93d4  AE 4E C1    LDX $C14E
+.C:93d7  AC 4F C1    LDY $C14F
+.C:93da  86 1F       STX $1F
+.C:93dc  84 20       STY $20
+.C:93de  A0 00       LDY #$00
+.C:93e0  B1 1D       LDA ($1D),Y
+.C:93e2  8D 4C C1    STA $C14C
+.C:93e5  A2 00       LDX #$00
+.C:93e7  20 36 94    JSR $9436
+.C:93ea  20 02 90    JSR $9002
+.C:93ed  C9 1D       CMP #$1D
+.C:93ef  D0 1D       BNE $940E
+.C:93f1  A2 01       LDX #$01
+.C:93f3  20 36 94    JSR $9436
+.C:93f6  20 9B 94    JSR $949B
+.C:93f9  E8          INX
+.C:93fa  E0 06       CPX #$06
+.C:93fc  D0 F5       BNE $93F3
+.C:93fe  AC 33 80    LDY $8033
+.C:9401  CC 4C C1    CPY $C14C
+.C:9404  D0 02       BNE $9408
+.C:9406  A0 00       LDY #$00
+.C:9408  C8          INY
+.C:9409  8C 33 80    STY $8033
+.C:940c  D0 D7       BNE $93E5
+.C:940e  C9 9D       CMP #$9D
+.C:9410  D0 19       BNE $942B
+.C:9412  AC 33 80    LDY $8033
+.C:9415  88          DEY
+.C:9416  D0 03       BNE $941B
+.C:9418  AC 4C C1    LDY $C14C
+.C:941b  8C 33 80    STY $8033
+.C:941e  A2 05       LDX #$05
+.C:9420  20 36 94    JSR $9436
+.C:9423  20 9B 94    JSR $949B
+.C:9426  CA          DEX
+.C:9427  D0 F7       BNE $9420
+.C:9429  F0 BA       BEQ $93E5
+.C:942b  C9 0D       CMP #$0D
+.C:942d  D0 05       BNE $9434
+.C:942f  AD 33 80    LDA $8033
+.C:9432  18          CLC
+.C:9433  60          RTS
+.C:9434  38          SEC
+.C:9435  60          RTS
+
+------------------------------------
+.C:9436  8A          TXA
+.C:9437  48          PHA
+.C:9438  86 1A       STX $1A
+.C:943a  AD 21 D0    LDA $D021
+.C:943d  29 0F       AND #$0F
+.C:943f  AA          TAX
+.C:9440  BD A4 93    LDA $93A4,X
+.C:9443  8D 42 C1    STA $C142
+.C:9446  AD 33 80    LDA $8033
+.C:9449  38          SEC
+.C:944a  E9 03       SBC #$03
+.C:944c  F0 02       BEQ $9450
+.C:944e  B0 06       BCS $9456
+.C:9450  18          CLC
+.C:9451  6D 4C C1    ADC $C14C
+.C:9454  F0 FA       BEQ $9450
+.C:9456  85 19       STA $19
+.C:9458  A2 00       LDX #$00
+.C:945a  A4 19       LDY $19
+.C:945c  B1 1D       LDA ($1D),Y
+.C:945e  18          CLC
+.C:945f  65 1A       ADC $1A
+.C:9461  A8          TAY
+.C:9462  B1 1F       LDA ($1F),Y
+.C:9464  29 3F       AND #$3F
+.C:9466  E0 12       CPX #$12
+.C:9468  90 04       BCC $946E
+.C:946a  E0 18       CPX #$18
+.C:946c  90 02       BCC $9470
+.C:946e  09 80       ORA #$80
+.C:9470  9D C0 07    STA $07C0,X
+.C:9473  AD 42 C1    LDA $C142
+.C:9476  9D C0 DB    STA $DBC0,X
+.C:9479  E8          INX
+.C:947a  E0 28       CPX #$28
+.C:947c  F0 1A       BEQ $9498
+.C:947e  E6 1A       INC $1A
+.C:9480  A5 1A       LDA $1A
+.C:9482  C9 06       CMP #$06
+.C:9484  D0 D4       BNE $945A
+.C:9486  A9 00       LDA #$00
+.C:9488  85 1A       STA $1A
+.C:948a  A4 19       LDY $19
+.C:948c  CC 4C C1    CPY $C14C
+.C:948f  D0 02       BNE $9493
+.C:9491  A0 00       LDY #$00
+.C:9493  C8          INY
+.C:9494  84 19       STY $19
+.C:9496  D0 C2       BNE $945A
+.C:9498  68          PLA
+.C:9499  AA          TAX
+.C:949a  60          RTS
+
+---------------------------------------
+.C:949b  AD 11 D0    LDA $D011
+.C:949e  0A          ASL A
+.C:949f  B0 FA       BCS $949B
+.C:94a1  AD 11 D0    LDA $D011
+.C:94a4  0A          ASL A
+.C:94a5  90 FA       BCC $94A1
+.C:94a7  60          RTS
+
+-------------------------------------
+.C:94a8  29 7F       AND #$7F
+.C:94aa  C9 20       CMP #$20
+.C:94ac  B0 04       BCS $94B2
+.C:94ae  09 40       ORA #$40
+.C:94b0  D0 0E       BNE $94C0
+.C:94b2  C9 40       CMP #$40
+.C:94b4  90 0A       BCC $94C0
+.C:94b6  C9 60       CMP #$60
+.C:94b8  B0 04       BCS $94BE
+.C:94ba  09 80       ORA #$80
+.C:94bc  D0 02       BNE $94C0
+.C:94be  49 C0       EOR #$C0
+.C:94c0  60          RTS
+
+--------------------------------------
+.C:94c1  8C 4D C1    STY $C14D
+.C:94c4  A0 00       LDY #$00
+.C:94c6  B9 00 C1    LDA $C100,Y
+.C:94c9  C8          INY
+.C:94ca  CC 4D C1    CPY $C14D
+.C:94cd  08          PHP
+.C:94ce  20 C9 96    JSR $96C9
+.C:94d1  28          PLP
+.C:94d2  90 F2       BCC $94C6
+.C:94d4  60          RTS
+
+----------------------------------------
+.C:94d5  A0 00       LDY #$00
+.C:94d7  20 CC 96    JSR $96CC	; Jumps to $996B
+.C:94da  99 00 C1    STA $C100,Y
+.C:94dd  C8          INY
+.C:94de  90 F7       BCC $94D7
+.C:94e0  AD 34 80    LDA $8034
+.C:94e3  60          RTS
+
+-- Modem out -----------------------------
+.C:94e4  48          PHA
+.C:94e5  A2 00       LDX #$00
+.C:94e7  20 FA 94    JSR $94FA	; Modem read A
+.C:94ea  AA          TAX
+.C:94eb  10 FA       BPL $94E7
+.C:94ed  68          PLA
+.C:94ee  A2 04       LDX #$04
+.C:94f0  08          PHP
+.C:94f1  78          SEI
+.C:94f2  8E 00 DE    STX $DE00	; Write output to modem
+.C:94f5  8D 01 DE    STA $DE01	; Write output to modem
+.C:94f8  28          PLP
+.C:94f9  60          RTS
+
+-- Modem in ----------------------------
+.C:94fa  08          PHP
+.C:94fb  78          SEI
+.C:94fc  8E 00 DE    STX $DE00	; Write output to modem
+.C:94ff  AD 01 DE    LDA $DE01	; Get input from modem
+.C:9502  AD 01 DE    LDA $DE01	; Get input from modem
+.C:9505  28          PLP
+.C:9506  60          RTS
+
+>C:9507  00 f4 ff 8e  07 0d 0c 20  20 90 b0 07  c0 21 ae 9b   .......  ....!..
+>C:9517  0d 20 20 90  dd 43 4f 4d  50 55 4e 45  54 20 53 59   .  ..COMPUNET SY
+>C:9527  53 54 45 4d  20 4c 4f 47  4f 4e 2e 06  0b dd 9b 0d   STEM LOGON......
+>C:9537  20 20 90 dd  06 21 dd 9b  0d 20 20 90  dd 1f 45 4e     ...!...  ...EN
+>C:9547  54 45 52 20  55 53 45 52  20 49 44 3a  06 13 90 dd   TER USER ID:....
+>C:9557  9b 0d 20 20  90 dd 06 21  dd 9b 0d 20  20 90 dd 1f   ..  ...!...  ...
+>C:9567  50 41 53 53  57 4f 52 44  3a 06 18 90  dd 9b 0d 20   PASSWORD:...... 
+>C:9577  20 90 dd 06  21 dd 9b 0d  20 20 90 ad  07 c0 21 bd    ...!...  ....!.
+>C:9587  9b 0d 00 f6  fc 0e 0d 06  02 1f c5 44  49 54 20 cb   ...........DIT .
+>C:9597  45 59 53 07  0d 03 06 02  d3 d4 cf d0  20 cb c5 d9   EYS......... ...
+>C:95a7  06 07 46 33  2f 34 0d 06  02 95 53 54  4f 50 20 45   ..F3/4....STOP E
+>C:95b7  44 49 54 2c  06 05 c4 45  4c 45 54 45  2f c9 4e 53   DIT,...ELETE/.NS
+>C:95c7  45 52 54 0d  06 02 53 54  4f 52 45 20  46 52 41 4d   ERT...STORE FRAM
+>C:95d7  45 06 04 4c  49 4e 45 20  41 42 4f 56  45 20 43 55   E..LINE ABOVE CU
+>C:95e7  52 53 4f 52  0d 0d 06 02  1f d2 d5 ce  20 cb c5 d9   RSOR........ ...
+>C:95f7  06 08 46 35  0d 06 02 95  52 45 53 54  4f 52 45 06   ..F5....RESTORE.
+>C:9607  08 cf 4e 2f  cf 46 46 20  41 55 54 4f  2d 52 45 50   ..N/.FF AUTO-REP
+>C:9617  45 41 54 0d  06 02 4f 52  49 47 49 4e  41 4c 0d 06   EAT...ORIGINAL..
+>C:9627  12 1f 46 36  0d 06 02 d3  c8 c9 c6 d4  2d c3 3d 06   ..F6........-.=.
+>C:9637  07 95 cf 4e  2f cf 46 46  20 43 4f 4c  4f 55 52 0d   ...N/.FF COLOUR.
+>C:9647  06 02 43 48  41 4e 47 45  20 43 41 53  45 06 04 4f   ..CHANGE CASE..O
+>C:9657  56 45 52 57  52 49 54 45  0d 0d 06 12  1f 46 37 2f   VERWRITE.....F7/
+>C:9667  38 0d 06 12  95 d3 43 52  45 45 4e 2f  c2 4f 52 44   8.....CREEN/.ORD
+>C:9677  45 52 0d 06  12 43 4f 4c  4f 55 52 20  43 48 41 4e   ER...COLOUR CHAN
+>C:9687  47 45 07 0d  02 06 02 1f  d3 45 45 20  c8 cf d7 20   GE.......EE ... 
+>C:9697  d4 cf 20 c5  c4 c9 d4 0d  06 02 46 4f  52 20 46 55   .. .......FOR FU
+>C:96a7  4c 4c 45 52  20 44 45 54  41 49 4c 53  00 00 00 00   LLER DETAILS....
+>C:96b7  00 00 00 00  00 00 00 00  00                         .........
+
+-- Jump table
+.C:96c0  4C 79 9B    JMP $9B79	;39801 -- get Cnet connection
+.C:96c3  4C 8A 9B    JMP $9B8A	;39818
+.C:96c6  4C DB 96    JMP $96DB	;38619
+.C:96c9  4C AD 97    JMP $97AD	;38829 -- Disconnected - bad line?
+.C:96cc  4C 6B 99    JMP $996B	;39275 -- Disconnected - bad line?
+.C:96cf  4C 3A 99    JMP $993A	;39226 -- Disconnected - bad line?
+.C:96d2  4C 3B 9B    JMP $9B3B	;39739 -- Disconnected - bad line?
+.C:96d5  4C 69 9E    JMP $9E69	;40553 -- Connecting ...
+.C:96d8  4C 00 C8    JMP $C800
+
+-- 
+.C:96db  A2 02       LDX #$02
+.C:96dd  A9 40       LDA #$40
+.C:96df  20 F0 94    JSR $94F0	; Modem send X and A
+.C:96e2  A2 06       LDX #$06
+.C:96e4  A9 05       LDA #$05
+.C:96e6  4C F0 94    JMP $94F0	; Modem send X and A
+
+--------------------------------------
+.C:96e9  2C 38 80    BIT $8038
+.C:96ec  50 05       BVC $96F3
+.C:96ee  A2 04       LDX #$04
+.C:96f0  4C 47 8F    JMP $8F47
+
+-- Initialise memory vals
+.C:96f3  AD 0E C2    LDA $C20E
+.C:96f6  8D 10 C2    STA $C210
+.C:96f9  8D 11 C2    STA $C211
+.C:96fc  A9 80       LDA #$80
+.C:96fe  8D 38 80    STA $8038
+.C:9701  AE 43 80    LDX $8043
+.C:9704  A9 63       LDA #$63
+.C:9706  A0 9C       LDY #$9C
+.C:9708  D0 15       BNE $971F
+
+.C:970a  2C 38 80    BIT $8038	; $00
+.C:970d  10 05       BPL $9714
+.C:970f  A2 05       LDX #$05
+.C:9711  4C 47 8F    JMP $8F47
+
+.C:9714  A9 40       LDA #$40
+.C:9716  8D 38 80    STA $8038
+.C:9719  A2 03       LDX #$03
+.C:971b  A9 5A       LDA #$5A
+.C:971d  A0 9C       LDY #$9C	; $9C5A
+
+.C:971f  8E 0A C2    STX $C20A
+.C:9722  48          PHA
+.C:9723  BD 03 9B    LDA $9B03,X	; Status area
+.C:9726  85 23       STA $23
+.C:9728  BD 07 9B    LDA $9B07,X	; Status area
+.C:972b  85 24       STA $24
+.C:972d  68          PLA
+.C:972e  20 3D 9C    JSR $9C3D	; Set IRQ vector to $9C5A
+.C:9731  AE 46 80    LDX $8046
+.C:9734  8E 05 DC    STX $DC05	; Timer low byte
+.C:9737  20 3C 9E    JSR $9E3C	; Init vals $C212/3/4/A/B with #$FF
+.C:973a  A9 00       LDA #$00
+.C:973c  8D 09 C2    STA $C209
+.C:973f  85 A2       STA $A2	; TI Time of day var
+.C:9741  85 A1       STA $A1	; TI Time of day var
+.C:9743  8D 18 C2    STA $C218
+.C:9746  8D 19 C2    STA $C219
+.C:9749  8D 24 C2    STA $C224
+.C:974c  A2 0B       LDX #$0B
+.C:974e  9D 28 C2    STA $C228,X	; Init $C21D-$C228 with #$0B
+.C:9751  CA          DEX
+.C:9752  10 FA       BPL $974E
+.C:9754  A9 34       LDA #$34
+.C:9756  85 21       STA $21	; String stack
+.C:9758  A9 C2       LDA #$C2	; $C234
+.C:975a  85 22       STA $22	; Temp area ($0022 - $0025)
+.C:975c  A9 03       LDA #$03
+.C:975e  8D 0B C2    STA $C20B
+.C:9761  60          RTS
+
+-------------------------------------------
+.C:9762  A0 01       LDY #$01
+.C:9764  B1 21       LDA ($21),Y	; Temp area ($0022 - $0025)
+.C:9766  09 40       ORA #$40
+.C:9768  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:976a  AD 0B C2    LDA $C20B
+.C:976d  18          CLC
+.C:976e  69 02       ADC #$02
+.C:9770  88          DEY
+.C:9771  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:9773  A0 00       LDY #$00
+.C:9775  8C 1D C2    STY $C21D
+.C:9778  8C 1E C2    STY $C21E
+.C:977b  B1 21       LDA ($21),Y	; Temp area ($0022 - $0025)
+.C:977d  20 10 9B    JSR $9B10
+.C:9780  C8          INY
+.C:9781  CC 0B C2    CPY $C20B
+.C:9784  D0 F5       BNE $977B
+.C:9786  20 0B 9B    JSR $9B0B
+.C:9789  AD 1D C2    LDA $C21D
+.C:978c  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:978e  C8          INY
+.C:978f  AD 1E C2    LDA $C21E
+.C:9792  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:9794  AE 09 C2    LDX $C209
+.C:9797  A9 80       LDA #$80
+.C:9799  9D 2C C2    STA $C22C,X
+.C:979c  20 F5 98    JSR $98F5
+.C:979f  AE 43 80    LDX $8043
+.C:97a2  BD 2C C2    LDA $C22C,X
+.C:97a5  30 F5       BMI $979C
+.C:97a7  CA          DEX
+.C:97a8  10 F8       BPL $97A2
+.C:97aa  4C 2D 9C    JMP $9C2D
+
+------------------------------------
+.C:97ad  85 19       STA $19
+.C:97af  48          PHA
+.C:97b0  8A          TXA
+.C:97b1  48          PHA
+.C:97b2  98          TYA
+.C:97b3  48          PHA
+.C:97b4  08          PHP
+.C:97b5  A5 19       LDA $19
+.C:97b7  48          PHA
+.C:97b8  2C 38 80    BIT $8038
+.C:97bb  30 03       BMI $97C0
+.C:97bd  20 E9 96    JSR $96E9
+.C:97c0  AE 09 C2    LDX $C209
+.C:97c3  BD 2C C2    LDA $C22C,X
+.C:97c6  10 22       BPL $97EA
+.C:97c8  EC 43 80    CPX $8043
+.C:97cb  D0 02       BNE $97CF
+.C:97cd  A2 FF       LDX #$FF
+.C:97cf  E8          INX
+.C:97d0  8E 09 C2    STX $C209
+.C:97d3  BD 03 9B    LDA $9B03,X
+.C:97d6  85 21       STA $21		; String stack
+.C:97d8  BD 07 9B    LDA $9B07,X
+.C:97db  85 22       STA $22
+.C:97dd  A9 03       LDA #$03
+.C:97df  8D 0B C2    STA $C20B
+.C:97e2  BD 28 C2    LDA $C228,X
+.C:97e5  F0 03       BEQ $97EA
+.C:97e7  20 F5 98    JSR $98F5
+.C:97ea  AD 0B C2    LDA $C20B
+.C:97ed  C9 03       CMP #$03
+.C:97ef  D0 33       BNE $9824
+.C:97f1  A0 00       LDY #$00
+.C:97f3  8C 1D C2    STY $C21D
+.C:97f6  8C 1E C2    STY $C21E
+.C:97f9  AD 45 80    LDA $8045
+.C:97fc  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:97fe  20 10 9B    JSR $9B10
+.C:9801  C8          INY
+.C:9802  AD 34 80    LDA $8034
+.C:9805  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:9807  20 10 9B    JSR $9B10
+.C:980a  C8          INY
+.C:980b  AD 0E C2    LDA $C20E
+.C:980e  AE 09 C2    LDX $C209
+.C:9811  9D 28 C2    STA $C228,X
+.C:9814  AA          TAX
+.C:9815  E8          INX
+.C:9816  E0 60       CPX #$60
+.C:9818  D0 02       BNE $981C
+.C:981a  A2 20       LDX #$20
+.C:981c  8E 0E C2    STX $C20E
+.C:981f  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:9821  20 10 9B    JSR $9B10
+.C:9824  AC 0B C2    LDY $C20B
+.C:9827  68          PLA
+.C:9828  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:982a  20 10 9B    JSR $9B10
+.C:982d  C8          INY
+.C:982e  8C 0B C2    STY $C20B
+.C:9831  C8          INY
+.C:9832  C8          INY
+.C:9833  CC 45 80    CPY $8045
+.C:9836  D0 19       BNE $9851
+.C:9838  20 0B 9B    JSR $9B0B
+.C:983b  AD 1D C2    LDA $C21D
+.C:983e  AC 0B C2    LDY $C20B
+.C:9841  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:9843  C8          INY
+.C:9844  AD 1E C2    LDA $C21E
+.C:9847  91 21       STA ($21),Y	; Temp area ($0022 - $0025)
+.C:9849  AE 09 C2    LDX $C209
+.C:984c  A9 80       LDA #$80
+.C:984e  9D 2C C2    STA $C22C,X
+.C:9851  28          PLP
+.C:9852  90 08       BCC $985C
+.C:9854  20 62 97    JSR $9762
+.C:9857  A9 00       LDA #$00
+.C:9859  8D 38 80    STA $8038
+.C:985c  68          PLA
+.C:985d  A8          TAY
+.C:985e  68          PLA
+.C:985f  AA          TAX
+.C:9860  68          PLA
+.C:9861  60          RTS
+
+--------------------------------------
+.C:9862  AE 43 80    LDX $8043
+.C:9865  BD 28 C2    LDA $C228,X
+.C:9868  CD 11 C2    CMP $C211
+.C:986b  D0 10       BNE $987D
+.C:986d  AC 11 C2    LDY $C211
+.C:9870  C8          INY
+.C:9871  C0 60       CPY #$60
+.C:9873  D0 02       BNE $9877
+.C:9875  A0 20       LDY #$20
+.C:9877  8C 11 C2    STY $C211
+.C:987a  4C 8B 98    JMP $988B
+.C:987d  CA          DEX
+.C:987e  10 E5       BPL $9865
+.C:9880  AE 0A C2    LDX $C20A
+.C:9883  EC 43 80    CPX $8043
+.C:9886  D0 02       BNE $988A
+.C:9888  A2 FF       LDX #$FF
+.C:988a  E8          INX
+.C:988b  8E 0A C2    STX $C20A
+.C:988e  BD 2C C2    LDA $C22C,X
+.C:9891  10 62       BPL $98F5
+.C:9893  BD 28 C2    LDA $C228,X
+.C:9896  CD 20 C2    CMP $C220
+.C:9899  D0 1A       BNE $98B5
+.C:989b  A9 00       LDA #$00
+.C:989d  8D 21 C2    STA $C221
+.C:98a0  8D 22 C2    STA $C222
+.C:98a3  AD 4A 80    LDA $804A
+.C:98a6  F0 0A       BEQ $98B2
+.C:98a8  BC 2C C2    LDY $C22C,X
+.C:98ab  10 48       BPL $98F5
+.C:98ad  CD 22 C2    CMP $C222
+.C:98b0  D0 F6       BNE $98A8
+.C:98b2  BD 28 C2    LDA $C228,X
+.C:98b5  8D 20 C2    STA $C220
+.C:98b8  A2 19       LDX #$19
+.C:98ba  AC 34 80    LDY $8034
+.C:98bd  20 A4 9B    JSR $9BA4
+.C:98c0  AE 0A C2    LDX $C20A
+.C:98c3  BD 03 9B    LDA $9B03,X
+.C:98c6  85 23       STA $23
+.C:98c8  BD 07 9B    LDA $9B07,X
+.C:98cb  85 24       STA $24
+.C:98cd  20 1E 99    JSR $991E
+.C:98d0  A0 00       LDY #$00
+.C:98d2  8C 0C C2    STY $C20C
+.C:98d5  B1 23       LDA ($23),Y
+.C:98d7  8D 0D C2    STA $C20D
+.C:98da  B1 23       LDA ($23),Y
+.C:98dc  20 26 99    JSR $9926
+.C:98df  AE 0A C2    LDX $C20A
+.C:98e2  BD 2C C2    LDA $C22C,X
+.C:98e5  10 0B       BPL $98F2
+.C:98e7  EE 0C C2    INC $C20C
+.C:98ea  AC 0C C2    LDY $C20C
+.C:98ed  CC 0D C2    CPY $C20D
+.C:98f0  D0 E8       BNE $98DA
+.C:98f2  20 22 99    JSR $9922
+.C:98f5  AE 43 80    LDX $8043
+.C:98f8  BD 28 C2    LDA $C228,X
+.C:98fb  CD 10 C2    CMP $C210
+.C:98fe  F0 03       BEQ $9903
+.C:9900  CA          DEX
+.C:9901  10 F5       BPL $98F8
+.C:9903  BD 2C C2    LDA $C22C,X
+.C:9906  10 03       BPL $990B
+.C:9908  4C 62 98    JMP $9862
+.C:990b  A9 00       LDA #$00
+.C:990d  9D 28 C2    STA $C228,X
+.C:9910  AE 10 C2    LDX $C210
+.C:9913  E8          INX
+.C:9914  E0 60       CPX #$60
+.C:9916  D0 02       BNE $991A
+.C:9918  A2 20       LDX #$20
+.C:991a  8E 10 C2    STX $C210
+.C:991d  60          RTS
+
+--------------------------------------
+.C:991e  A9 01       LDA #$01	; ACK code?
+.C:9920  D0 15       BNE $9937	; Continue
+
+.C:9922  A9 02       LDA #$02
+.C:9924  D0 11       BNE $9937	; Continue
+
+.C:9926  C9 00       CMP #$00
+.C:9928  F0 0D       BEQ $9937	; Continue
+.C:992a  C9 04       CMP #$04
+.C:992c  B0 09       BCS $9937	; Continue
+.C:992e  69 20       ADC #$20
+.C:9930  48          PHA
+.C:9931  A9 03       LDA #$03
+.C:9933  20 E4 94    JSR $94E4	; Modem output
+.C:9936  68          PLA
+
+.C:9937  4C E4 94    JMP $94E4	; Modem output
+
+-------------------------------------
+.C:993a  48          PHA
+.C:993b  8A          TXA
+.C:993c  48          PHA
+.C:993d  98          TYA
+.C:993e  48          PHA
+.C:993f  2C 38 80    BIT $8038
+.C:9942  70 03       BVS $9947
+.C:9944  20 0A 97    JSR $970A
+.C:9947  2C 24 C2    BIT $C224
+.C:994a  30 18       BMI $9964
+.C:994c  A2 03       LDX #$03
+.C:994e  BD 2C C2    LDA $C22C,X
+.C:9951  10 08       BPL $995B
+.C:9953  BD 28 C2    LDA $C228,X
+.C:9956  CD 0F C2    CMP $C20F
+.C:9959  F0 09       BEQ $9964
+.C:995b  CA          DEX
+.C:995c  10 F0       BPL $994E
+.C:995e  20 06 9A    JSR $9A06
+.C:9961  38          SEC
+.C:9962  B0 01       BCS $9965
+.C:9964  18          CLC
+.C:9965  68          PLA
+.C:9966  A8          TAY
+.C:9967  68          PLA
+.C:9968  AA          TAX
+.C:9969  68          PLA
+.C:996a  60          RTS
+
+-- $C228 and $C22C value processing and comms ack
+.C:996b  8A          TXA
+.C:996c  48          PHA
+.C:996d  98          TYA
+.C:996e  48          PHA
+.C:996f  2C 38 80    BIT $8038	; $00
+.C:9972  70 03       BVS $9977
+.C:9974  20 0A 97    JSR $970A
+
+.C:9977  AE 09 C2    LDX $C209
+.C:997a  BD 2C C2    LDA $C22C,X
+.C:997d  30 07       BMI $9986
+.C:997f  20 17 9A    JSR $9A17	; Process $C22C values + comms ack
+.C:9982  38          SEC
+.C:9983  6E 24 C2    ROR $C224
+
+.C:9986  AC 0B C2    LDY $C20B
+.C:9989  B1 21       LDA ($21),Y	; Temp area ($0022 - $0025)
+.C:998b  C8          INY
+.C:998c  8C 0B C2    STY $C20B
+.C:998f  CC 17 C2    CPY $C217
+.C:9992  F0 03       BEQ $9997
+.C:9994  18          CLC
+.C:9995  90 50       BCC $99E7	; Return
+
+.C:9997  48          PHA
+.C:9998  A9 00       LDA #$00
+.C:999a  AE 09 C2    LDX $C209
+.C:999d  9D 28 C2    STA $C228,X
+.C:99a0  9D 2C C2    STA $C22C,X
+.C:99a3  8D 24 C2    STA $C224
+.C:99a6  2C 16 C2    BIT $C216
+.C:99a9  18          CLC
+.C:99aa  10 3A       BPL $99E6
+.C:99ac  A9 00       LDA #$00
+.C:99ae  85 A2       STA $A2
+.C:99b0  85 A1       STA $A1
+.C:99b2  A5 A2       LDA $A2
+.C:99b4  CD 47 80    CMP $8047
+.C:99b7  B0 24       BCS $99DD	; Continue
+.C:99b9  A2 03       LDX #$03
+.C:99bb  BD 2C C2    LDA $C22C,X
+.C:99be  30 05       BMI $99C5
+.C:99c0  CA          DEX
+.C:99c1  10 F8       BPL $99BB
+.C:99c3  30 ED       BMI $99B2
+.C:99c5  8E 09 C2    STX $C209
+.C:99c8  BD 28 C2    LDA $C228,X
+.C:99cb  20 F0 99    JSR $99F0
+.C:99ce  F0 0D       BEQ $99DD	; Continue
+.C:99d0  20 BC 9A    JSR $9ABC	; ACK status
+.C:99d3  AE 09 C2    LDX $C209
+.C:99d6  A9 00       LDA #$00
+.C:99d8  9D 2C C2    STA $C22C,X
+.C:99db  F0 CF       BEQ $99AC
+
+.C:99dd  20 2D 9C    JSR $9C2D	; Cartridge IRQ vector
+.C:99e0  A9 00       LDA #$00
+.C:99e2  8D 38 80    STA $8038
+.C:99e5  38          SEC
+.C:99e6  68          PLA
+.C:99e7  85 19       STA $19	; String stack
+.C:99e9  68          PLA
+.C:99ea  A8          TAY
+.C:99eb  68          PLA
+.C:99ec  AA          TAX
+.C:99ed  A5 19       LDA $19	; String stack
+.C:99ef  60          RTS
+
+---------------------------------------
+.C:99f0  85 19       STA $19	; String stack
+.C:99f2  AE 0F C2    LDX $C20F
+.C:99f5  A0 03       LDY #$03
+.C:99f7  E4 19       CPX $19
+.C:99f9  F0 0A       BEQ $9A05	; Return
+.C:99fb  E8          INX
+.C:99fc  E0 60       CPX #$60
+.C:99fe  D0 02       BNE $9A02
+.C:9a00  A2 20       LDX #$20
+.C:9a02  88          DEY
+.C:9a03  10 F2       BPL $99F7
+.C:9a05  60          RTS
+
+---------------------------------------
+.C:9a06  A5 A1       LDA $A1	; part of TI time of day var ($A0-$A2)
+.C:9a08  CD 48 80    CMP $8048
+.C:9a0b  90 09       BCC $9A16	; Return
+.C:9a0d  20 22 99    JSR $9922
+.C:9a10  A9 00       LDA #$00
+.C:9a12  85 A2       STA $A2	; TI Time of day var
+.C:9a14  85 A1       STA $A1	; TI Time of day var
+.C:9a16  60          RTS
+
+-- Process C22C values ???
+.C:9a17  20 06 9A    JSR $9A06	; Time of day processing (above)
+.C:9a1a  AE 09 C2    LDX $C209
+.C:9a1d  BD 2C C2    LDA $C22C,X
+.C:9a20  30 03       BMI $9A25
+.C:9a22  4C AC 9A    JMP $9AAC	; Loop again
+
+.C:9a25  29 40       AND #$40
+.C:9a27  F0 03       BEQ $9A2C
+.C:9a29  4C 73 9A    JMP $9A73
+
+.C:9a2c  20 BC 9A    JSR $9ABC	; ACK status
+.C:9a2f  AE 09 C2    LDX $C209
+.C:9a32  BC 28 C2    LDY $C228,X	
+.C:9a35  A2 03       LDX #$03
+.C:9a37  BD 2C C2    LDA $C22C,X
+.C:9a3a  29 40       AND #$40
+.C:9a3c  F0 06       BEQ $9A44
+.C:9a3e  98          TYA
+.C:9a3f  DD 28 C2    CMP $C228,X
+.C:9a42  F0 1A       BEQ $9A5E	; Exit inner loop
+.C:9a44  CA          DEX
+.C:9a45  10 F0       BPL $9A37
+
+.C:9a47  A2 03       LDX #$03
+.C:9a49  8C 15 C2    STY $C215
+.C:9a4c  AC 0F C2    LDY $C20F
+.C:9a4f  CC 15 C2    CPY $C215
+.C:9a52  F0 17       BEQ $9A6B
+.C:9a54  C8          INY
+.C:9a55  C0 60       CPY #$60
+.C:9a57  D0 02       BNE $9A5B
+.C:9a59  A0 20       LDY #$20
+.C:9a5b  CA          DEX
+.C:9a5c  10 F1       BPL $9A4F
+
+.C:9a5e  AE 09 C2    LDX $C209
+.C:9a61  A9 00       LDA #$00
+.C:9a63  9D 28 C2    STA $C228,X
+.C:9a66  9D 2C C2    STA $C22C,X
+.C:9a69  F0 41       BEQ $9AAC	; Loop again
+.C:9a6b  AE 09 C2    LDX $C209
+.C:9a6e  A9 C0       LDA #$C0
+.C:9a70  9D 2C C2    STA $C22C,X
+
+.C:9a73  BD 28 C2    LDA $C228,X
+.C:9a76  CD 0F C2    CMP $C20F
+.C:9a79  D0 31       BNE $9AAC	; Loop again
+.C:9a7b  AC 0F C2    LDY $C20F
+.C:9a7e  C8          INY
+.C:9a7f  C0 60       CPY #$60
+.C:9a81  D0 02       BNE $9A85
+.C:9a83  A0 20       LDY #$20
+.C:9a85  8C 0F C2    STY $C20F
+.C:9a88  BD 03 9B    LDA $9B03,X	; List of vals
+.C:9a8b  85 21       STA $21		; String stack ($0019 - $0021)
+.C:9a8d  BD 07 9B    LDA $9B07,X	; List of vals
+.C:9a90  85 22       STA $22	; Temp area ($0022 - $0025)
+.C:9a92  A9 03       LDA #$03
+.C:9a94  8D 0B C2    STA $C20B
+.C:9a97  A0 00       LDY #$00
+.C:9a99  B1 21       LDA ($21),Y	; Temp area ($0022 - $0025)
+.C:9a9b  38          SEC
+.C:9a9c  E9 02       SBC #$02
+.C:9a9e  8D 17 C2    STA $C217
+.C:9aa1  C8          INY
+.C:9aa2  B1 21       LDA ($21),Y	; Temp area ($0022 - $0025)
+.C:9aa4  8D 34 80    STA $8034
+.C:9aa7  0A          ASL A
+.C:9aa8  8D 16 C2    STA $C216
+.C:9aab  60          RTS
+
+.C:9aac  AE 09 C2    LDX $C209
+.C:9aaf  E8          INX
+.C:9ab0  E0 04       CPX #$04
+.C:9ab2  D0 02       BNE $9AB6
+.C:9ab4  A2 00       LDX #$00
+.C:9ab6  8E 09 C2    STX $C209
+.C:9ab9  4C 17 9A    JMP $9A17
+
+-- ACK status
+.C:9abc  BD 28 C2    LDA $C228,X	; Status value
+.C:9abf  8D 06 C2    STA $C206
+.C:9ac2  A2 19       LDX #$19	; Start column
+.C:9ac4  A0 20       LDY #$20	; ACK status type (list at $9C0B)
+.C:9ac6  20 A4 9B    JSR $9BA4	; Print to message bar
+.C:9ac9  A9 40       LDA #$40
+.C:9acb  8D 1D C2    STA $C21D
+.C:9ace  A9 E6       LDA #$E6
+.C:9ad0  8D 1E C2    STA $C21E	; Store $E640 pointer
+.C:9ad3  AD 06 C2    LDA $C206
+.C:9ad6  20 10 9B    JSR $9B10	; Manipulate C21D/E/F values
+.C:9ad9  20 0B 9B    JSR $9B0B	; Manipulate C21D/E/F values with Zero acc
+.C:9adc  AD 1D C2    LDA $C21D
+.C:9adf  8D 07 C2    STA $C207
+.C:9ae2  AD 1E C2    LDA $C21E
+.C:9ae5  8D 08 C2    STA $C208
+.C:9ae8  20 1E 99    JSR $991E	; Send 01 (ACK?) to modem
+.C:9aeb  A2 00       LDX #$00
+.C:9aed  8E 0C C2    STX $C20C
+.C:9af0  BD 03 C2    LDA $C203,X
+.C:9af3  20 26 99    JSR $9926	; Send code to modem
+.C:9af6  EE 0C C2    INC $C20C
+.C:9af9  AE 0C C2    LDX $C20C
+.C:9afc  E0 06       CPX #$06
+.C:9afe  D0 F0       BNE $9AF0
+.C:9b00  4C 22 99    JMP $9922	; Send 02 to modem
+
+>C:9b03  34 c8 5c f0  c2 c2 c3 c3                             4.\.....
+
+---------------------------------
+.C:9b0b  A9 00       LDA #$00
+.C:9b0d  20 10 9B    JSR $9B10
+
+-------------------------------------
+.C:9b10  48          PHA
+.C:9b11  8D 1F C2    STA $C21F
+.C:9b14  8A          TXA
+.C:9b15  48          PHA
+.C:9b16  A2 07       LDX #$07
+.C:9b18  18          CLC
+.C:9b19  2E 1F C2    ROL $C21F
+.C:9b1c  2E 1E C2    ROL $C21E
+.C:9b1f  2E 1D C2    ROL $C21D
+.C:9b22  90 10       BCC $9B34
+.C:9b24  AD 1D C2    LDA $C21D
+.C:9b27  49 10       EOR #$10
+.C:9b29  8D 1D C2    STA $C21D
+.C:9b2c  AD 1E C2    LDA $C21E
+.C:9b2f  49 21       EOR #$21
+.C:9b31  8D 1E C2    STA $C21E
+.C:9b34  CA          DEX
+.C:9b35  10 E1       BPL $9B18
+.C:9b37  68          PLA
+.C:9b38  AA          TAX
+.C:9b39  68          PLA
+.C:9b3a  60          RTS
+
+------------------------------------------
+.C:9b3b  20 0A 97    JSR $970A
+.C:9b3e  20 17 9A    JSR $9A17
+.C:9b41  AD 34 80    LDA $8034
+.C:9b44  C9 41       CMP #$41
+.C:9b46  F0 0A       BEQ $9B52
+.C:9b48  C9 42       CMP #$42
+.C:9b4a  F0 06       BEQ $9B52
+.C:9b4c  C9 40       CMP #$40
+.C:9b4e  F0 02       BEQ $9B52
+.C:9b50  18          CLC
+.C:9b51  60          RTS
+
+.C:9b52  20 D5 94    JSR $94D5
+.C:9b55  A9 00       LDA #$00
+.C:9b57  99 00 C1    STA $C100,Y
+.C:9b5a  AD 34 80    LDA $8034
+.C:9b5d  C9 40       CMP #$40
+.C:9b5f  F0 EF       BEQ $9B50
+.C:9b61  C9 42       CMP #$42
+.C:9b63  F0 0F       BEQ $9B74
+.C:9b65  A2 00       LDX #$00
+.C:9b67  A0 C1       LDY #$C1
+.C:9b69  20 7B 90    JSR $907B
+.C:9b6c  20 02 90    JSR $9002
+.C:9b6f  20 8B 93    JSR $938B
+.C:9b72  38          SEC
+.C:9b73  60          RTS
+
+--------------------------------------
+.C:9b74  A2 01       LDX #$01
+.C:9b76  4C 47 8F    JMP $8F47
+
+-- Send space char, wait to receive space char back?
+.C:9b79  20 36 9C    JSR $9C36	; Set to normal C64 IRQ vector
+.C:9b7c  A2 03       LDX #$03
+.C:9b7e  A9 20       LDA #$20
+.C:9b80  20 F0 94    JSR $94F0	; Modem send X and A
+.C:9b83  20 FA 94    JSR $94FA	; Modem read A
+.C:9b86  29 20       AND #$20
+.C:9b88  D0 F9       BNE $9B83
+.C:9b8a  A9 20       LDA #$20
+.C:9b8c  8D 0E C2    STA $C20E
+.C:9b8f  8D 0F C2    STA $C20F
+.C:9b92  8D 04 C2    STA $C204
+.C:9b95  8D 05 C2    STA $C205
+.C:9b98  A9 06       LDA #$06
+.C:9b9a  8D 03 C2    STA $C203
+.C:9b9d  8D 20 C2    STA $C220
+.C:9ba0  8D 38 80    STA $8038
+.C:9ba3  60          RTS
+
+-- Print COM/ACK status'
+.C:9ba4  2C 11 80    BIT $8011	; $80
+.C:9ba7  10 61       BPL $9C0A	; Return
+.C:9ba9  8D 26 C2    STA $C226
+.C:9bac  98          TYA
+.C:9bad  29 3F       AND #$3F
+.C:9baf  C9 20       CMP #$20
+.C:9bb1  90 12       BCC $9BC5	; Continue
+.C:9bb3  29 1F       AND #$1F
+.C:9bb5  8D 25 C2    STA $C225
+.C:9bb8  0A          ASL A
+.C:9bb9  6D 25 C2    ADC $C225
+.C:9bbc  69 0B       ADC #$0B
+.C:9bbe  A0 9C       LDY #$9C	; Status text starts at $9C0B
+.C:9bc0  90 11       BCC $9BD3	; Continue
+.C:9bc2  C8          INY
+.C:9bc3  D0 0E       BNE $9BD3	; Continue
+
+.C:9bc5  8D 25 C2    STA $C225
+.C:9bc8  0A          ASL A
+.C:9bc9  6D 25 C2    ADC $C225
+.C:9bcc  69 14       ADC #$14
+.C:9bce  A0 9C       LDY #$9C	; Status text starts at $9C0B
+.C:9bd0  90 01       BCC $9BD3	; Continue
+.C:9bd2  C8          INY
+
+.C:9bd3  85 1B       STA $1B	; String stack ($0019 - $0021)
+.C:9bd5  84 1C       STY $1C	; String stack ($0019 - $0021)
+.C:9bd7  A0 00       LDY #$00
+.C:9bd9  B1 1B       LDA ($1B),Y	; String stack ($0019 - $0021)
+.C:9bdb  C9 20       CMP #$20
+.C:9bdd  F0 02       BEQ $9BE1
+.C:9bdf  29 1F       AND #$1F
+.C:9be1  09 80       ORA #$80
+.C:9be3  9D C0 07    STA $07C0,X	; Bottom row of screen memory
+.C:9be6  E8          INX
+.C:9be7  C8          INY
+.C:9be8  C0 03       CPY #$03
+.C:9bea  D0 ED       BNE $9BD9
+.C:9bec  E8          INX
+.C:9bed  AD 26 C2    LDA $C226
+.C:9bf0  4A          LSR A
+.C:9bf1  4A          LSR A
+.C:9bf2  4A          LSR A
+.C:9bf3  4A          LSR A
+.C:9bf4  20 FD 9B    JSR $9BFD
+.C:9bf7  E8          INX
+.C:9bf8  AD 26 C2    LDA $C226
+.C:9bfb  29 0F       AND #$0F
+.C:9bfd  09 B0       ORA #$B0
+.C:9bff  C9 BA       CMP #$BA
+.C:9c01  90 04       BCC $9C07
+.C:9c03  69 06       ADC #$06
+.C:9c05  29 8F       AND #$8F
+.C:9c07  9D C0 07    STA $07C0,X	; Bottom row of screen memory
+.C:9c0a  60          RTS
+
+>C:9c0b  41 43 4b 44  49 52 44 41  54 4f 4b 20  45 52 52 46   ACKDIRDATOK ERRF
+>C:9c1b  54 4c 43 4f  4d                                      TLCOM
+
+-- Change timing depending if PAL or NTSC
+.C:9c20  A0 40       LDY #$40
+.C:9c22  AD A6 02    LDA $02A6	; PAL/NTSC switch ($00=NTSC, $01=PAL)
+.C:9c25  D0 02       BNE $9C29
+.C:9c27  A0 42       LDY #$42
+.C:9c29  8C 05 DC    STY $DC05	; Timer low byte
+.C:9c2c  60          RTS
+
+-- Set to cartridge IRQ vector
+.C:9c2d  20 20 9C    JSR $9C20	; Change timing depending if PAL or NTSC
+.C:9c30  A9 46       LDA #$46
+.C:9c32  A0 9C       LDY #$9C
+.C:9c34  D0 07       BNE $9C3D
+
+-- Set to normal C64 IRQ vector
+.C:9c36  20 20 9C    JSR $9C20	; Change timing depending if PAL or NTSC
+.C:9c39  A9 31       LDA #$31
+.C:9c3b  A0 EA       LDY #$EA
+.C:9c3d  78          SEI		; Interrupt disable
+.C:9c3e  8D 14 03    STA $0314	; IRQ
+.C:9c41  8C 15 03    STY $0315	; IRQ
+.C:9c44  58          CLI		; Interrupt enable
+.C:9c45  60          RTS
+
+-- Cartridge IRQ processing
+.C:9c46  20 7D 9C    JSR $9C7D
+.C:9c49  A2 00       LDX #$00
+.C:9c4b  20 FA 94    JSR $94FA	; Modem read A
+.C:9c4e  29 20       AND #$20
+.C:9c50  F0 03       BEQ $9C55
+.C:9c52  4C 31 EA    JMP $EA31	; IRQ vector
+.C:9c55  A2 02       LDX #$02
+.C:9c57  4C 47 8F    JMP $8F47
+
+-- IRQ processing during comms
+.C:9c5a  20 7D 9C    JSR $9C7D
+.C:9c5d  20 8F 9C    JSR $9C8F
+.C:9c60  4C 71 9C    JMP $9C71
+
+.C:9c63  20 00 9D    JSR $9D00	; DEAD CODE?
+.C:9c66  EE 21 C2    INC $C221	; DEAD CODE?
+.C:9c69  D0 03       BNE $9C6E	; DEAD CODE?
+.C:9c6b  EE 22 C2    INC $C222	; DEAD CODE?
+.C:9c6e  20 7D 9C    JSR $9C7D	; DEAD CODE?
+
+.C:9c71  20 EA FF    JSR $FFEA	; Update system clock
+.C:9c74  AD 0D DC    LDA $DC0D	; IRQ control bit
+.C:9c77  68          PLA
+.C:9c78  A8          TAY
+.C:9c79  68          PLA
+.C:9c7a  AA          TAX
+.C:9c7b  68          PLA
+.C:9c7c  40          RTI
+
+.C:9c7d  AD 01 DC    LDA $DC01	; Keyboard matrix/joy port #1
+.C:9c80  CD 01 DC    CMP $DC01	; Keyboard matrix/joy port #1
+.C:9c83  D0 F8       BNE $9C7D
+.C:9c85  C9 7B       CMP #$7B
+.C:9c87  F0 01       BEQ $9C8A
+.C:9c89  60          RTS
+
+.C:9c8a  A2 00       LDX #$00
+.C:9c8c  4C 47 8F    JMP $8F47
+
+.C:9c8f  20 54 9D    JSR $9D54
+.C:9c92  2C 23 C2    BIT $C223
+.C:9c95  30 01       BMI $9C98
+.C:9c97  60          RTS
+
+.C:9c98  AC 85 C4    LDY $C485
+.C:9c9b  AD 86 C4    LDA $C486
+.C:9c9e  C0 20       CPY #$20
+.C:9ca0  D0 03       BNE $9CA5
+.C:9ca2  AD 87 C4    LDA $C487
+.C:9ca5  A2 20       LDX #$20
+.C:9ca7  20 A4 9B    JSR $9BA4
+.C:9caa  AD 85 C4    LDA $C485
+.C:9cad  C9 20       CMP #$20
+.C:9caf  F0 40       BEQ $9CF1	; Exit
+.C:9cb1  A2 03       LDX #$03
+.C:9cb3  BD 2C C2    LDA $C22C,X	; Loop to find first val in $C22D-$C22F
+.C:9cb6  10 05       BPL $9CBD	; Found
+.C:9cb8  CA          DEX
+.C:9cb9  10 F8       BPL $9CB3	; Loop
+.C:9cbb  30 34       BMI $9CF1	; Else Exit
+
+.C:9cbd  A5 1B       LDA $1B
+.C:9cbf  48          PHA
+.C:9cc0  A5 1C       LDA $1C
+.C:9cc2  48          PHA
+.C:9cc3  BD 03 9B    LDA $9B03,X	; Status area
+.C:9cc6  85 1B       STA $1B
+.C:9cc8  BD 07 9B    LDA $9B07,X	; Status area
+.C:9ccb  85 1C       STA $1C
+.C:9ccd  A9 80       LDA #$80
+.C:9ccf  9D 2C C2    STA $C22C,X
+.C:9cd2  AD 85 C4    LDA $C485
+.C:9cd5  9D 30 C2    STA $C230,X
+.C:9cd8  AD 86 C4    LDA $C486
+.C:9cdb  9D 28 C2    STA $C228,X
+.C:9cde  A0 00       LDY #$00
+.C:9ce0  B9 84 C4    LDA $C484,Y
+.C:9ce3  91 1B       STA ($1B),Y
+.C:9ce5  C8          INY
+.C:9ce6  CC 12 C2    CPY $C212
+.C:9ce9  D0 F5       BNE $9CE0
+.C:9ceb  68          PLA
+.C:9cec  85 1C       STA $1C
+.C:9cee  68          PLA
+.C:9cef  85 1B       STA $1B
+
+.C:9cf1  4C 3C 9E    JMP $9E3C
+.C:9cf4  93 0E       SHA ($0E),Y
+.C:9cf6  C1 42       CMP ($42,X)
+.C:9cf8  4F 52 54    SRE $5452
+.C:9cfb  45 44       EOR $44
+.C:9cfd  0D 0D 00    ORA $000D
+.C:9d00  20 54 9D    JSR $9D54
+.C:9d03  2C 23 C2    BIT $C223
+.C:9d06  30 01       BMI $9D09
+.C:9d08  60          RTS
+
+.C:9d09  AD 85 C4    LDA $C485
+.C:9d0c  C9 20       CMP #$20
+.C:9d0e  D0 30       BNE $9D40
+.C:9d10  A0 03       LDY #$03
+
+.C:9d12  B9 84 C4    LDA $C484,Y
+.C:9d15  8C 27 C2    STY $C227
+.C:9d18  A2 20       LDX #$20
+.C:9d1a  A0 20       LDY #$20
+.C:9d1c  20 A4 9B    JSR $9BA4
+.C:9d1f  AC 27 C2    LDY $C227
+.C:9d22  B9 84 C4    LDA $C484,Y
+.C:9d25  AE 43 80    LDX $8043
+.C:9d28  DD 28 C2    CMP $C228,X
+.C:9d2b  F0 05       BEQ $9D32
+.C:9d2d  CA          DEX
+.C:9d2e  10 F8       BPL $9D28
+.C:9d30  30 05       BMI $9D37
+.C:9d32  A9 00       LDA #$00
+.C:9d34  9D 2C C2    STA $C22C,X
+.C:9d37  C8          INY
+.C:9d38  CC 12 C2    CPY $C212
+.C:9d3b  D0 D5       BNE $9D12
+.C:9d3d  4C 3C 9E    JMP $9E3C
+.C:9d40  AD 86 C4    LDA $C486
+.C:9d43  20 F0 99    JSR $99F0
+.C:9d46  D0 F5       BNE $9D3D
+.C:9d48  AE 43 80    LDX $8043
+.C:9d4b  A9 00       LDA #$00
+.C:9d4d  9D 2C C2    STA $C22C,X	; Zeroise
+.C:9d50  CA          DEX
+.C:9d51  10 FA       BPL $9D4D	; Loop
+.C:9d53  60          RTS
+
+--------------------------------------
+.C:9d54  A9 00       LDA #$00
+.C:9d56  8D 23 C2    STA $C223
+.C:9d59  A2 00       LDX #$00
+.C:9d5b  20 FA 94    JSR $94FA	; Modem read A
+.C:9d5e  AA          TAX
+.C:9d5f  29 40       AND #$40
+.C:9d61  D0 22       BNE $9D85
+.C:9d63  8A          TXA
+.C:9d64  29 20       AND #$20
+.C:9d66  D0 05       BNE $9D6D
+.C:9d68  A2 02       LDX #$02
+.C:9d6a  4C 47 8F    JMP $8F47
+.C:9d6d  EE 18 C2    INC $C218
+.C:9d70  D0 0D       BNE $9D7F
+.C:9d72  EE 19 C2    INC $C219
+.C:9d75  AD 49 80    LDA $8049
+.C:9d78  F0 05       BEQ $9D7F
+.C:9d7a  CD 19 C2    CMP $C219
+.C:9d7d  F0 01       BEQ $9D80
+.C:9d7f  60          RTS
+
+.C:9d80  A2 03       LDX #$03
+.C:9d82  4C 47 8F    JMP $8F47
+
+.C:9d85  A9 00       LDA #$00
+.C:9d87  85 A2       STA $A2
+.C:9d89  8D 18 C2    STA $C218
+.C:9d8c  8D 19 C2    STA $C219
+.C:9d8f  A2 04       LDX #$04
+.C:9d91  20 FA 94    JSR $94FA	; Modem read A
+.C:9d94  2C 13 C2    BIT $C213
+.C:9d97  10 0A       BPL $9DA3
+.C:9d99  C9 01       CMP #$01
+.C:9d9b  D0 05       BNE $9DA2
+.C:9d9d  A9 00       LDA #$00
+.C:9d9f  8D 13 C2    STA $C213
+.C:9da2  60          RTS
+
+-------------------------------------
+.C:9da3  C9 01       CMP #$01
+.C:9da5  D0 08       BNE $9DAF
+.C:9da7  A9 93       LDA #$93
+.C:9da9  20 50 9E    JSR $9E50
+.C:9dac  4C 41 9E    JMP $9E41
+.C:9daf  C9 02       CMP #$02
+.C:9db1  D0 36       BNE $9DE9
+.C:9db3  AD 84 C4    LDA $C484
+.C:9db6  CD 12 C2    CMP $C212
+.C:9db9  F0 04       BEQ $9DBF
+.C:9dbb  A9 8E       LDA #$8E
+.C:9dbd  D0 7A       BNE $9E39
+.C:9dbf  AD 1A C2    LDA $C21A
+.C:9dc2  F0 04       BEQ $9DC8
+.C:9dc4  A9 83       LDA #$83
+.C:9dc6  D0 71       BNE $9E39
+.C:9dc8  AD 1B C2    LDA $C21B
+.C:9dcb  D0 F7       BNE $9DC4
+.C:9dcd  AD 12 C2    LDA $C212
+.C:9dd0  C9 05       CMP #$05
+.C:9dd2  B0 04       BCS $9DD8
+.C:9dd4  A9 95       LDA #$95
+.C:9dd6  D0 61       BNE $9E39
+.C:9dd8  CE 12 C2    DEC $C212
+.C:9ddb  CE 12 C2    DEC $C212
+.C:9dde  A9 A0       LDA #$A0
+.C:9de0  20 50 9E    JSR $9E50
+.C:9de3  A9 FF       LDA #$FF
+.C:9de5  8D 23 C2    STA $C223
+.C:9de8  60          RTS
+
+-------------------------------------
+.C:9de9  AC 12 C2    LDY $C212
+.C:9dec  C0 94       CPY #$94
+.C:9dee  D0 04       BNE $9DF4
+.C:9df0  A9 8F       LDA #$8F
+.C:9df2  D0 45       BNE $9E39
+.C:9df4  2C 14 C2    BIT $C214
+.C:9df7  10 0B       BPL $9E04
+.C:9df9  A2 00       LDX #$00
+.C:9dfb  8E 14 C2    STX $C214
+.C:9dfe  38          SEC
+.C:9dff  E9 20       SBC #$20
+.C:9e01  4C 0E 9E    JMP $9E0E
+.C:9e04  C9 03       CMP #$03
+.C:9e06  D0 06       BNE $9E0E
+.C:9e08  A9 FF       LDA #$FF
+.C:9e0a  8D 14 C2    STA $C214
+.C:9e0d  60          RTS
+
+--------------------------------------
+.C:9e0e  99 84 C4    STA $C484,Y
+.C:9e11  EE 12 C2    INC $C212
+.C:9e14  8D 1C C2    STA $C21C
+.C:9e17  A2 07       LDX #$07
+.C:9e19  18          CLC
+.C:9e1a  2E 1C C2    ROL $C21C
+.C:9e1d  2E 1B C2    ROL $C21B
+.C:9e20  2E 1A C2    ROL $C21A
+.C:9e23  90 10       BCC $9E35
+.C:9e25  AD 1A C2    LDA $C21A
+.C:9e28  49 10       EOR #$10
+.C:9e2a  8D 1A C2    STA $C21A
+.C:9e2d  AD 1B C2    LDA $C21B
+.C:9e30  49 21       EOR #$21
+.C:9e32  8D 1B C2    STA $C21B
+.C:9e35  CA          DEX
+.C:9e36  10 E1       BPL $9E19
+.C:9e38  60          RTS
+
+-------------------------------------
+.C:9e39  20 50 9E    JSR $9E50
+
+.C:9e3c  A9 FF       LDA #$FF
+.C:9e3e  8D 13 C2    STA $C213
+.C:9e41  A9 00       LDA #$00
+.C:9e43  8D 12 C2    STA $C212
+.C:9e46  8D 14 C2    STA $C214
+.C:9e49  8D 1A C2    STA $C21A
+.C:9e4c  8D 1B C2    STA $C21B
+.C:9e4f  60          RTS
+
+-------------------------------------
+.C:9e50  2C 11 80    BIT $8011
+.C:9e53  10 03       BPL $9E58
+.C:9e55  8D E7 07    STA $07E7
+.C:9e58  60          RTS
+
+>C:9e59  c3 4f 4e 4e  45 43 54 49  4e 47 2e 2e  2e 0d 11      .ONNECTING.....
+
+-- Connect to Compunet
+.C:9e69  A2 00       LDX #$00
+.C:9e6b  20 FA 94    JSR $94FA	; Modem read A
+.C:9e6e  29 20       AND #$20
+.C:9e70  D0 17       BNE $9E89	; Do stuff
+.C:9e72  A2 08       LDX #$08
+.C:9e74  20 FA 94    JSR $94FA	; Modem read A
+.C:9e77  29 40       AND #$40
+.C:9e79  D0 05       BNE $9E80	; Close
+.C:9e7b  A2 02       LDX #$02
+.C:9e7d  4C 47 8F    JMP $8F47
+.C:9e80  20 E4 FF    JSR $FFE4	; Close all channels and files
+.C:9e83  C9 03       CMP #$03
+.C:9e85  D0 E2       BNE $9E69
+.C:9e87  F0 58       BEQ $9EE1
+
+.C:9e89  AD 12 80    LDA $8012	; 04 (Purple)
+.C:9e8c  8D 20 D0    STA $D020	; Background colour
+.C:9e8f  A2 03       LDX #$03
+.C:9e91  A9 D0       LDA #$D0
+.C:9e93  20 F0 94    JSR $94F0	; Modem send X and A
+.C:9e96  20 6E 90    JSR $906E	; Print Carriage return
+.C:9e99  20 6E 90    JSR $906E	; Print Carriage return
+.C:9e9c  2C 10 80    BIT $8010	; Accumulator AND zero = 0. I think! Therefore always sets Z flag? N and V flags also set to zero
+.C:9e9f  50 05       BVC $9EA6	; Branch on V flag clear. Therefore always branch?
+.C:9ea1  20 D8 96    JSR $96D8
+.C:9ea4  18          CLC
+.C:9ea5  60          RTS
+
+--------------------------------------
+.C:9ea6  A2 59       LDX #$59	; "Connecting"
+.C:9ea8  A0 9E       LDY #$9E	; "Connecting"
+.C:9eaa  20 B7 90    JSR $90B7	; Print screen message
+.C:9ead  A9 00       LDA #$00
+.C:9eaf  8D 00 C2    STA $C200
+.C:9eb2  8D 02 C2    STA $C202
+.C:9eb5  85 1F       STA $1F	; String stack
+.C:9eb7  85 20       STA $20	; String stack
+.C:9eb9  8D 01 C2    STA $C201
+.C:9ebc  A9 C8       LDA #$C8
+.C:9ebe  A0 9F       LDY #$9F
+.C:9ec0  20 3D 9C    JSR $9C3D	; Set IRQ vector (9FC8)
+.C:9ec3  AD 46 80    LDA $8046	; $1A
+.C:9ec6  8D 05 DC    STA $DC05	; Timer low byte
+.C:9ec9  20 A9 9F    JSR $9FA9	; Modem reads?
+.C:9ecc  20 A9 9F    JSR $9FA9	; Modem reads?
+.C:9ecf  A9 40       LDA #$40
+.C:9ed1  A2 08       LDX #$08
+.C:9ed3  20 F0 94    JSR $94F0	; Modem send X and A
+.C:9ed6  A6 20       LDX $20	; String stack
+.C:9ed8  E0 0A       CPX #$0A
+.C:9eda  B0 07       BCS $9EE3
+.C:9edc  20 90 9F    JSR $9F90	; Close modem channel?
+.C:9edf  D0 F5       BNE $9ED6
+.C:9ee1  38          SEC
+.C:9ee2  60          RTS
+.C:9ee3  20 90 9F    JSR $9F90	; Close modem channel?
+.C:9ee6  F0 F9       BEQ $9EE1
+-- End of Connect to Compunet
+
+------------------------------------
+.C:9ee8  A6 1F       LDX $1F
+.C:9eea  E4 20       CPX $20
+.C:9eec  D0 26       BNE $9F14
+.C:9eee  A2 00       LDX #$00
+.C:9ef0  20 FA 94    JSR $94FA	; Modem read A
+.C:9ef3  AA          TAX
+.C:9ef4  10 ED       BPL $9EE3
+.C:9ef6  AE 02 C2    LDX $C202
+.C:9ef9  30 E8       BMI $9EE3
+.C:9efb  20 BC 9F    JSR $9FBC
+.C:9efe  BD 52 80    LDA $8052,X
+.C:9f01  E8          INX
+.C:9f02  EC 51 80    CPX $8051
+.C:9f05  D0 02       BNE $9F09
+.C:9f07  A2 FF       LDX #$FF
+.C:9f09  8E 02 C2    STX $C202
+.C:9f0c  A2 04       LDX #$04
+.C:9f0e  20 F0 94    JSR $94F0	; Modem send X and A
+.C:9f11  4C E3 9E    JMP $9EE3
+.C:9f14  BD 34 C2    LDA $C234,X
+.C:9f17  E6 1F       INC $1F
+.C:9f19  29 7F       AND #$7F
+.C:9f1b  C9 20       CMP #$20
+.C:9f1d  90 1C       BCC $9F3B
+.C:9f1f  C9 41       CMP #$41
+.C:9f21  90 18       BCC $9F3B
+.C:9f23  C9 5B       CMP #$5B
+.C:9f25  B0 04       BCS $9F2B
+.C:9f27  09 80       ORA #$80
+.C:9f29  D0 10       BNE $9F3B
+.C:9f2b  C9 60       CMP #$60
+.C:9f2d  90 0C       BCC $9F3B
+.C:9f2f  F0 08       BEQ $9F39
+.C:9f31  C9 7B       CMP #$7B
+.C:9f33  B0 04       BCS $9F39
+.C:9f35  29 DF       AND #$DF
+.C:9f37  D0 02       BNE $9F3B
+.C:9f39  A9 00       LDA #$00
+.C:9f3b  C9 0D       CMP #$0D
+.C:9f3d  F0 04       BEQ $9F43
+.C:9f3f  C9 20       CMP #$20
+.C:9f41  90 A0       BCC $9EE3
+.C:9f43  AE 01 C2    LDX $C201
+.C:9f46  D0 04       BNE $9F4C
+.C:9f48  C9 3F       CMP #$3F
+.C:9f4a  F0 09       BEQ $9F55
+.C:9f4c  C9 2A       CMP #$2A
+.C:9f4e  D0 09       BNE $9F59
+.C:9f50  A2 00       LDX #$00
+.C:9f52  8E 01 C2    STX $C201
+.C:9f55  38          SEC
+.C:9f56  6E 00 C2    ROR $C200
+.C:9f59  2C 10 80    BIT $8010
+.C:9f5c  30 05       BMI $9F63
+.C:9f5e  2C 00 C2    BIT $C200
+.C:9f61  10 03       BPL $9F66
+.C:9f63  20 D2 FF    JSR $FFD2	; Output char to channel
+.C:9f66  29 7F       AND #$7F
+.C:9f68  9D 00 02    STA $0200,X
+.C:9f6b  E0 4F       CPX #$4F
+.C:9f6d  F0 03       BEQ $9F72
+.C:9f6f  EE 01 C2    INC $C201
+.C:9f72  C9 0D       CMP #$0D
+.C:9f74  F0 03       BEQ $9F79
+.C:9f76  4C E3 9E    JMP $9EE3
+.C:9f79  A9 00       LDA #$00
+.C:9f7b  8D 00 C2    STA $C200
+.C:9f7e  8D 01 C2    STA $C201
+.C:9f81  A2 03       LDX #$03
+.C:9f83  BD 00 02    LDA $0200,X
+.C:9f86  DD 4D 80    CMP $804D,X
+.C:9f89  D0 EB       BNE $9F76
+.C:9f8b  CA          DEX
+.C:9f8c  10 F5       BPL $9F83
+.C:9f8e  18          CLC
+.C:9f8f  60          RTS
+
+---------------------------------------
+.C:9f90  2C 10 80    BIT $8010
+.C:9f93  10 0E       BPL $9FA3
+.C:9f95  A2 08       LDX #$08
+.C:9f97  20 FA 94    JSR $94FA	; Modem read A
+.C:9f9a  29 40       AND #$40
+.C:9f9c  D0 05       BNE $9FA3
+.C:9f9e  A2 02       LDX #$02
+.C:9fa0  4C 47 8F    JMP $8F47
+.C:9fa3  20 E4 FF    JSR $FFE4	; Close all channels and files
+.C:9fa6  C9 03       CMP #$03
+.C:9fa8  60          RTS
+
+---------------------------------------
+.C:9fa9  A2 08       LDX #$08
+.C:9fab  A9 10       LDA #$10
+.C:9fad  20 F0 94    JSR $94F0	; Modem send X and A
+.C:9fb0  20 FA 94    JSR $94FA	; Modem read A
+.C:9fb3  29 10       AND #$10
+.C:9fb5  D0 F9       BNE $9FB0
+.C:9fb7  A9 0D       LDA #$0D
+.C:9fb9  4C E4 94    JMP $94E4
+
+--------------------------------------
+.C:9fbc  A9 00       LDA #$00
+.C:9fbe  85 A2       STA $A2
+.C:9fc0  AD 44 80    LDA $8044
+.C:9fc3  C5 A2       CMP $A2
+.C:9fc5  B0 FC       BCS $9FC3
+.C:9fc7  60          RTS
+
+----------------------------------------
+.C:9fc8  A2 00       LDX #$00
+.C:9fca  20 FA 94    JSR $94FA	; Modem read A
+.C:9fcd  A8          TAY
+.C:9fce  29 40       AND #$40
+.C:9fd0  F0 0F       BEQ $9FE1
+.C:9fd2  A2 04       LDX #$04
+.C:9fd4  20 FA 94    JSR $94FA	; Modem read A
+.C:9fd7  A6 20       LDX $20
+.C:9fd9  9D 34 C2    STA $C234,X
+.C:9fdc  E6 20       INC $20
+.C:9fde  4C 31 EA    JMP $EA31	; IRQ vector
+.C:9fe1  98          TYA
+.C:9fe2  29 20       AND #$20
+.C:9fe4  D0 F8       BNE $9FDE
+.C:9fe6  A2 02       LDX #$02
+.C:9fe8  4C 47 8F    JMP $8F47
+.C:9feb  00          BRK
+.C:9fec  00          BRK
+.C:9fed  00          BRK
+.C:9fee  00          BRK
+.C:9fef  00          BRK
+.C:9ff0  00          BRK	; Phone number chars start here
+.C:9ff1  AA          TAX
+.C:9ff2  AA          TAX
+.C:9ff3  AA          TAX
+.C:9ff4  AA          TAX
+.C:9ff5  AA          TAX
+.C:9ff6  AA          TAX
+.C:9ff7  AA          TAX
+.C:9ff8  AA          TAX
+.C:9ff9  AA          TAX
+.C:9ffa  AA          TAX
+.C:9ffb  AA          TAX
+.C:9ffc  AA          TAX
+.C:9ffd  AA          TAX
+.C:9ffe  AA          TAX
+.C:9fff  AA          TAX
+.C:a000  30 30       BMI $A032

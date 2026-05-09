@@ -1,0 +1,242 @@
+Below is the full OCR and raw text extraction from the provided Compunet instruction manual:
+
+---
+
+### PAGE 1
+
+compunet
+YOUR COMMODORE MODEM IS A GATEWAY TO THE WORLD OF COMPUTER COMMUNICATION AND IN PARTICULAR TO COMPUNET, BRITAIN'S MOST ADVANCED AND INTERACTIVE COMPUTER NETWORK.
+LOGGING ON
+To get into Compunet, plug the modem into your British Telecom socket. Turn on the C-64 and all peripherals.
+Type CONNECT or (shift) C after the ready prompt. The screen now prompts 'number'.
+Type in the number of your nearest Compunet access point.
+If using an internal exchange which requires you to dial 9 to get a line, type 9---followed by the number.
+The border colour changes to purple and after a short wait a welcome message appears.
+(The message Account User No. Job Max Exceeded means the system is full up; try again in a few minutes' time.)
+Getting your personal ID and password takes about three weeks.
+Till then, use the ID NEW-USER and the password INTRO for limited access to Compunet.
+You are next asked to enter your ID and password. Press RETURN after each.
+The screen now says LINKING and up to 8K of software is sent from the main Compunet computer into your modem.
+This takes less than 90 seconds.
+To avoid linking every time you log on, type CNSAVE at the ready prompt after you LEAVE Compunet.
+This saves the software to your disk or cassette. Reload it before logging on again by typing CNLOAD at the ready prompt.
+When the ready prompt returns, type CONNECT and log-on as usual.
+If Compunet has up-dated the terminal software to introduce new facilities, linking will re-occur; CNSAVE again.
+After linking a personal information screen appears with the DIRECTORY DUCKSHOOT - see back page.
+Select DIR to reveal the main directory.
+To leave Compunet, select LEAVE.
+Compunet makes no connect charge between 6.00 pm - 8.00 am and all day at weekends.
+Compunet reserves the right to change facilities and pricing as necessary to develop and improve the system, without prior notice.
+
+---
+
+### PAGE 2
+
+THE COMPUNET EDITOR
+The Commodore modem contains a unique page editor which can be used on or offline with the full range of Commodore graphics and colours.
+See back page for a list of Editor commands.
+It is used for preparing your own pages for putting onto Compunet or sending through Courier, Compunet's electronic mail service.
+The system only accepts material prepared in the Editor; word processor text can be converted into Editor format with a program available on Compunet.
+To use the Editor offine, plug the modem into the C-64 cartridge port, connect and turn on all peripherals you may need (disk/cassette, printer, etc.), then switch on the C-64.
+At the ready prompt, type EDITOR or (shift) E, then RETURN.
+This gives a white page with a blue border and a duckshoot (see back page) at the bottom.
+You are now in the Editor. Select EDIT from the duckshoot and start typing.
+To use the Editor on-line, select the command EDITR from the main directory duckshoot.
+The screen will now display the last page you SHOWed, because each page you read on Compunet is automatically stored in your Editor so that you can re-read, save or print it on or off-line.
+Use the LAST/NEXT commands to access all the pages you have SHOWn from Compunet, or the NEW command, followed by EDIT, to create a new page to write on.
+Warning: The Editor holds 10-15 pages of text or graphics.
+As more pages go into it, earlier pages are lost irretrievably unless they have been saved or printed with the PUT, STORE or PRINT commands (see opposite).
+Unwanted pages should be removed regularly with the ERASE command to conserve space.
+Plugging in or turning on disk drives, cassette recorders, printers etc. will lose the contents of your Editor.
+Ensure all these are switched on before preparing pages. Entering and leaving Compunet does NOT affect the contents of the Editor.
+THE COMPUNET DIRECTORIES
+Compunet is organised as a series of directories arranged in a tree-like structure.
+Usually, each directory entry a) has text to read or a program to download and b) a further, more detailed directory beneath it.
+To select a directory entry, use the up/down cursor keys to highlight it with a blue bar.
+You are now given full information about that entry and can perform commands like DIR, SHOW and BUY upon it.
+The commands available are in the Directory duckshoot at the bottom of the page -- see overleaf for a list.
+The number to the left of the highlighted entry is its page number.
+To reach this entry in one step from anywhere in the system, select the GOTO command and type in the number.
+Each entry is followed by a letter. This in turn may be followed by a number and/or a plus.
+The letter tells you what sort of information the entry contains, the number how long it is, and the plus means that there is a further directory underneath it.
+See above for a full explanation.
+
+---
+
+### PAGE 3
+
+TELESOFTWARE
+SAVE OFFLINE RUN STOP WHEN ASKED FILENAME OK FOR BASIC OR MIC
+To download software from Compunet, ensure your disk drive/cassette recorder is connected and switched on.
+First, SHOW the text associated with the program. This will usually contain a full description and instructions and you may want to save or print it.
+Then highlight the program (the entry followed by P or PP) and select BUY (even if it is free).
+Downloading takes about 10 seconds for each K of program; when complete, you are asked SAVE FILENAME?
+Pressing RETURN saves the program under its existing name and is generally preferable to renaming it.
+To rename it, type in a different name at the SAVE FILENAME? prompt.
+Programs often come in several chunks. BUY each in order and press RETURN at SAVE FILENAME?
+to ensure it retains the name it has on Compunet.
+To save phone charges while SAVING, a free program available on Compunet allows you to save off-line.
+If your first SAVE fails (ie, not enough space on your disk), select SAVE from the main directory duckshoot to try again.
+(Each 1K of program needs four blocks of disk space.)
+NB: Protected programs (PP) will only load and run successfully with the modem in place to act as a dongle.
+COURIER: Electronic Mail
+If a letter is waiting for you a red pillarbox is shown on the personal information page at log-in.
+If one arrives while you are on-line, the word MAIL appears on the top of the next directory you go to.
+Select MAIL from the directory duckshoot to see a directory of your letters, or to send a letter.
+When sending, have your letter ready first, either in your Editor (having been prepared on or off-line) or on disk/tape.
+To send it, select SEND from the Courier duckshoot. When prompted, type in the title of your letter and the ID of the recipient.
+Messages can be sent to up to five people at once.
+If sending to fewer people, press RETURN twice after entering the last ID.
+You are now taken into the Editor with a limited duckshoot.
+You can GET your message from disk/tape or go back and forwards through the Editor with the NEXT/LAST commands to find the first frame to send.
+When you have found the first frame, select SEND. The screen now says SENDING.
+When the duckshoot returns, select FINISH (if your letter was only one page) or NEXT, LAST or GET to find the next page and press SEND again.
+Messages may be up to an Editor-full long.
+To read your mail, highlight the title of the letter on your Courier directory and select SHOW.
+Once a letter has been read it is lost from Compunet and exists only in your Editor.
+When you have finished with COURIER, select DONE to return to the point from which you entered it.
+TIME OUT
+You are disconnected (timed out) from Compunet if two minutes have passed since your last command to the system.
+You are also timed out after more than 10 minutes in the Editor on-line.
+Mail your Compunet queries and comments free to these COURIER IDs:-HOTLINE (technical); -ADMIN (accounts and registration);-FEEDBAK (general).
+
+---
+
+### PAGE 4
+
+The page number Use GOTO to get straight to it from anywhere in Compunet
+Routing --- tells you which Part of Compunet you are in
+1 WELCOME
+100 SAMPLE
+A letter is waiting for you. Select MAIL to read it
+Eight text pages to read with SHOW
+MAIL
+PRICE
+LI
+TODAY'S NEWS
+18+
+111903 PROGRAM
+P6
+1.50
+ARCADE SPECIAL
+PP21
+MASTERCLASS
+TELESHOPPING
+S
+The cost to you of reading or downloading the entry
+L
+***MORE*** D+
+DIR EDITR
+SAVE LEAVE
+BUY SHOW
+ACCM
+The duckshoot
+menu. Highlight a command with left/right cursor keys. then press RETURN
+A protected program to BUY. Will only load and run with the modem in place
+A dummy page; cannot be shown. Use DIR to access the directory beneath
+A link to another system; access with BUY
+GETTING AROUND: The four movement commands
+DIR takes you down the Compunet structure to ever more detailed directories
+BACK takes you higher up, to the directory above the one you are in
+GOTO takes you straight to a particular page
+MAIL takes you straight to Courier, Compunet's electronic mail service
+TO SHOW (READ) COMPUNET PAGES
+Entries followed by a T contain text. To read this, highlight the entry and select SHOW (or BUY if it has a price).
+The first page now appears on your screen. If there is more than one page, you get the SHOW duckshoot.
+Select MORE to see the next page; FINISH to return to the directory.
+Selecting ALL shows all the pages rapidly, a process which cannot be stopped once it has begun.
+Every page you SHOW is automatically stored in your Editor and can be re-read, saved or printed either while you are on-line (select EDITR) or after you LEAVE Compunet (type Editor at the ready prompt).
+LINKS & COMMUNICATIONS
+Entries followed by an L are links to other systems.
+Select BUY to access a link, even if it is free. Your micro is now converted into a standard terminal.
+When you quit the link, you are returned to Compunet.
+You can access viewdata and teletype systems with your modem by loading the software available at page 2020 on Compunet.
+
+---
+
+### PAGE 5
+
+A further directory, select DIR to see it
+FE
+26
+A 6-kilobyte long program. Use BUY to download it
+AUTHOR
+VOTE
+EDITOR -
+author of the text
+9
+The vote users have given the item. Select VOTE to vote yourself
+USEFUL PAGE NOS. (select GOTO to reach these directly)
+Index 150
+Full Compunet Guide 120
+Comms. Software 2020
+Teleshopping 310
+News 202
+Compunet News 107707
+Commodore News 210
+General Jungle 600
+Fees & Charges 123
+Telesoftware 231
+MUD (Multi-User Dungeon) 107923
+Courier Guide 140
+A sequential file (ie produced on a word processor). Select BUY to download it
+These four types of information are 'hidden' in a single column. Toggle the $F7/F8$ key to see them all
+TO UPLOAD ONTO COMPUNET
+To put your own pages/programs into the Compunet Jungle, choose an appropriate directory with space for an entry on it.
+To start a new directory under an entry which currently does not have one (no +), highlight it and select DIR for a fresh directory on which to upload.
+THE JUNGLE
+Unique to Compunet - an area where you can put your own text and software and make contact with other Compunet users.
+There are other Jungles for specialised purposes.
+Have your material ready in the Editor or on disk/tape. Select UPLD.
+When prompted type the title of your entry, T or P for Text/graphics or Program, the price (if any) you are charging and the LIFE -- number of days it is to remain on the system.
+This can be extended later with the LIFE command.
+For text uploads, you are now taken into the Editor as for Courier.
+Find your first page, using NEXT/LAST or GET, then select SEND to upload it. This takes a minute or so.
+When the duckshoot returns, repeat the procedure until you have sent all your pages, then select FINISH to return to the directory with your new entry in place for all to read.
+For program uploads, the duckshoot displays SEND, LOAD and ABORT. Use SEND if the program is already in your micro.
+If not, use LOAD to get it off disk/tape, then SEND.
+When uploading your own software, always provide text pages giving a full description of it.
+If you decide not to send, use ABORT.
+
+---
+
+### PAGE 6
+
+THE COMPUNET COMMANDS
+The Duckshoot Menu
+Each stage in Compunet displays a sideways scrolling line of commands -- the DUCKSHOOT -- across the bottom of the screen, showing all the options available at that stage.
+To make a command, use the left/right cursor keys to scroll the duckshoot until the command you want is in the centre, highlighted section, then press RETURN.
+The Editor Commands
+COPY makes a copy of the current page (the page now showing)
+DOS only appears if you have loaded and run DOS before logging on.
+Select DOS and type $ at the @ prompt for a disk directory
+EDIT allows you to write/draw on the current page
+ERASE deletes the current page
+FREE states how much space is left in the Editor
+GET retrieves a file of Editor frames from disk/tape
+HELP displays a help frame
+LAST/NEXT goes back or forward through the pages in the Editor
+NEW creates a fresh page (select EDIT to write/draw on it)
+PRINT prints the current frame to a compatible printer
+PUT saves the current page on disk/cassette
+RETURN goes back to Compunet if on-line or to the C-64 operating system, if off-line
+STORE saves the entire contents of the Editor on disk/ cassette
+The Directory Commands
+ACCNT displays details of your account
+BACK takes you to the directory above the one you are in
+BUY downloads a program (P or PP) into your micro or shows chargeable text frames
+DIR reveals another directory beneath an entry followed by a plus (+)
+EDITR accesses the Editor
+GOTO (PAGE NUMBER?) takes you to a specific page
+HELP displays a general help frame
+LEAVE disconnects you from Compunet
+LIFE lets you extend the life of your own text/software
+MAIL accesses your mailbox
+PRINT commands printer to print the current directory, including all page numbers etc.
+SAVE saves a downloaded program to disk/tape
+SHOW lets you read T (text) frames
+UCAT displays a catalogue of frames you have uploaded
+UPLD starts the process of putting your own text or software onto Compunet
+VOTE (1-9?) lets you vote on text or programs
+Compunet Teleservices Ltd.
+7-11 Minerva Road, London NW10 6HJ Telephone: 01-965 8866
