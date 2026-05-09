@@ -18,7 +18,6 @@ class Duckshoot {
         this.onSelect = null;
         
         this.menuRow = 24;      // bottom row
-        this.highlightWidth = 6;
     }
     
     setCommands(commands) {
@@ -86,55 +85,54 @@ class Duckshoot {
             r.screenColours[idx] = 1;
         }
         
-        // Pad commands to fixed width
-        const padded = this.commands.map(cmd => (cmd + '      ').substring(0, 6));
+        // Build command string with 2 spaces between each word
+        // No padding - just the command text with separators
+        const cmds = this.commands;
+        const separator = '  '; // 2 spaces between commands
         
-        // Centre position for highlight (command + 1 space padding each side)
-        const highlightPad = 1;
-        const centreX = Math.floor(r.cols / 2) - Math.floor((this.highlightWidth + highlightPad * 2) / 2);
+        // Calculate positions of each command in the linear string
+        const positions = []; // {start, end, text} for each command
+        let pos = 0;
+        for (let i = 0; i < cmds.length; i++) {
+            if (i > 0) pos += separator.length;
+            positions.push({ start: pos, end: pos + cmds[i].length, text: cmds[i] });
+            pos += cmds[i].length;
+        }
         
-        // Draw selected command in reverse video with padding:
-        // " COMMAND " - one reversed space each side
-        const selectedCmd = padded[this.selectedIndex];
-        const totalHighlight = this.highlightWidth + highlightPad * 2;
-        for (let i = 0; i < totalHighlight; i++) {
-            const idx = row * r.cols + centreX + i;
-            const charPos = i - highlightPad; // position within the command string
-            if (charPos >= 0 && charPos < selectedCmd.length && selectedCmd[charPos] !== ' ') {
-                const sc = r._toScreenCode(selectedCmd.charCodeAt(charPos));
-                r.screenChars[idx] = sc + 128; // reversed character
+        // Centre the selected command in the row
+        const sel = positions[this.selectedIndex];
+        const selMid = Math.floor((sel.start + sel.end) / 2);
+        const rowMid = Math.floor(r.cols / 2);
+        const offset = rowMid - selMid; // offset to apply to all positions
+        
+        // Draw highlight: reversed chars for selected command + 1 space padding each side
+        const hlStart = sel.start + offset - 1;
+        const hlEnd = sel.end + offset + 1;
+        for (let x = hlStart; x < hlEnd && x < r.cols; x++) {
+            if (x < 0) continue;
+            const idx = row * r.cols + x;
+            const charPos = x - (sel.start + offset);
+            if (charPos >= 0 && charPos < sel.text.length) {
+                const sc = r._toScreenCode(sel.text.charCodeAt(charPos));
+                r.screenChars[idx] = sc + 128; // reversed
                 r.screenColours[idx] = 1; // white
             } else {
-                r.screenChars[idx] = 160; // reversed space = solid white block
+                r.screenChars[idx] = 160; // reversed space
                 r.screenColours[idx] = 1;
             }
         }
         
-        // Draw commands to the left (white text on black bg)
-        let x = centreX - 1;
-        for (let cmdIdx = this.selectedIndex - 1; cmdIdx >= 0 && x >= 0; cmdIdx--) {
-            const cmd = padded[cmdIdx];
-            for (let i = cmd.length - 1; i >= 0 && x >= 0; i--) {
-                if (cmd[i] !== ' ') {
+        // Draw non-selected commands
+        for (let i = 0; i < positions.length; i++) {
+            if (i === this.selectedIndex) continue;
+            const p = positions[i];
+            for (let j = 0; j < p.text.length; j++) {
+                const x = p.start + offset + j;
+                if (x >= 0 && x < r.cols) {
                     const idx = row * r.cols + x;
-                    r.screenChars[idx] = r._toScreenCode(cmd.charCodeAt(i));
+                    r.screenChars[idx] = r._toScreenCode(p.text.charCodeAt(j));
                     r.screenColours[idx] = 1; // white
                 }
-                x--;
-            }
-        }
-        
-        // Draw commands to the right (white text on black bg)
-        x = centreX + totalHighlight;
-        for (let cmdIdx = this.selectedIndex + 1; cmdIdx < padded.length && x < r.cols; cmdIdx++) {
-            const cmd = padded[cmdIdx];
-            for (let i = 0; i < cmd.length && x < r.cols; i++) {
-                if (cmd[i] !== ' ') {
-                    const idx = row * r.cols + x;
-                    r.screenChars[idx] = r._toScreenCode(cmd.charCodeAt(i));
-                    r.screenColours[idx] = 1; // white
-                }
-                x++;
             }
         }
     }
