@@ -145,13 +145,41 @@ class PETSCIIRenderer {
     /**
      * Convert PETSCII to C64 screen code.
      * Used for SEQ file rendering and raw PETSCII data.
+     * Must be charset-aware for letter ranges.
+     *
+     * PETSCII $41-$5A and $C1-$DA are uppercase letters.
+     * In charset 1: uppercase at screen codes 1-26
+     * In charset 2: uppercase at screen codes 64-89, lowercase at 1-26
      */
     _toScreenCode(petscii) {
         if (petscii >= 0x20 && petscii <= 0x3F) return petscii;          // space, digits, punct
-        if (petscii >= 0x40 && petscii <= 0x5F) return petscii - 0x40;   // @=0, A=1..Z=26
-        if (petscii >= 0x60 && petscii <= 0x7F) return petscii - 0x20;   // graphics -> 64-95
+        
+        if (petscii >= 0x40 && petscii <= 0x5F) {
+            // @, A-Z, [, \, ], ^, _
+            if (this.currentCharset === 1 && petscii >= 0x41 && petscii <= 0x5A) {
+                return petscii - 0x40 + 63;  // A-Z -> screen 64-89 (uppercase in charset 2)
+            }
+            return petscii - 0x40;           // screen 0-31 (uppercase in charset 1)
+        }
+        
+        if (petscii >= 0x60 && petscii <= 0x7F) {
+            // In PETSCII, $60-$7F are graphics (charset 1) or lowercase (charset 2)
+            if (this.currentCharset === 1 && petscii >= 0x61 && petscii <= 0x7A) {
+                return petscii - 0x60;       // a-z -> screen 1-26 (lowercase in charset 2)
+            }
+            return petscii - 0x20;           // graphics -> screen 64-95
+        }
+        
         if (petscii >= 0xA0 && petscii <= 0xBF) return petscii - 0x40;   // shifted graphics -> 96-127
-        if (petscii >= 0xC0 && petscii <= 0xDF) return petscii - 0xC0;   // same as $40-$5F -> 0-31
+        
+        if (petscii >= 0xC0 && petscii <= 0xDF) {
+            // Same as $40-$5F (uppercase letters)
+            if (this.currentCharset === 1 && petscii >= 0xC1 && petscii <= 0xDA) {
+                return petscii - 0xC0 + 63;  // A-Z -> screen 64-89 (uppercase in charset 2)
+            }
+            return petscii - 0xC0;           // screen 0-31 (uppercase in charset 1)
+        }
+        
         if (petscii >= 0xE0 && petscii <= 0xFE) return petscii - 0x80;   // same as $A0-$BE -> 96-126
         if (petscii === 0xFF) return 94;                                  // pi character
         return 32;
