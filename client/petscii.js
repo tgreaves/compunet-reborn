@@ -61,21 +61,18 @@ class PETSCIIRenderer {
     }
     
     _generateCharROM() {
-        // Generate a basic C64-style character set
-        // This is a simplified version - a full implementation would use
-        // the actual C64 character ROM dump.
-        // For now, we generate printable ASCII characters using canvas text
-        // and convert to 8x8 bitmaps.
+        // Use the real C64 character ROM if available
+        if (typeof C64_CHARROM !== 'undefined') {
+            this.charROM = C64_CHARROM;
+            return;
+        }
         
+        // Fallback: generate approximation from canvas text
         this.charROM = new Uint8Array(256 * 8);
-        
-        // Create a temporary canvas for font rendering
         const tmpCanvas = document.createElement('canvas');
         tmpCanvas.width = 8;
         tmpCanvas.height = 8;
         const tmpCtx = tmpCanvas.getContext('2d');
-        
-        // Use a monospace font as approximation
         tmpCtx.font = '8px monospace';
         tmpCtx.textBaseline = 'top';
         tmpCtx.fillStyle = '#fff';
@@ -84,7 +81,6 @@ class PETSCIIRenderer {
             tmpCtx.clearRect(0, 0, 8, 8);
             tmpCtx.fillText(String.fromCharCode(i), 0, 0);
             const imgData = tmpCtx.getImageData(0, 0, 8, 8);
-            
             for (let row = 0; row < 8; row++) {
                 let byte = 0;
                 for (let col = 0; col < 8; col++) {
@@ -95,37 +91,6 @@ class PETSCIIRenderer {
                 }
                 this.charROM[i * 8 + row] = byte;
             }
-        }
-        
-        // PETSCII graphics characters (codes 160-255 and 0-31)
-        // Generate some basic block graphics
-        // Full block (code 160 / $A0)
-        for (let row = 0; row < 8; row++) {
-            this.charROM[160 * 8 + row] = 0xFF;
-        }
-        // Upper half block (code 163)
-        for (let row = 0; row < 4; row++) {
-            this.charROM[163 * 8 + row] = 0xFF;
-        }
-        // Lower half block (code 164)
-        for (let row = 4; row < 8; row++) {
-            this.charROM[164 * 8 + row] = 0xFF;
-        }
-        // Left half block (code 165)
-        for (let row = 0; row < 8; row++) {
-            this.charROM[165 * 8 + row] = 0xF0;
-        }
-        // Right half block (code 166)
-        for (let row = 0; row < 8; row++) {
-            this.charROM[166 * 8 + row] = 0x0F;
-        }
-        // Horizontal line (code 96 / $60 - shifted space in graphics mode)
-        for (let row = 0; row < 8; row++) {
-            this.charROM[96 * 8 + row] = (row === 4) ? 0xFF : 0x00;
-        }
-        // Vertical line
-        for (let row = 0; row < 8; row++) {
-            this.charROM[98 * 8 + row] = 0x08;
         }
     }
     
@@ -139,9 +104,26 @@ class PETSCIIRenderer {
     setChar(x, y, charCode, colour) {
         if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
             const idx = y * this.cols + x;
-            this.screenChars[idx] = charCode;
+            // Convert PETSCII/ASCII to C64 screen code
+            this.screenChars[idx] = this._toScreenCode(charCode);
             this.screenColours[idx] = colour !== undefined ? colour : this.textColour;
         }
+    }
+    
+    /**
+     * Convert ASCII/PETSCII character code to C64 screen code.
+     * The C64 character ROM is indexed by screen codes, not PETSCII.
+     */
+    _toScreenCode(petscii) {
+        if (petscii >= 0 && petscii <= 31) return petscii + 128;  // control chars -> reversed
+        if (petscii >= 32 && petscii <= 63) return petscii;        // space, digits, punctuation
+        if (petscii >= 64 && petscii <= 95) return petscii - 64;   // @, A-Z, [, \, ], ^, _
+        if (petscii >= 96 && petscii <= 127) return petscii - 32;  // graphics chars
+        if (petscii >= 128 && petscii <= 159) return petscii + 64;  // reversed control
+        if (petscii >= 160 && petscii <= 191) return petscii - 128; // reversed space/digits
+        if (petscii >= 192 && petscii <= 223) return petscii - 128; // reversed graphics
+        if (petscii >= 224 && petscii <= 254) return petscii - 128; // more reversed
+        return petscii & 0x7F;
     }
     
     getChar(x, y) {

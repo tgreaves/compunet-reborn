@@ -9,3 +9,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Generated intermediates
+client/chargen
