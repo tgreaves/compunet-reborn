@@ -29,6 +29,8 @@ Transport:
 """
 
 import asyncio
+import hashlib
+import json
 import os
 import glob
 import logging
@@ -88,12 +90,12 @@ PETSCII_CLR = 0x93
 
 
 def ascii_to_petscii(text):
-    """Convert ASCII string to PETSCII bytes (uppercase)."""
+    """Convert ASCII string to PETSCII bytes (uppercase, $41-$5A range)."""
     result = bytearray()
     for ch in text:
         code = ord(ch)
-        if 65 <= code <= 90:      # A-Z -> PETSCII $C1-$DA
-            result.append(code + 0x80)
+        if 65 <= code <= 90:      # A-Z -> PETSCII $41-$5A
+            result.append(code)
         elif 97 <= code <= 122:   # a-z -> PETSCII $41-$5A
             result.append(code - 32)
         elif 32 <= code <= 63:    # space, digits, punctuation
@@ -214,14 +216,39 @@ class CompunetSession:
         self.current_page = directory.root
         self.selected_entry = 0
         self.credit = 0.0
+        self._users = self._load_users()
+    
+    def _load_users(self):
+        users_file = os.path.join(os.path.dirname(__file__), 'users.json')
+        if os.path.exists(users_file):
+            with open(users_file, 'r') as f:
+                return json.load(f)
+        return {}
+    
+    def _hash_password(self, password):
+        """Hash a password with SHA-256."""
+        return hashlib.sha256(password.encode('utf-8')).hexdigest()
     
     def handle_login(self, user_id, password):
-        """Process login. Returns response bytes."""
+        """Process login. Returns response bytes or None on failure."""
+        user_id = user_id.upper().strip()
+        password = password.upper().strip()
+        
+        user = self._users.get(user_id)
+        if user is None:
+            log.info('Login failed (unknown user): %s', user_id)
+            return self._make_error(ascii_to_petscii('INVALID ID OR PASSWORD'))
+        
+        # Compare hashed password
+        if user['password'] != self._hash_password(password):
+            log.info('Login failed (bad password): %s', user_id)
+            return self._make_error(ascii_to_petscii('INVALID ID OR PASSWORD'))
+        
         self.user_id = user_id
         self.authenticated = True
-        log.info('Login: %s', user_id)
-        # Respond with ACK + initial directory
-        return self._make_dir_response()
+        self.credit = user.get('credit', 0.0)
+        log.info('Login OK: %s', user_id)
+        return self._make_welcome_frame(user)
     
     def handle_command(self, data):
         """
@@ -401,6 +428,39 @@ class CompunetSession:
         """Wrap frame data in a response packet."""
         return bytes([RESP_FRAME]) + frame_data
     
+    def _make_welcome_frame(self, user):
+        """Build the personal information welcome screen."""
+        welcome_path = os.path.join(CONTENT_DIR, 'pages', 'welcome.seq')
+        if os.path.exists(welcome_path):
+            with open(welcome_path, 'rb') as f:
+                frame_data = f.read()
+            return bytes([RESP_FRAME]) + frame_data
+        
+        # Fallback: generate a simple welcome frame
+        frame = bytearray()
+        frame.append(0x00)  # frame start
+        frame.append(0xF6)  # border = blue
+        frame.append(0xF1)  # bg = white
+        frame.append(0x8E)  # uppercase charset
+        frame.append(PETSCII_RETURN)
+        frame.append(PETSCII_RETURN)
+        frame.extend(b'\x06\x03')
+        frame.append(PETSCII_RED)
+        frame.extend(ascii_to_petscii('COMPUNET'))
+        frame.append(PETSCII_RETURN)
+        frame.append(PETSCII_RETURN)
+        frame.extend(b'\x06\x03')
+        frame.append(PETSCII_BLUE)
+        frame.extend(ascii_to_petscii('USER : '))
+        frame.extend(ascii_to_petscii(user.get('name', self.user_id)))
+        frame.append(PETSCII_RETURN)
+        frame.append(PETSCII_RETURN)
+        frame.extend(b'\x06\x03')
+        frame.extend(ascii_to_petscii('WELCOME TO COMPUNET'))
+        frame.append(PETSCII_RETURN)
+        frame.append(0x00)  # end
+        return bytes([RESP_FRAME]) + bytes(frame)
+    
     def _make_error(self, message_petscii):
         """Build an error response."""
         return bytes([RESP_ERROR]) + message_petscii + b'\x00'
@@ -418,21 +478,23 @@ async def ws_handler(websocket):
     log.info('WebSocket client connected: %s', websocket.remote_address)
     
     try:
-        # Wait for login
-        # Client sends: user_id + $00 + password + $00
-        login_data = await websocket.recv()
-        if isinstance(login_data, str):
-            login_data = login_data.encode('latin-1')
+        # Login loop - keep prompting until successful
+        while True:
+            login_data = await websocket.recv()
+            if isinstance(login_data, str):
+                login_data = login_data.encode('latin-1')
+            
+            parts = login_data.split(b'\x00')
+            user_id = parts[0].decode('latin-1') if len(parts) > 0 else 'GUEST'
+            password = parts[1].decode('latin-1') if len(parts) > 1 else ''
+            
+            response = session.handle_login(user_id, password)
+            await websocket.send(response)
+            
+            if session.authenticated:
+                break
         
-        parts = login_data.split(b'\x00')
-        user_id = parts[0].decode('latin-1') if len(parts) > 0 else 'GUEST'
-        password = parts[1].decode('latin-1') if len(parts) > 1 else ''
-        
-        # Authenticate and send initial response
-        response = session.handle_login(user_id, password)
-        await websocket.send(response)
-        
-        # Command loop
+        # Command loop (only reached after successful login)
         async for message in websocket:
             if isinstance(message, str):
                 message = message.encode('latin-1')

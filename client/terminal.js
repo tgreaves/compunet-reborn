@@ -50,12 +50,18 @@ class CompunetTerminal {
     handleKey(e) {
         e.preventDefault();
         
+        // Connect login prompts take priority
+        if (this.connectState === 'userid' || this.connectState === 'password') {
+            this._handleConnectKey(e);
+            return;
+        }
+        
         if (this.state === 'ready') {
             this._handleReadyKey(e);
         } else if (this.state === 'editor') {
             this.editor.handleKey(e);
-        } else if (this.connectState === 'userid' || this.connectState === 'password') {
-            this._handleConnectKey(e);
+        } else if (this.state === 'online') {
+            this._handleOnlineKey(e);
         }
     }
     
@@ -162,13 +168,19 @@ class CompunetTerminal {
         
         this.protocol.onDirectory = (data) => {
             this.state = 'online';
+            this.connectState = null;
             this._renderDirectoryData(data);
         };
         
         this.protocol.onFrame = (data) => {
+            if (this.connectState === 'linking') {
+                // Welcome frame after login
+                this.state = 'online';
+                this.connectState = null;
+            }
             const seq = new SEQRenderer(r);
             seq.render(data, 23);
-            this.duckshoot.setCommands(DUCKSHOOT_SHOW);
+            this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
             this.duckshoot.show();
         };
         
@@ -181,7 +193,16 @@ class CompunetTerminal {
                 else if (b >= 0x20 && b <= 0x3F) msg += String.fromCharCode(b);
                 else msg += '?';
             }
-            r.printAt(1, 22, msg, 2);
+            
+            if (this.connectState === 'linking') {
+                // Login failed - show error and re-prompt
+                r.print('\n\n  ' + msg + '\n\n', 2);
+                r.print('  ENTER USER ID: ', 1);
+                this.connectState = 'userid';
+                this.inputBuffer = '';
+            } else {
+                r.printAt(1, 22, msg, 2);
+            }
         };
         
         this.protocol.onDisconnect = () => {
@@ -228,6 +249,47 @@ class CompunetTerminal {
             } else {
                 r.print(ch, 14);
             }
+        }
+    }
+    
+    _handleOnlineKey(e) {
+        const cmd = this.duckshoot.handleKey(e.key);
+        if (cmd) {
+            this._handleOnlineCommand(cmd);
+        }
+    }
+    
+    _handleOnlineCommand(cmd) {
+        switch (cmd) {
+            case 'DIR':
+                this.protocol.sendDir();
+                break;
+            case 'SHOW':
+                this.protocol.sendShow();
+                break;
+            case 'BACK':
+                this.protocol.sendBack();
+                break;
+            case 'ACCNT':
+                this.protocol.sendAccnt();
+                break;
+            case 'MAIL':
+                this.protocol.sendMail();
+                break;
+            case 'LEAVE':
+                this.protocol.disconnect();
+                break;
+            case 'EDITR':
+                this.state = 'editor';
+                this.editor.enter();
+                break;
+            case 'FINISH':
+                // Return to directory duckshoot
+                this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
+                this.duckshoot.render();
+                break;
+            default:
+                break;
         }
     }
     
