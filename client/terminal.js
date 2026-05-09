@@ -178,13 +178,15 @@ class FrameEditor {
     }
     
     /**
-     * A frame stores the screen state.
+     * A frame stores screen codes and colours directly.
      */
     _createFrame() {
         return {
-            chars: new Uint8Array(40 * 25).fill(32),   // spaces (ASCII 32)
-            colours: new Uint8Array(40 * 25).fill(0),  // black
-            bgColour: 1,  // white background (standard Compunet page)
+            chars: new Uint8Array(40 * 25).fill(32),   // screen code 32 = space
+            colours: new Uint8Array(40 * 25).fill(0),  // black text
+            bgColour: 1,       // white background (standard Compunet page)
+            borderColour: 6,   // blue border
+            charset: 1,        // lowercase/uppercase
         };
     }
     
@@ -216,14 +218,18 @@ class FrameEditor {
         
         // Set page colours
         r.bgColour = frame.bgColour;
-        r.borderColour = 6;  // Blue border (standard for editor)
-        r.setCharset(1);     // Lowercase/uppercase mode
+        r.borderColour = frame.borderColour !== undefined ? frame.borderColour : 6;
+        if (frame.charset !== undefined) {
+            r.setCharset(frame.charset);
+        } else {
+            r.setCharset(1);
+        }
         
-        // Copy frame data to screen buffer (rows 0-22, leaving 23-24 for duckshoot)
+        // Copy frame screen codes directly to screen buffer (rows 0-22)
         for (let y = 0; y < 23; y++) {
             for (let x = 0; x < 40; x++) {
                 const idx = y * 40 + x;
-                r.screenChars[idx] = r._toScreenCode(frame.chars[idx]);
+                r.screenChars[idx] = frame.chars[idx];
                 r.screenColours[idx] = frame.colours[idx];
             }
         }
@@ -240,6 +246,7 @@ class FrameEditor {
     
     /**
      * Save current screen state back to the frame.
+     * Stores screen codes directly - no conversion needed.
      */
     _saveCurrentFrame() {
         const r = this.renderer;
@@ -248,23 +255,13 @@ class FrameEditor {
         for (let y = 0; y < 23; y++) {
             for (let x = 0; x < 40; x++) {
                 const idx = y * 40 + x;
-                // Store the raw ASCII/PETSCII code, not the screen code
-                frame.chars[idx] = this._fromScreenCode(r.screenChars[idx]);
+                frame.chars[idx] = r.screenChars[idx];
                 frame.colours[idx] = r.screenColours[idx];
             }
         }
         frame.bgColour = r.bgColour;
-    }
-    
-    /**
-     * Convert screen code back to ASCII/PETSCII for storage.
-     */
-    _fromScreenCode(screenCode) {
-        if (screenCode >= 0 && screenCode <= 31) return screenCode + 64;  // @, A-Z
-        if (screenCode >= 32 && screenCode <= 63) return screenCode;       // space, digits
-        if (screenCode >= 64 && screenCode <= 95) return screenCode + 32;  // graphics/lowercase
-        if (screenCode >= 128 && screenCode <= 255) return screenCode;     // reversed
-        return 32;
+        frame.borderColour = r.borderColour;
+        frame.charset = r.currentCharset;
     }
     
     handleKey(e) {
