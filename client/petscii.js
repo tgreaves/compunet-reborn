@@ -175,8 +175,9 @@ class PETSCIIRenderer {
         if (ascii >= 91 && ascii <= 95) return ascii - 64;     // [ \ ] ^ _ -> 27-31
         
         if (this.currentCharset === 1) {
-            // Charset 2: uppercase at screen 64-89, lowercase at 1-26
-            if (ascii >= 65 && ascii <= 90) return ascii - 1;   // A(65)->64, B(66)->65...Z(90)->89
+            // Charset 2: lowercase/uppercase
+            // Screen codes 1-26 = lowercase a-z, 65-90 = uppercase A-Z
+            if (ascii >= 65 && ascii <= 90) return ascii;       // A(65)->65, B(66)->66...Z(90)->90
             if (ascii >= 97 && ascii <= 122) return ascii - 96; // a(97)->1, b(98)->2...z(122)->26
         } else {
             // Charset 1: uppercase at screen 1-26

@@ -98,17 +98,24 @@ elif len(set1) == 2048:
     # Screen codes 32-63 = same as set 1 (space, digits, punctuation)
     charset2[32*8:64*8] = charset1[32*8:64*8]
     
-    # Screen codes 64-90 = uppercase A-Z (copy from set 1 codes 1-26)
-    # In set 2, screen code 64 = A, 65 = B, etc.
+    # Screen codes 65-90 = uppercase A-Z (copy from set 1 codes 1-26)
+    # PETSCII 'A'=$C1 -> screen code $C1-$80=$41=65, so A is at screen code 65
     for i in range(26):
-        src = (i + 1) * 8
-        dst = (64 + i) * 8
+        src = (i + 1) * 8       # set 1: A=1, B=2, ...Z=26
+        dst = (65 + i) * 8      # set 2: A=65, B=66, ...Z=90
         charset2[dst:dst+8] = charset1[src:src+8]
     
-    # Screen code 90 = Z (already covered above)
-    # Screen codes 91-95 = graphics (same as set 1 codes 91-95... actually these are different)
-    # For simplicity, copy the rest from set 1
-    charset2[91*8:128*8] = charset1[91*8:128*8]
+    # Screen code 64 = @ (same as set 1 code 0)
+    charset2[64*8:65*8] = charset1[0:8]
+    
+    # Screen codes 91-95 = same as set 1 codes 27-31 ([, \, ], ^, _)
+    for i in range(5):
+        src = (27 + i) * 8
+        dst = (91 + i) * 8
+        charset2[dst:dst+8] = charset1[src:src+8]
+    
+    # Screen codes 96-127 = graphics (copy from set 1 codes 64-95)
+    charset2[96*8:128*8] = charset1[64*8:96*8]
     
     # Screen codes 128-255 = reversed versions (XOR with 0xFF)
     for i in range(128):
