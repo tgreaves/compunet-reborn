@@ -22,6 +22,8 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 - **[historical/Compunet Terminal.crt](historical/Compunet%20Terminal.crt)** — Original cartridge ROM image in VICE .crt format.
 - **[historical/chip0_bank0_8000.bin](historical/chip0_bank0_8000.bin)** — Extracted 8K ROM binary (raw bytes at $8000-$9FFF).
+- **[historical/cnet.prg](historical/cnet.prg)** — The downloaded terminal software (7.5KB). This is the code sent during "linking" that provides the full interactive experience: directory navigation, duckshoot, Courier mail, uploads, downloads, etc. Provided by Charles Headey.
+- **[historical/cnboot.prg](historical/cnboot.prg)** — Multi-mode boot loader (2.1KB) offering CNET, TTY, Viewdata, and user-to-user modes. Provided by Charles Headey.
 - **[historical/Terminal Disassembly.txt](historical/Terminal%20Disassembly.txt)** — Third-party disassembly found online, used for cross-referencing.
 - **[historical/compunet-instructions-uk.pdf](historical/compunet-instructions-uk.pdf)** — Scanned original Compunet instruction manual.
 - **[historical/compunet-instructions-extracted.txt](historical/compunet-instructions-extracted.txt)** — OCR text extraction of the instruction manual.
@@ -40,9 +42,12 @@ The full interactive terminal (duckshoot navigation, directory browsing, frame r
 
 ## What's Missing
 
-- **The downloaded terminal software** — the code sent during "linking" that provides the actual user experience. This would have been saved to disk as a file called `CNET` via the `CNSAVE` command. If anyone has a preserved copy, it would significantly advance this project.
-- **Server-side protocol details** — the application-layer commands and responses beyond what can be inferred from the ROM's transport layer.
-- **Frame format specification** — how pages (text, graphics, colour) are encoded in the data stream.
+- **Server-side protocol details** — the application-layer commands and responses beyond what can be inferred from the client code.
+- **Frame format specification** — how pages (text, graphics, colour) are encoded in the data stream (partially recoverable from cnet.prg analysis).
+
+## Acknowledgements
+
+Thanks to Charles Headey for providing the cnboot.prg and cnet.prg files — the downloaded terminal software that was previously missing from this analysis.
 
 ## Protocol Summary
 
