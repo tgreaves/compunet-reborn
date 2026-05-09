@@ -487,9 +487,27 @@ rendering, Courier mail, etc.) lives in the **downloaded code** at $C800+.
 
 | Range | Purpose |
 |-------|---------|
+| $0801-$0816 | BASIC stub (SYS launcher for cnet.prg when loaded as BASIC program) |
+| $9FF0-$BE02 | Downloaded terminal software (cnet.prg at runtime) |
+| $C000-$C0FF | Terminal application workspace |
 | $C100-$C1FF | Terminal state (cursor, screen mode, flags) |
 | $C200-$C2FF | Protocol state (connection, packets, buffers) |
-| $0302-$0303 | BASIC warm start vector (redirected) |
+| $0302-$0303 | BASIC warm start vector (redirected to command parser) |
+
+### Downloaded Terminal Software Layout ($9FF0-$BE02)
+
+The terminal software (cnet.prg) runs at $9FF0+ with BASIC ROM banked out.
+Key internal addresses:
+
+| Address | Purpose |
+|---------|---------|
+| $A005   | Init: clear workspace, set pointers, call PROTOCOL_RESET |
+| $A03B   | Main loop: set up duckshoot, dispatch commands |
+| $A066   | DUCKSHOOT_HANDLER: display menu, get user selection |
+| $A176   | Directory duckshoot command string data |
+| $A21E   | Duckshoot configuration table |
+| $A231   | Command dispatch routine |
+| $A791   | Post-command handler |
 
 ## Second Jump Table ($96C0) - Protocol Functions
 

@@ -12,11 +12,14 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 - **[PROTOCOL.md](PROTOCOL.md)** — Full reverse-engineered protocol specification including modem hardware interface, connection sequence, packet format, command tokens, flow control, and CRC details. This is the key document for reimplementation.
 
-- **[compunet_terminal_v122.asm](compunet_terminal_v122.asm)** — Annotated 6502 disassembly of the Compunet Terminal cartridge ROM (v1.22, September 1984). Includes labelled subroutines, data regions, and inline commentary.
+- **[compunet_terminal_v122.asm](compunet_terminal_v122.asm)** — Annotated 6502 disassembly of the Compunet Terminal cartridge ROM (v1.22, September 1984). The bootstrap loader: modem control, dialling, login, protocol engine.
+
+- **[cnet_terminal_disasm.asm](cnet_terminal_disasm.asm)** — Annotated 6502 disassembly of the downloaded terminal software (cnet.prg). The application layer: directory navigation, duckshoot, SHOW, BUY, MAIL, UPLOAD, VOTE, etc. Runs at $9FF0-$BE02.
 
 ### Tools
 
-- **[generate_final.py](generate_final.py)** — Python script that produces the annotated disassembly from the raw ROM binary. Can be re-run if analysis is updated.
+- **[generate_final.py](generate_final.py)** — Python script that produces the ROM disassembly from the raw binary.
+- **[gen_cnet_disasm.py](gen_cnet_disasm.py)** — Python script that produces the terminal software disassembly from cnet.prg.
 
 ### Historical Sources
 
