@@ -89,16 +89,19 @@ class Duckshoot {
         // Pad commands to fixed width
         const padded = this.commands.map(cmd => (cmd + '      ').substring(0, 6));
         
-        // Centre position for highlight
-        const centreX = Math.floor(r.cols / 2) - Math.floor(this.highlightWidth / 2);
+        // Centre position for highlight (command + 1 space padding each side)
+        const highlightPad = 1;
+        const centreX = Math.floor(r.cols / 2) - Math.floor((this.highlightWidth + highlightPad * 2) / 2);
         
-        // Draw selected command in reverse video:
-        // Reversed char with colour=white -> white solid block, letter shape in row bg (light blue)
+        // Draw selected command in reverse video with padding:
+        // " COMMAND " - one reversed space each side
         const selectedCmd = padded[this.selectedIndex];
-        for (let i = 0; i < this.highlightWidth; i++) {
+        const totalHighlight = this.highlightWidth + highlightPad * 2;
+        for (let i = 0; i < totalHighlight; i++) {
             const idx = row * r.cols + centreX + i;
-            if (i < selectedCmd.length && selectedCmd[i] !== ' ') {
-                const sc = r._toScreenCode(selectedCmd.charCodeAt(i));
+            const charPos = i - highlightPad; // position within the command string
+            if (charPos >= 0 && charPos < selectedCmd.length && selectedCmd[charPos] !== ' ') {
+                const sc = r._toScreenCode(selectedCmd.charCodeAt(charPos));
                 r.screenChars[idx] = sc + 128; // reversed character
                 r.screenColours[idx] = 1; // white
             } else {
@@ -107,7 +110,7 @@ class Duckshoot {
             }
         }
         
-        // Draw commands to the left (white text on light blue bg)
+        // Draw commands to the left (white text on black bg)
         let x = centreX - 1;
         for (let cmdIdx = this.selectedIndex - 1; cmdIdx >= 0 && x >= 0; cmdIdx--) {
             const cmd = padded[cmdIdx];
@@ -121,8 +124,8 @@ class Duckshoot {
             }
         }
         
-        // Draw commands to the right (white text on light blue bg)
-        x = centreX + this.highlightWidth;
+        // Draw commands to the right (white text on black bg)
+        x = centreX + totalHighlight;
         for (let cmdIdx = this.selectedIndex + 1; cmdIdx < padded.length && x < r.cols; cmdIdx++) {
             const cmd = padded[cmdIdx];
             for (let i = 0; i < cmd.length && x < r.cols; i++) {
