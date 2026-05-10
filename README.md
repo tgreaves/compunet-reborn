@@ -10,7 +10,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 ### Web Client
 
-- **[client/](client/)** — Browser-based Compunet terminal emulator
+- **[client/web/](client/web/)** — Browser-based Compunet terminal emulator
   - Authentic C64 PETSCII rendering using the real chargen ROM (both character sets)
   - Duckshoot menu with horizontal scrolling and reverse-video highlight
   - Frame editor with multi-page support (NEW, LAST, NEXT, COPY, ERASE)
@@ -18,7 +18,14 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
   - GET command loads `.seq` files from disk into the editor
   - CONNECT command connects to the server with login prompt
   - Directory listing with UP/DOWN navigation and F7/F8 column toggle
-  - Open `client/index.html` in a browser to use
+  - Open `client/web/index.html` in a browser to use
+
+### C64 Client
+
+- **[client/c64/](client/c64/)** — Patched ROM for real C64 hardware (C64 Ultimate)
+  - Modified bootstrap for 6551 ACIA modem emulation
+  - Connects to the server over TCP via Hayes AT commands
+  - X.25 protocol layer unchanged from original
 
 ### Server
 

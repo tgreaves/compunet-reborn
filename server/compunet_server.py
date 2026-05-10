@@ -311,19 +311,24 @@ class CompunetSession:
     
     def _cmd_dir(self, params):
         """DIR command - enter sub-directory of selected entry, or go up if not a directory."""
-        if self.selected_entry < len(self.current_page.children):
-            child = self.current_page.children[self.selected_entry]
+        offset = getattr(self, 'dir_page_offset', 0)
+        visible_children = self.current_page.children[offset:offset+11]
+        
+        if self.selected_entry < len(visible_children):
+            # Selected a real entry
+            child = visible_children[self.selected_entry]
             if child.has_subdir():
                 self.current_page = child
                 self.selected_entry = 0
                 self.dir_page_offset = 0
             elif self.current_page.parent:
+                # Not a directory entry - go up to parent
                 self.current_page = self.current_page.parent
                 self.selected_entry = 0
                 self.dir_page_offset = 0
-        elif self.selected_entry >= len(self.current_page.children[:12]):
+        else:
             # Selected the ***MORE*** entry - show next page
-            self.dir_page_offset = getattr(self, 'dir_page_offset', 0) + 12
+            self.dir_page_offset = offset + 11
             self.selected_entry = 0
         return self._make_dir_response()
     
@@ -385,8 +390,13 @@ class CompunetSession:
         return bytes([RESP_FRAME, 0x00]) + bytes(frame)
     
     def _cmd_back(self):
-        """BACK command - go to parent directory."""
-        if self.current_page.parent:
+        """BACK command - go to previous page, or parent directory if on first page."""
+        if self.dir_page_offset > 0:
+            # Go back to previous page of same directory
+            self.dir_page_offset = max(0, self.dir_page_offset - 11)
+            self.selected_entry = 0
+        elif self.current_page.parent:
+            # On first page - go up to parent directory
             self.current_page = self.current_page.parent
             self.selected_entry = 0
             self.dir_page_offset = 0
@@ -437,11 +447,11 @@ class CompunetSession:
         data = bytearray()
         data.append(RESP_DIR)
         
-        # Number of entries (max 12 per page, with ***MORE*** if more exist)
+        # Number of entries (max 11 per page + ***MORE*** if more exist, fitting 12 rows)
         offset = getattr(self, 'dir_page_offset', 0)
         page_children = page.children[offset:]
-        has_more = len(page_children) > 12
-        visible = page_children[:12] if has_more else page_children
+        has_more = len(page_children) > 11
+        visible = page_children[:11] if has_more else page_children
         entry_count = len(visible) + (1 if has_more else 0)
         data.append(entry_count)
         
