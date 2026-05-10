@@ -618,16 +618,36 @@ When receiving page content (SHOW, DIR responses), the client:
 
 ### Directory Data Format
 
-Directory entries received from the server contain:
-- Entry title (text)
-- Type letter (T/P/PP/L/S/D)
-- Size number
-- Price (if applicable)
-- Author name
-- Vote score
-- Sub-directory indicator (+)
+Directory entries are sent as structured data from the server, NOT as pre-formatted
+PETSCII. The client parses, stores in RAM, and renders locally.
 
-These are separated by `$0D` (CR) delimiters and `$00` terminates the listing.
+Server sends (after RESP_DIR byte):
+```
+<entry_count>                    ; 1 byte: number of entries
+<directory_title><$0D>           ; routing text, CR-terminated
+<entry1_fields><$0D>             ; entry 1, CR-terminated
+<entry2_fields><$0D>             ; entry 2, CR-terminated
+...
+<$00>                            ; end of listing
+```
+
+Each entry has comma-separated ($2C) fields:
+```
+page_number,title,type_string,price,life,author,vote<$0D>
+```
+
+The client stores this in RAM at $D500+ (names, 8 bytes per entry) and
+$D600+ (details, 94 bytes per entry), then renders it locally.
+
+**Directory navigation (UP/DOWN) is entirely client-side** — no server
+communication occurs. The highlight bar is moved by manipulating screen
+memory (OR with $80 for reverse video, AND with $7F to remove).
+
+Screen layout (from disassembly):
+- Row 7, col 1: Directory title/routing (colour 6, blue)
+- Row 8, col 31: Column header (PRICE/LIFE/AUTHOR/VOTE)
+- Row 10+: Directory entries
+- F7/F8 toggles which extra column is displayed (client-side re-render)
 
 ### BUY/Download Sequence
 

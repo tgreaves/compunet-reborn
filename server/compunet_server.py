@@ -127,13 +127,15 @@ def make_space_run(count):
 class CompunetPage:
     """A page in the Compunet directory tree."""
     
-    def __init__(self, page_num, title, page_type='T', size=0, author='SYSTEM'):
+    def __init__(self, page_num, title, page_type='T', size=0, author='SYSTEM', price=0.0, life=0, vote=0):
         self.page_num = page_num
         self.title = title
         self.page_type = page_type
         self.size = size
         self.author = author
-        self.vote = 0
+        self.price = price
+        self.life = life
+        self.vote = vote
         self.children = []
         self.frames = []    # list of bytes objects (raw frame data)
         self.parent = None
@@ -165,21 +167,22 @@ class CompunetDirectory:
         self.pages[1] = root
         
         entries = [
-            (100, 'WELCOME', 'T', 8),
-            (107, 'COMPUNET NEWS', 'T', 0),
-            (120, 'FULL GUIDE', 'T', 12),
-            (140, 'COURIER GUIDE', 'T', 6),
-            (150, 'INDEX', 'D', 0),
-            (202, 'NEWS', 'T', 0),
-            (210, 'COMMODORE NEWS', 'T', 0),
-            (231, 'TELESOFTWARE', 'D', 0),
-            (310, 'TELESHOPPING', 'D', 0),
-            (600, 'GENERAL JUNGLE', 'D', 0),
-            (2020, 'COMMS SOFTWARE', 'P', 6),
+            # (page_num, title, type, size, author, price, life, vote)
+            (100, 'WELCOME', 'T', 8, 'SYSTEM', 0, 0, 0),
+            (107, 'COMPUNET NEWS', 'T', 0, 'EDITOR', 0, 30, 7),
+            (120, 'FULL GUIDE', 'T', 12, 'SYSTEM', 0, 0, 8),
+            (140, 'COURIER GUIDE', 'T', 6, 'SYSTEM', 0, 0, 0),
+            (150, 'INDEX', 'D', 0, 'SYSTEM', 0, 0, 0),
+            (202, 'NEWS', 'T', 0, 'EDITOR', 0, 7, 6),
+            (210, 'COMMODORE NEWS', 'T', 0, 'EDITOR', 0, 14, 5),
+            (231, 'TELESOFTWARE', 'D', 0, 'SYSTEM', 0, 0, 0),
+            (310, 'TELESHOPPING', 'D', 0, 'SYSTEM', 0, 0, 0),
+            (600, 'GENERAL JUNGLE', 'D', 0, 'SYSTEM', 0, 0, 0),
+            (2020, 'COMMS SOFTWARE', 'P', 6, 'SYSTEM', 0, 0, 9),
         ]
         
-        for page_num, title, ptype, size in entries:
-            page = CompunetPage(page_num, title, ptype, size)
+        for page_num, title, ptype, size, author, price, life, vote in entries:
+            page = CompunetPage(page_num, title, ptype, size, author, price, life, vote)
             page.parent = root
             root.children.append(page)
             self.pages[page_num] = page
@@ -385,41 +388,61 @@ class CompunetSession:
         return self._make_error(ascii_to_petscii('NOTHING TO BUY'))
     
     def _make_dir_response(self):
-        """Build a directory listing response in protocol format."""
+        """Build a directory listing response.
+        
+        From the disassembly: the server sends structured data with
+        fields separated by $2C (comma), entries by $0D, terminated by $00.
+        The client parses this, stores in RAM, and renders locally.
+        
+        Entry format (comma-separated fields):
+          page_number,title,type_string,price,life,author,vote
+        """
         page = self.current_page
         
-        # Directory response: RESP_DIR + PETSCII-encoded listing
-        # Each entry: page_num(5 ascii digits) + space + title + space + type + $0D
-        # Terminated by $00
         data = bytearray()
         data.append(RESP_DIR)
         
-        # Header: page number and routing
-        data.append(PETSCII_RETURN)
-        data.append(PETSCII_RED)
-        data.extend(b'\x06\x02')  # 2 spaces
+        # Number of entries
+        entry_count = min(len(page.children), 15)
+        data.append(entry_count)
+        
+        # Routing/title of current directory
         data.extend(ascii_to_petscii(page.title))
         data.append(PETSCII_RETURN)
-        data.append(PETSCII_RETURN)
         
-        # Entries
-        for child in page.children:
-            data.append(PETSCII_BLUE)
-            # Page number (right-aligned in 5 chars)
-            num_str = str(child.page_num).rjust(5)
-            data.extend(ascii_to_petscii(num_str))
-            data.append(0x20)  # space
+        # Directory entries (comma-separated fields, CR-terminated)
+        for child in page.children[:15]:
+            # Page number
+            data.extend(ascii_to_petscii(str(child.page_num)))
+            data.append(0x2C)  # comma
             
             # Title
-            data.append(PETSCII_WHITE)
-            title = child.title[:20].ljust(20)
-            data.extend(ascii_to_petscii(title))
+            data.extend(ascii_to_petscii(child.title))
+            data.append(0x2C)
             
-            # Type
-            data.append(PETSCII_GREEN)
+            # Type string
             data.extend(ascii_to_petscii(child.type_string()))
+            data.append(0x2C)
             
-            data.append(PETSCII_RETURN)
+            # Price
+            if child.price > 0:
+                data.extend(ascii_to_petscii('{:.2f}'.format(child.price)))
+            data.append(0x2C)
+            
+            # Life (days)
+            if child.life > 0:
+                data.extend(ascii_to_petscii(str(child.life)))
+            data.append(0x2C)
+            
+            # Author
+            data.extend(ascii_to_petscii(child.author))
+            data.append(0x2C)
+            
+            # Vote
+            if child.vote > 0:
+                data.extend(ascii_to_petscii(str(child.vote)))
+            
+            data.append(PETSCII_RETURN)  # end of entry
         
         data.append(0x00)  # end of listing
         return bytes(data)

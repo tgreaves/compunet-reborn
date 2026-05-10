@@ -253,6 +253,34 @@ class CompunetTerminal {
     }
     
     _handleOnlineKey(e) {
+        // Handle UP/DOWN for directory navigation (client-side, no server traffic)
+        if (this.dirEntries && this.dirEntries.length > 0) {
+            if (e.key === 'ArrowDown') {
+                if (this.dirHighlight < this.dirEntries.length - 1) {
+                    this.dirHighlight++;
+                    this._drawDirectory();
+                    this.duckshoot.render();
+                }
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                if (this.dirHighlight > 0) {
+                    this.dirHighlight--;
+                    this._drawDirectory();
+                    this.duckshoot.render();
+                }
+                return;
+            }
+            // F7/F8 toggle extra column (price/life/author/vote)
+            if (e.key === 'F7' || e.key === 'F8') {
+                this.dirColumn = (this.dirColumn + 1) % 4;
+                this._drawDirectory();
+                this.duckshoot.render();
+                return;
+            }
+        }
+        
+        // Pass to duckshoot for LEFT/RIGHT/ENTER
         const cmd = this.duckshoot.handleKey(e.key);
         if (cmd) {
             this._handleOnlineCommand(cmd);
@@ -284,7 +312,6 @@ class CompunetTerminal {
                 this.editor.enter();
                 break;
             case 'FINISH':
-                // Return to directory duckshoot
                 this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
                 this.duckshoot.render();
                 break;
@@ -296,22 +323,122 @@ class CompunetTerminal {
     _renderDirectoryData(data) {
         const r = this.renderer;
         r.clear();
-        r.bgColour = 6;  // blue
-        r.borderColour = 14;
+        r.bgColour = 0;  // black background
+        r.borderColour = 0;
+        r.setCharset(0);  // uppercase/graphics
         
-        // Render the directory data as PETSCII (it's already in PETSCII format)
-        const seq = new SEQRenderer(r);
-        // Wrap in a minimal frame header for the renderer
-        const frame = new Uint8Array(3 + data.length);
-        frame[0] = 0x00;  // frame start
-        frame[1] = 0xFE;  // border = light blue
-        frame[2] = 0xF6;  // bg = blue
-        frame.set(data, 3);
-        seq.render(frame, 23);
+        // Parse structured directory data
+        // Format: entry_count(1 byte), title(CR-terminated), entries(comma-separated, CR-terminated), $00
+        let pos = 0;
+        const entryCount = data[pos++];
         
-        // Show directory duckshoot
+        // Read directory title (until CR)
+        this.dirTitle = '';
+        while (pos < data.length && data[pos] !== 0x0D) {
+            this.dirTitle += String.fromCharCode(data[pos++]);
+        }
+        pos++; // skip CR
+        
+        // Parse entries
+        this.dirEntries = [];
+        for (let i = 0; i < entryCount && pos < data.length; i++) {
+            const fields = [];
+            let field = '';
+            while (pos < data.length && data[pos] !== 0x0D && data[pos] !== 0x00) {
+                if (data[pos] === 0x2C) { // comma separator
+                    fields.push(field);
+                    field = '';
+                } else {
+                    field += String.fromCharCode(data[pos]);
+                }
+                pos++;
+            }
+            fields.push(field);
+            if (data[pos] === 0x0D) pos++;
+            
+            if (fields.length >= 3) {
+                this.dirEntries.push({
+                    pageNum: fields[0] || '',
+                    title: fields[1] || '',
+                    type: fields[2] || '',
+                    price: fields[3] || '',
+                    life: fields[4] || '',
+                    author: fields[5] || '',
+                    vote: fields[6] || '',
+                });
+            }
+        }
+        
+        this.dirHighlight = 0;
+        this.dirColumn = 0; // 0=price, 1=life, 2=author, 3=vote
+        
+        this._drawDirectory();
         this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
         this.duckshoot.show();
+    }
+    
+    _drawDirectory() {
+        const r = this.renderer;
+        
+        // Clear screen area (rows 0-22)
+        for (let y = 0; y < 23; y++) {
+            for (let x = 0; x < 40; x++) {
+                const idx = y * 40 + x;
+                r.screenChars[idx] = 32;
+                r.screenColours[idx] = 0;
+            }
+        }
+        
+        // Row 7, col 1: Routing/directory title (blue) - from SUB_A544
+        if (this.dirTitle) {
+            r.printAt(1, 7, this.dirTitle, 6);
+        }
+        
+        // Row 8, col 31: Column header - from SUB_A56E
+        const colHeaders = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE'];
+        r.printAt(31, 8, colHeaders[this.dirColumn], 6);
+        
+        // Directory entries starting at row 10 (from disassembly: ADC #$0A)
+        const startRow = 10;
+        for (let i = 0; i < this.dirEntries.length && i + startRow < 22; i++) {
+            const entry = this.dirEntries[i];
+            const row = startRow + i;
+            
+            // From SUB_A661:
+            // First 6 chars: page number, in background colour (dim)
+            const numStr = entry.pageNum.padStart(6);
+            r.printAt(0, row, numStr, 6); // blue (same as bg-ish)
+            
+            // Next 23 chars: title, colour 2 (red) for entry 0, colour 6 (blue) for others
+            const titleColour = (i === 0) ? 2 : 6;
+            r.printAt(7, row, entry.title.substring(0, 20), titleColour);
+            
+            // Type after title
+            r.printAt(28, row, entry.type.substring(0, 5), 5); // green
+            
+            // Extra column at column 31 (from disassembly: LDY #$1F)
+            let extraVal = '';
+            let extraCol = 6;
+            switch (this.dirColumn) {
+                case 0: extraVal = entry.price; extraCol = 7; break;
+                case 1: extraVal = entry.life; extraCol = 5; break;
+                case 2: extraVal = entry.author; extraCol = 3; break;
+                case 3: extraVal = entry.vote; extraCol = 2; break;
+            }
+            if (extraVal) {
+                r.printAt(31, row, extraVal.substring(0, 8), extraCol);
+            }
+            
+            // Highlight: reverse video (OR with $80) across columns 0-38
+            // From disassembly: ORA #$80 applied to screen codes
+            if (i === this.dirHighlight) {
+                for (let x = 0; x < 39; x++) {
+                    const idx = row * 40 + x;
+                    r.screenChars[idx] |= 128;
+                    r.screenColours[idx] = 14; // light blue bar
+                }
+            }
+        }
     }
 }
 

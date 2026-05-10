@@ -16,7 +16,21 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
   - Frame editor with multi-page support (NEW, LAST, NEXT, COPY, ERASE)
   - SEQ file renderer with full control code support
   - GET command loads `.seq` files from disk into the editor
+  - CONNECT command connects to the server with login prompt
+  - Directory listing with UP/DOWN navigation and F7/F8 column toggle
   - Open `client/index.html` in a browser to use
+
+### Server
+
+- **[server/](server/)** — Python Compunet server
+  - WebSocket interface (port 6502) for the web client
+  - TCP interface (port 6400) for real C64 clients via WiFi modem
+  - Same binary protocol on both interfaces
+  - User authentication with hashed passwords (`users.json`)
+  - Welcome frame sent after successful login
+  - Directory tree with structured entry data (page number, title, type, price, life, author, vote)
+  - Command handling: DIR, SHOW, BACK, ACCNT, MAIL, VOTE, BUY
+  - Run with: `cd server && pip install -r requirements.txt && python compunet_server.py`
 
 ### Analysis
 
@@ -102,6 +116,24 @@ Thanks to Charles Headey for providing the cnboot.prg and cnet.prg files — the
 ## Goal
 
 Recreate the Compunet protocol on modern infrastructure so that original C64 clients (or emulated ones) can connect to a new server, and the community experience can be revived.
+
+## Current Status
+
+- **ROM disassembly**: Complete. All major routines identified and annotated.
+- **Terminal app disassembly**: Complete. Command dispatch, protocol calls, and directory navigation traced.
+- **Frame format**: Fully reverse-engineered and implemented. SEQ files render correctly.
+- **Web client**: Working. BASIC prompt, EDITOR with GET/EDIT/frame navigation, CONNECT with login, directory browsing with highlight bar.
+- **Server**: Working. Login with hashed passwords, welcome frame, directory listing with structured data, command handling.
+- **Protocol**: Binary protocol over WebSocket (web) and TCP (C64). Same command bytes and response format on both transports.
+
+## Next Steps
+
+- Wire SHOW command to serve frame content from the directory
+- Implement GOTO (jump to page number)
+- Add sub-directories and content pages
+- Implement Courier (MAIL) with send/receive
+- Build the TCP protocol layer with X.25 framing for real C64 clients
+- Add user registration and account management
 
 ## Links
 
