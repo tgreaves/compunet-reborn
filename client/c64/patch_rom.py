@@ -227,7 +227,7 @@ dial_code = [
     0xA2, 0x00,         # LDX #$00 (index)
     # loop:
     0xEC, 0xF0, 0x9F,   # CPX $9FF0 (compare with length)
-    0xF0, 0x09,         # BEQ +9 (done with input)
+    0xF0, 0x0A,         # BEQ +10 (done with input -> send CR)
     0xBD, 0xF1, 0x9F,   # LDA $9FF1,X (get char)
     0x20, 0xE4, 0x94,   # JSR $94E4 (send it)
     0xE8,               # INX

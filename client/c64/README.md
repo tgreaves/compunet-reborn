@@ -153,15 +153,16 @@ The patch modifies these routines in the 8K ROM at $8000-$9FFF:
 - ✅ EDITOR command works (no modem needed)
 - ✅ CONNECT reaches the "Number?" prompt
 - ✅ Input accepts full stops, colons, and letters (for IP addresses/hostnames)
-- ✅ ACIA TX confirmed working — full `ATDT<address>` command transmitted via IP232
-- ✅ VICE connects to tcpserial, tcpserial connects to Compunet server
-- ⏳ C64 hangs waiting for "CONNECT" response from tcpserial — AT command may not be fully recognised (investigating CR/LF termination and timing)
+- ✅ ACIA TX confirmed working — full `ATDT<address>\r` command transmitted via IP232
+- ✅ VICE connects to tcpserial, tcpserial receives and parses the AT command
+- ✅ tcpserial attempts to dial the specified host:port
+- ⏳ Off-by-one in input length causes extra trailing character (e.g. "6400" becomes "64000"), making tcpserial reject the port as invalid. Fix needed in the input send loop.
 
 ### Known Issues
 
 1. **VICE ACIA requires IRQ set to "None"** — NMI mode causes byte drops during TX
 2. **TX requires a delay loop** ($FF iterations) between bytes — without it, VICE's ACIA emulation drops characters
-3. **tcpserial not responding with CONNECT** — the AT command is being sent correctly (verified with tcp_sniffer.py) but tcpserial may not be recognising it. Possible causes: extra trailing byte, CR not received, or IP232 framing issue
+3. **Extra byte in address** — the input length at $9FF0 appears to include one extra character, causing the port number to be invalid. Need to verify stored input data and adjust the send loop.
 
 The 6551 ACIA registers at $DE00-$DE03:
 
