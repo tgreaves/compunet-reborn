@@ -1,0 +1,240 @@
+{
+  "root": {
+    "page_num": 1,
+    "title": "COMPUNET",
+    "type": "D",
+    "children": [
+      {
+        "page_num": 100,
+        "title": "WELCOME",
+        "type": "T",
+        "size": 8,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 0,
+        "frames": ["welcome.seq"],
+        "children": []
+      },
+      {
+        "page_num": 107,
+        "title": "COMPUNET NEWS",
+        "type": "T",
+        "size": 0,
+        "author": "EDITOR",
+        "price": 0,
+        "life": 30,
+        "vote": 7,
+        "frames": [],
+        "children": [
+          {
+            "page_num": 107707,
+            "title": "LATEST NEWS",
+            "type": "T",
+            "size": 3,
+            "author": "EDITOR",
+            "price": 0,
+            "life": 7,
+            "vote": 6,
+            "frames": [],
+            "children": []
+          }
+        ]
+      },
+      {
+        "page_num": 120,
+        "title": "FULL GUIDE",
+        "type": "T",
+        "size": 12,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 8,
+        "frames": [],
+        "children": []
+      },
+      {
+        "page_num": 123,
+        "title": "FEES & CHARGES",
+        "type": "T",
+        "size": 2,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 0,
+        "frames": [],
+        "children": []
+      },
+      {
+        "page_num": 140,
+        "title": "COURIER GUIDE",
+        "type": "T",
+        "size": 6,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 0,
+        "frames": [],
+        "children": []
+      },
+      {
+        "page_num": 150,
+        "title": "INDEX",
+        "type": "D",
+        "size": 0,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 0,
+        "frames": [],
+        "children": []
+      },
+      {
+        "page_num": 202,
+        "title": "NEWS",
+        "type": "T",
+        "size": 0,
+        "author": "EDITOR",
+        "price": 0,
+        "life": 7,
+        "vote": 6,
+        "frames": [],
+        "children": []
+      },
+      {
+        "page_num": 210,
+        "title": "COMMODORE NEWS",
+        "type": "T",
+        "size": 0,
+        "author": "EDITOR",
+        "price": 0,
+        "life": 14,
+        "vote": 5,
+        "frames": [],
+        "children": []
+      },
+      {
+        "page_num": 231,
+        "title": "TELESOFTWARE",
+        "type": "D",
+        "size": 0,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 0,
+        "frames": [],
+        "children": [
+          {
+            "page_num": 2311,
+            "title": "GAMES",
+            "type": "D",
+            "size": 0,
+            "author": "SYSTEM",
+            "price": 0,
+            "life": 0,
+            "vote": 0,
+            "frames": [],
+            "children": []
+          },
+          {
+            "page_num": 2312,
+            "title": "UTILITIES",
+            "type": "D",
+            "size": 0,
+            "author": "SYSTEM",
+            "price": 0,
+            "life": 0,
+            "vote": 0,
+            "frames": [],
+            "children": []
+          }
+        ]
+      },
+      {
+        "page_num": 310,
+        "title": "TELESHOPPING",
+        "type": "S",
+        "size": 0,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 0,
+        "frames": [],
+        "children": []
+      },
+      {
+        "page_num": 600,
+        "title": "GENERAL JUNGLE",
+        "type": "D",
+        "size": 0,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 0,
+        "frames": [],
+        "children": [
+          {
+            "page_num": 6001,
+            "title": "CHAT",
+            "type": "T",
+            "size": 0,
+            "author": "VARIOUS",
+            "price": 0,
+            "life": 30,
+            "vote": 7,
+            "frames": [],
+            "children": []
+          },
+          {
+            "page_num": 6002,
+            "title": "DEMOS",
+            "type": "D",
+            "size": 0,
+            "author": "VARIOUS",
+            "price": 0,
+            "life": 0,
+            "vote": 8,
+            "frames": [],
+            "children": []
+          },
+          {
+            "page_num": 6003,
+            "title": "MUSIC",
+            "type": "D",
+            "size": 0,
+            "author": "VARIOUS",
+            "price": 0,
+            "life": 0,
+            "vote": 7,
+            "frames": [],
+            "children": []
+          }
+        ]
+      },
+      {
+        "page_num": 2020,
+        "title": "COMMS SOFTWARE",
+        "type": "P",
+        "size": 6,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 9,
+        "frames": [],
+        "children": []
+      },
+      {
+        "page_num": 107923,
+        "title": "MUD",
+        "type": "L",
+        "size": 0,
+        "author": "R.BARTLE",
+        "price": 0,
+        "life": 0,
+        "vote": 9,
+        "frames": [],
+        "children": []
+      }
+    ]
+  }
+}

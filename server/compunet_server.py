@@ -154,59 +154,53 @@ class CompunetPage:
 
 
 class CompunetDirectory:
-    """The content tree."""
+    """The content tree, loaded from directory.json."""
     
     def __init__(self):
         self.pages = {}
         self.root = None
-        self._build_tree()
+        self._load_tree()
     
-    def _build_tree(self):
-        root = CompunetPage(1, 'COMPUNET', 'D')
-        self.root = root
-        self.pages[1] = root
-        
-        entries = [
-            # (page_num, title, type, size, author, price, life, vote)
-            (100, 'WELCOME', 'T', 8, 'SYSTEM', 0, 0, 0),
-            (107, 'COMPUNET NEWS', 'T', 0, 'EDITOR', 0, 30, 7),
-            (120, 'FULL GUIDE', 'T', 12, 'SYSTEM', 0, 0, 8),
-            (140, 'COURIER GUIDE', 'T', 6, 'SYSTEM', 0, 0, 0),
-            (150, 'INDEX', 'D', 0, 'SYSTEM', 0, 0, 0),
-            (202, 'NEWS', 'T', 0, 'EDITOR', 0, 7, 6),
-            (210, 'COMMODORE NEWS', 'T', 0, 'EDITOR', 0, 14, 5),
-            (231, 'TELESOFTWARE', 'D', 0, 'SYSTEM', 0, 0, 0),
-            (310, 'TELESHOPPING', 'D', 0, 'SYSTEM', 0, 0, 0),
-            (600, 'GENERAL JUNGLE', 'D', 0, 'SYSTEM', 0, 0, 0),
-            (2020, 'COMMS SOFTWARE', 'P', 6, 'SYSTEM', 0, 0, 9),
-        ]
-        
-        for page_num, title, ptype, size, author, price, life, vote in entries:
-            page = CompunetPage(page_num, title, ptype, size, author, price, life, vote)
-            page.parent = root
-            root.children.append(page)
-            self.pages[page_num] = page
-        
-        self._load_content()
+    def _load_tree(self):
+        """Load directory structure from JSON."""
+        json_path = os.path.join(CONTENT_DIR, 'directory.json')
+        if os.path.exists(json_path):
+            with open(json_path, 'r') as f:
+                data = json.load(f)
+            self.root = self._build_page(data['root'], None)
+        else:
+            # Fallback: minimal default
+            self.root = CompunetPage(1, 'COMPUNET', 'D')
+            self.pages[1] = self.root
     
-    def _load_content(self):
-        """Load SEQ files from content/pages/ as servable frames."""
-        pages_dir = os.path.join(CONTENT_DIR, 'pages')
-        if not os.path.exists(pages_dir):
-            return
+    def _build_page(self, node, parent):
+        """Recursively build page tree from JSON node."""
+        page = CompunetPage(
+            page_num=node['page_num'],
+            title=node['title'],
+            page_type=node.get('type', 'T'),
+            size=node.get('size', 0),
+            author=node.get('author', 'SYSTEM'),
+            price=node.get('price', 0),
+            life=node.get('life', 0),
+            vote=node.get('vote', 0),
+        )
+        page.parent = parent
+        self.pages[page.page_num] = page
         
-        page_num = 10001
-        for seq_file in sorted(glob.glob(os.path.join(pages_dir, '*.seq'))):
-            name = Path(seq_file).stem
-            with open(seq_file, 'rb') as f:
-                frame_data = f.read()
-            
-            page = CompunetPage(page_num, name.upper()[:20], 'T', 1)
-            page.frames = [frame_data]
-            page.parent = self.root
-            self.root.children.append(page)
-            self.pages[page_num] = page
-            page_num += 1
+        # Load frame files
+        for frame_file in node.get('frames', []):
+            frame_path = os.path.join(CONTENT_DIR, 'pages', frame_file)
+            if os.path.exists(frame_path):
+                with open(frame_path, 'rb') as f:
+                    page.frames.append(f.read())
+        
+        # Build children
+        for child_node in node.get('children', []):
+            child = self._build_page(child_node, page)
+            page.children.append(child)
+        
+        return page
 
 
 class CompunetSession:
