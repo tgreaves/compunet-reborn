@@ -208,6 +208,35 @@
             "vote": 7,
             "frames": [],
             "children": []
+          },
+          {
+            "page_num": 6004,
+            "title": "ASH DAVE INTERVIEW",
+            "type": "T",
+            "size": 16,
+            "author": "ASH",
+            "price": 0,
+            "life": 0,
+            "vote": 8,
+            "frames": [
+              "ash-dave-interview/page01.seq",
+              "ash-dave-interview/page02.seq",
+              "ash-dave-interview/page03.seq",
+              "ash-dave-interview/page04.seq",
+              "ash-dave-interview/page05.seq",
+              "ash-dave-interview/page06.seq",
+              "ash-dave-interview/page07.seq",
+              "ash-dave-interview/page08.seq",
+              "ash-dave-interview/page09.seq",
+              "ash-dave-interview/page10.seq",
+              "ash-dave-interview/page11.seq",
+              "ash-dave-interview/page12.seq",
+              "ash-dave-interview/page13.seq",
+              "ash-dave-interview/page14.seq",
+              "ash-dave-interview/page15.seq",
+              "ash-dave-interview/page16.seq"
+            ],
+            "children": []
           }
         ]
       },

@@ -174,13 +174,28 @@ class CompunetTerminal {
         
         this.protocol.onFrame = (data) => {
             if (this.connectState === 'linking') {
-                // Welcome frame after login
+                // Welcome frame after login - always show directory duckshoot
                 this.state = 'online';
                 this.connectState = null;
+                const frameData = data.slice(1); // skip more-pages flag
+                const seq = new SEQRenderer(r);
+                seq.render(frameData, 23);
+                this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
+                this.duckshoot.show();
+                return;
             }
+            
+            // Normal frame display (SHOW command)
+            const hasMore = data[0] === 0x01;
+            const frameData = data.slice(1);
             const seq = new SEQRenderer(r);
-            seq.render(data, 23);
-            this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
+            seq.render(frameData, 23);
+            
+            if (hasMore) {
+                this.duckshoot.setCommands(DUCKSHOOT_SHOW);
+            } else {
+                this.duckshoot.setCommands(['FINISH']);
+            }
             this.duckshoot.show();
         };
         
@@ -253,6 +268,25 @@ class CompunetTerminal {
     }
     
     _handleOnlineKey(e) {
+        // Help mode: any key returns to directory
+        if (this.helpMode) {
+            this.helpMode = false;
+            const r = this.renderer;
+            r.bgColour = 15;
+            r.borderColour = 6;
+            r.setCharset(0);
+            this._drawDirectory();
+            this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
+            this.duckshoot.show();
+            return;
+        }
+        
+        // Handle GOTO input mode
+        if (this.gotoMode) {
+            this._handleGotoKey(e);
+            return;
+        }
+        
         // Handle UP/DOWN for directory navigation (client-side, no server traffic)
         if (this.dirEntries && this.dirEntries.length > 0) {
             if (e.key === 'ArrowDown') {
@@ -290,16 +324,27 @@ class CompunetTerminal {
     _handleOnlineCommand(cmd) {
         switch (cmd) {
             case 'DIR':
+                this.protocol.sendSelect(this.dirHighlight);
                 this.protocol.sendDir();
                 break;
             case 'SHOW':
+                this.protocol.sendSelect(this.dirHighlight);
                 this.protocol.sendShow();
+                break;
+            case 'MORE':
+                this.protocol.sendCommand('N');
                 break;
             case 'BACK':
                 this.protocol.sendBack();
                 break;
+            case 'GOTO':
+                this._startGoto();
+                break;
             case 'ACCNT':
                 this.protocol.sendAccnt();
+                break;
+            case 'HELP':
+                this._showOnlineHelp();
                 break;
             case 'MAIL':
                 this.protocol.sendMail();
@@ -312,19 +357,80 @@ class CompunetTerminal {
                 this.editor.enter();
                 break;
             case 'FINISH':
-                this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
-                this.duckshoot.render();
+                // Return to directory listing - client-side, data already in memory
+                if (this.dirEntries) {
+                    const r = this.renderer;
+                    r.bgColour = 15;    // light grey
+                    r.borderColour = 6; // blue
+                    r.setCharset(0);
+                    this._drawDirectory();
+                    this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
+                    this.duckshoot.show();
+                }
                 break;
             default:
                 break;
         }
     }
     
+    _startGoto() {
+        const r = this.renderer;
+        // Display prompt on row 22 (status area)
+        for (let x = 0; x < 40; x++) {
+            r.setCharASCII(x, 22, 32, 6);
+        }
+        r.printAt(1, 22, 'PAGE NUMBER? ', 6);
+        this.gotoMode = true;
+        this.inputBuffer = '';
+    }
+    
+    _showOnlineHelp() {
+        // Display the help frame (client-side, no server communication)
+        // From disassembly: help is a pre-stored frame at $BB0C in cnet.prg
+        if (typeof HELP_FRAME_DATA !== 'undefined') {
+            const r = this.renderer;
+            const seq = new SEQRenderer(r);
+            seq.render(HELP_FRAME_DATA, 23);
+            this.duckshoot.hide();
+            this.helpMode = true;
+        }
+    }
+    
+    _handleGotoKey(e) {
+        const r = this.renderer;
+        
+        if (e.key === 'Enter') {
+            const pageNum = parseInt(this.inputBuffer);
+            this.gotoMode = false;
+            // Clear the prompt
+            for (let x = 0; x < 40; x++) {
+                r.setCharASCII(x, 22, 32, 0);
+            }
+            if (pageNum > 0) {
+                this.protocol.sendGoto(pageNum);
+            }
+        } else if (e.key === 'Backspace') {
+            if (this.inputBuffer.length > 0) {
+                this.inputBuffer = this.inputBuffer.slice(0, -1);
+                const col = 14 + this.inputBuffer.length;
+                r.setCharASCII(col, 22, 32, 6);
+            }
+        } else if (e.key >= '0' && e.key <= '9' && this.inputBuffer.length < 6) {
+            this.inputBuffer += e.key;
+            r.printAt(14 + this.inputBuffer.length - 1, 22, e.key, 1);
+        } else if (e.key === 'Escape') {
+            this.gotoMode = false;
+            for (let x = 0; x < 40; x++) {
+                r.setCharASCII(x, 22, 32, 0);
+            }
+        }
+    }
+    
     _renderDirectoryData(data) {
         const r = this.renderer;
         r.clear();
-        r.bgColour = 0;  // black background
-        r.borderColour = 0;
+        r.bgColour = 15;  // light grey (from disassembly: LDA #$0F / STA $D021)
+        r.borderColour = 6;  // blue (from disassembly: LDA $8012 = $06 / STA $D020)
         r.setCharset(0);  // uppercase/graphics
         
         // Parse structured directory data
@@ -409,12 +515,14 @@ class CompunetTerminal {
             const numStr = entry.pageNum.padStart(6);
             r.printAt(0, row, numStr, 6); // blue (same as bg-ish)
             
-            // Next 23 chars: title, colour 2 (red) for entry 0, colour 6 (blue) for others
-            const titleColour = (i === 0) ? 2 : 6;
+            // From disassembly SUB_A6D9: highlight colour is red at position 0, blue otherwise
+            // Non-highlighted entries are always blue
+            const titleColour = (i === this.dirHighlight && this.dirHighlight === 0) ? 2 : 6;
             r.printAt(7, row, entry.title.substring(0, 20), titleColour);
             
-            // Type after title
-            r.printAt(28, row, entry.type.substring(0, 5), 5); // green
+            // Type (after title) - same colour as title
+            const typeColour = titleColour;
+            r.printAt(28, row, entry.type.substring(0, 5), typeColour);
             
             // Extra column at column 31 (from disassembly: LDY #$1F)
             let extraVal = '';

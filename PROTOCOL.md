@@ -685,6 +685,21 @@ Screen layout (from disassembly):
 - `$8034`: protocol command type ('C' for COM)
 - `$8035`: server status flags (bit 7 = more data)
 
+### HELP Command (Client-Side)
+
+HELP does NOT communicate with the server. It displays a pre-stored frame
+from the terminal software RAM at $BB0C:
+
+```
+$A263: LDX #$0C / LDY #$BB    ; pointer to help frame at $BB0C
+       JSR $8124              ; JT_FRAME_WRITE (display frame)
+       JSR $8148              ; JT_PRESS_KEY (wait for keypress)
+       JMP $A72D              ; return to main loop
+```
+
+The help frame uses cyan background ($F3) and contains instructions for
+using the directory browser (cursor keys, F7/F8 column toggle, etc.).
+
 ### Frames
 
 All content on Compunet is delivered as **frames** — self-contained pages that

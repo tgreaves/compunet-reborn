@@ -122,18 +122,17 @@ Recreate the Compunet protocol on modern infrastructure so that original C64 cli
 - **ROM disassembly**: Complete. All major routines identified and annotated.
 - **Terminal app disassembly**: Complete. Command dispatch, protocol calls, and directory navigation traced.
 - **Frame format**: Fully reverse-engineered and implemented. SEQ files render correctly.
-- **Web client**: Working. BASIC prompt, EDITOR with GET/EDIT/frame navigation, CONNECT with login, directory browsing with highlight bar.
-- **Server**: Working. Login with hashed passwords, welcome frame, directory listing with structured data, command handling.
-- **Protocol**: Binary protocol over WebSocket (web) and TCP (C64). Same command bytes and response format on both transports.
+- **Web client**: Working. BASIC prompt, EDITOR with GET/EDIT/frame navigation, CONNECT with login, directory browsing with highlight bar and column toggle (F7/F8), GOTO page navigation, SHOW with multi-page MORE/FINISH, authentic HELP screen extracted from original cnet.prg.
+- **Server**: Working. Login with hashed passwords, welcome frame, directory tree from JSON metadata, structured directory data, SHOW with multi-page support, GOTO, BACK, ACCNT, MAIL commands.
+- **Protocol**: Binary protocol over WebSocket (web) and TCP (C64). Same command bytes and response format on both transports. No protocol modifications — all commands match the original disassembly.
 
 ## Next Steps
 
-- Wire SHOW command to serve frame content from the directory
-- Implement GOTO (jump to page number)
-- Add sub-directories and content pages
+- Implement UPLD (upload content to server)
 - Implement Courier (MAIL) with send/receive
-- Build the TCP protocol layer with X.25 framing for real C64 clients
 - Add user registration and account management
+- Build the TCP protocol layer with X.25 framing for real C64 clients
+- Add more content pages and sub-directories
 
 ## Links
 

@@ -213,6 +213,8 @@ class CompunetSession:
         self.current_page = directory.root
         self.selected_entry = 0
         self.credit = 0.0
+        self.show_page = None
+        self.show_frame_index = 0
         self._users = self._load_users()
     
     def _load_users(self):
@@ -276,6 +278,8 @@ class CompunetSession:
             return self._cmd_mail()
         elif cmd == CMD_BUY:
             return self._cmd_buy(params)
+        elif cmd == ord('N'):
+            return self._cmd_more(params)
         else:
             return self._make_error(ascii_to_petscii('UNKNOWN COMMAND'))
     
@@ -289,7 +293,12 @@ class CompunetSession:
         if page.has_subdir():
             return self._make_dir_response()
         elif page.frames:
-            return self._make_frame_response(page.frames[0])
+            # Set current_page to parent so BACK/FINISH returns correctly
+            if page.parent:
+                self.current_page = page.parent
+            self.show_page = page
+            self.show_frame_index = 0
+            return self._send_current_frame()
         else:
             return self._make_error(ascii_to_petscii('NO CONTENT'))
     
@@ -300,11 +309,15 @@ class CompunetSession:
         return b''  # No response needed for selection change
     
     def _cmd_dir(self, params):
-        """DIR command - enter sub-directory of selected entry."""
+        """DIR command - enter sub-directory of selected entry, or go up if not a directory."""
         if self.selected_entry < len(self.current_page.children):
             child = self.current_page.children[self.selected_entry]
             if child.has_subdir():
                 self.current_page = child
+                self.selected_entry = 0
+            elif self.current_page.parent:
+                # Not a directory entry - go up to parent
+                self.current_page = self.current_page.parent
                 self.selected_entry = 0
         return self._make_dir_response()
     
@@ -313,8 +326,29 @@ class CompunetSession:
         if self.selected_entry < len(self.current_page.children):
             child = self.current_page.children[self.selected_entry]
             if child.frames:
-                return self._make_frame_response(child.frames[0])
+                self.show_page = child
+                self.show_frame_index = 0
+                return self._send_current_frame()
         return self._make_error(ascii_to_petscii('NO TEXT'))
+    
+    def _cmd_more(self, params):
+        """MORE command - show next frame of current page."""
+        if hasattr(self, 'show_page') and self.show_page:
+            if self.show_frame_index < len(self.show_page.frames) - 1:
+                self.show_frame_index += 1
+                return self._send_current_frame()
+        return bytes([RESP_ACK])
+    
+    def _send_current_frame(self):
+        """Send the current frame being viewed."""
+        if self.show_page and self.show_frame_index < len(self.show_page.frames):
+            frame_data = self.show_page.frames[self.show_frame_index]
+            has_more = self.show_frame_index < len(self.show_page.frames) - 1
+            response = bytearray([RESP_FRAME])
+            response.append(0x01 if has_more else 0x00)  # more-pages flag
+            response.extend(frame_data)
+            return bytes(response)
+        return bytes([RESP_ACK])
     
     def _cmd_accnt(self):
         """ACCNT command - return account info frame."""
@@ -342,7 +376,7 @@ class CompunetSession:
         frame.append(PETSCII_RETURN)
         frame.append(0x00)  # end of frame
         
-        return bytes([RESP_FRAME]) + bytes(frame)
+        return bytes([RESP_FRAME, 0x00]) + bytes(frame)
     
     def _cmd_back(self):
         """BACK command - go to parent directory."""
@@ -375,7 +409,7 @@ class CompunetSession:
         frame.append(PETSCII_RETURN)
         frame.append(0x00)
         
-        return bytes([RESP_FRAME]) + bytes(frame)
+        return bytes([RESP_FRAME, 0x00]) + bytes(frame)
     
     def _cmd_buy(self, params):
         """BUY command."""
@@ -451,7 +485,7 @@ class CompunetSession:
         if os.path.exists(welcome_path):
             with open(welcome_path, 'rb') as f:
                 frame_data = f.read()
-            return bytes([RESP_FRAME]) + frame_data
+            return bytes([RESP_FRAME, 0x00]) + frame_data  # 0x00 = no more pages
         
         # Fallback: generate a simple welcome frame
         frame = bytearray()
@@ -476,7 +510,7 @@ class CompunetSession:
         frame.extend(ascii_to_petscii('WELCOME TO COMPUNET'))
         frame.append(PETSCII_RETURN)
         frame.append(0x00)  # end
-        return bytes([RESP_FRAME]) + bytes(frame)
+        return bytes([RESP_FRAME, 0x00]) + bytes(frame)
     
     def _make_error(self, message_petscii):
         """Build an error response."""
