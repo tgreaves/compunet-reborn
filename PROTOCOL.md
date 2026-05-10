@@ -616,7 +616,16 @@ When receiving page content (SHOW, DIR responses), the client:
 5. `$07` followed by 2 bytes = repeat character (RLE: char, count)
 6. All other bytes = literal character data (PETSCII)
 
-### Directory Data Format
+### Directory Paging
+
+Directories with more than 12 entries are paginated using a `***MORE***` entry:
+
+- Server sends max 12 entries per page
+- If more entries exist, a `***MORE***` entry (type D+) is appended as the last item
+- User highlights `***MORE***` and selects DIR to load the next page
+- This matches the manual: "A dummy page; cannot be shown. Use DIR to access the directory beneath"
+- BACK resets to the first page of the parent directory
+- F7/F8 only toggles the extra column display (Price/Life/Author/Vote)
 
 Directory entries are sent as structured data from the server, NOT as pre-formatted
 PETSCII. The client parses, stores in RAM, and renders locally.

@@ -215,6 +215,7 @@ class CompunetSession:
         self.credit = 0.0
         self.show_page = None
         self.show_frame_index = 0
+        self.dir_page_offset = 0
         self._users = self._load_users()
     
     def _load_users(self):
@@ -315,10 +316,15 @@ class CompunetSession:
             if child.has_subdir():
                 self.current_page = child
                 self.selected_entry = 0
+                self.dir_page_offset = 0
             elif self.current_page.parent:
-                # Not a directory entry - go up to parent
                 self.current_page = self.current_page.parent
                 self.selected_entry = 0
+                self.dir_page_offset = 0
+        elif self.selected_entry >= len(self.current_page.children[:12]):
+            # Selected the ***MORE*** entry - show next page
+            self.dir_page_offset = getattr(self, 'dir_page_offset', 0) + 12
+            self.selected_entry = 0
         return self._make_dir_response()
     
     def _cmd_show(self, params):
@@ -383,6 +389,7 @@ class CompunetSession:
         if self.current_page.parent:
             self.current_page = self.current_page.parent
             self.selected_entry = 0
+            self.dir_page_offset = 0
         return self._make_dir_response()
     
     def _cmd_vote(self, params):
@@ -430,8 +437,12 @@ class CompunetSession:
         data = bytearray()
         data.append(RESP_DIR)
         
-        # Number of entries
-        entry_count = min(len(page.children), 15)
+        # Number of entries (max 12 per page, with ***MORE*** if more exist)
+        offset = getattr(self, 'dir_page_offset', 0)
+        page_children = page.children[offset:]
+        has_more = len(page_children) > 12
+        visible = page_children[:12] if has_more else page_children
+        entry_count = len(visible) + (1 if has_more else 0)
         data.append(entry_count)
         
         # Routing/title of current directory
@@ -439,7 +450,7 @@ class CompunetSession:
         data.append(PETSCII_RETURN)
         
         # Directory entries (comma-separated fields, CR-terminated)
-        for child in page.children[:15]:
+        for child in visible:
             # Page number
             data.extend(ascii_to_petscii(str(child.page_num)))
             data.append(0x2C)  # comma
@@ -471,6 +482,19 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(str(child.vote)))
             
             data.append(PETSCII_RETURN)  # end of entry
+        
+        # Add ***MORE*** entry if there are more pages
+        if has_more:
+            data.extend(ascii_to_petscii('0'))       # page number (dummy)
+            data.append(0x2C)
+            data.extend(ascii_to_petscii('***MORE***'))
+            data.append(0x2C)
+            data.extend(ascii_to_petscii('D+'))
+            data.append(0x2C)  # price
+            data.append(0x2C)  # life
+            data.append(0x2C)  # author
+            data.append(0x2C)  # vote
+            data.append(PETSCII_RETURN)
         
         data.append(0x00)  # end of listing
         return bytes(data)

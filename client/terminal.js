@@ -351,6 +351,9 @@ class CompunetTerminal {
                 break;
             case 'LEAVE':
                 this.protocol.disconnect();
+                this.dirEntries = null;
+                this.dirTitle = null;
+                this.showReady();
                 break;
             case 'EDITR':
                 this.state = 'editor';
