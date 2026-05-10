@@ -98,22 +98,26 @@ patch_bytes(0x94E4, [
     0xEA, 0xEA, 0xEA,   # NOP padding
 ])
 
-# $94F0: JMP to TX (preserves original entry point for callers of $94F0)
+# $94F0: Selective modem register handler (10 bytes: $94F0-$94F9)
+# Original used X=register, A=value. On real modem, register 3 and 4
+# put bytes on the wire. Other registers (2, 6, 8, 10) are config only.
+# For ACIA: if X=3 or X=4, branch to $94E4 (TX). Otherwise RTS.
 patch_bytes(0x94F0, [
-    0x4C, 0xE4, 0x94,   # JMP $94E4
-    0xEA, 0xEA, 0xEA,   # NOP
-    0xEA, 0xEA, 0xEA,   # NOP
-    0xEA,               # NOP (fills to $94F9)
+    0xE0, 0x03,         # CPX #$03
+    0xF0, 0xF0,         # BEQ $94E4 (offset -16 from $94F4)
+    0xE0, 0x04,         # CPX #$04
+    0xF0, 0xEC,         # BEQ $94E4 (offset -20 from $94F8)
+    0x60,               # RTS (ignore config registers)
+    0xEA,               # NOP padding
 ])
 
-# $94FA: RX routine - wait for data, return in A
+# $94FA: RX routine - jump to extended handler at $8DF9
+# (we need more than 12 bytes for register-aware logic)
 patch_bytes(0x94FA, [
-    0xAD, 0x01, 0xDE,   # LDA $DE01 - status
-    0x29, 0x08,         # AND #$08 - RX data full (bit 3)
-    0xF0, 0xF9,         # BEQ $94FA (loop back)
-    0xAD, 0x00, 0xDE,   # LDA $DE00 - read received byte
-    0x60,               # RTS
-    0xEA,               # NOP padding
+    0x4C, 0xF9, 0x8D,   # JMP $8DF9 (extended RX handler)
+    0xEA, 0xEA, 0xEA,   # NOP padding
+    0xEA, 0xEA, 0xEA,   # NOP padding
+    0xEA, 0xEA, 0xEA,   # NOP padding
 ])
 
 
@@ -144,7 +148,7 @@ acia_init = [
     0x8D, 0x02, 0xDE,   # STA $DE02 - command register (disable everything)
     0xA9, 0x1F,         # LDA #$1F - 19200 baud, 8N1, 1 stop bit
     0x8D, 0x03, 0xDE,   # STA $DE03 - control register
-    0xA9, 0x0B,         # LDA #$0B - no parity, RTS low, TX int disabled, DTR active
+    0xA9, 0x09,         # LDA #$09 - no parity, RTS low, TX int disabled, RX IRQ enabled, DTR active
     0x8D, 0x02, 0xDE,   # STA $DE02 - command register (enable TX)
     0xEA,               # NOP
     0xEA,               # NOP
@@ -224,42 +228,170 @@ dial_code = [
     0x20, 0xE4, 0x94,   # JSR $94E4
     
     # Send user input from $9FF1, length at $9FF0
+    # Loop: send exactly $9FF0 bytes then CR
     0xA2, 0x00,         # LDX #$00 (index)
-    # loop:
+    # loop: ($8DBC)
     0xEC, 0xF0, 0x9F,   # CPX $9FF0 (compare with length)
     0xF0, 0x0A,         # BEQ +10 (done with input -> send CR)
     0xBD, 0xF1, 0x9F,   # LDA $9FF1,X (get char)
     0x20, 0xE4, 0x94,   # JSR $94E4 (send it)
     0xE8,               # INX
-    0x4C, 0xBC, 0x8D,   # JMP loop ($8DA6 + 22 = $8DBC)
+    0x4C, 0xBC, 0x8D,   # JMP $8DBC (loop back to CPX)
     
     # Send CR to complete the AT command
     0xA9, 0x0D,         # LDA #$0D
     0x20, 0xE4, 0x94,   # JSR $94E4
     
-    # Wait for 'C' (start of "CONNECT" response)
-    # wait_c:
-    0x20, 0xFA, 0x94,   # JSR $94FA (ACIA_RX)
-    0xC9, 0x43,         # CMP #'C'
-    0xD0, 0xF9,         # BNE wait_c (keep reading until 'C')
+    # Simple delay to let tcpser connect, send CONNECT response,
+    # and finish its break delay period (~1-2 seconds)
+    # Three nested loops: outer=8, mid=255, inner=255
+    0xA9, 0x08,         # LDA #$08 (outer counter) - $8DD0
+    0x85, 0xFB,         # STA $FB                  - $8DD2
+    # outer: ($8DD4)
+    0xA0, 0xFF,         # LDY #$FF (mid loop)      - $8DD4
+    # mid: ($8DD6)
+    0xA2, 0xFF,         # LDX #$FF (inner loop)    - $8DD6
+    # inner: ($8DD8)
+    0xCA,               # DEX                      - $8DD8
+    0xD0, 0xFD,         # BNE $8DD8 (inner)        - $8DD9
+    0x88,               # DEY                      - $8DDB
+    0xD0, 0xF8,         # BNE $8DD6 (mid)          - $8DDC
+    0xC6, 0xFB,         # DEC $FB                  - $8DDE
+    0xD0, 0xF2,         # BNE $8DD4 (outer)        - $8DE0
     
-    # Consume rest of CONNECT line (until CR)
-    # wait_cr:
-    0x20, 0xFA, 0x94,   # JSR $94FA (ACIA_RX)
-    0xC9, 0x0D,         # CMP #$0D
-    0xD0, 0xF9,         # BNE wait_cr
-    
-    # Also consume LF if present
-    0x20, 0xFA, 0x94,   # JSR $94FA (ACIA_RX)
-    0xC9, 0x0A,         # CMP #$0A (LF?)
-    # Don't care about result, just consumed it
-    
-    # Jump to protocol connection phase
-    0x4C, 0x17, 0x8E,   # JMP $8E17 (original PROTO_CONNECT entry)
+    # Drain CONNECT 1200\r\n from tcpser
+    # Use a timeout: if no byte arrives within ~256 polls, stop draining
+    #
+    # $8DE2: LDY #$00          (2) - reset timeout
+    # $8DE4: LDA $DE01         (3) - read status
+    # $8DE7: AND #$01          (2) - check RDRF
+    # $8DE9: BNE $8DEE         (2) - if data ready, go read it
+    # $8DEB: INY               (1) - timeout tick
+    # $8DEC: BNE $8DE4         (2) - loop if not timed out
+    # $8DEE: BEQ $8DF5         (2) - timed out (Y=0, Z set), jump to done
+    # $8DF0: LDA $DE00         (3) - read and discard byte
+    # $8DF3: JMP $8DE2         (3) - reset timeout, check for more
+    # $8DF6: JMP $8E17         (3) - done, enter protocol
+    #
+    0xA0, 0x00,         # LDY #$00                      - $8DE2
+    0xAD, 0x01, 0xDE,   # LDA $DE01                     - $8DE4
+    0x29, 0x01,         # AND #$01                      - $8DE7
+    0xD0, 0x05,         # BNE $8DF0 (read_byte)         - $8DE9
+    0xC8,               # INY                           - $8DEB
+    0xD0, 0xF6,         # BNE $8DE4 (check again)       - $8DEC
+    0xF0, 0x06,         # BEQ $8DF6 (done - timed out)  - $8DEE
+    0xAD, 0x00, 0xDE,   # LDA $DE00 (read_byte)         - $8DF0
+    0x4C, 0xE2, 0x8D,   # JMP $8DE2 (reset timeout)     - $8DF3
+    # done: ($8DF6)
+    0x4C, 0x2A, 0x8E,   # JMP $8E2A (DTR re-assert + handshake wait) - $8DF6
 ]
 
 patch_bytes(0x8DA6, dial_code)
 print('  Dial sequence patched: {} bytes at $8DA6'.format(len(dial_code)))
+
+# Extended RX handler at $8DF9 (called from $94FA via JMP)
+# Also used by $96CC (which points to $8E07).
+# Register-aware for $94FA: X=0 fakes carrier, X=8 fakes data ready
+# For actual reads: polls RDRF then reads $DE00
+#
+# Layout: $8DF9-$8E12 (26 bytes)
+rx_handler = [
+    # $8DF9: check if this is a modem status register read
+    0xE0, 0x00,         # CPX #$00
+    0xD0, 0x03,         # BNE +3 (not reg 0)
+    0xA9, 0x20,         # LDA #$20 (fake: carrier detected)
+    0x60,               # RTS
+    # $8E00: check reg 8
+    0xE0, 0x08,         # CPX #$08
+    0xD0, 0x03,         # BNE +3 (not reg 8)
+    0xA9, 0x40,         # LDA #$40 (fake: data ready)
+    0x60,               # RTS
+    # $8E07: ACIA read - poll RDRF with small delay between polls
+    # to let VICE process incoming IP232 data from tcpser
+    # poll: ($8E07)
+    0xAD, 0x01, 0xDE,   # LDA $DE01                         - $8E07
+    0x29, 0x01,         # AND #$01 - RDRF                   - $8E0A
+    0xD0, 0x07,         # BNE got_byte ($8E15)              - $8E0C
+    0xA2, 0x20,         # LDX #$20 (short delay)            - $8E0E
+    0xCA,               # DEX                               - $8E10
+    0xD0, 0xFD,         # BNE *-2                           - $8E11
+    0xF0, 0xF2,         # BEQ poll ($8E07)                  - $8E13
+    # got_byte: ($8E15)
+    0xAD, 0x00, 0xDE,   # LDA $DE00                         - $8E15
+    0x18,               # CLC                               - $8E18
+    0x60,               # RTS                               - $8E19
+]
+patch_bytes(0x8DF9, rx_handler)
+print('  Extended RX handler: {} bytes at $8DF9'.format(len(rx_handler)))
+
+# Break-cancel + proceed to login at $8E2A-$8E34
+# Send a CR to cancel tcpser's break delay, then go straight to login screen
+# (no handshake wait - server will respond after receiving login data)
+patch_bytes(0x8E2A, [
+    0xA9, 0x0D,         # LDA #$0D (CR - break-cancel)      - $8E2A
+    0x20, 0xE4, 0x94,   # JSR $94E4 (send to tcpser)       - $8E2C
+    0xEA, 0xEA, 0xEA,   # NOP NOP NOP (pad to $8E34)       - $8E2F
+    0xEA, 0xEA,         #                                   - $8E32
+    0xEA,               #                                   - $8E34
+])
+print('  Extended RX handler: {} bytes at $8DF9'.format(len(rx_handler)))
+
+
+# ============================================================
+# PATCH 6: Protocol layer -> raw ACIA I/O
+# ============================================================
+print()
+print('PATCH 6: Protocol layer -> raw ACIA for login/linking')
+
+# Skip the initial protocol send at $8E2A is now handled by the
+# DTR re-assert + handshake wait stub (patched above via dial code jump)
+
+# Send a break-cancel byte at $8EE0 (simple version)
+patch_bytes(0x8EE0, [
+    0xA9, 0x0D,         # LDA #$0D (CR)                     - $8EE0
+    0x20, 0xE4, 0x94,   # JSR $94E4 (send break-cancel)    - $8EE2
+    0xEA, 0xEA, 0xEA,   # NOP NOP NOP                       - $8EE5
+])
+
+# Patch the 4 header receive calls at $8EEF-$8EFD to use infinite-wait read
+# instead of timeout read. These must wait for the server's linking response.
+patch_bytes(0x8EEF, [0x20, 0x07, 0x8E])  # JSR $8E07 (infinite wait)
+patch_bytes(0x8EF2, [0x20, 0x07, 0x8E])  # JSR $8E07
+patch_bytes(0x8EF5, [0x20, 0x07, 0x8E])  # JSR $8E07
+patch_bytes(0x8EFA, [0x20, 0x07, 0x8E])  # JSR $8E07
+
+# Point $96CC (RECV_BYTE) to $8E07 (direct read, CLC)
+patch_bytes(0x96CC, [
+    0x4C, 0x07, 0x8E,   # JMP $8E07
+])
+
+# Point $96C9 (per-byte send used by $94C1) to a Y-preserving TX wrapper
+# $94E4 clobbers Y (uses it for delay), so we must save/restore Y
+# Must NOT clobber A (holds the data byte to send)
+# Put wrapper at $96DB (was send routine, no longer needed since $8EE0 is NOPed)
+patch_bytes(0x96DB, [
+    0x84, 0xFC,         # STY $FC (save Y in zero page)
+    0x20, 0xE4, 0x94,   # JSR $94E4 (ACIA TX, clobbers Y)
+    0xA4, 0xFC,         # LDY $FC (restore Y)
+    0x60,               # RTS
+])
+patch_bytes(0x96C9, [
+    0x4C, 0xDB, 0x96,   # JMP $96DB (Y-preserving TX wrapper)
+])
+
+# $96D2 (SEND_DATA) - no longer used ($8EE0 is NOPed), point to RTS
+patch_bytes(0x96D2, [
+    0x4C, 0xE2, 0x96,   # JMP $96E2 (RTS at end of TX wrapper)
+])
+
+# Entry 2 ($96C6) modem init -> just RTS
+patch_bytes(0x96C6, [
+    0x4C, 0xE2, 0x96,   # JMP $96E2 (RTS)
+])
+
+print('  $96CC -> $8E07 (RECV with timeout/carry)')
+print('  $96D2 -> $96DB (SEND raw)')
+print('  $96C6 -> RTS (modem init disabled)')
 
 
 # ============================================================

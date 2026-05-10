@@ -29,46 +29,43 @@ This setup allows testing the patched ROM without real hardware.
 
 ### Setup
 
-#### 1. Install tcpserial
+#### 1. Install tcpser (go4retro C version)
 
 ```
-git clone https://github.com/MyDeveloperThoughts/tcpserial.git
-cd tcpserial
+git clone https://github.com/go4retro/tcpser.git
+cd tcpser
+make
 ```
 
-Build with Maven or use the pre-built JAR if available.
-
-#### 2. Start tcpserial
-
-tcpserial listens on a TCP port for VICE to connect to, and emulates a
-Hayes modem. When the C64 software sends AT commands, tcpserial handles
-them and establishes outbound TCP connections.
+#### 2. Start tcpser
 
 ```
-java -jar tcpserial.jar -p 25232 -s 1200
+tcpser -v 25232 -p 6401 -s 1200 -l 7 -I
 ```
 
 Options:
-- `-p 25232` — listen for VICE connection on TCP port 25232
-- `-s 1200` — serial speed 1200 baud (matches Compunet's 1200/75)
-
-Refer to the tcpserial documentation for full command-line options.
+- `-v 25232` — listen for VICE IP232 connection on TCP port 25232
+- `-p 6401` — inbound listen port (set to 6401 to avoid clash with server on 6400)
+- `-s 1200` — serial speed 1200 baud
+- `-l 7` — max log level (DEBUG)
+- `-I` — invert DTR (required for IP232 mode with VICE)
 
 #### 3. Configure VICE
 
 In VICE (x64sc), configure the RS-232 interface:
 
-1. **Settings → Cartridge/IO Settings → RS-232 Interface**
-   - Enable "ACIA DE00" (SwiftLink at $DE00)
-   - Set "ACIA Device" to "Device 1"
+**ACIA settings:**
+- Enable ACIA RS232 interface emulation: ✓
+- Device: Serial 3
+- Base address: $DE00
+- IRQ: NMI
+- Emulation mode: SwiftLink
 
-2. **Settings → RS-232 Settings**
-   - Device 1: `127.0.0.1:25232` (connects to tcpser)
+**RS232 devices:**
+- Serial 3: `127.0.0.1:25232`, Baud: 38400, IP232: ✓ (checked)
 
-Alternatively, use VICE command-line options:
-```
-x64sc -acia1 -acia1base 0xDE00 -rsdev1 "127.0.0.1:25232"
-```
+These settings are confirmed working with CCGMS terminal for 2-way
+BBS communication over the Internet.
 
 #### 4. Start the Compunet server
 
@@ -136,42 +133,124 @@ handle the TCP connection via its built-in modem emulation.
 
 The patch modifies these routines in the 8K ROM at $8000-$9FFF:
 
-| Original | Patched | Purpose |
-|----------|---------|---------|
-| $94E4 (MODEM_WAIT_READY) | 6551 TX (STA $DE00 + delay) | Send byte via ACIA |
-| $94F0 (MODEM_REG_WRITE) | JMP $94E4 | Redirect to TX |
-| $94FA (MODEM_REG_READ) | 6551 RX with poll | Receive byte via ACIA |
-| $8D30-$8D4A (modem check) | ACIA init ($DE02/$DE03) | Initialise 6551 |
-| $8DA6-$8DE5 (dial sequence) | Hayes ATDT command | Send AT command via ACIA |
-| $913C/$9140 (input filter) | Widened char range | Accept dots/colons/letters |
-| $8D79 (input max length) | 30 chars | Longer for hostnames |
-| $807B (version string) | "COMPUNET REBORN 1.00" | Identify patched version |
+| Address | Original | Patched | Purpose |
+|---------|----------|---------|---------|
+| $807B | "COMPUNET TERMINAL 1.22" | "COMPUNET REBORN 1.00" | Version string |
+| $94E4 | MODEM_WAIT_READY | 6551 TX with delay loop | Send byte via ACIA |
+| $94F0 | MODEM_REG_WRITE | Filter: TX only if X=3 or 4 | Ignore modem config writes |
+| $94FA | MODEM_REG_READ | JMP to extended RX handler | Register-aware read |
+| $8D30 | MODEM_CHECK | ACIA init ($DE02=$09, $DE03=$1F) | Initialise 6551 |
+| $8D48 | (modem fault path) | JMP $8D52 | Skip fault detection |
+| $8D79 | Input max 16 chars | 30 chars | Longer for hostnames |
+| $913C/$9140 | Digit-only input filter | Allow $20-$7B | Accept dots, colons, letters |
+| $8DA6 | Pulse dial sequence | ATDT + delay + drain | Hayes dial via ACIA |
+| $8DF9 | (end of dial code) | Extended RX handler | Register fakes + RDRF poll |
+| $8E2A | JSR $96D2 (protocol send) | Break-cancel CR + fall-through | Skip X.25 init send |
+| $8E30 | (error path) | JMP to login screen setup | Skip PROTO_CONNECT |
+| $8EE0 | JSR $96D2 (login send) | Send CR to cancel break delay | Keep tcpser active |
+| $96C6 | Modem init entry | RTS | Disable modem init (no-op) |
+| $96C9 | Per-byte send handler | Y-preserving TX wrapper | Used by $94C1 login send |
+| $96CC | RECV_BYTE entry | JMP $8E07 (raw ACIA read) | Replace X.25 recv with raw |
+| $96D2 | SEND_DATA entry | RTS | Replaced by $94C1 loop |
+| $96DB | Modem init data | Y-preserving TX wrapper | 8-byte helper for $96C9 |
+| $8EEF-$8EFD | JSR $96CC × 4 | JSR $8E07 × 4 | Direct ACIA reads |
 
-## Current Progress
+## Progress Summary
 
+### Working
 - ✅ Boot message shows "COMPUNET REBORN 1.00"
 - ✅ EDITOR command works (no modem needed)
 - ✅ CONNECT reaches the "Number?" prompt
 - ✅ Input accepts full stops, colons, and letters (for IP addresses/hostnames)
-- ✅ ACIA TX confirmed working — full `ATDT<address>\r` command transmitted via IP232
-- ✅ VICE connects to tcpserial, tcpserial receives and parses the AT command
-- ✅ tcpserial attempts to dial the specified host:port
-- ⏳ Off-by-one in input length causes extra trailing character (e.g. "6400" becomes "64000"), making tcpserial reject the port as invalid. Fix needed in the input send loop.
+- ✅ Input length correct (no off-by-one)
+- ✅ ACIA TX works — `ATDT<address>\r` transmitted correctly via IP232
+- ✅ tcpser dials through to server
+- ✅ "Connecting..." message appears
+- ✅ Login screen ("COMPUNET SYSTEM LOGON") displays
+- ✅ User can type ID and password
+- ✅ Login credentials transmit to server via raw ACIA (through $94C1)
+- ✅ Server authenticates correctly (verified TEST/TEST works)
+- ✅ Server sends 7707 bytes of linking data (cnet.prg minus PRG header)
 
-### Known Issues
+### Blocked
+- ❌ **ROM never receives the server's linking response** — stuck on "PLEASE WAIT"
+  - Server sends 7707 bytes → tcpser logs show "Read N bytes from socket"
+  - But bytes never reach VICE's ACIA
+  - "LINKING" never appears, border never turns red
+  - Same tcpser + VICE setup works fine for CCGMS, so the data path CAN work
 
-1. **VICE ACIA requires IRQ set to "None"** — NMI mode causes byte drops during TX
-2. **TX requires a delay loop** ($FF iterations) between bytes — without it, VICE's ACIA emulation drops characters
-3. **Extra byte in address** — the input length at $9FF0 appears to include one extra character, causing the port number to be invalid. Need to verify stored input data and adjust the send loop.
+## The Server→ROM Receive Mystery
 
-The 6551 ACIA registers at $DE00-$DE03:
+This is the current blocker. The return path from server → tcpser → VICE → ACIA → ROM
+is not delivering bytes, yet the exact same tcpser + VICE setup works for CCGMS.
+
+### What we know
+
+1. **VICE ACIA TX works** (ROM → server): the server receives all bytes correctly
+2. **tcpser receives data from server**: logs show "Read N bytes from socket"
+3. **tcpser's `parse_ip_data` writes to VICE via `ip232_write`** (verified in tcpser source)
+4. **With CCGMS, data flows both ways**: confirmed by tcpser-known-good-with-ccgms.log
+5. **Our ROM's ACIA init**: writes $09 to $DE02 (command) and $1F to $DE03 (control)
+
+### What we've tried
+
+- Polling RDRF (bit 0 of $DE01) — RDRF never gets set
+- Reading $DE00 directly — returns the handshake $AA once, then never changes
+- Reading $DE01 before $DE00 (in case it acknowledges/advances the ACIA)
+- Sending break-cancel bytes ($00, $0D) from the ROM before receiving
+- Waiting for tcpser's break delay to expire before server sends
+- Direct VICE TCP mode (no tcpser) — same problem: first byte latches, never advances
+
+### Hypotheses to explore next
+
+1. **ACIA init is subtly wrong** — our $DE02/$DE03 values may differ from what CCGMS uses
+   - A VSF snapshot of CCGMS is saved at `client/c64/vice-snapshot-ccmgs.vsf`
+   - Extract CCGMS's memory state and look at how it polls/reads the ACIA
+2. **The receive polling loop is too tight** — needs small delays between polls
+3. **Interrupt handling** — with IRQ=NMI, VICE may only deliver bytes via the NMI vector,
+   not by updating $DE01 bit 0. Our polling approach may fundamentally not work without
+   setting up an NMI handler.
+
+## Known-good configuration (verified with CCGMS)
+
+**tcpser:** `tcpser -v 25232 -p 6401 -s 1200 -l 7 -I`
+
+**VICE ACIA:**
+- Enable ACIA RS232 interface emulation: ✓
+- Device: Serial 3
+- Base address: $DE00
+- IRQ: **NMI**
+- Emulation mode: **SwiftLink**
+
+**VICE Serial 3:**
+- Address: `127.0.0.1:25232`
+- Baud: 38400
+- IP232: ✓ (checked)
+
+**Server:** `python3 server/compunet_server.py` (listens on port 6400)
+
+## The 6551 ACIA register map
 
 | Address | Read | Write |
 |---------|------|-------|
 | $DE00 | RX Data | TX Data |
-| $DE01 | Status (bit 3=TX empty, bit 0=RX full) | Reset |
-| $DE02 | Command | Command |
-| $DE03 | Control | Control (baud rate) |
+| $DE01 | Status (bit 0=RDRF, bit 3=TDRE, bit 5=DCD) | Reset |
+| $DE02 | Command | Command ($09 = DTR active, RX IRQ on) |
+| $DE03 | Control | Control ($1F = 19200 baud 8N1) |
+
+## Files in this directory
+
+- `patch_rom.py` — Builds `compunet-reborn.crt` from `historical/Compunet Terminal.crt`
+- `compunet-reborn.crt` — Patched ROM ready for VICE cartridge slot
+- `compunet-reborn.prg` — Same ROM as a PRG (load at $8000)
+- `compunet-loader.prg` — BASIC loader stub
+- `ccgms.prg` — Reference working terminal (for comparison)
+- `vice-snapshot-ccmgs.vsf` — VICE snapshot of running CCGMS (for disassembly)
+- `extract_vsf.py` — Helper to extract memory modules from VSF snapshots
+- `tcp_sniffer.py` — TCP listener that logs all bytes (for debugging VICE→tcpser)
+- `check_input.py` — Helper to disassemble ROM input handling routines
+- `logs/tcpser-known-good-with-ccgms.log` — Reference log of working data flow
 
 Everything above the modem layer (X.25 protocol, terminal software,
-duckshoot, frame rendering) remains unchanged.
+duckshoot, frame rendering) remains unchanged — only the ACIA access
+layer and the login/linking entry points are patched.

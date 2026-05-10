@@ -42,7 +42,7 @@ except ImportError:
     print("Install websockets: pip install websockets")
     raise
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 log = logging.getLogger('compunet')
 
 # Server configuration
@@ -627,37 +627,131 @@ async def tcp_handler(reader, writer):
     # For now, use a simplified framing: length byte + data
     
     try:
-        # Send login prompt (simplified - real protocol would use packet framing)
-        # For now just close - full implementation needed
-        writer.write(b'\x00')  # placeholder
-        await writer.drain()
+        # No handshake - wait for login data directly.
+        # The ROM sends a CR (break-cancel) then login credentials.
+        # We ignore the CR and accumulate until we find the login pattern.
+        #
+        # Packet format from ROM: sent byte-by-byte via raw ACIA
+        # The ROM sends 27 bytes ($1B) from $C100 buffer containing:
+        #   Byte 0: command letter 'Z' ($5A) = login/ID check
+        #   Bytes 1-8: User ID (padded with spaces to 8 chars)
+        #   Bytes 9-14: Password (padded with spaces to 6 chars)  
+        #   Remaining: ROM version/system info bytes
+        #
+        # But the ROM also wraps this in X.25 framing via $94C1:
+        #   $01 (start) + header bytes + payload + $02 (end)
+        # These are sent repeatedly until ACKed.
+        #
+        # For now: accumulate bytes, look for the login data pattern.
+        # The user ID "TEST" padded = "TEST    " and password "TEST" padded = "TEST  "
         
-        # Read login
-        data = await reader.read(256)
-        if not data:
-            return
+        # Read until we have enough data to find the login credentials
+        # The ROM sends the packet repeatedly (~every 2 seconds) until it gets a response
+        buffer = bytearray()
         
-        parts = data.split(b'\x00')
-        user_id = parts[0].decode('latin-1', errors='replace') if parts else 'GUEST'
-        password = parts[1].decode('latin-1', errors='replace') if len(parts) > 1 else ''
+        while True:
+            try:
+                data = await asyncio.wait_for(reader.read(256), timeout=30.0)
+            except asyncio.TimeoutError:
+                log.info('TCP: timeout waiting for login data')
+                return
+            if not data:
+                log.info('TCP: connection closed by client')
+                return
+            buffer.extend(data)
+            log.debug('TCP RX buffer: %d bytes total', len(buffer))
+            log.debug('TCP RX buffer hex: %s', buffer.hex())
+            
+            # Look for the login data in the buffer
+            # From the ROM disassembly:
+            #   $C100 = command byte ('Z' = $5A for login)
+            #   $C101-$C108 = User ID (8 bytes, space-padded)
+            #   $C109-$C10E = Password (6 bytes, space-padded)
+            #   $C10F-$C119 = System info (ROM version etc)
+            #
+            # The packet is sent with X.25 framing prepended by $94C1:
+            #   $01 <header bytes> <$C100 payload> $02
+            # And repeated every ~2 seconds until ACKed.
+            #
+            # Strategy: find 'Z' ($5A) byte that's followed by plausible
+            # ASCII user ID data (letters/spaces in $20-$5A range)
+            
+            if len(buffer) < 27:
+                continue  # Need at least 27 bytes
+            for idx in range(len(buffer) - 26):
+                if buffer[idx] == 0x5A:  # 'Z' command
+                    # Check if next 8 bytes look like a user ID (printable PETSCII)
+                    candidate = buffer[idx+1:idx+9]
+                    if all(0x20 <= b <= 0x5A for b in candidate):
+                        # Found it - extract user ID and password
+                        user_id = candidate.decode('latin-1').strip()
+                        password = buffer[idx+9:idx+15].decode('latin-1', errors='replace').strip()
+                        
+                        log.info('TCP: login found at offset %d', idx)
+                        log.info('TCP: user_id=%r password=%r', user_id, password)
+                        
+                        response = session.handle_login(user_id, password)
+                        if session.authenticated:
+                            # Send linking data immediately - the ROM is waiting
+                            # Any remaining ROM packet bytes will be interleaved
+                            # but the ROM won't send more until it gets a response
+                            
+                            # Now send linking data (terminal software download)
+                            cnet_path = os.path.join(os.path.dirname(__file__), '..', 'historical', 'cnet.prg')
+                            with open(cnet_path, 'rb') as cf:
+                                cnet_data = cf.read()
+                            terminal_code = cnet_data[2:]  # strip PRG header
+                            
+                            linking = bytearray()
+                            linking.append(0x00)  # header 1
+                            linking.append(0x00)  # header 2
+                            linking.append(0x05)  # return addr low ($A005)
+                            linking.append(0xA0)  # return addr high
+                            linking.append(0xF0)  # dest addr low ($9FF0)
+                            linking.append(0x9F)  # dest addr high
+                            linking.append(len(terminal_code) & 0xFF)  # length low
+                            linking.append((len(terminal_code) >> 8) & 0xFF)  # length high
+                            linking.extend(terminal_code)
+                            
+                            log.info('TCP TX: linking %d bytes (code=%d)', len(linking), len(terminal_code))
+                            # Send all at once - NMI mode + tcpser handles flow control
+                            writer.write(bytes(linking))
+                            await writer.drain()
+                            log.info('TCP TX: linking complete')
+                        else:
+                            # Auth failed - close connection so tcpser signals NO CARRIER
+                            # and the ROM returns to BASIC (matches original Compunet
+                            # behaviour where failed auth dropped the modem connection)
+                            log.info('Login failed for %r - closing connection', user_id)
+                            writer.close()
+                            await writer.wait_closed()
+                            return
+                        break
+            else:
+                # Haven't found login yet, keep reading
+                continue
+            break  # Found and processed login
         
-        response = session.handle_login(user_id, password)
-        writer.write(response)
-        await writer.drain()
+        log.info('TCP: login complete, entering command loop')
         
         # Command loop
         while True:
             data = await reader.read(256)
             if not data:
+                log.info('TCP: connection closed by client')
                 break
+            
+            log.info('TCP RX: %d bytes: %s', len(data), data.hex())
+            log.info('TCP RX (printable): %s', ''.join(chr(b) if 32 <= b < 127 else '.' for b in data))
             
             response = session.handle_command(data)
             if response:
+                log.info('TCP TX: %d bytes: %s', len(response), response[:32].hex())
                 writer.write(response)
                 await writer.drain()
     
-    except (ConnectionResetError, BrokenPipeError):
-        pass
+    except (ConnectionResetError, BrokenPipeError) as e:
+        log.info('TCP: connection error: %s', e)
     finally:
         writer.close()
         await writer.wait_closed()
