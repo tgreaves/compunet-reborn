@@ -805,13 +805,12 @@ async def tcp_handler(reader, writer):
                         await writer.drain()
                         log.info('TCP: sent ACK for login packet seq=$%02X', login_seq)
                         
-                        # Now send the response DAT packet
-                        initial_pkt = x25.make_data_packet(bytes([0x00]), TOKEN_DAT)
-                        writer.write(initial_pkt)
-                        await writer.drain()
-                        log.info('TCP: sent initial DAT packet (for PROTO_FLOW_CONTROL)')
+                        # Now send the linking data directly.
+                        # The first DAT packet's token ($22) satisfies PROTO_FLOW_CONTROL.
+                        # FRAME_BUF_READ reads its payload (first linking byte).
+                        # MODEM_INIT_DOWNLOAD reads subsequent bytes via $96CC.
                         
-                        # Wait for ROM to process
+                        # Wait for ROM to process the ACK and clear retransmit state
                         await asyncio.sleep(0.5)
                         
                         # Build the full linking stream
