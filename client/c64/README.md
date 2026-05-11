@@ -172,15 +172,13 @@ The patch modifies these routines in the 8K ROM at $8000-$9FFF:
 - ✅ PROTO_CONNECT handshake: server sends 12 spaces, ROM's 10-byte loop exits
 - ✅ ROM sends CNET identification ("C CNET\r...\rADP\rNO\rRUN\r")
 - ✅ Server receives identification and responds with `*CON\r`
-- ✅ `*CON` appears on C64 screen (bytes received and printed via CHROUT)
+- ✅ `*CON` received, matched, PROTO_CONNECT returns successfully
+- ✅ **LOGIN SCREEN DISPLAYS** ("COMPUNET SYSTEM LOGON / ENTER USER ID: / PASSWORD:")
 
-### Blocked
-- ❌ **PROTO_CONNECT negotiation not completing** — `*CON` signal received and printed
-  but the match check at $9F79 fails due to buffer contamination
-  - The ROM's own identification bytes (sent via X.25 packets) may be interfering
-    with the receive buffer at $0200
-  - The `*` character resets the buffer, but other bytes arrive between `*` and `CON\r`
-  - Next step: debug the exact buffer contents at the match check point ($9F79)
+### Next Steps
+- Handle login credentials (server receives and authenticates)
+- Send linking data (terminal software download)
+- Full terminal operation (duckshoot, directory, SHOW, etc.)
 
 ## The Server→ROM Receive Mystery
 

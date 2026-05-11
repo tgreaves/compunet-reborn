@@ -242,21 +242,25 @@ dial += bytes([0xF0, (wait_start - (len(dial) + 2)) & 0xFF])  # BEQ wait_start (
 dial += bytes([0xAA])                # TAX
 dial += bytes([0xBD, 0x00, 0xCE])   # LDA $CE00,X
 dial += bytes([0xEE, 0x9C, 0x02])   # INC $029C
-dial += bytes([0xC9, 0x0A])         # CMP #$0A (LF?)
+dial += bytes([0xC9, 0x0D])         # CMP #$0D (CR? - end of CONNECT response)
 dial += bytes([0xD0, (wait_start - (len(dial) + 2)) & 0xFF])  # BNE wait_start
+
+# After CR found, drain any remaining bytes (LF, etc.) with a short timeout
+drain2_start = len(dial)
+dial += bytes([0xAD, 0x9C, 0x02])   # LDA $029C (head)
+dial += bytes([0xCD, 0x9B, 0x02])   # CMP $029B (tail)
+dial += bytes([0xF0, 0x06])         # BEQ done (buffer empty)
+dial += bytes([0xEE, 0x9C, 0x02])   # INC $029C (discard)
+dial += bytes([0x4C, (0x8DA6 + drain2_start) & 0xFF, ((0x8DA6 + drain2_start) >> 8) & 0xFF])
+# done:
 
 # Protocol connect (replicates original $8E17-$8E1E)
 dial += bytes([0x20, 0xD5, 0x96])   # JSR $96D5 (PROTO_CONNECT)
 dial += bytes([0x90, 0x03])         # BCC +3 (success)
 dial += bytes([0x4C, 0xC0, 0x96])   # JMP $96C0 (error)
-# Success: set download flag, protocol send, then login screen
-dial += bytes([0x18])               # CLC
-dial += bytes([0x6E, 0x55, 0xC1])   # ROR $C155
-dial += bytes([0x20, 0xD2, 0x96])   # JSR $96D2 (PROTO_SEND_DATA)
-dial += bytes([0x90, 0x06])         # BCC +6 (success -> skip error)
-dial += bytes([0x20, 0xC0, 0x96])   # JSR $96C0 (error handler)
-dial += bytes([0x4C, 0x62, 0x90])   # JMP $9062 (disconnect)
-dial += bytes([0x4C, 0x35, 0x8E])   # JMP $8E35 (login screen setup)
+# Success: jump to login screen (skip $96D2 send for now)
+dial += bytes([0x20, 0x50, 0x90])   # JSR $9050 (replicate overwritten $8E35)
+dial += bytes([0x4C, 0x38, 0x8E])   # JMP $8E38 (continue with login screen)
 
 # Pad to 90 bytes
 while len(dial) < 90:
