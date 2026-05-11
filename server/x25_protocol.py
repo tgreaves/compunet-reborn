@@ -94,7 +94,7 @@ class X25Connection:
     """
 
     def __init__(self):
-        self.tx_seq = SEQ_MIN       # next sequence number to send
+        self.tx_seq = SEQ_MIN + 1   # start at $21 to avoid collision with login echo
         self.rx_seq = SEQ_MIN       # next expected receive sequence
         self.connected = False
         self._rx_buffer = bytearray()
@@ -132,19 +132,21 @@ class X25Connection:
         """
         Build an ACK packet for a received sequence number.
 
-        ACK packet format (6 bytes between $01 and $02):
-          [0] = $41 'A' \
-          [1] = $43 'C'  } = "ACK" literal (from ROM table at $9C0B)
-          [2] = $4B 'K' /
-          [3] = sequence number being acknowledged
-          [4] = CRC high
-          [5] = CRC low
-        
-        CRC is computed over just the sequence byte, with init $40/$E6.
-        Total wire format: $01 "ACK" <seq> <crc_hi> <crc_lo> $02 (8 bytes)
+        ACK packet format (same structure as all packets):
+          $01 [length=06] [token=$20=ACK] [$20] [seq_being_acked] [CRC_hi] [CRC_lo] $02
+
+        The ROM's receive handler at $9C98 checks token byte ($C485).
+        If token=$20 (ACK), it matches the seq against outgoing slots
+        and clears the retransmit flag.
+
+        CRC init: $00/$00 (same as all packets for receive path).
         """
-        crc_hi, crc_lo = crc_ccitt([seq_to_ack])
-        pkt = bytes([PKT_START, 0x41, 0x43, 0x4B, seq_to_ack, crc_hi, crc_lo, PKT_END])
+        # Build content: length + token + fixed_byte + seq
+        content = bytearray([0x06, 0x20, 0x20, seq_to_ack])
+        crc_hi, crc_lo = crc_ccitt(content, crc_hi=0x00, crc_lo=0x00)
+        content.append(crc_hi)
+        content.append(crc_lo)
+        pkt = bytes([PKT_START]) + bytes(content) + bytes([PKT_END])
         log.info('X25 TX: ACK seq=$%02X [%s]', seq_to_ack, pkt.hex())
         return pkt
 

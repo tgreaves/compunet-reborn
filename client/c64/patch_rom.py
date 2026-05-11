@@ -38,13 +38,8 @@ def patch(addr, data):
 
 
 # ============================================================
-# 1. VERSION STRING (shortened — wrapper at $8070 overlaps start)
+# 1. VERSION STRING (overwritten by wrapper at $8070 — cosmetic only)
 # ============================================================
-# Version string starts at $807B but wrapper uses $8070-$8082.
-# Just patch from $8083 onwards with a shorter string.
-ver = [ord(c) - 32 if 97 <= ord(c) <= 122 else ord(c)
-       for c in ' REBORN 1.00  ']
-patch(0x8083, ver)
 
 
 # ============================================================
@@ -217,10 +212,21 @@ patch(0x8D79, [0x1E])
 # IMPORTANT: must NOT clear DTR (bit 0) or tcpser will disconnect!
 # ============================================================
 patch(0x8070, [
-    0xA9, 0x20,           # LDA #$20
-    0x8D, 0x0F, 0xC2,    # STA $C20F (init expected receive seq BEFORE send)
-    0x8D, 0x0E, 0xC2,    # STA $C20E (init transmit seq too)
+    0xA9, 0x21,           # LDA #$21 (server starts at seq $21)
+    0x8D, 0x0F, 0xC2,    # STA $C20F (init expected receive seq)
+    0xA9, 0x5F,           # LDA #$5F
+    0x8D, 0x0E, 0xC2,    # STA $C20E (init transmit seq)
     0x20, 0xC1, 0x94,    # JSR $94C1 (original login send)
+    0xA9, 0x00,           # LDA #$00
+    0x8D, 0x2C, 0xC2,    # STA $C22C (clear slot 0)
+    0x8D, 0x2D, 0xC2,    # STA $C22D (clear slot 1)
+    0x8D, 0x2E, 0xC2,    # STA $C22E (clear slot 2)
+    0x8D, 0x2F, 0xC2,    # STA $C22F (clear slot 3)
+    0x8D, 0x28, 0xC2,    # STA $C228 (clear seq 0)
+    0x8D, 0x29, 0xC2,    # STA $C229 (clear seq 1)
+    0x8D, 0x2A, 0xC2,    # STA $C22A (clear seq 2)
+    0x8D, 0x2B, 0xC2,    # STA $C22B (clear seq 3)
+    0x8D, 0x09, 0xC2,    # STA $C209 (reset slot index to 0)
     0xA9, 0x01,           # LDA #$01 (DTR on, RX IRQ disabled)
     0x8D, 0x02, 0xDE,    # STA $DE02 (disable RX IRQ but keep DTR)
     0xA9, 0x09,           # LDA #$09 (DTR on, RX IRQ enabled)

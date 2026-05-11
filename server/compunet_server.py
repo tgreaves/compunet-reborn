@@ -796,10 +796,23 @@ async def tcp_handler(reader, writer):
                         # ============================================================
                         
                         # Send initial DAT packet (consumed by PROTO_FLOW_CONTROL + FRAME_BUF_READ)
+                        # First, ACK the login COM packet to stop retransmission.
+                        # The ROM's outgoing packet seq is stored in $C228[X].
+                        # From the parsed packet, byte 2 is the seq ($FF typically).
+                        login_seq = payload[0] if len(payload) > 0 else 0xFF  # flags byte = seq
+                        ack_pkt = x25.make_ack(login_seq)
+                        writer.write(ack_pkt)
+                        await writer.drain()
+                        log.info('TCP: sent ACK for login packet seq=$%02X', login_seq)
+                        
+                        # Now send the response DAT packet
                         initial_pkt = x25.make_data_packet(bytes([0x00]), TOKEN_DAT)
                         writer.write(initial_pkt)
                         await writer.drain()
                         log.info('TCP: sent initial DAT packet (for PROTO_FLOW_CONTROL)')
+                        
+                        # Wait for ROM to process
+                        await asyncio.sleep(0.5)
                         
                         # Build the full linking stream
                         cnet_path = os.path.join(os.path.dirname(__file__), '..', 'historical', 'cnet.prg')
