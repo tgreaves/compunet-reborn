@@ -237,30 +237,38 @@ Based on the send/receive routines and workspace analysis:
 | $C228   | Packet buffer (18 references - likely start of data area) |
 | $C22C   | Secondary buffer (21 references) |
 
-#### Packet Format (Inferred)
+#### Packet Format (Confirmed)
 
-Based on the send routines at $9AE8-$9B00:
+The wire format between $01 and $02 markers is:
 
 ```
-$01 (start marker)
-  $C203[0] - header byte 0
-  $C203[1] - header byte 1
-  $C203[2] - header byte 2
-  $C203[3] - header byte 3
-  $C203[4] - header byte 4
-  $C203[5] - header byte 5
-$02 (end marker)
+[length] [token] [sequence] [payload...] [CRC_hi] [CRC_lo]
 ```
 
-The 6-byte header at $C203-$C208 contains:
-- Sequence number
-- Command type (ACK=$20, DIR=$21, DAT=$22, OK=$23, ERR=$24, FTL=$25, COM=$26)
-- Length/flags
-- CRC bytes
+- **Length**: total byte count between markers (including itself, token, seq, payload, CRC)
+- **Token**: command type ($20=ACK, $21=DIR, $22=DAT, $23=OK, $24=ERR, $25=FTL, $26=COM)
+- **Sequence**: packet sequence number (range $20-$5F, wraps)
+- **Payload**: variable length data (may be empty)
+- **CRC**: CRC-CCITT over all bytes except CRC itself, init $00/$00
 
-Framing uses $01 as start-of-packet and $02 as end-of-packet markers,
-with the 6-byte header sent between them. Data payloads follow for
-DAT and COM packets.
+Example — ROM's login packet (32 bytes between markers):
+```
+$01  20 43 FF 5A 54 45 53 54 20 20 20 20 ... 83 89  $02
+     │  │  │  └─ payload (Z command + user + pass + sysinfo)
+     │  │  └──── sequence ($FF = first packet, uninitialised)
+     │  └─────── token ($43 = COM)
+     └────────── length ($20 = 32 bytes total)
+```
+
+Example — server's DAT packet (6 bytes between markers):
+```
+$01  06 22 20 00 C9 D9  $02
+     │  │  │  │  └──── CRC ($C9/$D9)
+     │  │  │  └─────── payload ($00 = one data byte)
+     │  │  └────────── sequence ($20)
+     │  └───────────── token ($22 = DAT)
+     └──────────────── length ($06 = 6 bytes total)
+```
 
 ### Flow Control
 
@@ -306,8 +314,51 @@ CRC_UPDATE:             ; A = data byte to add to CRC
     RTS
 ```
 
-This is a **CRC-CCITT** (polynomial $1021) calculation - the same CRC used in
-X.25/HDLC protocols. This confirms the X.25 heritage of the protocol.
+This is a **CRC-CCITT** (polynomial $1021) calculation — standard MSB-first
+CRC as used in X.25/HDLC protocols. This confirms the X.25 heritage.
+
+**Important implementation note**: The ROM's bit-shift-chain implementation
+(ROL temp → ROL CRC_lo → ROL CRC_hi) is equivalent to the standard algorithm:
+```python
+crc ^= (byte << 8)
+for _ in range(8):
+    if crc & 0x8000:
+        crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+    else:
+        crc = (crc << 1) & 0xFFFF
+```
+
+**CRC Init**: Both send and receive paths use init **$00/$00**:
+- Send: `$C21D/$C21E` at $9ABC (despite the code loading $40/$E6 into these
+  locations, the actual CRC over the full packet content uses effective init $00/$00
+  when verified against known packets)
+- Receive: `$C21A/$C21B` reset to $00/$00 at $9E41
+
+**CRC Verification**: The receiver feeds ALL bytes between $01 and $02 (including
+the CRC bytes) through the algorithm with init $00/$00. If the result is $00/$00,
+the packet is valid (zero-residual property of CRC-CCITT).
+
+### Packet Wire Format (Confirmed)
+
+```
+$01 [length] [token] [seq] [payload...] [CRC_hi] [CRC_lo] $02
+```
+
+| Field | Size | Description |
+|-------|------|-------------|
+| $01 | 1 | Start marker |
+| length | 1 | Total byte count between $01 and $02 (inclusive of itself) |
+| token | 1 | Command token ($20-$26) |
+| seq | 1 | Sequence number ($20-$5F range, or $FF for first packet) |
+| payload | N | Data bytes (0 or more) |
+| CRC_hi | 1 | CRC-CCITT high byte |
+| CRC_lo | 1 | CRC-CCITT low byte |
+| $02 | 1 | End marker |
+
+The length byte must equal the actual number of bytes stored between markers.
+The ROM's receive handler at $9DB3 validates: `$C484[0]` == `$C212` (stored
+length must match byte count). Mismatch → error code $8E displayed as "N" on
+the status bar's last column.
 
 ### Login Response and Linking Phase
 

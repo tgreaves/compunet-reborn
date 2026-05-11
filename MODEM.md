@@ -169,53 +169,49 @@ Our code:   reads from software buffer via $94FA → never touches $DE00-$DE03
 Result:     no ACIA access → no socket poll → no byte delivered → no NMI → no ACIA access
 ```
 
-## Required Fix — ACIA NMI Re-arm After Login TX
+## Required Fix — ACIA NMI Re-arm After Login TX (IMPLEMENTED)
 
-### Corrected Understanding
+### Problem
+VICE's SwiftLink emulation loses NMI edge detection after TX writes to $DE00.
+After the 27-byte login packet is transmitted, the ACIA stops generating NMIs
+for subsequently received data.
 
-The direct ACIA approach (no NMI, no buffer) does NOT work. VICE's SwiftLink
-emulation delivers bytes exclusively via NMI — reading `$DE01` in a polling loop
-does not trigger byte delivery. The NMI handler and ring buffer are required.
+### Solution (Working)
+A wrapper routine at $8070 replaces the direct `JSR $94C1` at $8EDD:
 
-The NMI-based approach works correctly during PROTO_CONNECT (bytes arrive, NMIs
-fire, handler stores them). After PROTO_CONNECT, the login TX writes (27 bytes
-to `$DE00`) leave the ACIA's NMI edge detector in a stuck state. When the server
-later sends DAT packets, VICE receives them on the ip232 socket but the ACIA
-never fires an NMI to deliver them.
-
-### Confirmed Fix
-
-Writing `$00` then `$09` to `$DE02` from the VICE monitor immediately re-arms
-the NMI mechanism. After this, bytes arrive and NMIs fire normally.
-
-### Implementation
-
-The 8-byte reset sequence must execute once, after the login TX completes:
 ```
-LDA #$00
-STA $DE02       ; reset ACIA command register
-LDA #$09
-STA $DE02       ; re-enable DTR + RX IRQ (re-arms NMI edge)
+$8070:  LDA #$20
+        STA $C20F       ; init expected receive sequence
+        STA $C20E       ; init transmit sequence
+        JSR $94C1       ; original login send (27 bytes)
+        LDA #$01
+        STA $DE02       ; disable RX IRQ (keep DTR high!)
+        LDA #$09
+        STA $DE02       ; re-enable RX IRQ (re-arms NMI edge)
+        RTS
 ```
 
-This must be placed between `$8EDE` (JSR $94C1 — login send) and `$8EE1`
-(JSR $96D2 — PROTO_FLOW_CONTROL wait). Since there's no free space there,
-a trampoline is needed.
+Key details:
+- `$C20E/$C20F` must be initialised to $20 BEFORE the send, because tcpser
+  echoes the login packet back and the ROM processes the echo as a received
+  packet. Without init, the echo sets `$C20F` to $FF (invalid), causing the
+  ROM to reject subsequent DAT packets with valid seq numbers ($20-$5F).
+- The `$DE02` toggle (write $01 then $09) re-arms VICE's NMI edge detector.
+  Writing $01 keeps DTR high (bit 0) but disables RX IRQ (bit 1 set).
+  Writing $09 re-enables RX IRQ. This toggle is sufficient to re-arm.
+- **Must NOT write $00 to $DE02** — that clears DTR (bit 0), causing tcpser
+  to detect DTR drop and disconnect the TCP connection.
 
-### Trampoline Approach
+### Status Bar Indicators
+The ROM's status bar at row 25 shows protocol state:
+- "COM FF" = ROM sent a COM packet, waiting for response (FF = seq/flags)
+- "ACK 24" = ROM sent an ACK for received packet seq $24
+- "DAT 24" = ROM received a DAT packet with seq $24
+- Last column character: $A0 (solid block) = packet OK, "N" ($8E) = length mismatch error
 
-Redirect `$8EDE` from `JSR $94C1` to `JSR <trampoline>` where the trampoline:
-1. Calls `$94C1` (original login send)
-2. Resets ACIA (`$00` → `$DE02`, `$09` → `$DE02`)
-3. Returns (RTS)
-
-Total trampoline size: 13 bytes (3 + 5 + 5 + 1... wait: `JSR $94C1` = 3,
-`LDA #$00` = 2, `STA $DE02` = 3, `LDA #$09` = 2, `STA $DE02` = 3, `RTS` = 1
-= 14 bytes).
-
-### Available Space
-
-The dial sequence at $8DA6 currently uses ~77 bytes with ~13 bytes of NOP padding
-before the 90-byte limit. The trampoline can be placed in this padding area.
-The dial sequence code only runs once (during connection), so the trampoline
-at the end of it is safe to call later from $8EDE.
+### tcpser Echo Issue
+tcpser in ip232 mode echoes transmitted bytes back to the C64. This means
+the ROM's own login packet arrives back as a "received" packet. The ROM's
+protocol engine processes it and stores it in a slot buffer. This is harmless
+as long as `$C20F` is properly initialised — the echo packet's sequence number
+won't match the expected window and will be ignored by the flow control logic.
