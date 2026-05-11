@@ -758,6 +758,7 @@ async def tcp_handler(reader, writer):
                     
                     if cmd_byte == 0x5A and not authenticated:
                         # LOGIN packet
+                        log.info('TCP: *** PROCESSING LOGIN (authenticated=%s) ***', authenticated)
                         user_id = bytes(payload[1:9]).decode('latin-1').strip()
                         password = bytes(payload[9:15]).decode('latin-1').strip()
                         
@@ -782,6 +783,7 @@ async def tcp_handler(reader, writer):
                     
                     elif authenticated:
                         # Post-login commands
+                        log.info('TCP: dispatching command (authenticated=True)')
                         cmd_response = session.handle_command(payload)
                         if cmd_response:
                             pkt = x25.make_data_packet(cmd_response, TOKEN_DAT)

@@ -148,25 +148,20 @@ class X25Connection:
         """
         Build an ACK packet for a received sequence number.
 
-        From ROM at $9ABC:
-          - CRC init $40/$E6
-          - CRC computed over the sequence byte only
-          - Header: [length, TOKEN_ACK, seq, 0, crc_hi, crc_lo]
-          - Wrapped in $01...$02
+        ACK packet format (6 bytes between $01 and $02):
+          [0] = $05 (length: 5 bytes total content)
+          [1] = $20 (ACK token)  
+          [2] = sequence number being acknowledged
+          [3] = CRC high
+          [4] = CRC low
+        
+        CRC is computed over just the sequence byte, with init $40/$E6.
+        Total wire format: $01 $05 $20 <seq> <crc_hi> <crc_lo> $02
         """
-        # CRC over just the sequence byte
+        # CRC over just the sequence byte (matches ROM at $9ABC)
         crc_hi, crc_lo = crc_ccitt([seq_to_ack])
 
-        header = bytes([
-            0x04,           # length (4 = header overhead?)
-            TOKEN_ACK,      # ACK token
-            seq_to_ack,     # sequence being acknowledged
-            0x00,           # padding
-            crc_hi,
-            crc_lo,
-        ])
-
-        pkt = bytes([PKT_START]) + header + bytes([PKT_END])
+        pkt = bytes([PKT_START, 0x05, 0x20, seq_to_ack, crc_hi, crc_lo, PKT_END])
         log.info('X25 TX: ACK seq=$%02X [%s]', seq_to_ack, pkt.hex())
         return pkt
 
