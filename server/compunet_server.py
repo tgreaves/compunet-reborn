@@ -799,24 +799,74 @@ async def tcp_handler(reader, writer):
                         initial_pkt = x25.make_data_packet(bytes([0x00]), TOKEN_DAT)
                         writer.write(initial_pkt)
                         await writer.drain()
-                        log.info('TCP: sent initial DAT packet (for PROTO_FLOW_CONTROL) %d bytes: %s',
-                                 len(initial_pkt), initial_pkt.hex())
+                        log.info('TCP: sent initial DAT packet (for PROTO_FLOW_CONTROL)')
                         
-                        # Send first 4 bytes of linking stream:
-                        #   [0] $00 = header (discarded)
-                        #   [1] $00 = header (discarded)
-                        #   [2] $05 = return addr low
-                        #   [3] $A0 = return addr high
-                        # After byte 4, ROM displays "LINKING"
-                        linking_header = bytes([0x00, 0x00, 0x05, 0xA0])
-                        for b in linking_header:
-                            pkt = x25.make_data_packet(bytes([b]), TOKEN_DAT)
-                            writer.write(pkt)
-                            await writer.drain()
-                            await asyncio.sleep(0.05)
+                        # Build the full linking stream
+                        cnet_path = os.path.join(os.path.dirname(__file__), '..', 'historical', 'cnet.prg')
+                        with open(cnet_path, 'rb') as cf:
+                            cnet_data = cf.read()
+                        terminal_code = cnet_data[2:]  # strip PRG load address
                         
-                        log.info('TCP: sent 4 linking header bytes — waiting for LINKING to appear')
-                        # STOP HERE for testing — don't send more data yet
+                        linking = bytearray()
+                        linking.append(0x00)  # header byte 1 (discarded by ROM)
+                        linking.append(0x00)  # header byte 2 (discarded by ROM)
+                        linking.append(0x05)  # return addr low ($A005)
+                        linking.append(0xA0)  # return addr high
+                        linking.append(0xF0)  # dest addr low ($9FF0)
+                        linking.append(0x9F)  # dest addr high
+                        linking.append(len(terminal_code) & 0xFF)  # length low
+                        linking.append((len(terminal_code) >> 8) & 0xFF)  # length high
+                        linking.extend(terminal_code)
+                        
+                        log.info('TCP: sending %d bytes of linking data (%d bytes terminal code)',
+                                 len(linking), len(terminal_code))
+                        
+                        # Send linking stream as DAT packets with proper X.25 flow control.
+                        # Window size = 4: send up to 4 packets, then wait for ACKs.
+                        # The ROM ACKs each packet via the IRQ handler at $9C98.
+                        CHUNK_SIZE = 1  # 1 byte per packet for now
+                        
+                        # Send all linking data with flow control
+                        send_idx = 0
+                        unacked = 0
+                        WINDOW = 4
+                        
+                        while send_idx < len(linking):
+                            # Send up to WINDOW packets
+                            while unacked < WINDOW and send_idx < len(linking):
+                                chunk = linking[send_idx:send_idx+CHUNK_SIZE]
+                                pkt = x25.make_data_packet(bytes(chunk), TOKEN_DAT)
+                                writer.write(pkt)
+                                await writer.drain()
+                                unacked += 1
+                                send_idx += CHUNK_SIZE
+                            
+                            # Wait for ACK(s) from the ROM
+                            try:
+                                data = await asyncio.wait_for(reader.read(256), timeout=5.0)
+                            except asyncio.TimeoutError:
+                                log.warning('TCP: timeout waiting for ACK during linking')
+                                break
+                            if not data:
+                                log.info('TCP: connection closed during linking')
+                                break
+                            
+                            # Parse ACKs
+                            ack_packets = x25.feed_data(data)
+                            for tok, seq, pay in ack_packets:
+                                if tok == 0x43:
+                                    # Retransmitted login — ignore
+                                    log.debug('TCP: ignoring retransmitted login during linking')
+                                else:
+                                    # ACK or other — count as acknowledgement
+                                    unacked = max(0, unacked - 1)
+                                    log.debug('TCP: ACK received (seq=$%02X), unacked=%d', seq, unacked)
+                            
+                            if send_idx % 512 == 0:
+                                log.info('TCP: linking progress %d/%d bytes', send_idx, len(linking))
+                        
+                        log.info('TCP: linking data sent! %d bytes in %d packets',
+                                 len(linking), len(linking) // CHUNK_SIZE)
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it
