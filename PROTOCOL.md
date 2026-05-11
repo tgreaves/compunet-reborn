@@ -309,23 +309,114 @@ CRC_UPDATE:             ; A = data byte to add to CRC
 This is a **CRC-CCITT** (polynomial $1021) calculation - the same CRC used in
 X.25/HDLC protocols. This confirms the X.25 heritage of the protocol.
 
-### Data Transfer (Frame Download)
+### Login Response and Linking Phase
 
-The MODEM_INIT routine ($8EEF) handles bulk data reception:
+After the user enters their credentials, the ROM:
 
-1. Receive 3 header bytes (via SUB_96CC - protocol byte receive)
-2. Store return address in $1F/$20
-3. Display "LINKING" status
-4. Receive destination address (2 bytes -> $1D/$1E)
-5. Receive length (2 bytes, discarded)
-6. Loop: receive bytes, store at ($1D),Y, increment pointer
-7. On completion (carry set), check flags at $C155
-8. If bit 7 set: update self-modifying pointer at $8036/$8037
-9. Jump to return address stored in $1F/$20
+1. Builds a 27-byte login packet in $C100:
+   - `$C100[0]` = 'Z' ($5A) — login command
+   - `$C100[1-8]` = User ID (space-padded to 8 chars)
+   - `$C100[9-14]` = Password (space-padded to 6 chars)
+   - `$C100[15+]` = System info (ROM version, BASIC pointers, CNLOAD flag)
+2. Sets `$8034` = $43 (COM token)
+3. Sends the packet via `$94C1` (MODEM_REG_WRITE_WAIT) — this calls
+   PROTO_RECV_FRAME for each byte, simultaneously sending AND receiving
+4. Calls `$96D2` (PROTO_FLOW_CONTROL at $9B3B) which:
+   - Calls `$9A17` to process the next received packet from the buffer
+   - Stores the received packet's **token** in `$8034`
+   - Checks: if token is $41 ('A'), $42 ('B'), or $40 ('@') → error path (SEC)
+   - Otherwise → success (CLC)
 
-This is the mechanism for downloading frames (pages) and also for
-**software updates** - the ROM can receive code that overwrites parts
-of RAM, including the area where the ROM copies itself.
+**Critical**: The server must NOT send an "ACK" packet. The server must respond
+with a **DAT packet** (token $22). PROTO_FLOW_CONTROL sees token $22 in `$8034`,
+which is not $41/$42/$40, so it returns CLC (success).
+
+5. On CLC return, the ROM calls `$89D0` (FRAME_BUF_READ) — this reads the
+   payload of the received DAT packet. The payload is discarded (it's a
+   placeholder/header for the linking stream).
+6. Falls directly into MODEM_INIT_DOWNLOAD ($8EEF)
+
+### Data Transfer — MODEM_INIT_DOWNLOAD ($8EEF)
+
+The MODEM_INIT_DOWNLOAD routine receives the terminal software ("linking"):
+
+```
+Byte stream received via $96CC (PROTO_PROCESS_CMD):
+  Byte 1: discarded (header)
+  Byte 2: discarded (header)
+  Byte 3: return address low  → stored in $1F
+  Byte 4: return address high → stored in $20
+  [if carry set here → abort, skip linking]
+  --- "LINKING" displayed on status bar ---
+  Byte 5: destination address low  → stored in $1D
+  Byte 6: destination address high → stored in $1E
+  Byte 7: length low (discarded by read)
+  Byte 8: length high (discarded by read)
+  Byte 9+: payload data → stored at ($1D),Y, pointer incremented
+  [loop until carry set = end of stream]
+```
+
+On completion:
+1. If $C155 bit 7 set: stores end address in $8036/$8037
+2. Executes `JMP ($001F)` — jumps to the return address from the stream
+
+The return address points into the downloaded terminal code (e.g. $A005),
+which initialises the full terminal UI (duckshoot menu, directory browser, etc.).
+
+### Linking Stream Format (Server → Client)
+
+The server sends the linking data as a continuous stream of bytes delivered
+through X.25 DAT packets. Each call to `$96CC` (PROTO_PROCESS_CMD) returns
+one byte from the stream. The protocol engine handles packet boundaries,
+sequencing, and flow control transparently.
+
+```
+Linking stream layout:
+  [0]    $00        ; header byte 1 (discarded)
+  [1]    $00        ; header byte 2 (discarded)
+  [2]    $05        ; return address low  (e.g. $A005)
+  [3]    $A0        ; return address high
+  [4]    $F0        ; destination address low  (e.g. $9FF0)
+  [5]    $9F        ; destination address high
+  [6]    len_lo     ; payload length low
+  [7]    len_hi     ; payload length high
+  [8+]   payload    ; terminal software binary (up to 8K)
+```
+
+The destination address ($9FF0) and return address ($A005) match the
+load address and entry point of the terminal software (cnet.prg).
+
+### How $96CC (PROTO_PROCESS_CMD) Delivers Bytes
+
+Each call to `$96CC` = `JMP $996B` (PROTO_PROCESS_CMD):
+1. Checks if a packet is ready in the 4-slot buffer ($C22C[X] bit 7 set)
+2. If yes: extracts the next byte from the packet payload, returns it in A
+3. If no: loops via `$9A17` waiting for a packet to arrive
+4. Returns carry clear = byte valid, carry set = error/disconnect
+
+The protocol engine's IRQ-driven receive (at $9C46/$9C8F/$9D54) runs in
+the background, reading bytes from the modem, assembling them into packets,
+and storing complete packets in the 4-slot buffer. PROTO_PROCESS_CMD
+consumes bytes from these buffered packets one at a time.
+
+### What the Server Must Send After Login
+
+The complete server response to a successful login is:
+
+1. **One DAT packet** with a minimal payload (even a single byte) — this is
+   what PROTO_FLOW_CONTROL receives and checks the token of. The payload
+   is read by FRAME_BUF_READ and discarded.
+
+2. **Continuous DAT packets** containing the linking stream bytes — these are
+   consumed one byte at a time by MODEM_INIT_DOWNLOAD via PROTO_PROCESS_CMD.
+
+Both use the same X.25 DAT packet format:
+```
+$01 [seq] [token=$22] [payload...] [CRC_hi] [CRC_lo] $02
+```
+
+The ROM's protocol engine handles ACKing these packets back to the server
+automatically (via the $9C8F/$9C98 IRQ handler path).
 
 ## User Interface
 

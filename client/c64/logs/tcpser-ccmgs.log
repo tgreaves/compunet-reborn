@@ -1,0 +1,792 @@
+2026-05-11 17:01:21:8442058944:DEBUG:Read configuration for 1 serial port(s)
+2026-05-11 17:01:21:8442058944:ENTER_EXIT:Exitting init function
+2026-05-11 17:01:21:8442058944:ENTER_EXIT:Entering ip_init_server_conn function
+2026-05-11 17:01:21:8442058944:DEBUG:Creating server socket
+2026-05-11 17:01:21:8442058944:DEBUG:Binding server socket to port 6401
+2026-05-11 17:01:21:8442058944:INFO:Server socket bound to port
+2026-05-11 17:01:21:8442058944:INFO:Server socket listening for connections
+2026-05-11 17:01:21:8442058944:ENTER_EXIT:Exitting ip_init_server_conn function
+2026-05-11 17:01:21:8442058944:INFO:Creating modem #0
+2026-05-11 17:01:21:8442058944:DEBUG_X:BRIDGE thread ID = 6158807040
+2026-05-11 17:01:21:8442058944:DEBUG_X:Waiting for incoming connections and/or indicators
+2026-05-11 17:01:21:6158807040:ENTER_EXIT:Entering bridge_task function
+2026-05-11 17:01:21:6158807040:ENTER_EXIT:Entering dce_connect function
+2026-05-11 17:01:21:6158807040:ENTER_EXIT:Entering ip232_init_conn function
+2026-05-11 17:01:21:6158807040:INFO:Opening ip232 device
+2026-05-11 17:01:21:6158807040:ENTER_EXIT:Entering ip_init_server_conn function
+2026-05-11 17:01:21:6158807040:DEBUG:Creating server socket
+2026-05-11 17:01:21:6158807040:DEBUG:Binding server socket to port 25232
+2026-05-11 17:01:21:6158807040:INFO:Server socket bound to port
+2026-05-11 17:01:21:6158807040:INFO:Server socket listening for connections
+2026-05-11 17:01:21:6158807040:ENTER_EXIT:Exitting ip_init_server_conn function
+2026-05-11 17:01:21:6158807040:DEBUG_X:IP232 thread ID = 6159380480
+2026-05-11 17:01:21:6158807040:INFO:ip232 device configured
+2026-05-11 17:01:21:6158807040:ENTER_EXIT:Exitting ip232_init_conn function
+2026-05-11 17:01:21:6158807040:ENTER_EXIT:Exitting dce_connect function
+2026-05-11 17:01:21:6159380480:ENTER_EXIT:Entering ip232_thread function
+2026-05-11 17:01:21:6159380480:DEBUG_X:Waiting for incoming ip232 connections
+2026-05-11 17:01:21:6159953920:ENTER_EXIT:Entering ctrl_thread function
+2026-05-11 17:01:21:6159953920:ENTER_EXIT:Entering dce_check_control_lines function
+2026-05-11 17:01:21:6158807040:DEBUG_X:CTRL thread ID = 6159953920
+2026-05-11 17:01:21:6158807040:DEBUG_X:IP thread ID = 6160527360
+2026-05-11 17:01:21:6158807040:INFO:Control Lines: DSR:1 DCD:0 CTS:1 RI:0
+2026-05-11 17:01:21:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:01:21:6158807040:DEBUG_X:Setting DCD pin low
+2026-05-11 17:01:21:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:01:21:6158807040:DEBUG:ip232 control line state dcd:0 ri:0
+2026-05-11 17:01:21:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:01:21:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:01:21:6158807040:DEBUG_X:CMD:1, DCE:0, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:01:21:6160527360:ENTER_EXIT:Entering ip_thread function
+2026-05-11 17:02:11:6159380480:DEBUG:Incoming ip232 connection
+2026-05-11 17:02:11:6159380480:ENTER_EXIT:Entering ip_accept function
+2026-05-11 17:02:11:6159380480:INFO:Connection accepted from 127.0.0.1
+2026-05-11 17:02:11:6159380480:ENTER_EXIT:Exitting ip_accept function
+2026-05-11 17:02:11:6159380480:DEBUG_X:Waiting for incoming ip232 connections
+2026-05-11 17:02:11:6159953920:ENTER_EXIT:Exitting dce_check_control_lines function
+2026-05-11 17:02:11:6159953920:DEBUG:Control Line Change
+2026-05-11 17:02:11:6159953920:INFO:Link has come up
+2026-05-11 17:02:11:6159953920:ENTER_EXIT:Entering dce_check_control_lines function
+2026-05-11 17:02:11:6158807040:DEBUG:Received L from control line watch task
+2026-05-11 17:02:11:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:02:11:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:02:11:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:02:11:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:02:11:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:02:11:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:02:11:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:02:11:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:02:11:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:02:11:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:02:11:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:02:11:6158807040:DEBUG:Virtual DTR line up
+2026-05-11 17:02:11:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:02:11:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:02:11:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:02:12:6159953920:ENTER_EXIT:Exitting dce_check_control_lines function
+2026-05-11 17:02:12:6159953920:DEBUG:Control Line Change
+2026-05-11 17:02:12:6159953920:INFO:DTR has gone high
+2026-05-11 17:02:12:6159953920:ENTER_EXIT:Entering dce_check_control_lines function
+2026-05-11 17:02:12:6158807040:DEBUG:Received D from control line watch task
+2026-05-11 17:02:12:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:02:12:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:'A' parsed in serial stream
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:'T' parsed in serial stream, switching to command parse mode
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering mdm_parse_cmd function
+2026-05-11 17:05:09:6158807040:DEBUG:Evaluating ATV1
+2026-05-11 17:05:09:6158807040:DEBUG:Command: V (86), Flags: 0, index=2, num=1, data=0-0
+2026-05-11 17:05:09:6158807040:DEBUG:Command:   (-1), Flags: -1, index=2, num=0, data=0-0
+2026-05-11 17:05:09:6158807040:DEBUG:Sending OK response to modem
+2026-05-11 17:05:09:6158807040:DEBUG_X:Sending text response
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:'A' parsed in serial stream
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:'T' parsed in serial stream, switching to command parse mode
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:05:09:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:09:6158807040:DEBUG:Read 1 raw byte from serial port
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering mdm_parse_cmd function
+2026-05-11 17:05:09:6158807040:DEBUG:Evaluating ATDTLEXICONBBS.COM:6400
+2026-05-11 17:05:09:6158807040:DEBUG:Command: D (68), Flags: 0, index=21, num=84, data=2-21
+2026-05-11 17:05:09:6158807040:INFO:taking modem off hook
+2026-05-11 17:05:09:6158807040:INFO:Connecting line
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering pb_search function
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting pb_search function
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering ip_connect function
+2026-05-11 17:05:09:6158807040:DEBUG:Calling LEXICONBBS.COM
+2026-05-11 17:05:09:6158807040:INFO:Connection to LEXICONBBS.COM established
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting ip_connect function
+2026-05-11 17:05:09:6158807040:DEBUG_X:Connected to LEXICONBBS.COM
+2026-05-11 17:05:09:6158807040:INFO:Control Lines: DSR:1 DCD:1 CTS:1 RI:0
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:05:09:6158807040:DEBUG_X:Setting DCD pin high
+2026-05-11 17:05:09:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:05:09:6158807040:DEBUG:ip232 control line state dcd:1 ri:0
+2026-05-11 17:05:09:6158807040:DEBUG:reconfiguring virtual DCD/RI
+2026-05-11 17:05:09:6158807040:DEBUG:Sending data
+2026-05-11 17:05:09:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:05:09:6158807040:DEBUG:Sending CONNECT 2400 response to modem
+2026-05-11 17:05:09:6158807040:DEBUG_X:Sending text response
+2026-05-11 17:05:09:6158807040:DEBUG_X:Connection status change, handling
+2026-05-11 17:05:09:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:09:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:09:6158807040:DEBUG_X:Setting timer for break delay
+2026-05-11 17:05:09:6160527360:DEBUG:IP thread notified
+2026-05-11 17:05:09:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:09:6160527360:DEBUG:Read 142 bytes from socket
+2026-05-11 17:05:10:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:10:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:10:6158807040:DEBUG:Initial Break Delay detected
+2026-05-11 17:05:10:6158807040:INFO:Control Lines: DSR:1 DCD:1 CTS:1 RI:0
+2026-05-11 17:05:10:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:05:10:6158807040:DEBUG_X:Setting DCD pin high
+2026-05-11 17:05:10:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:05:10:6158807040:DEBUG:ip232 control line state dcd:1 ri:0
+2026-05-11 17:05:10:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:05:10:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:10:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 9 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 11 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 5 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 3 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:11:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:11:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:20:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:20:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:20:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:20:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:20:6158807040:DEBUG:Read 1 bytes from serial port
+2026-05-11 17:05:20:6158807040:DEBUG_X:Found non-break character, cancelling break
+2026-05-11 17:05:20:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:20:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:20:6158807040:DEBUG_X:Setting timer for break delay
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 5 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 5 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 5 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 3 bytes from socket
+2026-05-11 17:05:21:6158807040:DEBUG:Initial Break Delay detected
+2026-05-11 17:05:21:6158807040:INFO:Control Lines: DSR:1 DCD:1 CTS:1 RI:0
+2026-05-11 17:05:21:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:05:21:6158807040:DEBUG_X:Setting DCD pin high
+2026-05-11 17:05:21:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:05:21:6158807040:DEBUG:ip232 control line state dcd:1 ri:0
+2026-05-11 17:05:21:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:05:21:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:21:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 5 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:21:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:21:6160527360:DEBUG:Read 27 bytes from socket
+2026-05-11 17:05:22:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:22:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:22:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:22:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:22:6158807040:DEBUG:Read 1 bytes from serial port
+2026-05-11 17:05:22:6158807040:DEBUG_X:Found non-break character, cancelling break
+2026-05-11 17:05:22:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:22:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:22:6158807040:DEBUG_X:Setting timer for break delay
+2026-05-11 17:05:22:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:22:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:22:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:22:6160527360:DEBUG:Read 3 bytes from socket
+2026-05-11 17:05:22:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:22:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:22:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:22:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 12 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 23 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 19 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 22 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 23 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 10 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 13 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 36 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 17 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 7 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 7 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 3 bytes from socket
+2026-05-11 17:05:23:6158807040:DEBUG:Initial Break Delay detected
+2026-05-11 17:05:23:6158807040:INFO:Control Lines: DSR:1 DCD:1 CTS:1 RI:0
+2026-05-11 17:05:23:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:05:23:6158807040:DEBUG_X:Setting DCD pin high
+2026-05-11 17:05:23:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:05:23:6158807040:DEBUG:ip232 control line state dcd:1 ri:0
+2026-05-11 17:05:23:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:05:23:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:23:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 30 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 30 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 13 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 20 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 7 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 35 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 5 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 17 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 37 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 21 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 40 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 7 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 33 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 7 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 23 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 14 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 31 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 3 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 40 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 35 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 8 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 31 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 7 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 26 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 5 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 5 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 12 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 11 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 8 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 15 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:23:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:23:6160527360:DEBUG:Read 34 bytes from socket
+2026-05-11 17:05:24:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:24:6160527360:DEBUG:Read 9 bytes from socket
+2026-05-11 17:05:24:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:24:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:24:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:24:6160527360:DEBUG:Read 253 bytes from socket
+2026-05-11 17:05:24:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:24:6160527360:DEBUG:Read 124 bytes from socket
+2026-05-11 17:05:40:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:40:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:40:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:40:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:40:6158807040:DEBUG:Read 1 bytes from serial port
+2026-05-11 17:05:40:6158807040:DEBUG_X:Found non-break character, cancelling break
+2026-05-11 17:05:40:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:40:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:40:6158807040:DEBUG_X:Setting timer for break delay
+2026-05-11 17:05:40:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:40:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:40:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:40:6160527360:DEBUG:Read 16 bytes from socket
+2026-05-11 17:05:41:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:41:6160527360:DEBUG:Read 6 bytes from socket
+2026-05-11 17:05:41:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:41:6160527360:DEBUG:Read 32 bytes from socket
+2026-05-11 17:05:41:6158807040:DEBUG:Initial Break Delay detected
+2026-05-11 17:05:41:6158807040:INFO:Control Lines: DSR:1 DCD:1 CTS:1 RI:0
+2026-05-11 17:05:41:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:05:41:6158807040:DEBUG_X:Setting DCD pin high
+2026-05-11 17:05:41:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:05:41:6158807040:DEBUG:ip232 control line state dcd:1 ri:0
+2026-05-11 17:05:41:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:05:41:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:41:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:42:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:42:6160527360:DEBUG:Read 7 bytes from socket
+2026-05-11 17:05:42:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:42:6160527360:DEBUG:Read 36 bytes from socket
+2026-05-11 17:05:45:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:45:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:45:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:45:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:45:6158807040:DEBUG:Read 1 bytes from serial port
+2026-05-11 17:05:45:6158807040:DEBUG_X:Found non-break character, cancelling break
+2026-05-11 17:05:45:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:45:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:45:6158807040:DEBUG_X:Setting timer for break delay
+2026-05-11 17:05:45:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:45:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:46:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:46:6160527360:DEBUG:Read 94 bytes from socket
+2026-05-11 17:05:46:6158807040:DEBUG:Initial Break Delay detected
+2026-05-11 17:05:46:6158807040:INFO:Control Lines: DSR:1 DCD:1 CTS:1 RI:0
+2026-05-11 17:05:46:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:05:46:6158807040:DEBUG_X:Setting DCD pin high
+2026-05-11 17:05:46:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:05:46:6158807040:DEBUG:ip232 control line state dcd:1 ri:0
+2026-05-11 17:05:46:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:05:46:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:46:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:48:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:05:48:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:05:48:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:05:48:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:05:48:6158807040:DEBUG:Read 1 bytes from serial port
+2026-05-11 17:05:48:6158807040:DEBUG_X:Found non-break character, cancelling break
+2026-05-11 17:05:48:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:48:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:48:6158807040:DEBUG_X:Setting timer for break delay
+2026-05-11 17:05:48:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:48:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:05:48:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:48:6160527360:DEBUG:Read 7 bytes from socket
+2026-05-11 17:05:48:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:48:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:05:48:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:48:6160527360:DEBUG:Read 2 bytes from socket
+2026-05-11 17:05:49:6158807040:DEBUG:Initial Break Delay detected
+2026-05-11 17:05:49:6158807040:INFO:Control Lines: DSR:1 DCD:1 CTS:1 RI:0
+2026-05-11 17:05:49:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:05:49:6158807040:DEBUG_X:Setting DCD pin high
+2026-05-11 17:05:49:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:05:49:6158807040:DEBUG:ip232 control line state dcd:1 ri:0
+2026-05-11 17:05:49:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:05:49:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:05:49:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:05:49:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:49:6160527360:DEBUG:Read 256 bytes from socket
+2026-05-11 17:05:49:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:49:6160527360:DEBUG:Read 92 bytes from socket
+2026-05-11 17:05:49:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:49:6160527360:DEBUG:Read 256 bytes from socket
+2026-05-11 17:05:49:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:49:6160527360:DEBUG:Read 49 bytes from socket
+2026-05-11 17:05:49:6160527360:DEBUG:Data available on socket
+2026-05-11 17:05:49:6160527360:DEBUG:Read 193 bytes from socket
+2026-05-11 17:08:01:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:08:01:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:08:01:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:08:01:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:08:01:6158807040:DEBUG:Read 1 bytes from serial port
+2026-05-11 17:08:01:6158807040:DEBUG_X:Found non-break character, cancelling break
+2026-05-11 17:08:01:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:08:01:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:08:01:6158807040:DEBUG_X:Setting timer for break delay
+2026-05-11 17:08:02:6158807040:DEBUG:Initial Break Delay detected
+2026-05-11 17:08:02:6158807040:INFO:Control Lines: DSR:1 DCD:1 CTS:1 RI:0
+2026-05-11 17:08:02:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:08:02:6158807040:DEBUG_X:Setting DCD pin high
+2026-05-11 17:08:02:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:08:02:6158807040:DEBUG:ip232 control line state dcd:1 ri:0
+2026-05-11 17:08:02:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:08:02:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:08:02:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:08:03:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:08:03:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:08:03:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:08:03:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:08:03:6158807040:DEBUG:Read 1 bytes from serial port
+2026-05-11 17:08:03:6158807040:DEBUG_X:Found non-break character, cancelling break
+2026-05-11 17:08:03:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:08:03:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:08:03:6158807040:DEBUG_X:Setting timer for break delay
+2026-05-11 17:08:03:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:08:03:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:08:03:6158807040:DEBUG:Read 1 bytes from ip232 socket
+2026-05-11 17:08:03:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:08:03:6158807040:DEBUG:Read 1 bytes from serial port
+2026-05-11 17:08:03:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:08:03:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:08:03:6158807040:DEBUG_X:Setting timer for break delay
+2026-05-11 17:08:04:6158807040:DEBUG:Initial Break Delay detected
+2026-05-11 17:08:04:6158807040:INFO:Control Lines: DSR:1 DCD:1 CTS:1 RI:0
+2026-05-11 17:08:04:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:08:04:6158807040:DEBUG_X:Setting DCD pin high
+2026-05-11 17:08:04:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:08:04:6158807040:DEBUG:ip232 control line state dcd:1 ri:0
+2026-05-11 17:08:04:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:08:04:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:08:04:6158807040:DEBUG_X:CMD:0, DCE:1, LINE:1, TYPE:1, HOOK:1
+2026-05-11 17:08:04:6160527360:DEBUG:Data available on socket
+2026-05-11 17:08:04:6160527360:DEBUG:Read 4 bytes from socket
+2026-05-11 17:08:04:6160527360:DEBUG:Data available on socket
+2026-05-11 17:08:04:6160527360:DEBUG:Read 5 bytes from socket
+2026-05-11 17:08:07:6160527360:DEBUG:Data available on socket
+2026-05-11 17:08:07:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:08:07:6160527360:DEBUG:Data available on socket
+2026-05-11 17:08:07:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:08:08:6160527360:DEBUG:Data available on socket
+2026-05-11 17:08:08:6160527360:DEBUG:Read 1 bytes from socket
+2026-05-11 17:08:12:6160527360:DEBUG:Data available on socket
+2026-05-11 17:08:12:6160527360:INFO:No socket data read, assume closed peer
+2026-05-11 17:08:12:6158807040:DEBUG:Received H from ip thread
+2026-05-11 17:08:12:6158807040:ENTER_EXIT:Entering mdm_disconnect function
+2026-05-11 17:08:12:6158807040:INFO:Disconnecting modem
+2026-05-11 17:08:12:6158807040:INFO:Disconnecting line
+2026-05-11 17:08:12:6158807040:INFO:Control Lines: DSR:1 DCD:0 CTS:1 RI:0
+2026-05-11 17:08:12:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:08:12:6158807040:DEBUG_X:Setting DCD pin low
+2026-05-11 17:08:12:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:08:12:6158807040:DEBUG:ip232 control line state dcd:0 ri:0
+2026-05-11 17:08:12:6158807040:DEBUG:reconfiguring virtual DCD/RI
+2026-05-11 17:08:12:6158807040:DEBUG:Sending data
+2026-05-11 17:08:12:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:08:12:6158807040:DEBUG:Sending NO CARRIER response to modem
+2026-05-11 17:08:12:6158807040:DEBUG_X:Sending text response
+2026-05-11 17:08:12:6158807040:ENTER_EXIT:Exitting mdm_disconnect function
+2026-05-11 17:08:12:6158807040:DEBUG_X:Connection status change, handling
+2026-05-11 17:08:12:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:08:12:6158807040:DEBUG_X:CMD:1, DCE:1, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:08:12:6160527360:DEBUG:IP thread notified
+2026-05-11 17:08:13:6158807040:DEBUG:Data available on serial port
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Entering ip232_read function
+2026-05-11 17:08:13:6158807040:INFO:No ip232 socket data read, assume closed peer
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Exitting ip232_read function
+2026-05-11 17:08:13:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:08:13:6158807040:DEBUG_X:CMD:1, DCE:0, LINE:0, TYPE:0, HOOK:0
+2026-05-11 17:08:13:6159953920:ENTER_EXIT:Exitting dce_check_control_lines function
+2026-05-11 17:08:13:6159953920:DEBUG:Control Line Change
+2026-05-11 17:08:13:6159953920:INFO:DTR has gone low
+2026-05-11 17:08:13:6159953920:INFO:Link has gone down
+2026-05-11 17:08:13:6159953920:ENTER_EXIT:Entering dce_check_control_lines function
+2026-05-11 17:08:13:6158807040:DEBUG:Received dl from control line watch task
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Entering mdm_disconnect function
+2026-05-11 17:08:13:6158807040:INFO:Disconnecting modem
+2026-05-11 17:08:13:6158807040:INFO:Disconnecting line
+2026-05-11 17:08:13:6158807040:INFO:Control Lines: DSR:1 DCD:0 CTS:1 RI:0
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:08:13:6158807040:DEBUG_X:Setting DCD pin low
+2026-05-11 17:08:13:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:08:13:6158807040:DEBUG:ip232 control line state dcd:0 ri:0
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:08:13:6158807040:DEBUG:Sending OK response to modem
+2026-05-11 17:08:13:6158807040:DEBUG_X:Sending text response
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Exitting mdm_disconnect function
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Entering mdm_disconnect function
+2026-05-11 17:08:13:6158807040:INFO:Disconnecting modem
+2026-05-11 17:08:13:6158807040:INFO:Disconnecting line
+2026-05-11 17:08:13:6158807040:INFO:Control Lines: DSR:1 DCD:0 CTS:1 RI:0
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Entering dce_set_control_lines function
+2026-05-11 17:08:13:6158807040:DEBUG_X:Setting DCD pin low
+2026-05-11 17:08:13:6158807040:DEBUG_X:Setting RI pin low
+2026-05-11 17:08:13:6158807040:DEBUG:ip232 control line state dcd:0 ri:0
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Exitting dce_set_control_lines function
+2026-05-11 17:08:13:6158807040:DEBUG:Sending OK response to modem
+2026-05-11 17:08:13:6158807040:DEBUG_X:Sending text response
+2026-05-11 17:08:13:6158807040:ENTER_EXIT:Exitting mdm_disconnect function
+2026-05-11 17:08:13:6158807040:DEBUG_X:Waiting for modem/control line/timer/socket activity
+2026-05-11 17:08:13:6158807040:DEBUG_X:CMD:1, DCE:0, LINE:0, TYPE:0, HOOK:0

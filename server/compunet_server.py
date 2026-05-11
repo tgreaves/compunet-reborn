@@ -746,11 +746,6 @@ async def tcp_handler(reader, writer):
                 
                 # ROM COM packets use token $43 ('C')
                 if token == 0x43 and len(payload) > 1:
-                    # Send ACK to stop retransmission
-                    ack = x25.make_ack(seq)
-                    writer.write(ack)
-                    await writer.drain()
-                    
                     # payload[0] = flags/length byte ($FF)
                     # payload[1] = command byte (Z=$5A, etc.)
                     cmd_byte = payload[1]
@@ -783,58 +778,46 @@ async def tcp_handler(reader, writer):
                         authenticated = True
                         log.info('TCP: login OK! Sending linking data...')
                         
-                        # Send linking data via X.25 DAT packets.
-                        # MODEM_INIT_DOWNLOAD reads bytes via $96CC:
-                        #   Bytes 1-2: discarded (header)
-                        #   Bytes 3-4: return address (low, high)
-                        #   Bytes 5-6: destination address (low, high)
-                        #   Bytes 7-8: length (low, high)
-                        #   Then: payload bytes (terminal code)
+                        # ============================================================
+                        # Login response: send DAT packets (NOT ACK!)
                         #
-                        # All delivered one byte at a time through the protocol engine.
-                        # We send them as X.25 packets that the engine unpacks.
+                        # The ROM's PROTO_FLOW_CONTROL ($9B3B) checks the received
+                        # packet's token. If it's $41/$42/$40 → error. Otherwise → CLC.
+                        # So we send DAT packets (token $22) which pass the check.
+                        #
+                        # Flow after PROTO_FLOW_CONTROL returns CLC:
+                        #   $89D0 FRAME_BUF_READ — reads first DAT payload (discarded)
+                        #   Then MODEM_INIT_DOWNLOAD reads bytes via $96CC:
+                        #     Bytes 1-2: discarded
+                        #     Bytes 3-4: return address (low, high) ← "LINKING" appears after this
+                        #     Bytes 5-6: dest address
+                        #     Bytes 7-8: length
+                        #     Bytes 9+:  payload (terminal code)
+                        # ============================================================
                         
-                        cnet_path = os.path.join(os.path.dirname(__file__), '..', 'historical', 'cnet.prg')
-                        with open(cnet_path, 'rb') as cf:
-                            cnet_data = cf.read()
-                        terminal_code = cnet_data[2:]  # strip PRG header
+                        # Send initial DAT packet (consumed by PROTO_FLOW_CONTROL + FRAME_BUF_READ)
+                        initial_pkt = x25.make_data_packet(bytes([0x00]), TOKEN_DAT)
+                        writer.write(initial_pkt)
+                        await writer.drain()
+                        log.info('TCP: sent initial DAT packet (for PROTO_FLOW_CONTROL) %d bytes: %s',
+                                 len(initial_pkt), initial_pkt.hex())
+                        await asyncio.sleep(0.1)
                         
-                        # Build the linking stream (header + payload)
-                        linking = bytearray()
-                        linking.append(0x00)  # header byte 1 (discarded)
-                        linking.append(0x00)  # header byte 2 (discarded)
-                        linking.append(0x05)  # return addr low ($A005)
-                        linking.append(0xA0)  # return addr high
-                        linking.append(0xF0)  # dest addr low ($9FF0)
-                        linking.append(0x9F)  # dest addr high
-                        linking.append(len(terminal_code) & 0xFF)  # length low
-                        linking.append((len(terminal_code) >> 8) & 0xFF)  # length high
-                        linking.extend(terminal_code)
-                        
-                        log.info('TCP: sending %d bytes of linking data via X.25', len(linking))
-                        
-                        # Send as X.25 DAT packets. The protocol engine delivers
-                        # payload bytes to $96CC one at a time.
-                        # Packet format: $01 [seq] [token] [payload...] [CRC] $02
-                        # Send in chunks that fit the protocol engine's expectations.
-                        # For now, send byte-by-byte as individual packets.
-                        # TODO: determine optimal packet size
-                        
-                        CHUNK_SIZE = 1  # one byte per packet for now (safe but slow)
-                        for i in range(0, len(linking), CHUNK_SIZE):
-                            chunk = linking[i:i+CHUNK_SIZE]
-                            pkt = x25.make_data_packet(chunk)
+                        # Send first 4 bytes of linking stream:
+                        #   [0] $00 = header (discarded)
+                        #   [1] $00 = header (discarded)
+                        #   [2] $05 = return addr low
+                        #   [3] $A0 = return addr high
+                        # After byte 4, ROM displays "LINKING"
+                        linking_header = bytes([0x00, 0x00, 0x05, 0xA0])
+                        for b in linking_header:
+                            pkt = x25.make_data_packet(bytes([b]), TOKEN_DAT)
                             writer.write(pkt)
                             await writer.drain()
-                            # Throttle: send one packet per ~20ms to avoid
-                            # overflowing the 256-byte NMI ring buffer.
-                            # Each packet is 7 bytes on wire. At 20ms intervals,
-                            # the ROM has time to process via IRQ.
-                            await asyncio.sleep(0.02)
-                            if i % 500 == 0 and i > 0:
-                                log.info('TCP: linking progress %d/%d bytes', i, len(linking))
+                            await asyncio.sleep(0.05)
                         
-                        log.info('TCP: linking data sent!')
+                        log.info('TCP: sent 4 linking header bytes — waiting for LINKING to appear')
+                        # STOP HERE for testing — don't send more data yet
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it
