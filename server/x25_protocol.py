@@ -128,6 +128,21 @@ class X25Connection:
     # Packet construction
     # ------------------------------------------------------------------
 
+    def _byte_stuff(self, data):
+        """
+        Apply byte stuffing to raw packet content.
+        Bytes $01-$03 are escaped as $03 + (byte + $20).
+        $00 and $04+ are sent as-is.
+        """
+        result = bytearray()
+        for b in data:
+            if 0x01 <= b <= 0x03:
+                result.append(0x03)
+                result.append(b + 0x20)
+            else:
+                result.append(b)
+        return bytes(result)
+
     def make_ack(self, seq_to_ack):
         """
         Build an ACK packet for a received sequence number.
@@ -140,13 +155,16 @@ class X25Connection:
         and clears the retransmit flag.
 
         CRC init: $00/$00 (same as all packets for receive path).
+        Byte stuffing applied to content between markers.
         """
-        # Build content: length + token + fixed_byte + seq
+        # Build raw content: length + token + fixed_byte + seq
         content = bytearray([0x06, 0x20, 0x20, seq_to_ack])
         crc_hi, crc_lo = crc_ccitt(content, crc_hi=0x00, crc_lo=0x00)
         content.append(crc_hi)
         content.append(crc_lo)
-        pkt = bytes([PKT_START]) + bytes(content) + bytes([PKT_END])
+        # Apply byte stuffing then frame
+        stuffed = self._byte_stuff(content)
+        pkt = bytes([PKT_START]) + stuffed + bytes([PKT_END])
         log.info('X25 TX: ACK seq=$%02X [%s]', seq_to_ack, pkt.hex())
         return pkt
 
@@ -154,39 +172,42 @@ class X25Connection:
         """
         Build a data packet containing payload bytes.
 
-        Packet format (between $01 and $02):
-          [0] = packet length (total bytes between $01 and $02, inclusive)
+        Packet format (raw content between $01 and $02, before byte stuffing):
+          [0] = packet length (total UNESCAPED bytes between $01 and $02)
           [1] = token ($22=DAT, $26=COM, etc.)
           [2] = sequence number (range $20-$5F)
           [3..N-2] = payload bytes
           [N-1] = CRC high
           [N] = CRC low
 
-        Length byte = total byte count between markers (including itself).
-        CRC covers: all bytes between $01 and $02 except CRC itself.
+        Length byte = total unescaped byte count between markers (including itself).
+        CRC covers: all unescaped bytes between $01 and $02 except CRC itself.
         CRC init: $00/$00 (ROM receive path at $9E41 inits CRC to 0).
+        Byte stuffing applied after CRC computation.
 
-        Total wire: $01 + [len, token, seq, payload..., CRC_hi, CRC_lo] + $02
+        Total wire: $01 + [byte-stuffed content] + $02
         """
         seq = self._next_tx_seq()
 
-        # Total bytes between $01 and $02:
+        # Total unescaped bytes between $01 and $02:
         # len(1) + token(1) + seq(1) + payload(N) + CRC(2) = N + 5
         pkt_len = len(payload) + 5
 
-        # Build content (everything between $01 and $02, excluding CRC)
+        # Build raw content (before byte stuffing)
         content = bytearray()
         content.append(pkt_len)
         content.append(token)
         content.append(seq)
         content.extend(payload)
 
-        # Compute CRC with init $00/$00 (matches ROM receive path)
+        # Compute CRC over raw content with init $00/$00
         crc_hi, crc_lo = crc_ccitt(content, crc_hi=0x00, crc_lo=0x00)
         content.append(crc_hi)
         content.append(crc_lo)
 
-        pkt = bytes([PKT_START]) + bytes(content) + bytes([PKT_END])
+        # Apply byte stuffing then frame
+        stuffed = self._byte_stuff(content)
+        pkt = bytes([PKT_START]) + stuffed + bytes([PKT_END])
 
         if len(payload) <= 4:
             log.debug('X25 TX: DAT seq=$%02X payload=%s [%s]',
@@ -229,8 +250,20 @@ class X25Connection:
                 break  # incomplete packet, wait for more data
 
             # Extract packet (between markers, exclusive)
-            raw_pkt = bytes(self._rx_buffer[1:end])
+            raw_wire = bytes(self._rx_buffer[1:end])
             self._rx_buffer = self._rx_buffer[end + 1:]
+
+            # De-stuff: reverse byte stuffing ($03 $2X → $0X)
+            raw_pkt = bytearray()
+            i = 0
+            while i < len(raw_wire):
+                if raw_wire[i] == 0x03 and i + 1 < len(raw_wire):
+                    raw_pkt.append(raw_wire[i + 1] - 0x20)
+                    i += 2
+                else:
+                    raw_pkt.append(raw_wire[i])
+                    i += 1
+            raw_pkt = bytes(raw_pkt)
 
             if len(raw_pkt) < 5:  # minimum: len + token + seq + crc_hi + crc_lo
                 log.warning('X25 RX: packet too short (%d bytes): %s',
