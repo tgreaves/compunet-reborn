@@ -149,19 +149,18 @@ class X25Connection:
         Build an ACK packet for a received sequence number.
 
         ACK packet format (6 bytes between $01 and $02):
-          [0] = $05 (length: 5 bytes total content)
-          [1] = $20 (ACK token)  
-          [2] = sequence number being acknowledged
-          [3] = CRC high
-          [4] = CRC low
+          [0] = $41 'A' \
+          [1] = $43 'C'  } = "ACK" literal (from ROM table at $9C0B)
+          [2] = $4B 'K' /
+          [3] = sequence number being acknowledged
+          [4] = CRC high
+          [5] = CRC low
         
         CRC is computed over just the sequence byte, with init $40/$E6.
-        Total wire format: $01 $05 $20 <seq> <crc_hi> <crc_lo> $02
+        Total wire format: $01 "ACK" <seq> <crc_hi> <crc_lo> $02 (8 bytes)
         """
-        # CRC over just the sequence byte (matches ROM at $9ABC)
         crc_hi, crc_lo = crc_ccitt([seq_to_ack])
-
-        pkt = bytes([PKT_START, 0x05, 0x20, seq_to_ack, crc_hi, crc_lo, PKT_END])
+        pkt = bytes([PKT_START, 0x41, 0x43, 0x4B, seq_to_ack, crc_hi, crc_lo, PKT_END])
         log.info('X25 TX: ACK seq=$%02X [%s]', seq_to_ack, pkt.hex())
         return pkt
 
@@ -335,11 +334,15 @@ class X25Connection:
                             len(raw_pkt), raw_pkt.hex())
                 continue
 
-            # Parse header
-            pkt_len = raw_pkt[0]
+            # Parse packet content (between $01 and $02)
+            # Format: [seq] [token] [flags] [payload...] [crc_hi] [crc_lo]
+            # The sequence number is the FIRST byte (range $20-$5F)
+            # Token is the second byte ($43 = COM, "ACK" = ACK packet)
+            seq = raw_pkt[0]
             token = raw_pkt[1]
-            seq = raw_pkt[2]
-            payload = raw_pkt[3:-2]  # everything between seq and CRC
+            # Payload is everything between byte 2 and the last 2 CRC bytes
+            # But byte 2 might be flags/length - include it in payload for now
+            payload = raw_pkt[2:-2] if len(raw_pkt) > 4 else b''
             crc_hi_rx = raw_pkt[-2]
             crc_lo_rx = raw_pkt[-1]
 

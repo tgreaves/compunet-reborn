@@ -745,26 +745,29 @@ async def tcp_handler(reader, writer):
                          token, seq, len(payload))
                 
                 # ROM COM packets use token $43 ('C')
-                if token == 0x43 and len(payload) > 0:
+                if token == 0x43 and len(payload) > 1:
                     # Send ACK to stop retransmission
                     ack = x25.make_ack(seq)
                     writer.write(ack)
                     await writer.drain()
                     
-                    cmd_byte = payload[0]
-                    log.info('TCP: COM command=$%02X (%s) payload=%s',
-                             cmd_byte, chr(cmd_byte) if 32 <= cmd_byte < 127 else '?',
-                             payload.hex())
+                    # payload[0] = flags/length byte ($FF)
+                    # payload[1] = command byte (Z=$5A, etc.)
+                    cmd_byte = payload[1]
+                    cmd_payload = payload[1:]  # command + parameters
+                    log.info('TCP: COM seq=$%02X cmd=$%02X (%s) data=%s',
+                             seq, cmd_byte, chr(cmd_byte) if 32 <= cmd_byte < 127 else '?',
+                             cmd_payload.hex())
                     
                     if cmd_byte == 0x5A and not authenticated:
-                        # LOGIN packet
-                        log.info('TCP: *** PROCESSING LOGIN (authenticated=%s) ***', authenticated)
-                        user_id = bytes(payload[1:9]).decode('latin-1').strip()
-                        password = bytes(payload[9:15]).decode('latin-1').strip()
+                        # LOGIN packet: cmd_payload = [Z, user(8), pass(6), sysinfo...]
+                        log.info('TCP: *** PROCESSING LOGIN ***')
+                        user_id = bytes(cmd_payload[1:9]).decode('latin-1').strip()
+                        password = bytes(cmd_payload[9:15]).decode('latin-1').strip()
                         
-                        # CNLOAD flag at offset 25-26
-                        cnload_1 = payload[25] if len(payload) > 25 else 0
-                        cnload_2 = payload[26] if len(payload) > 26 else 0
+                        # CNLOAD flag at offset 25-26 from start of cmd_payload
+                        cnload_1 = cmd_payload[25] if len(cmd_payload) > 25 else 0
+                        cnload_2 = cmd_payload[26] if len(cmd_payload) > 26 else 0
                         skip_linking = (cnload_1 == 0x30 and cnload_2 == 0x30)
                         
                         log.info('TCP: *** LOGIN ***')
@@ -784,7 +787,7 @@ async def tcp_handler(reader, writer):
                     elif authenticated:
                         # Post-login commands
                         log.info('TCP: dispatching command (authenticated=True)')
-                        cmd_response = session.handle_command(payload)
+                        cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
                             pkt = x25.make_data_packet(cmd_response, TOKEN_DAT)
                             writer.write(pkt)
