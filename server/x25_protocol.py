@@ -166,130 +166,40 @@ class X25Connection:
 
     def make_data_packet(self, payload, token=TOKEN_DAT):
         """
-        Build a data packet (DAT, DIR, OK, ERR, etc.) with payload.
+        Build a data packet containing payload bytes.
 
-        Packet format (from ROM send routine at $9AE8):
-          $01
-          [0] = total content length (payload_len + 2 for CRC)
-          [1] = command token
-          [2] = sequence number
-          [3..N] = payload bytes
-          [N+1] = CRC high
-          [N+2] = CRC low
-          $02
+        Packet format (between $01 and $02):
+          [0] = sequence number (range $20-$5F)
+          [1] = token ($43=COM, $22=DAT, etc.)
+          [2..N-2] = payload bytes
+          [N-1] = CRC high
+          [N] = CRC low
 
-        CRC covers: token + sequence + payload (everything between length and CRC).
+        CRC covers: all bytes except CRC itself (seq + token + payload).
+        CRC init: $40/$E6.
+
+        Total wire: $01 + [seq, token, payload..., CRC_hi, CRC_lo] + $02
         """
         seq = self._next_tx_seq()
-        content_len = len(payload) + 4  # token + seq + payload + 2 CRC bytes... 
-        # Actually from the ROM: the length byte = payload_len + 2
-        # Let me re-examine: at $9A8F, length = ($21),Y content minus 2
-        # The header[0] seems to be the total inner content size
-        # For now: length = len(payload) + 2 (for the 2 CRC bytes? or +2 for seq+token?)
-        # 
-        # Looking at ROM more carefully:
-        # $9A8F: LDA ($21),Y / SEC / SBC #$02 / STA $C217
-        # This reads the first byte of the packet buffer, subtracts 2, stores as "data length"
-        # So header[0] = actual_payload_length + 2
-        #
-        # For a packet with N payload bytes:
-        #   header[0] = N + 2
-        #   header[1] = token
-        #   header[2] = sequence
-        #   then N payload bytes
-        #   then 2 CRC bytes
-        # Total between $01 and $02: 3 + N + 2 = N + 5
 
-        pkt_len = len(payload) + 2  # the "length" field value
-
-        # Build content for CRC calculation (everything that gets CRC'd)
-        # From ROM: CRC covers the sequence byte (at minimum)
-        # Actually looking at the send routine more carefully:
-        # The 6-byte header at $C203-$C208 is sent between $01 and $02.
-        # For data packets, the payload follows WITHIN the 6 bytes or after?
-        #
-        # Re-reading the ROM send at $9AE8-$9B00:
-        #   JSR $991E          ; send $01
-        #   LDX #$00
-        #   LDA $C203,X        ; send header bytes
-        #   JSR $9926
-        #   INC $C20C
-        #   CPX #$06           ; 6 bytes
-        #   BNE loop
-        #   JMP $9922          ; send $02
-        #
-        # So it sends EXACTLY 6 bytes between $01 and $02. Always.
-        # The 6 bytes are the complete packet content.
-        # For small packets (ACK, etc.) all data fits in 6 bytes.
-        # For larger data transfers, the protocol must use multiple packets
-        # or a different mechanism.
-        #
-        # This means: each X.25 packet is exactly 8 bytes on the wire:
-        #   $01 + 6 header bytes + $02
-        #
-        # The "payload" for data transfer must be delivered byte-by-byte
-        # through the protocol engine's flow control, not in one big packet.
-        # The MODEM_INIT_DOWNLOAD reads bytes via $96CC which goes through
-        # the protocol engine — each call to $96CC returns ONE byte from
-        # the current packet being processed.
-        #
-        # So the protocol delivers data in 6-byte packets, where:
-        #   byte[0] = length/type info
-        #   byte[1] = token (DAT for data)
-        #   byte[2] = sequence number
-        #   byte[3] = data byte (the actual payload)
-        #   byte[4] = CRC high
-        #   byte[5] = CRC low
-        #
-        # For multi-byte transfers, the server sends many packets,
-        # each carrying 1 data byte. The protocol engine reassembles them.
-        #
-        # Wait — that can't be right. 1 byte per packet at 1200 baud would
-        # be incredibly slow. Let me re-examine...
-        #
-        # Actually, looking at PROTO_PROCESS_CMD ($996B) more carefully:
-        # It reads bytes from the packet buffer at ($21),Y and delivers
-        # them one at a time to the caller. The packet buffer can hold
-        # more than 1 byte — the 6-byte "header" is just the framing,
-        # and the actual data follows AFTER the $02 end marker? No...
-        #
-        # Let me look at this differently. The ROM's receive path:
-        # 1. Waits for $01 (start marker)
-        # 2. Reads 6 bytes into $C203-$C208
-        # 3. Waits for $02 (end marker)
-        # 4. Validates CRC
-        # 5. Processes based on token type
-        #
-        # For DAT packets, the "data" must be encoded within those 6 bytes.
-        # With token + seq + CRC taking 4 bytes, that leaves 2 bytes for data.
-        # Or maybe the length byte indicates how many MORE bytes follow
-        # before the $02 marker.
-        #
-        # I think the key insight is: the 6-byte limit is for the HEADER only.
-        # Data packets have additional payload bytes between the header and $02.
-        # The ROM reads the header (6 bytes), then reads payload bytes based
-        # on the length field, then reads $02.
-        #
-        # For now, let me implement the simplest working version:
-        # Fixed 6-byte packets for ACK, and variable-length for data.
-
-        # Build the packet content (between $01 and $02):
-        # [length] [token] [seq] [payload...] [crc_hi] [crc_lo]
+        # Build content for CRC
         content = bytearray()
-        content.append(pkt_len & 0xFF)
-        content.append(token)
         content.append(seq)
+        content.append(token)
         content.extend(payload)
 
-        # CRC over token + seq + payload (skip length byte)
-        crc_hi, crc_lo = crc_ccitt(content[1:])  # skip length for CRC
+        # Compute CRC
+        crc_hi, crc_lo = crc_ccitt(content)
         content.append(crc_hi)
         content.append(crc_lo)
 
         pkt = bytes([PKT_START]) + bytes(content) + bytes([PKT_END])
-        token_name = TOKEN_NAMES.get(token, f'${token:02X}')
-        log.info('X25 TX: %s seq=$%02X payload=%d bytes [%s...]',
-                 token_name, seq, len(payload), pkt[:20].hex())
+
+        if len(payload) <= 4:
+            log.debug('X25 TX: DAT seq=$%02X payload=%s [%s]',
+                      seq, payload.hex(), pkt.hex())
+        else:
+            log.debug('X25 TX: DAT seq=$%02X %d bytes', seq, len(payload))
         return pkt
 
     # ------------------------------------------------------------------
