@@ -38,11 +38,13 @@ def patch(addr, data):
 
 
 # ============================================================
-# 1. VERSION STRING
+# 1. VERSION STRING (shortened — wrapper at $8070 overlaps start)
 # ============================================================
+# Version string starts at $807B but wrapper uses $8070-$8082.
+# Just patch from $8083 onwards with a shorter string.
 ver = [ord(c) - 32 if 97 <= ord(c) <= 122 else ord(c)
-       for c in ' COMPUNET REBORN 1.00  ']
-patch(0x807B, ver)
+       for c in ' REBORN 1.00  ']
+patch(0x8083, ver)
 
 
 # ============================================================
@@ -205,18 +207,23 @@ patch(0x8D79, [0x1E])
 
 
 # ============================================================
-# 7b. ACIA RE-ARM TRAMPOLINE at $8070 (14 bytes)
+# 7b. ACIA RE-ARM WRAPPER at $8070 (14 bytes)
 #
 # VICE's SwiftLink emulation loses NMI edge detection after TX writes.
-# This trampoline is called instead of $94C1 at $8EDE (login send).
-# After sending, it does a full ACIA reset ($00 disables NMI to prevent
-# spurious fire, then $09 re-enables cleanly).
+# This wrapper is called instead of $94C1 at $8EDD (login send).
+# After sending, it toggles RX IRQ enable to re-arm NMI detection.
+# Also inits $C20F to $20 (expected receive seq) since PROTO_RECV_PACKET
+# may not have been called to initialise it.
+# IMPORTANT: must NOT clear DTR (bit 0) or tcpser will disconnect!
 # ============================================================
 patch(0x8070, [
+    0xA9, 0x20,           # LDA #$20
+    0x8D, 0x0F, 0xC2,    # STA $C20F (init expected receive seq BEFORE send)
+    0x8D, 0x0E, 0xC2,    # STA $C20E (init transmit seq too)
     0x20, 0xC1, 0x94,    # JSR $94C1 (original login send)
-    0xA9, 0x00,           # LDA #$00
-    0x8D, 0x02, 0xDE,    # STA $DE02 (disable all — prevents spurious NMI)
-    0xA9, 0x09,           # LDA #$09 (DTR + RX IRQ enabled)
+    0xA9, 0x01,           # LDA #$01 (DTR on, RX IRQ disabled)
+    0x8D, 0x02, 0xDE,    # STA $DE02 (disable RX IRQ but keep DTR)
+    0xA9, 0x09,           # LDA #$09 (DTR on, RX IRQ enabled)
     0x8D, 0x02, 0xDE,    # STA $DE02 (re-arm NMI edge detection)
     0x60,                 # RTS
 ])

@@ -65,36 +65,20 @@ def crc_ccitt(data, crc_hi=0x40, crc_lo=0xE6):
     CRC-CCITT as implemented in ROM at $9B10.
     Polynomial $1021. Default init $40/$E6 (from ACK send at $9ABC).
 
-    Algorithm (per byte, MSB first):
-      For each of 8 bits:
-        ROL temp byte (shift out MSB to carry)
-        ROL CRC low (shift carry in from right)
-        ROL CRC high (shift carry in from right)
-        If carry out of CRC high: XOR CRC with $1021
+    Standard CRC-CCITT MSB-first algorithm.
+    Note: the original implementation in this file was buggy (used a
+    bit-shift chain that didn't match standard CRC-CCITT). This version
+    produces correct results that match the ROM's output.
     """
+    crc = (crc_hi << 8) | crc_lo
     for byte in data:
-        temp = byte
+        crc ^= (byte << 8)
         for _ in range(8):
-            # ROL temp
-            carry = (temp >> 7) & 1
-            temp = (temp << 1) & 0xFF
-
-            # ROL crc_lo
-            new_carry = (crc_lo >> 7) & 1
-            crc_lo = ((crc_lo << 1) | carry) & 0xFF
-            carry = new_carry
-
-            # ROL crc_hi
-            new_carry = (crc_hi >> 7) & 1
-            crc_hi = ((crc_hi << 1) | carry) & 0xFF
-            carry = new_carry
-
-            # XOR if carry out
-            if carry:
-                crc_hi ^= 0x10
-                crc_lo ^= 0x21
-
-    return crc_hi, crc_lo
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return (crc >> 8) & 0xFF, crc & 0xFF
 
 
 class X25Connection:
@@ -169,27 +153,34 @@ class X25Connection:
         Build a data packet containing payload bytes.
 
         Packet format (between $01 and $02):
-          [0] = sequence number (range $20-$5F)
-          [1] = token ($43=COM, $22=DAT, etc.)
-          [2..N-2] = payload bytes
+          [0] = packet length (total bytes between $01 and $02, inclusive)
+          [1] = token ($22=DAT, $26=COM, etc.)
+          [2] = sequence number (range $20-$5F)
+          [3..N-2] = payload bytes
           [N-1] = CRC high
           [N] = CRC low
 
-        CRC covers: all bytes except CRC itself (seq + token + payload).
-        CRC init: $40/$E6.
+        Length byte = total byte count between markers (including itself).
+        CRC covers: all bytes between $01 and $02 except CRC itself.
+        CRC init: $00/$00 (ROM receive path at $9E41 inits CRC to 0).
 
-        Total wire: $01 + [seq, token, payload..., CRC_hi, CRC_lo] + $02
+        Total wire: $01 + [len, token, seq, payload..., CRC_hi, CRC_lo] + $02
         """
         seq = self._next_tx_seq()
 
-        # Build content for CRC
+        # Total bytes between $01 and $02:
+        # len(1) + token(1) + seq(1) + payload(N) + CRC(2) = N + 5
+        pkt_len = len(payload) + 5
+
+        # Build content (everything between $01 and $02, excluding CRC)
         content = bytearray()
-        content.append(seq)
+        content.append(pkt_len)
         content.append(token)
+        content.append(seq)
         content.extend(payload)
 
-        # Compute CRC
-        crc_hi, crc_lo = crc_ccitt(content)
+        # Compute CRC with init $00/$00 (matches ROM receive path)
+        crc_hi, crc_lo = crc_ccitt(content, crc_hi=0x00, crc_lo=0x00)
         content.append(crc_hi)
         content.append(crc_lo)
 
@@ -256,8 +247,8 @@ class X25Connection:
             crc_hi_rx = raw_pkt[-2]
             crc_lo_rx = raw_pkt[-1]
 
-            # Verify CRC (over everything except length and CRC itself)
-            crc_hi, crc_lo = crc_ccitt(raw_pkt[1:-2])
+            # Verify CRC (ROM uses init $00/$00 over all bytes except CRC)
+            crc_hi, crc_lo = crc_ccitt(raw_pkt[:-2], crc_hi=0x00, crc_lo=0x00)
             if crc_hi != crc_hi_rx or crc_lo != crc_lo_rx:
                 log.warning('X25 RX: CRC mismatch! expected=%02X%02X got=%02X%02X pkt=%s',
                             crc_hi, crc_lo, crc_hi_rx, crc_lo_rx, raw_pkt.hex())
