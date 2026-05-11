@@ -705,50 +705,28 @@ async def tcp_handler(reader, writer):
                 rx_buffer.clear()
                 
                 # Send "*CON\r" immediately — no delay.
-                # The '*' resets the buffer, so any prior contamination is cleared.
-                # Send quickly so all 5 bytes arrive before other data interferes.
-                writer.write(b'\x2a\x43\x4f\x4e\x0d')  # *CON\r as one TCP write
+                writer.write(b'\x2a\x43\x4f\x4e\x0d')
                 await writer.drain()
                 log.info('TCP TX: sent "*CON\\r" connection signal (burst)')
-                continue
-            
-            # Phase 2b: Look for login data (starts with 'Z' = $5A)
-            if ident_received and 0x5A in rx_buffer:
-                idx = rx_buffer.index(0x5A)
-                remaining = len(rx_buffer) - idx
-                
-                if remaining >= 15:  # minimum: Z + 8 user + 6 pass
-                    user_id = rx_buffer[idx+1:idx+9].decode('latin-1').strip()
-                    password = rx_buffer[idx+9:idx+15].decode('latin-1').strip()
-                    
-                    # CNLOAD flag at offset 25-26 from 'Z'
-                    cnload_1 = rx_buffer[idx+25] if idx+25 < len(rx_buffer) else 0
-                    cnload_2 = rx_buffer[idx+26] if idx+26 < len(rx_buffer) else 0
-                    skip_linking = (cnload_1 == 0x30 and cnload_2 == 0x30)
-                    
-                    log.info('TCP: *** LOGIN PACKET ***')
-                    log.info('TCP:   user_id=%r password=%r cnload=%s', user_id, password, skip_linking)
-                    log.info('TCP:   raw: %s', rx_buffer[idx:idx+27].hex())
-                    
-                    response = session.handle_login(user_id, password)
-                    if not session.authenticated:
-                        log.info('TCP: login FAILED for %r', user_id)
-                        writer.close()
-                        await writer.wait_closed()
-                        return
-                    
-                    log.info('TCP: login OK for %r', user_id)
-                    # TODO: Send linking data
-                    log.info('TCP: TODO - send linking data')
-                    login_done = True
-                    break
+                login_done = True  # Exit negotiation, enter command loop
+                break
         
         log.info('TCP: entering command loop')
         
         # ============================================================
         # Phase 4: Command loop
-        # Receive COM packets, dispatch commands, send responses
+        # The ROM sends X.25 framed packets. The COM token from the ROM
+        # is $43 ('C') — stored at $8034 before sending. The payload
+        # contains the command data from $C100 buffer.
+        #
+        # First packet after *CON handshake is the LOGIN packet:
+        #   payload[0] = 'Z' ($5A) = login command
+        #   payload[1-8] = User ID (space-padded)
+        #   payload[9-14] = Password (space-padded)
+        #   payload[15+] = System info
         # ============================================================
+        authenticated = False
+        
         while True:
             try:
                 data = await asyncio.wait_for(reader.read(256), timeout=120.0)
@@ -763,17 +741,49 @@ async def tcp_handler(reader, writer):
             packets = x25.feed_data(data)
             
             for token, seq, payload in packets:
-                if token == TOKEN_COM:
-                    # ACK the received packet
-                    writer.write(x25.make_ack(seq))
+                log.info('TCP: packet token=$%02X seq=$%02X payload=%d bytes',
+                         token, seq, len(payload))
+                
+                # ROM COM packets use token $43 ('C')
+                if token == 0x43 and len(payload) > 0:
+                    # Send ACK to stop retransmission
+                    ack = x25.make_ack(seq)
+                    writer.write(ack)
                     await writer.drain()
                     
-                    # Dispatch command
-                    if len(payload) > 0:
+                    cmd_byte = payload[0]
+                    log.info('TCP: COM command=$%02X (%s) payload=%s',
+                             cmd_byte, chr(cmd_byte) if 32 <= cmd_byte < 127 else '?',
+                             payload.hex())
+                    
+                    if cmd_byte == 0x5A and not authenticated:
+                        # LOGIN packet
+                        user_id = bytes(payload[1:9]).decode('latin-1').strip()
+                        password = bytes(payload[9:15]).decode('latin-1').strip()
+                        
+                        # CNLOAD flag at offset 25-26
+                        cnload_1 = payload[25] if len(payload) > 25 else 0
+                        cnload_2 = payload[26] if len(payload) > 26 else 0
+                        skip_linking = (cnload_1 == 0x30 and cnload_2 == 0x30)
+                        
+                        log.info('TCP: *** LOGIN ***')
+                        log.info('TCP:   user=%r pass=%r cnload=%s', user_id, password, skip_linking)
+                        
+                        response = session.handle_login(user_id, password)
+                        if not session.authenticated:
+                            log.info('TCP: login FAILED - closing connection')
+                            writer.close()
+                            await writer.wait_closed()
+                            return
+                        
+                        authenticated = True
+                        log.info('TCP: login OK! TODO: send linking data')
+                        # TODO: Send linking data via X.25 DAT packets
+                    
+                    elif authenticated:
+                        # Post-login commands
                         cmd_response = session.handle_command(payload)
                         if cmd_response:
-                            # Send response as DAT packet(s)
-                            # TODO: split large responses into multiple packets
                             pkt = x25.make_data_packet(cmd_response, TOKEN_DAT)
                             writer.write(pkt)
                             await writer.drain()
@@ -782,7 +792,7 @@ async def tcp_handler(reader, writer):
                     log.debug('TCP: received ACK seq=$%02X', seq)
                 
                 else:
-                    log.warning('TCP: unexpected token=$%02X in command loop', token)
+                    log.debug('TCP: other token=$%02X seq=$%02X', token, seq)
     
     except (ConnectionResetError, BrokenPipeError) as e:
         log.info('TCP: connection error: %s', e)
