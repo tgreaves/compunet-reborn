@@ -829,7 +829,7 @@ async def tcp_handler(reader, writer):
                         # Send all linking data with flow control
                         send_idx = 0
                         unacked = 0
-                        WINDOW = 4
+                        WINDOW = 1  # Send 1 at a time for reliability
                         
                         while send_idx < len(linking):
                             # Send up to WINDOW packets
@@ -843,7 +843,7 @@ async def tcp_handler(reader, writer):
                             
                             # Wait for ACK(s) from the ROM
                             try:
-                                data = await asyncio.wait_for(reader.read(256), timeout=5.0)
+                                data = await asyncio.wait_for(reader.read(256), timeout=30.0)
                             except asyncio.TimeoutError:
                                 log.warning('TCP: timeout waiting for ACK during linking')
                                 break
