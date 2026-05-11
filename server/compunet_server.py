@@ -842,6 +842,7 @@ async def tcp_handler(reader, writer):
                         unacked = 0
                         WINDOW = 1  # Send 1 at a time for reliability
                         
+                        linking_complete = False
                         while send_idx < len(linking):
                             # Send up to WINDOW packets
                             while unacked < WINDOW and send_idx < len(linking):
@@ -852,32 +853,41 @@ async def tcp_handler(reader, writer):
                                 unacked += 1
                                 send_idx += CHUNK_SIZE
                             
+                            if send_idx >= len(linking) and unacked == 0:
+                                linking_complete = True
+                                break
+                            
                             # Wait for ACK(s) from the ROM
                             try:
                                 data = await asyncio.wait_for(reader.read(256), timeout=30.0)
                             except asyncio.TimeoutError:
-                                log.warning('TCP: timeout waiting for ACK during linking')
+                                log.warning('TCP: timeout waiting for ACK at byte %d/%d (unacked=%d)',
+                                            send_idx, len(linking), unacked)
                                 break
                             if not data:
                                 log.info('TCP: connection closed during linking')
                                 break
                             
-                            # Parse ACKs
+                            # Parse ACKs — only count valid ACK packets (token=$20)
                             ack_packets = x25.feed_data(data)
-                            for tok, seq, pay in ack_packets:
-                                if tok == 0x43:
+                            for tok, seq_rx, pay in ack_packets:
+                                if tok == 0x20:
+                                    # Valid ACK
+                                    unacked = max(0, unacked - 1)
+                                    log.debug('TCP: valid ACK seq=$%02X, unacked=%d', seq_rx, unacked)
+                                elif tok == 0x43:
                                     # Retransmitted login — ignore
                                     log.debug('TCP: ignoring retransmitted login during linking')
                                 else:
-                                    # ACK or other — count as acknowledgement
-                                    unacked = max(0, unacked - 1)
-                                    log.debug('TCP: ACK received (seq=$%02X), unacked=%d', seq, unacked)
+                                    log.debug('TCP: ignoring non-ACK packet tok=$%02X during linking', tok)
                             
-                            if send_idx % 512 == 0:
+                            if send_idx % 512 == 0 and send_idx > 0:
                                 log.info('TCP: linking progress %d/%d bytes', send_idx, len(linking))
                         
-                        log.info('TCP: linking data sent! %d bytes in %d packets',
-                                 len(linking), len(linking) // CHUNK_SIZE)
+                        if linking_complete:
+                            log.info('TCP: linking complete! %d bytes sent', len(linking))
+                        else:
+                            log.warning('TCP: linking FAILED at byte %d/%d', send_idx, len(linking))
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it

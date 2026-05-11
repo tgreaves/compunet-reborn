@@ -227,8 +227,13 @@ patch(0x8070, [
     0x8D, 0x2A, 0xC2,    # STA $C22A (clear seq 2)
     0x8D, 0x2B, 0xC2,    # STA $C22B (clear seq 3)
     0x8D, 0x09, 0xC2,    # STA $C209 (reset slot index to 0)
-    0xA9, 0x01,           # LDA #$01 (DTR on, RX IRQ disabled)
-    0x8D, 0x02, 0xDE,    # STA $DE02 (disable RX IRQ but keep DTR)
+    0xA9, 0x06,           # LDA #$06
+    0x8D, 0x03, 0xC2,    # STA $C203 (packet header length = 6)
+    0xA9, 0x20,           # LDA #$20
+    0x8D, 0x04, 0xC2,    # STA $C204 (ACK token)
+    0x8D, 0x05, 0xC2,    # STA $C205 (fixed byte $20)
+    0xA9, 0x01,           # LDA #$01
+    0x8D, 0x02, 0xDE,    # STA $DE02 (disable RX IRQ, keep DTR)
     0xA9, 0x09,           # LDA #$09 (DTR on, RX IRQ enabled)
     0x8D, 0x02, 0xDE,    # STA $DE02 (re-arm NMI edge detection)
     0x60,                 # RTS
