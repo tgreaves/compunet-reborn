@@ -746,10 +746,10 @@ async def tcp_handler(reader, writer):
                 
                 # ROM COM packets use token $43 ('C')
                 if token == 0x43 and len(payload) > 1:
-                    # payload[0] = flags/length byte ($FF)
-                    # payload[1] = command byte (Z=$5A, etc.)
-                    cmd_byte = payload[1]
-                    cmd_payload = payload[1:]  # command + parameters
+                    # payload[0] = command byte (Z=$5A, etc.)
+                    # (flags byte $FF is now parsed as seq by the packet parser)
+                    cmd_byte = payload[0]
+                    cmd_payload = payload  # command + parameters
                     log.info('TCP: COM seq=$%02X cmd=$%02X (%s) data=%s',
                              seq, cmd_byte, chr(cmd_byte) if 32 <= cmd_byte < 127 else '?',
                              cmd_payload.hex())
@@ -797,9 +797,8 @@ async def tcp_handler(reader, writer):
                         
                         # Send initial DAT packet (consumed by PROTO_FLOW_CONTROL + FRAME_BUF_READ)
                         # First, ACK the login COM packet to stop retransmission.
-                        # The ROM's outgoing packet seq is stored in $C228[X].
-                        # From the parsed packet, byte 2 is the seq ($FF typically).
-                        login_seq = payload[0] if len(payload) > 0 else 0xFF  # flags byte = seq
+                        # The ROM's outgoing packet seq is parsed correctly now.
+                        login_seq = seq
                         ack_pkt = x25.make_ack(login_seq)
                         writer.write(ack_pkt)
                         await writer.drain()

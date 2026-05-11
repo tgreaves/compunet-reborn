@@ -238,27 +238,23 @@ class X25Connection:
                 continue
 
             # Parse packet content (between $01 and $02)
-            # Format: [seq] [token] [flags] [payload...] [crc_hi] [crc_lo]
-            # The sequence number is the FIRST byte (range $20-$5F)
-            # Token is the second byte ($43 = COM, "ACK" = ACK packet)
-            seq = raw_pkt[0]
+            # Format: [length] [token] [seq] [payload...] [crc_hi] [crc_lo]
+            pkt_len = raw_pkt[0]
             token = raw_pkt[1]
-            # Payload is everything between byte 2 and the last 2 CRC bytes
-            # But byte 2 might be flags/length - include it in payload for now
-            payload = raw_pkt[2:-2] if len(raw_pkt) > 4 else b''
+            seq = raw_pkt[2]
+            payload = raw_pkt[3:-2] if len(raw_pkt) > 5 else b''
             crc_hi_rx = raw_pkt[-2]
             crc_lo_rx = raw_pkt[-1]
 
-            # Verify CRC (ROM uses init $00/$00 over all bytes except CRC)
+            # Verify CRC (init $00/$00 over all bytes except CRC)
             crc_hi, crc_lo = crc_ccitt(raw_pkt[:-2], crc_hi=0x00, crc_lo=0x00)
             if crc_hi != crc_hi_rx or crc_lo != crc_lo_rx:
                 log.warning('X25 RX: CRC mismatch! expected=%02X%02X got=%02X%02X pkt=%s',
                             crc_hi, crc_lo, crc_hi_rx, crc_lo_rx, raw_pkt.hex())
-                # Continue anyway for now (CRC might be computed differently)
 
             token_name = TOKEN_NAMES.get(token, f'${token:02X}')
-            log.info('X25 RX: %s seq=$%02X payload=%d bytes [%s]',
-                     token_name, seq, len(payload), raw_pkt.hex())
+            log.info('X25 RX: %s seq=$%02X len=%d payload=%d bytes [%s]',
+                     token_name, seq, pkt_len, len(payload), raw_pkt.hex())
 
             packets.append((token, seq, payload))
 
