@@ -852,6 +852,7 @@ async def tcp_handler(reader, writer):
                                 await writer.drain()
                                 unacked += 1
                                 send_idx += CHUNK_SIZE
+                                await asyncio.sleep(0.1)  # 100ms between packets
                             
                             if send_idx >= len(linking) and unacked == 0:
                                 linking_complete = True
