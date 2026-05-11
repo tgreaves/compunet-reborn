@@ -801,7 +801,6 @@ async def tcp_handler(reader, writer):
                         await writer.drain()
                         log.info('TCP: sent initial DAT packet (for PROTO_FLOW_CONTROL) %d bytes: %s',
                                  len(initial_pkt), initial_pkt.hex())
-                        await asyncio.sleep(0.1)
                         
                         # Send first 4 bytes of linking stream:
                         #   [0] $00 = header (discarded)

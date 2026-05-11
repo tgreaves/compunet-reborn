@@ -46,6 +46,11 @@ patch(0x807B, ver)
 
 
 # ============================================================
+# 1b. ACIA RE-ARM TRAMPOLINE — applied later (after address patch at $8059)
+# See section 7b below.
+
+
+# ============================================================
 # 2. NMI HANDLER at $80BC (38 bytes, copied to $CF00 at runtime)
 # ============================================================
 patch(0x80BC, [
@@ -105,7 +110,7 @@ patch(0x8D4A, [0xEA] * 8)
 # ============================================================
 # 5. HARDWARE LAYER
 # ============================================================
-# $94E4: TX with delay
+# $94E4: TX with delay (no re-arm here — breaks PROTO_CONNECT)
 patch(0x94E4, [
     0x8D, 0x00, 0xDE, 0xA0, 0xFF, 0x88, 0xD0, 0xFD, 0x60, 0xEA, 0xEA, 0xEA,
 ])
@@ -195,21 +200,29 @@ patch(0x913C, [0x20])
 patch(0x9140, [0x7B])
 patch(0x8D79, [0x1E])
 
-# Default "phone number" (server address) at $8059
-# Original: "322500/100\rADP\rNO\rRUN\r"
-# New: "127.0.0.1:6400\rADP\rNO\rRUN\r"
-# Also update the length byte at $8051 to cover the full string.
-default_fields = b'127.0.0.1:6400\rADP\rNO\rRUN\r'
-patch(0x8059, list(default_fields))
-# Length at $8051: counts from $8052 to end of string (including "C CNET\r" prefix)
-# "C CNET\r" (7) + our fields (28) = 35. But original was 29 for "C CNET\r322500/100\rADP\rNO\r"
-# The ROM sends from $8052 for $8051 bytes. We need all fields included.
-# "C CNET\r" = 7 bytes (at $8052-$8058, unchanged)
-# + "127.0.0.1:6400\rADP\rNO\rRUN\r" = 28 bytes
-# Total = 35 bytes. But wait - does it include the trailing \r of RUN?
-# Let's just set it to cover everything up to and including the last \r.
-total_len = 7 + len(default_fields)  # "C CNET\r" + our fields
-patch(0x8051, [total_len])
+# Default address removed — user types it manually.
+# The original string at $8059 is left as-is (ROM doesn't auto-fill it).
+
+
+# ============================================================
+# 7b. ACIA RE-ARM TRAMPOLINE at $8070 (14 bytes)
+#
+# VICE's SwiftLink emulation loses NMI edge detection after TX writes.
+# This trampoline is called instead of $94C1 at $8EDE (login send).
+# After sending, it does a full ACIA reset ($00 disables NMI to prevent
+# spurious fire, then $09 re-enables cleanly).
+# ============================================================
+patch(0x8070, [
+    0x20, 0xC1, 0x94,    # JSR $94C1 (original login send)
+    0xA9, 0x00,           # LDA #$00
+    0x8D, 0x02, 0xDE,    # STA $DE02 (disable all — prevents spurious NMI)
+    0xA9, 0x09,           # LDA #$09 (DTR + RX IRQ enabled)
+    0x8D, 0x02, 0xDE,    # STA $DE02 (re-arm NMI edge detection)
+    0x60,                 # RTS
+])
+# Redirect login send at $8EDD to our trampoline
+# Original: $8EDD = 20 C1 94 (JSR $94C1), followed by $8EE0 = 20 D2 96 (JSR $96D2)
+patch(0x8EDD, [0x20, 0x70, 0x80])   # JSR $8070 (instead of JSR $94C1)
 
 
 # ============================================================

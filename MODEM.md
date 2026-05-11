@@ -169,71 +169,53 @@ Our code:   reads from software buffer via $94FA → never touches $DE00-$DE03
 Result:     no ACIA access → no socket poll → no byte delivered → no NMI → no ACIA access
 ```
 
-## Required Fix — Direct ACIA Approach
+## Required Fix — ACIA NMI Re-arm After Login TX
 
-The current NMI + ring buffer approach is fundamentally flawed because it bypasses
-the real ACIA registers, causing VICE's emulation to stop polling the ip232 socket.
+### Corrected Understanding
 
-### New Approach: Direct ACIA Access (No NMI, No Buffer)
+The direct ACIA approach (no NMI, no buffer) does NOT work. VICE's SwiftLink
+emulation delivers bytes exclusively via NMI — reading `$DE01` in a polling loop
+does not trigger byte delivery. The NMI handler and ring buffer are required.
 
-Instead of emulating the brick modem's register model, map the ROM's two operations
-directly to ACIA register reads:
+The NMI-based approach works correctly during PROTO_CONNECT (bytes arrive, NMIs
+fire, handler stores them). After PROTO_CONNECT, the login TX writes (27 bytes
+to `$DE00`) leave the ACIA's NMI edge detector in a stuck state. When the server
+later sends DAT packets, VICE receives them on the ip232 socket but the ACIA
+never fires an NMI to deliver them.
 
-**$94FA (register read handler):**
-- X=0 (status check): Read `$DE01` directly, remap bits to match what ROM expects
-- X=4 (data read): Read `$DE00` directly
-- Other X: Read `$DE01` or return safe default
+### Confirmed Fix
 
-**$94E4 (transmit):**
-- Write byte to `$DE00` (unchanged from current approach)
+Writing `$00` then `$09` to `$DE02` from the VICE monitor immediately re-arms
+the NMI mechanism. After this, bytes arrive and NMIs fire normally.
 
-**No NMI handler needed.** No ring buffer. No software pointers. Every call to
-`$94FA` touches the real ACIA, which keeps VICE polling the ip232 socket
-continuously. The deadlock is structurally impossible.
+### Implementation
 
-### Bit Remapping (Register 0)
+The 8-byte reset sequence must execute once, after the login TX completes:
+```
+LDA #$00
+STA $DE02       ; reset ACIA command register
+LDA #$09
+STA $DE02       ; re-enable DTR + RX IRQ (re-arms NMI edge)
+```
 
-The ROM expects these bits from "register 0":
-| Bit | ROM meaning |
-|-----|-------------|
-| 5   | Carrier/DCD (1=present) |
-| 6   | RX data available (1=byte ready) |
-| 7   | TX ready (1=can send) |
+This must be placed between `$8EDE` (JSR $94C1 — login send) and `$8EE1`
+(JSR $96D2 — PROTO_FLOW_CONTROL wait). Since there's no free space there,
+a trampoline is needed.
 
-The ACIA status register ($DE01) provides:
-| Bit | ACIA meaning |
-|-----|--------------|
-| 3   | RDRF — Receive Data Register Full |
-| 4   | TDRE — Transmit Data Register Empty |
-| 5   | DCD (inverted on some implementations) |
+### Trampoline Approach
 
-Remapping: read `$DE01`, then:
-- Bit 3 (RDRF) → Bit 6 (RX data available)
-- Bit 4 (TDRE) → Bit 7 (TX ready)
-- Bit 5 (DCD) → Bit 5 (carrier)
+Redirect `$8EDE` from `JSR $94C1` to `JSR <trampoline>` where the trampoline:
+1. Calls `$94C1` (original login send)
+2. Resets ACIA (`$00` → `$DE02`, `$09` → `$DE02`)
+3. Returns (RTS)
 
-This can be done with shifts and masks in ~12 bytes of 6502 code.
+Total trampoline size: 13 bytes (3 + 5 + 5 + 1... wait: `JSR $94C1` = 3,
+`LDA #$00` = 2, `STA $DE02` = 3, `LDA #$09` = 2, `STA $DE02` = 3, `RTS` = 1
+= 14 bytes).
 
-### Safety: What If Register 4 Is Read With No Data?
+### Available Space
 
-The ROM's `$9D54` handler checks register 0 bit 6 first. If no data, it returns
-without reading register 4. The $9FC8 handler (during PROTO_CONNECT) also checks
-bit 6 before reading. So register 4 is never read when the ACIA has no data.
-
-If it ever IS read with no data (defensive case), `$DE00` returns the last byte
-read — harmless since the caller would have checked status first.
-
-### What This Eliminates
-- NMI handler at $CF00 (38 bytes)
-- ACIA init continuation at $80E2 (28 bytes)
-- Ring buffer at $CE00
-- Buffer pointers at $029B/$029C
-- NMI vector setup ($0318/$0319)
-- The entire deadlock problem
-
-### What Stays The Same
-- TX handler at $94E4 (write to $DE00)
-- Register write filter at $94F0 (only allow register 4 = TX)
-- Dial sequence at $8DA6 (Hayes ATDT)
-- MODEM_CHECK at $8D30 (but simplified — just init ACIA, no NMI setup)
-- The X.25 protocol engine (completely untouched)
+The dial sequence at $8DA6 currently uses ~77 bytes with ~13 bytes of NOP padding
+before the 90-byte limit. The trampoline can be placed in this padding area.
+The dial sequence code only runs once (during connection), so the trampoline
+at the end of it is safe to call later from $8EDE.
