@@ -162,22 +162,25 @@ The patch modifies these routines in the 8K ROM at $8000-$9FFF:
 - ✅ EDITOR command works (no modem needed)
 - ✅ CONNECT reaches the "Number?" prompt
 - ✅ Input accepts full stops, colons, and letters (for IP addresses/hostnames)
-- ✅ Input length correct (no off-by-one)
 - ✅ ACIA TX works — `ATDT<address>\r` transmitted correctly via IP232
 - ✅ tcpser dials through to server
 - ✅ "Connecting..." message appears
-- ✅ Login screen ("COMPUNET SYSTEM LOGON") displays
-- ✅ User can type ID and password
-- ✅ Login credentials transmit to server via raw ACIA (through $94C1)
-- ✅ Server authenticates correctly (verified TEST/TEST works)
-- ✅ Server sends 7707 bytes of linking data (cnet.prg minus PRG header)
+- ✅ NMI-driven ring buffer receive working (CCGMS-style disable/re-enable RX IRQ)
+- ✅ IRQ handler at $9FC8 reads bytes from buffer correctly
+- ✅ tcpser break delay handled (register 3 writes filtered, no bytes during delay)
+- ✅ Server byte-by-byte sending works through tcpser
+- ✅ PROTO_CONNECT handshake: server sends 12 spaces, ROM's 10-byte loop exits
+- ✅ ROM sends CNET identification ("C CNET\r...\rADP\rNO\rRUN\r")
+- ✅ Server receives identification and responds with `*CON\r`
+- ✅ `*CON` appears on C64 screen (bytes received and printed via CHROUT)
 
 ### Blocked
-- ❌ **ROM never receives the server's linking response** — stuck on "PLEASE WAIT"
-  - Server sends 7707 bytes → tcpser logs show "Read N bytes from socket"
-  - But bytes never reach VICE's ACIA
-  - "LINKING" never appears, border never turns red
-  - Same tcpser + VICE setup works fine for CCGMS, so the data path CAN work
+- ❌ **PROTO_CONNECT negotiation not completing** — `*CON` signal received and printed
+  but the match check at $9F79 fails due to buffer contamination
+  - The ROM's own identification bytes (sent via X.25 packets) may be interfering
+    with the receive buffer at $0200
+  - The `*` character resets the buffer, but other bytes arrive between `*` and `CON\r`
+  - Next step: debug the exact buffer contents at the match check point ($9F79)
 
 ## The Server→ROM Receive Mystery
 
@@ -210,6 +213,160 @@ is not delivering bytes, yet the exact same tcpser + VICE setup works for CCGMS.
 3. **Interrupt handling** — with IRQ=NMI, VICE may only deliver bytes via the NMI vector,
    not by updating $DE01 bit 0. Our polling approach may fundamentally not work without
    setting up an NMI handler.
+
+## CCGMS Source Code Analysis
+
+Source: https://github.com/mist64/ccgmsterm (SwiftLink driver in
+`rs232lib/rs232_swiftlink.s`). A copy is in `3rd-party/ccgmsterm-main/`.
+
+### Root Cause Identified: NMI-driven receive, not polling
+
+**CCGMS never polls RDRF.** It uses an NMI-driven interrupt handler to receive
+bytes. This confirms hypothesis #3 above — with VICE configured for IRQ=NMI,
+the emulated 6551 delivers received data by firing an NMI. Polling the status
+register does not work.
+
+### How CCGMS receives data (SwiftLink mode)
+
+1. **NMI handler installed** at `$0318/$0319` (KERNAL NMINV vector)
+2. When a byte arrives, the 6551 fires an NMI
+3. The NMI handler (`nmisw`) reads the byte from `$DE00` (data register)
+4. The byte is stored in a 256-byte ring buffer at `$CE00` (`ribuf`)
+5. A head/tail pointer pair tracks buffer state (`rtail`/`rhead` at `$029B`/`$029C`)
+6. Application code calls `sw_getxfer` which reads from the ring buffer — never
+   touches the ACIA directly for receive
+
+### CCGMS NMI handler (annotated)
+
+```
+nmisw:
+    PHA / TXA / PHA / TYA / PHA     ; save registers
+    LDA $DE01                        ; read ACIA status
+    AND #%00001000                   ; check bit 3 (TX interrupt flag)
+    BNE sm2                          ; if set, this is a real RX interrupt
+    SEC                              ; otherwise, not ours — set carry
+    BCS recch1                       ; and exit
+
+sm2:
+    LDA $DE02                        ; read command register
+    ORA #%00000010                   ; disable RX interrupt (bit 1 = 1)
+    STA $DE02                        ; write back
+    LDA $DE00                        ; read received byte
+    LDX rtail                        ; get buffer write pointer
+    STA ribuf,X                      ; store byte in ring buffer
+    INC rtail                        ; advance write pointer (wraps at 256)
+    INC rfree                        ; increment byte count
+    LDA rfree
+    CMP #200                         ; buffer getting full?
+    BCC :+
+    LDX #1                           ; yes — assert RTS to pause sender
+    STX paused
+    JSR flow                         ; toggle RTS via command register
+:
+    LDA $DE02                        ; read command register
+    AND #%11111101                   ; re-enable RX interrupt (bit 1 = 0)
+    STA $DE02                        ; write back
+
+recch1:
+    PLA / TAY / PLA / TAX / PLA      ; restore registers
+    JMP rs232_rti                    ; return from interrupt
+```
+
+### CCGMS ACIA initialisation
+
+```
+Command register ($DE02) = %00001001 = $09
+    Bit 0   = 1: DTR active (low)
+    Bit 1   = 0: RX interrupt ENABLED ← critical
+    Bits 2-3 = 10: TX interrupt disabled, RTS low
+    Bit 4   = 0: normal (no echo)
+    Bits 5-7 = 000: no parity
+
+Control register ($DE03) = %00010000 | baud_bits
+    Bit 4   = 1: internal baud rate generator
+    Bits 5-6 = 00: 8-bit word length
+    Bit 7   = 0: 1 stop bit
+    Bits 0-3 = baud rate (e.g. $17 for 1200 via SwiftLink 2x divider)
+```
+
+### CCGMS application-level receive (`sw_getxfer`)
+
+```
+sw_getxfer:
+    LDX rhead              ; buffer read pointer
+    CPX rtail              ; compare with write pointer
+    BEQ @empty             ; if equal, buffer empty — return with C set
+    LDA ribuf,X            ; read byte from buffer
+    PHA
+    INC rhead              ; advance read pointer
+    DEC rfree              ; decrement byte count
+    LDX paused             ; were we paused (RTS high)?
+    BEQ :+
+    LDA rfree
+    CMP #50                ; buffer drained enough?
+    BCS :+
+    LDX #0                 ; yes — de-assert RTS to resume sender
+    STX paused
+    JSR flow
+:   CLC                    ; carry clear = byte available
+    PLA
+@empty:
+    RTS                    ; carry set = no data
+```
+
+### CCGMS RAM NMI vector setup
+
+CCGMS patches the RAM-under-ROM NMI vector at `$FFFA/$FFFB` to point to a
+trampoline (`ramnmi`) that banks in RAM and jumps through `$0318/$0319`:
+
+```
+setup_ram_irq_nmi:
+    LDA #<ramnmi
+    STA $FFFA          ; NMI vector (RAM under KERNAL ROM)
+    LDA #>ramnmi
+    STA $FFFB
+    ...
+
+ramnmi:
+    INC $01            ; bank in RAM (hide I/O? or KERNAL?)
+    DEC ram_flag       ; mark we're in RAM mode
+    JMP ($0318)        ; jump to actual NMI handler (nmisw)
+```
+
+The `rs232_rti` routine restores `$01` and does RTI.
+
+### Comparison with our ROM patch
+
+| Aspect | Our ROM (broken) | CCGMS (working) |
+|--------|-----------------|-----------------|
+| RX method | Poll RDRF (bit 0 of $DE01) | NMI interrupt handler |
+| NMI vector | Not set up | Custom handler at $0318/$0319 |
+| Buffer | None — direct read from $DE00 | 256-byte ring buffer at $CE00 |
+| Flow control | None | RTS toggled via command register |
+| $DE02 init | $09 (RX IRQ enabled) | $09 (same) |
+| $DE03 init | $1F (19200 baud) | $10 + baud bits |
+
+**The init values match** — our $09 in the command register does enable the
+RX interrupt (bit 1 = 0). But we never installed an NMI handler to service
+it. VICE's emulated 6551 fires the NMI, the default KERNAL NMI handler runs
+(which does nothing useful with ACIA data), and the byte is lost.
+
+### What needs to change
+
+1. **Install an NMI handler** that reads bytes from `$DE00` into a ring buffer
+2. **Set up the NMI vector** at `$0318/$0319` (or patch `$FFFA/$FFFB` in RAM)
+3. **Rewrite RECV_BYTE** ($8E07) to read from the ring buffer instead of
+   polling the ACIA status register
+4. Optionally implement RTS flow control (may not be needed at 1200 baud)
+
+### RAM locations available for the NMI handler
+
+The ring buffer can go at `$CE00` (same as CCGMS — 256 bytes, not used by
+the Compunet ROM or terminal software). Head/tail pointers can use the
+KERNAL RS-232 locations at `$029B`/`$029C` (same as CCGMS).
+
+The NMI handler code (~40 bytes) can be placed in the protocol workspace
+area or in the gap between the BASIC stub and the ROM code.
 
 ## Known-good configuration (verified with CCGMS)
 
@@ -250,6 +407,7 @@ is not delivering bytes, yet the exact same tcpser + VICE setup works for CCGMS.
 - `tcp_sniffer.py` — TCP listener that logs all bytes (for debugging VICE→tcpser)
 - `check_input.py` — Helper to disassemble ROM input handling routines
 - `logs/tcpser-known-good-with-ccgms.log` — Reference log of working data flow
+- `3rd-party/ccgmsterm-main/` — CCGMS Future source (reference for SwiftLink driver)
 
 Everything above the modem layer (X.25 protocol, terminal software,
 duckshoot, frame rendering) remains unchanged — only the ACIA access

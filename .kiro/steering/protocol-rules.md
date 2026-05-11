@@ -1,6 +1,10 @@
 # Protocol Rules
 
-Under no circumstances should the underlying X.25 protocol be changed. The protocol command set, packet format, framing, and command bytes are fixed as documented in PROTOCOL.md and derived from the original Compunet ROM disassembly. Do not invent new protocol commands or alter existing ones.
+The original X.25-derived packet protocol is preserved on the wire. The ROM's protocol engine ($96C0-$9BFF) handles framing, CRC, sequencing, and flow control unchanged. The server implements the same protocol over TCP — TCP provides the reliable transport that the phone line couldn't, while the X.25 framing provides packet boundaries and sequencing that the ROM expects.
+
+Only the hardware layer ($94E4/$94F0/$94FA) is replaced: the original Compunet modem registers are swapped for 6551 ACIA (SwiftLink) equivalents with NMI-driven receive.
+
+The application-layer protocol (command bytes, response types, directory format, frame format, linking sequence) must be preserved exactly as documented in PROTOCOL.md. Do not invent new application-layer commands or alter existing response formats.
 
 # Behaviour Rules
 

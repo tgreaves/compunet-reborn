@@ -544,6 +544,91 @@ The protocol layer uses these routines to send structured data:
 This "send space, wait for space" handshake confirms the connection is
 bidirectional before proceeding with the login sequence.
 
+### PROTO_CONNECT Session Establishment ($9E69)
+
+After carrier detect, PROTO_CONNECT performs a full session establishment
+with the server. This is a multi-phase exchange of raw bytes (NOT X.25
+framed packets). The protocol engine's IRQ handler at $9FC8 receives
+bytes and stores them at $C234+.
+
+#### Phase 1: Initial Byte Exchange
+
+The ROM installs an IRQ handler at $9FC8 (via vector $0314/$0315) that:
+1. Reads modem register 0 — checks bit 6 for data available
+2. If data available, reads register 4 (data byte)
+3. Stores byte at $C234+counter, increments counter ($20 zero page)
+
+A loop at $9ED6 waits until 10+ bytes are received (counter >= $0A).
+The server must send at least 10 bytes to satisfy this.
+
+#### Phase 2: Identification Exchange
+
+After the 10-byte threshold, the ROM enters a send/receive loop at $9EE3:
+
+**ROM sends** (from table at $8052, one byte per iteration with delay):
+```
+C CNET\r<phone_number>\r<network>\r<options>\r<command>\r
+```
+
+Example: `"C CNET\r322500/100\rADP\rNO\rRUN\r"`
+
+Fields (CR-separated):
+| Field | Example | Meaning |
+|-------|---------|---------|
+| Command + Network | `C CNET` | Connect to CNET network |
+| Address | `322500/100` | Phone number / server address |
+| Network | `ADP` | Network provider (PAD name) |
+| Options | `NO` | No reverse charging / no special options |
+| Action | `RUN` | Execute connection |
+
+The length of this string is stored at $8051 (byte count from $8052).
+
+**The ROM sends this identification string repeatedly** in a continuous loop,
+wrapped in X.25 packet framing ($01 header $02), until it receives the `*CON`
+connection signal from the server. On the original system, this was the client
+repeatedly calling the mainframe through the X.25 PAD network — the server
+(mainframe) would answer when ready by sending `*CON\r`.
+
+If no `*CON` response is received within the timeout period, the ROM displays
+"DISCONNECTED - BAD LINE?" and returns to BASIC. This indicates the mainframe
+did not answer the call.
+
+The server will see these identification packets arriving every few seconds
+(the ROM's send loop includes a delay via $9FBC between iterations). The
+server should respond with `*CON\r` as soon as it is ready to accept the
+connection.
+
+**Server must respond with:**
+```
+*CON\r
+```
+
+- `*CON\r` ($2A $43 $4F $4E $0D) — The connection confirmation signal
+
+The `*` character ($2A) has special handling in the ROM:
+1. Resets the input buffer index ($C201) to 0
+2. Sets $C200 bit 7 (connection established flag)
+3. Stores `*` at $0200[0]
+
+Subsequent characters (`C`, `O`, `N`) are stored at $0200[1], [2], [3].
+When CR ($0D) is received, the ROM compares $0200[0-3] with the expected
+string at $804D (`*CON`). On match, PROTO_CONNECT returns with CLC (success).
+
+#### Phase 3: Return
+
+On successful match, PROTO_CONNECT:
+1. Clears $C200 and $C201 (resets for next phase)
+2. Returns CLC (carry clear = success)
+
+The caller at $8E17 then proceeds to display the login screen.
+
+#### Timing Requirements
+
+- Server must send initial bytes AFTER tcpser's break delay expires (~1 second)
+- Bytes must be sent individually (not as a burst) for tcpser compatibility
+- The ROM sends its identification continuously until it receives `?*CON\r`
+- Total handshake time: ~3-5 seconds typical
+
 ## Application-Layer Protocol
 
 The terminal software (terminal_app) communicates with the server using a

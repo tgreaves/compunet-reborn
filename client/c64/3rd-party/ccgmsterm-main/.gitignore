@@ -1,0 +1,8 @@
+*.o
+*.map
+*.sym
+*.prg
+*.d64
+build
+test/slowout
+test/xmodem

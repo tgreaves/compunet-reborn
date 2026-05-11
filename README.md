@@ -130,8 +130,9 @@ Recreate the Compunet protocol on modern infrastructure so that original C64 cli
 - **Terminal app disassembly**: Complete. Command dispatch, protocol calls, and directory navigation traced.
 - **Frame format**: Fully reverse-engineered and implemented. SEQ files render correctly.
 - **Web client**: Working. BASIC prompt, EDITOR with GET/EDIT/frame navigation, CONNECT with login, directory browsing with highlight bar and column toggle (F7/F8), GOTO page navigation, SHOW with multi-page MORE/FINISH, authentic HELP screen extracted from original cnet.prg.
-- **Server**: Working. Login with hashed passwords, welcome frame, directory tree from JSON metadata, structured directory data, SHOW with multi-page support, GOTO, BACK, ACCNT, MAIL commands.
-- **Protocol**: Binary protocol over WebSocket (web) and TCP (C64). Same command bytes and response format on both transports. No protocol modifications — all commands match the original disassembly.
+- **Server**: Working. Login with hashed passwords, welcome frame, directory tree from JSON metadata, structured directory data, SHOW with multi-page support, GOTO, BACK, ACCNT, MAIL commands. TCP interface with X.25 session establishment (handshake + CNET identification + `*CON` signal).
+- **Protocol**: Binary protocol over WebSocket (web) and TCP (C64). PROTO_CONNECT session establishment reverse-engineered and partially implemented. X.25 packet framing preserved in ROM.
+- **C64 Client**: NMI-driven ACIA receive working. Protocol engine intact. PROTO_CONNECT handshake reaches `*CON` signal stage. Login screen not yet displayed (buffer match issue under investigation).
 
 ## Next Steps
 
