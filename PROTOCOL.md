@@ -341,24 +341,67 @@ the packet is valid (zero-residual property of CRC-CCITT).
 ### Packet Wire Format (Confirmed)
 
 ```
-$01 [length] [token] [seq] [payload...] [CRC_hi] [CRC_lo] $02
+$01 [escaped content bytes] $02
 ```
+
+The content between markers is byte-stuffed: any occurrence of $01, $02, or $03
+in the raw content is escaped before transmission.
+
+#### Byte Stuffing (from ROM at $9926)
+
+The protocol reserves $01 (start), $02 (end), and $03 (escape prefix) as
+framing bytes. Any data byte with value $01-$03 is escaped on the wire:
+
+| Raw byte | Wire encoding | Description |
+|----------|---------------|-------------|
+| $00      | $00           | Sent as-is (special case) |
+| $01      | $03 $21       | Escaped (start marker) |
+| $02      | $03 $22       | Escaped (end marker) |
+| $03      | $03 $23       | Escaped (escape prefix itself) |
+| $04+     | as-is         | Sent directly |
+
+The ROM's send routine at $9926:
+```
+    CMP #$00        ; is byte $00?
+    BEQ send_raw    ; yes → send directly
+    CMP #$04        ; is byte < $04?
+    BCS send_raw    ; no (>= $04) → send directly
+    ADC #$20        ; escape: add $20 to byte ($01→$21, $02→$22, $03→$23)
+    PHA
+    LDA #$03        ; send escape prefix first
+    JSR MODEM_TX
+    PLA             ; then send escaped byte
+    JMP MODEM_TX
+send_raw:
+    JMP MODEM_TX    ; send byte directly
+```
+
+The receiver at $9D54 has corresponding de-escaping: when it sees $03, it reads
+the next byte and subtracts $20 to recover the original value.
+
+**Critical**: Byte stuffing applies to ALL bytes between $01 and $02, including
+the length byte, token, sequence number, payload, AND CRC bytes. If a CRC byte
+happens to be $01 or $02, it MUST be escaped or the receiver will interpret it
+as a framing marker and truncate the packet.
+
+**Note**: The length byte in the packet header counts the UNESCAPED content size
+(before byte stuffing). The receiver counts unescaped bytes for the length check.
+
+#### Raw Packet Content (before byte stuffing)
 
 | Field | Size | Description |
 |-------|------|-------------|
-| $01 | 1 | Start marker |
-| length | 1 | Total byte count between $01 and $02 (inclusive of itself) |
+| length | 1 | Total UNESCAPED byte count between $01 and $02 (inclusive of itself) |
 | token | 1 | Command token ($20-$26) |
-| seq | 1 | Sequence number ($20-$5F range, or $FF for first packet) |
+| seq | 1 | Sequence number ($20-$5F range) |
 | payload | N | Data bytes (0 or more) |
 | CRC_hi | 1 | CRC-CCITT high byte |
 | CRC_lo | 1 | CRC-CCITT low byte |
-| $02 | 1 | End marker |
 
-The length byte must equal the actual number of bytes stored between markers.
-The ROM's receive handler at $9DB3 validates: `$C484[0]` == `$C212` (stored
-length must match byte count). Mismatch → error code $8E displayed as "N" on
-the status bar's last column.
+The length byte must equal the actual number of bytes stored between markers
+(after de-escaping). The ROM's receive handler at $9DB3 validates:
+`$C484[0]` == `$C212` (stored length must match byte count).
+Mismatch → error code $8E displayed as "N" on the status bar's last column.
 
 ### Login Response and Linking Phase
 

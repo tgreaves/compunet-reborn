@@ -215,3 +215,20 @@ the ROM's own login packet arrives back as a "received" packet. The ROM's
 protocol engine processes it and stores it in a slot buffer. This is harmless
 as long as `$C20F` is properly initialised — the echo packet's sequence number
 won't match the expected window and will be ignored by the flow control logic.
+
+### Byte Stuffing
+The X.25 protocol uses byte stuffing for framing. Bytes $01 (start marker),
+$02 (end marker), and $03 (escape prefix) cannot appear raw in the data stream.
+They must be escaped as $03 followed by (byte + $20):
+
+- $01 → $03 $21
+- $02 → $03 $22  
+- $03 → $03 $23
+
+This applies to ALL bytes between the $01 and $02 markers, including CRC bytes.
+If the server sends a packet whose CRC contains $02, the ROM's receiver will
+interpret it as an end-of-packet marker and truncate the packet, causing a
+length mismatch ("N" error on the status bar).
+
+The server must apply byte stuffing after computing the CRC and before framing
+with $01/$02 markers. The receiver de-escapes before CRC verification.
