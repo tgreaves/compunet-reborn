@@ -1,11 +1,13 @@
-# Compunet Modem vs 6551 ACIA — Hardware Comparison
+# Compunet Modem vs 6551 ACIA — Hardware Layer
 
 ## Overview
 
 The Compunet ROM was designed for a custom modem ("the brick") with a register-select
-architecture accessed via $DE00/$DE01. We are replacing this with a 6551 ACIA
-(SwiftLink) at $DE00-$DE03, connected to a TCP server via tcpser and VICE's ip232
-emulation.
+architecture accessed via $DE00/$DE01. We replace this with a 6551 ACIA (SwiftLink)
+at $DE00-$DE03, connected to a TCP server via tcpser and VICE's ip232 emulation.
+
+All communication uses **polling** (like CCGMS) — the NMI handler stores incoming
+bytes in a ring buffer, and the main code polls the buffer to assemble packets.
 
 ## Original Compunet Modem
 
@@ -21,14 +23,7 @@ emulation.
 | 4   | Write | Transmit data byte |
 | 8   | Read  | Receive status: bit 4=ring/dial, bit 6=data ready |
 
-### Behaviour
-- **Single-byte access**: only one byte at a time in the modem's data register
-- **Polling-based**: the ROM polls register 0/8 to check for data, then reads register 4
-- **No interrupts from modem**: the modem does NOT generate NMI/IRQ. All receive is polled.
-- **Exclusive access**: whoever reads register 4 gets the byte. It's consumed. No buffering.
-- **TX is blocking**: write to register 4, byte is sent. ROM waits for TX ready (bit 7) before next write.
-
-### ROM's Receive Model
+### ROM's Receive Model (Original)
 1. IRQ handler at $9C63 fires on CIA timer (~60Hz)
 2. Calls $9D00 → $9D54 which polls register 0 (bit 6 = data available)
 3. If data available: reads register 4, feeds byte into X.25 packet state machine
@@ -36,29 +31,16 @@ emulation.
 5. Complete packets stored in 4-slot buffer ($C22C[0-3])
 6. Main code ($9A17) checks slots for complete packets
 
-### Key Property
-The modem holds exactly one byte until read. There is no race condition because
-there's only one consumer. The IRQ-driven $9D54 is the sole reader during the
-X.25 phase.
+### Why IRQ-Driven Assembly Breaks with ACIA
 
-**Why the ROM uses IRQ-driven packet assembly**: Because the brick modem has no
-buffer, the ROM MUST read each byte before the next one arrives (~833μs at 1200
-baud). The CIA timer IRQ fires at ~60Hz (every ~16ms) and calls $9D54 to read
-one byte from the modem. Packet assembly happens one byte per IRQ tick across
-many ticks. The main code checks the 4-slot buffer between IRQ ticks and has
-plenty of time to find completed packets.
+The brick modem holds exactly one byte until read. At 1200 baud, bytes arrive
+every ~833μs. The 60Hz IRQ reads one byte per tick — plenty of time.
 
-**Why this breaks with ACIA + NMI buffer**: The NMI handler stores ALL incoming
-bytes in a ring buffer instantly (TCP delivers them as a burst). When the IRQ
-fires and calls $9D54, it reads ALL buffered bytes in one tick — assembling a
-complete packet, storing it in a slot, and potentially filling all 4 slots before
-the main code gets a single CPU cycle. The main code's $9A17 loop finds slots
-already processed and cleared, or all slots full (triggering protocol reset).
-
-**The fix**: Replace the IRQ-driven packet assembly with direct polling from the
-main code. The NMI handler stores bytes (like CCGMS). The main code reads from
-the buffer and assembles packets inline — no IRQ involvement, no slot race.
-This matches how CCGMS handles bulk data transfer (XMODEM etc.).
+With ACIA + NMI buffer, TCP delivers data in bursts. The NMI handler stores ALL
+bytes instantly. When the IRQ fires and calls $9D54, it reads ALL buffered bytes
+in one tick — assembling complete packets, filling all 4 slots before the main
+code gets a CPU cycle. The main code finds slots already processed/cleared, or
+all slots full (triggering protocol reset). **Deadlock.**
 
 ## 6551 ACIA (SwiftLink)
 
@@ -71,183 +53,248 @@ This matches how CCGMS handles bulk data transfer (XMODEM etc.).
 ### Key Status Bits ($DE01)
 | Bit | Meaning |
 |-----|---------|
-| 0   | Parity error |
-| 1   | Framing error |
-| 2   | Overrun |
-| 3   | **Receive Data Register Full (RDRF)** |
+| 3   | Receive Data Register Full (RDRF) |
 | 4   | Transmit Data Register Empty (TDRE) |
 | 5   | DCD (carrier) |
-| 6   | DSR |
 | 7   | IRQ occurred |
 
 ### Key Command Bits ($DE02)
 | Bit | Meaning |
 |-----|---------|
-| 0   | DTR control |
-| 1   | **RX IRQ disable** (0=enabled, 1=disabled) |
+| 0   | DTR control (1=active) |
+| 1   | RX IRQ disable (0=NMI enabled, 1=disabled) |
 | 2-3 | TX IRQ control |
-| 4   | Echo mode |
-| 5-7 | Parity |
-
-### NMI-Driven Receive
-The 6551 generates an NMI when a byte is received (if RX IRQ enabled in $DE02).
-The NMI handler must:
-1. Read $DE01 (acknowledges interrupt, clears IRQ flag)
-2. Read $DE00 (gets the received byte, clears RDRF)
-3. Store byte in a software ring buffer
 
 ### VICE's SwiftLink Emulation
-VICE emulates the 6551 connected via ip232 (TCP socket to tcpser). Key behaviours:
-- NMI is edge-triggered: fires once per received byte
-- Reading $DE01 clears the IRQ flag
-- Reading $DE00 clears RDRF and allows next NMI
-- **VICE only checks the ip232 socket for new data when the emulated CPU accesses
-  ACIA registers ($DE00-$DE03)**. This is the critical difference from real hardware.
+VICE emulates the 6551 connected via ip232 (TCP socket to tcpser). Critical
+behaviour: **VICE only checks the ip232 socket for new data when the emulated
+CPU accesses ACIA registers ($DE00-$DE03)**. This means the NMI handler's reads
+of $DE01/$DE00 are what keep the receive cycle alive.
 
-## Our Current Patch Approach
+## Working Implementation — Polling-Based ACIA Driver
 
-### NMI Handler (at $CF00, installed from $80BC)
-```
-PHA / TXA / PHA
-LDA $DE01           ; acknowledge interrupt
-LDA $DE02
-ORA #$02            ; disable RX IRQ
-STA $DE02
-LDA $DE00           ; read received byte
-LDX $029B           ; tail pointer
-STA $CE00,X         ; store in ring buffer
-INC $029B           ; advance tail
-LDA $DE02
-AND #$FD            ; re-enable RX IRQ
-STA $DE02
-PLA / TAX / PLA / RTI
-```
-
-### Register Read Handler (at $8E00, jumped from $94FA)
-Intercepts the ROM's register reads and returns data from the ring buffer:
-- **X=0 (register 0)**: checks buffer pointers, returns $E0 (data) or $A0 (empty)
-- **X=8 (register 8)**: same check, returns $40 or $00
-- **X=4 (register 4)**: reads next byte from ring buffer, advances head pointer
-- **Other X**: reads from ring buffer (non-blocking)
-
-### TX Handler (at $94E4)
-```
-STA $DE00           ; write byte to ACIA TX
-LDY #$FF            ; delay loop
-DEY
-BNE *-1
-RTS
-```
-
-## The Problem
-
-### Symptom
-After the login packet is sent, the ACIA stops generating NMIs for received data.
-The server sends DAT packets, tcpser forwards them to the ip232 socket, but VICE
-never delivers them to the emulated ACIA.
-
-### Root Cause (confirmed by debugging)
-VICE's SwiftLink emulation only checks the ip232 TCP socket for incoming data when
-the emulated CPU accesses the ACIA registers ($DE00-$DE03). Our register read
-handler at $8E00 intercepts all calls to `$94FA` (the ROM's modem register read
-routine) and returns data from a software ring buffer — **without ever touching
-the real ACIA registers**. VICE therefore never polls the ip232 socket, and
-incoming bytes pile up in the TCP buffer undelivered.
-
-### Evidence
-1. During PROTO_CONNECT: the $9FC8 IRQ handler reads register 0 and 4 via `$94FA`,
-   which our handler intercepts. BUT the NMI handler at $CF00 reads `$DE01` and
-   `$DE00` directly — these real ACIA accesses trigger VICE to poll the socket.
-   As long as NMIs are firing, VICE keeps polling. This is a self-sustaining cycle.
-2. After login send: the last NMI fires for the last byte received during
-   PROTO_CONNECT. After that, no more NMIs fire. With no NMIs firing, nobody
-   reads `$DE01`/`$DE00`. VICE stops polling the ip232 socket. New bytes from
-   tcpser sit in the TCP buffer. No NMI fires. Deadlock.
-3. The IRQ handler at $9C63 calls $9D54 which calls `$94FA` with X=0 — our
-   handler returns buffer status WITHOUT reading `$DE01`. VICE is never poked.
-4. Manual access to any ACIA register from the VICE monitor (`>de02 00` / `>de02 09`)
-   triggers VICE to check the socket. Bytes arrive, NMI fires, cycle restarts.
-
-### Why CCGMS Doesn't Have This Problem
-CCGMS reads `$DE01` (the real ACIA status register) directly in its main polling
-loop — constantly, on every iteration. Each read of `$DE01` triggers VICE to check
-the ip232 socket for new data. If a byte has arrived, VICE sets bit 3 (RDRF) and
-fires an NMI. The NMI handler reads `$DE01` and `$DE00`, which triggers another
-socket check. The cycle is self-sustaining because CCGMS never stops accessing
-the real ACIA registers.
-
-In our case, the ROM's protocol engine polls via `$94FA` which our handler
-intercepts. The real ACIA is never accessed during the X.25 phase. VICE's
-emulation goes dormant.
-
-### The Deadlock
-```
-VICE needs: CPU access to $DE00-$DE03 → triggers ip232 socket poll
-NMI needs:  VICE to deliver a byte → fires NMI → handler reads $DE01/$DE00
-Our code:   reads from software buffer via $94FA → never touches $DE00-$DE03
-Result:     no ACIA access → no socket poll → no byte delivered → no NMI → no ACIA access
-```
-
-## Required Fix — ACIA NMI Re-arm After Login TX (IMPLEMENTED)
-
-### Problem
-VICE's SwiftLink emulation loses NMI edge detection after TX writes to $DE00.
-After the 27-byte login packet is transmitted, the ACIA stops generating NMIs
-for subsequently received data.
-
-### Solution (Working)
-A wrapper routine at $8070 replaces the direct `JSR $94C1` at $8EDD:
+### Design (Like CCGMS)
 
 ```
-$8070:  LDA #$20
-        STA $C20F       ; init expected receive sequence
-        STA $C20E       ; init transmit sequence
-        JSR $94C1       ; original login send (27 bytes)
-        LDA #$01
-        STA $DE02       ; disable RX IRQ (keep DTR high!)
-        LDA #$09
-        STA $DE02       ; re-enable RX IRQ (re-arms NMI edge)
-        RTS
+NMI fires → handler reads $DE01/$DE00 → byte stored in ring buffer ($CE00)
+Main code polls ring buffer → assembles X.25 packets → delivers payload bytes
 ```
 
-Key details:
-- `$C20E/$C20F` must be initialised to $20 BEFORE the send, because tcpser
-  echoes the login packet back and the ROM processes the echo as a received
-  packet. Without init, the echo sets `$C20F` to $FF (invalid), causing the
-  ROM to reject subsequent DAT packets with valid seq numbers ($20-$5F).
-- The `$DE02` toggle (write $01 then $09) re-arms VICE's NMI edge detector.
-  Writing $01 keeps DTR high (bit 0) but disables RX IRQ (bit 1 set).
-  Writing $09 re-enables RX IRQ. This toggle is sufficient to re-arm.
-- **Must NOT write $00 to $DE02** — that clears DTR (bit 0), causing tcpser
-  to detect DTR drop and disconnect the TCP connection.
+No IRQ involvement in receive. No slot buffers. Direct buffer → packet → byte delivery.
 
-### Status Bar Indicators
-The ROM's status bar at row 25 shows protocol state:
-- "COM FF" = ROM sent a COM packet, waiting for response (FF = seq/flags)
-- "ACK 24" = ROM sent an ACK for received packet seq $24
-- "DAT 24" = ROM received a DAT packet with seq $24
-- Last column character: $A0 (solid block) = packet OK, "N" ($8E) = length mismatch error
+### NMI Handler (at $CF00, always-visible RAM)
 
-### tcpser Echo Issue
-tcpser in ip232 mode echoes transmitted bytes back to the C64. This means
-the ROM's own login packet arrives back as a "received" packet. The ROM's
-protocol engine processes it and stores it in a slot buffer. This is harmless
-as long as `$C20F` is properly initialised — the echo packet's sequence number
-won't match the expected window and will be ignored by the flow control logic.
+The handler is copied to $CF00 at init time because the ACIA driver code lives
+at $BE03+ which is behind the BASIC ROM when banked in.
 
-### Byte Stuffing
-The X.25 protocol uses byte stuffing for framing. Bytes $01 (start marker),
-$02 (end marker), and $03 (escape prefix) cannot appear raw in the data stream.
-They must be escaped as $03 followed by (byte + $20):
+```
+    PHA
+    TXA
+    PHA
+    LDA $DE01           ; read status (acknowledge NMI, triggers VICE socket poll)
+    LDA $DE02
+    ORA #$02            ; disable RX IRQ temporarily
+    STA $DE02
+    LDA $DE00           ; read received byte
+    LDX $029B           ; ring buffer tail pointer
+    STA $CE00,X         ; store byte
+    INC $029B           ; advance tail (wraps at 256)
+    LDA $DE02
+    AND #$FD            ; re-enable RX IRQ (re-arms NMI edge)
+    STA $DE02
+    PLA
+    TAX
+    PLA
+    RTI
+```
 
-- $01 → $03 $21
-- $02 → $03 $22  
-- $03 → $03 $23
+The $DE02 toggle (disable then re-enable RX IRQ) is essential — it re-arms
+VICE's NMI edge detector so the next byte triggers another NMI.
 
-This applies to ALL bytes between the $01 and $02 markers, including CRC bytes.
-If the server sends a packet whose CRC contains $02, the ROM's receiver will
-interpret it as an end-of-packet marker and truncate the packet, causing a
-length mismatch ("N" error on the status bar).
+### Ring Buffer
+- **$CE00-$CEFF** — 256-byte ring buffer for received data
+- **$029B** — tail pointer (NMI writes here)
+- **$029C** — head pointer (main code reads from here)
+- Buffer empty when head == tail
 
-The server must apply byte stuffing after computing the CRC and before framing
-with $01/$02 markers. The receiver de-escapes before CRC verification.
+### ACIA_INIT
+
+Called just before dialling (NOT during phone number input — causes garbage):
+```
+    ; Reset ACIA
+    STA $DE00           ; soft reset
+    LDA #$1F            ; 19200 baud, 8N1, internal clock
+    STA $DE03           ; control register
+    LDA #$09            ; DTR active + RX NMI enabled
+    STA $DE02           ; command register
+    ; Install NMI handler at $CF00
+    ; Copy handler bytes to $CF00
+    ; Set NMI vector $0318/$0319 → $CF00
+    ; Clear ring buffer pointers
+    LDA #$00
+    STA $029B
+    STA $029C
+```
+
+### ACIA_REG_WRITE (X=4 only — transmit)
+
+Replaces the ROM's `MODEM_REG_WRITE` at $94F0:
+```
+    STA $DE00           ; transmit byte
+    ; TX delay (Y loop) — gives ACIA time, preserves Y
+    PHA
+    TYA
+    PHA
+    LDY #$40
+@delay: DEY
+    BNE @delay
+    PLA
+    TAY
+    PLA
+    RTS
+```
+
+**Critical**: Must preserve Y register — the dial loop uses Y as its counter.
+
+### ACIA_REG_READ (status mapping)
+
+Replaces the ROM's `MODEM_REG_READ` at $94FA. Maps ACIA status to what the
+ROM's protocol engine expects:
+
+- **X=0** (status register 0): Returns $80 if buffer has data (TX ready + data),
+  $C0 if buffer has data (with bit 6), or $00 if empty. Bit 5 must be CLEAR —
+  the ROM loops while bit 5 is set (original "modem busy" flag).
+- **X=4** (read data): Polls ring buffer, returns next byte. Non-blocking.
+- **X=8** (carrier/ring): Returns $40 (carrier present).
+
+### ACIA_WAIT_READY
+
+Replaces the ROM's `MODEM_WAIT_READY` at $94E4. Transmits with delay and
+NMI re-arm:
+```
+    STA $DE00           ; transmit byte
+    ; Delay
+    PHA
+    TYA
+    PHA
+    LDY #$40
+@delay: DEY
+    BNE @delay
+    PLA
+    TAY
+    PLA
+    ; Re-arm NMI
+    LDA #$01
+    STA $DE02           ; disable RX IRQ (keep DTR!)
+    LDA #$09
+    STA $DE02           ; re-enable RX IRQ
+    RTS
+```
+
+**Must NOT write $00 to $DE02** — that clears DTR (bit 0), causing tcpser to
+drop the TCP connection.
+
+### ACIA_DIAL
+
+Sends Hayes AT command through the ACIA to tcpser:
+```
+    Send: "ATDT" + phone_number_from_$9FF0 + CR
+    Wait for: "CONNECT" response (character-by-character match)
+    Timeout: ~10 seconds
+    Returns: C=0 success, C=1 failure
+```
+
+The phone number at $9FF0 contains the server address (e.g., "127.0.0.1:6400").
+Dots and colons are allowed in the input filter (patched at L913B).
+
+### ACIA_PROTO_CONNECT
+
+Polling-based handshake replacing the original IRQ-driven PROTO_CONNECT:
+```
+    1. Wait for 12 spaces ($20) from server (connection ready signal)
+    2. Send CNET identification string (from $8052): "C CNET\r<address>\r..."
+    3. Wait for "*CON\r" response
+    4. Returns: C=0 success, C=1 timeout
+```
+
+### ACIA_SEND_PACKET
+
+Builds and sends a complete X.25 packet:
+```
+    1. Send $01 (start marker)
+    2. Send length byte (with byte stuffing)
+    3. Send token ($43 = COM)
+    4. Send sequence number
+    5. Send payload bytes (with byte stuffing)
+    6. Compute CRC-CCITT over all content
+    7. Send CRC high/low (with byte stuffing)
+    8. Send $02 (end marker)
+```
+
+### ACIA_FLOW_CONTROL
+
+Receives a complete X.25 packet from the ring buffer:
+```
+    1. Poll buffer for $01 (start marker)
+    2. Read and de-stuff bytes until $02 (end marker)
+    3. Store complete packet in RECV_BUF ($C300)
+    4. Extract token → $8034
+    5. Check for error tokens ($41/$42/$40)
+    6. Returns: C=0 success, C=1 error
+```
+
+### ACIA_PROCESS_CMD
+
+Delivers payload bytes one at a time (non-blocking):
+```
+    1. If packet buffer has undelivered bytes: return next byte, C=0
+    2. If buffer exhausted: poll for new packet
+    3. If no data available: return C=1 immediately (non-blocking!)
+```
+
+**Critical**: Must be non-blocking. The terminal code calls this in a loop
+and checks carry — if it blocks forever, the C64 hangs.
+
+## tcpser Configuration
+
+```
+tcpser -v 25232 -p 6401 -s 1200 -l 7
+```
+
+- `-v 25232` — VICE ip232 port (SwiftLink connects here)
+- `-p 6401` — tcpser listens for incoming TCP on this port
+- `-s 1200` — simulated baud rate (affects timing only)
+- `-l 7` — log level
+
+tcpser connects to the Compunet server at the address dialled (e.g., 127.0.0.1:6400).
+
+### tcpser Quirks
+- **Echo**: tcpser echoes transmitted bytes back. The ROM sees its own login packet
+  as a "received" packet. Harmless if sequence numbers are properly initialised.
+- **Break delay**: tcpser has a break delay after CONNECT. Reduced to 50ms in our
+  setup. The ROM sends $20 (space) not $0D (CR) to avoid triggering this delay.
+- **DTR sensitivity**: If $DE02 bit 0 is cleared, tcpser interprets it as DTR drop
+  and disconnects. Always keep bit 0 set.
+
+## Key Lessons Learned
+
+1. **VICE's socket polling** requires real ACIA register access. If you intercept
+   reads via a software handler without touching $DE00-$DE03, VICE stops polling
+   the ip232 socket and no more bytes arrive. The NMI handler's reads keep it alive.
+
+2. **NMI re-arm** is essential after TX. VICE's edge detection can get stuck after
+   writing to $DE00. The $DE02 toggle ($01 then $09) re-arms it.
+
+3. **Preserve Y** in TX routines. The ROM's dial loop uses Y as a counter.
+
+4. **ACIA_INIT timing** matters. Must run AFTER phone input, BEFORE dial. Running
+   during MODEM_CHECK (before phone input) causes garbage on screen.
+
+5. **Status bit 5 must be CLEAR**. The ROM's protocol engine loops while bit 5 is
+   set (original "modem busy" flag). Return $80/$C0 for data available, never $A0/$E0.
+
+6. **Non-blocking ACIA_PROCESS_CMD**. The terminal code expects immediate return
+   with C=1 if no data. Blocking causes hangs.
+
+7. **NMI handler must be in always-visible RAM** ($CF00). Code at $BE03+ is behind
+   the BASIC ROM when banked in — NMI can't reach it.

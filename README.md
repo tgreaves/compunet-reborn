@@ -6,141 +6,152 @@ An effort to reverse engineer and recreate the Compunet protocol using modern sy
 
 Users connected via a custom 1200/75 baud modem (the "brick") that plugged into the C64's cartridge port. The modem contained an 8K ROM that bootstrapped the system — the full terminal software was downloaded from the server during each session ("linking"), or cached locally via the CNSAVE command.
 
+## Current Status
+
+**The full login → duckshoot flow is working!** (Tag: `login-duckshoot-working`)
+
+- ✅ Single PRG file loads and runs in VICE (`LOAD "COMPUNET",8,1 : NEW : SYS 33184`)
+- ✅ EDITOR, HELP, CONNECT commands functional
+- ✅ SwiftLink/ACIA communication via polling (no IRQ deadlocks)
+- ✅ Hayes AT dial through tcpser → TCP connection to server
+- ✅ X.25 handshake: CNET identification + `*CON` response
+- ✅ Login screen displays correctly
+- ✅ Login packet sent, server authenticates
+- ✅ Terminal code enters, duckshoot menu runs
+- ✅ EDITOR and HELP work from within the duckshoot (jump table validated)
+
+### Architecture
+
+The C64 client is a single combined PRG (~16KB) containing:
+- **ROM code** ($8000-$9FFF) — BASIC commands, protocol engine, frame renderer
+- **Terminal code** ($A000-$BE02) — duckshoot, directory navigation, frame display
+- **ACIA driver** ($BE03+) — polling-based SwiftLink communication
+
+All communication uses **polling** (like CCGMS), not the original IRQ-driven approach which deadlocks with ACIA hardware. The NMI handler stores incoming bytes in a ring buffer at $CE00; the ACIA driver routines poll this buffer to assemble and deliver X.25 packets.
+
+### Connection Flow
+
+```
+SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
+→ ACIA_PROTO_CONNECT (send CNET ID, receive *CON)
+→ Login screen → ACIA_SEND_PACKET (login credentials)
+→ Skip linking (terminal already embedded) → JMP $A005
+→ Terminal init → Duckshoot menu
+```
+
 ## Repository Contents
+
+### C64 Client
+
+- **[client/c64/src/](client/c64/src/)** — Source code and build system
+  - `compunet.s` — Combined source (ROM + terminal + ACIA driver)
+  - `compunet.cfg` — ca65/ld65 linker configuration
+  - `Makefile` — Build with `make` (requires ca65/ld65 from cc65 suite)
+  - `gen_source.py` — ROM disassembler (generates compunet_rom.s from binary)
+  - `gen_terminal.py` — Terminal disassembler (generates terminal.s from cnet.prg)
+- **[client/c64/compunet-reborn.prg](client/c64/compunet-reborn.prg)** — Ready-to-run PRG
 
 ### Web Client
 
 - **[client/web/](client/web/)** — Browser-based Compunet terminal emulator
-  - Authentic C64 PETSCII rendering using the real chargen ROM (both character sets)
-  - Duckshoot menu with horizontal scrolling and reverse-video highlight
-  - Frame editor with multi-page support (NEW, LAST, NEXT, COPY, ERASE)
-  - SEQ file renderer with full control code support
-  - GET command loads `.seq` files from disk into the editor
-  - CONNECT command connects to the server with login prompt
-  - Directory listing with UP/DOWN navigation and F7/F8 column toggle
+  - Authentic C64 PETSCII rendering using the real chargen ROM
+  - Duckshoot menu, frame editor, SEQ file renderer
   - Open `client/web/index.html` in a browser to use
-
-### C64 Client
-
-- **[client/c64/](client/c64/)** — Patched ROM for real C64 hardware (C64 Ultimate)
-  - Modified bootstrap for 6551 ACIA modem emulation
-  - Connects to the server over TCP via Hayes AT commands
-  - X.25 protocol layer unchanged from original
 
 ### Server
 
 - **[server/](server/)** — Python Compunet server
   - WebSocket interface (port 6502) for the web client
-  - TCP interface (port 6400) for real C64 clients via WiFi modem
-  - Same binary protocol on both interfaces
-  - User authentication with hashed passwords (`users.json`)
-  - Welcome frame sent after successful login
-  - Directory tree with structured entry data (page number, title, type, price, life, author, vote)
-  - Command handling: DIR, SHOW, BACK, ACCNT, MAIL, VOTE, BUY
-  - Run with: `cd server && pip install -r requirements.txt && python compunet_server.py`
+  - TCP interface (port 6400) for C64 clients via tcpser
+  - X.25 protocol with CRC-CCITT, byte stuffing, flow control
+  - User authentication, directory tree, frame serving
+  - Run with: `./start-server.sh`
 
-### Analysis
+### Documentation
 
-- **[PROTOCOL.md](PROTOCOL.md)** — Full reverse-engineered protocol specification including modem hardware interface, connection sequence, packet format, command tokens, flow control, and CRC details. This is the key document for reimplementation.
-
-- **[modem_bootstrap.asm](modem_bootstrap.asm)** — Annotated 6502 disassembly of the Compunet Terminal cartridge ROM (v1.22, September 1984). The bootstrap loader: modem control, dialling, login, protocol engine.
-
-- **[terminal_app.asm](terminal_app.asm)** — Annotated 6502 disassembly of the downloaded terminal software (cnet.prg). The application layer: directory navigation, duckshoot, SHOW, BUY, MAIL, UPLOAD, VOTE, etc. Runs at $9FF0-$BE02.
-
-### Tools
-
-- **[generate_final.py](generate_final.py)** — Python script that produces the ROM disassembly from the raw binary.
-- **[gen_cnet_disasm.py](gen_cnet_disasm.py)** — Python script that produces the terminal software disassembly from cnet.prg.
+- **[PROTOCOL.md](PROTOCOL.md)** — Full X.25-derived protocol specification
+- **[MODEM.md](MODEM.md)** — Original modem vs ACIA hardware comparison and polling approach
+- **[ROM-REWRITE.md](ROM-REWRITE.md)** — PRG-based architecture and build system
 
 ### Historical Sources
 
-- **[historical/Compunet Terminal.crt](historical/Compunet%20Terminal.crt)** — Original cartridge ROM image in VICE .crt format.
-- **[historical/chip0_bank0_8000.bin](historical/chip0_bank0_8000.bin)** — Extracted 8K ROM binary (raw bytes at $8000-$9FFF).
-- **[historical/cnet.prg](historical/cnet.prg)** — The downloaded terminal software (7.5KB). This is the code sent during "linking" that provides the full interactive experience: directory navigation, duckshoot, Courier mail, uploads, downloads, etc. Provided by Charles Headey.
-- **[historical/cnboot.prg](historical/cnboot.prg)** — Multi-mode boot loader (2.1KB) offering CNET, TTY, Viewdata, and user-to-user modes. Provided by Charles Headey.
-- **[historical/seq/](historical/seq/)** — 106 original Compunet page SEQ files (frames from pages and interviews).
-- **[historical/Terminal Disassembly.txt](historical/Terminal%20Disassembly.txt)** — Third-party disassembly found online, used for cross-referencing.
-- **[historical/compunet-instructions-uk.pdf](historical/compunet-instructions-uk.pdf)** — Scanned original Compunet instruction manual.
-- **[historical/compunet-instructions-extracted.txt](historical/compunet-instructions-extracted.txt)** — OCR text extraction of the instruction manual.
+- **[historical/](historical/)** — Original ROM, terminal code, SEQ files, manuals
 
-## What We Know
+## Quick Start (C64 in VICE)
 
-The 8K ROM is a bootstrap loader. It provides:
-- BASIC commands: `CONNECT`, `EDITOR`, `CNLOAD`, `CNSAVE`, `HELP`, `OFF`
-- Modem hardware control (register-select I/O at $DE00/$DE01)
-- Dialling and carrier detection
-- Login sequence (user ID + password)
-- X.25-derived packet protocol with CRC-CCITT and windowed flow control
-- The "linking" download mechanism (receives up to 8K of terminal software)
+### Prerequisites
+- VICE C64 emulator with SwiftLink enabled
+- tcpser (`tcpser -v 25232 -p 6401 -s 1200 -l 7`)
+- Python 3 for the server
 
-The full interactive terminal (duckshoot navigation, directory browsing, frame rendering, Courier mail, uploads, etc.) lives in **downloaded code** that was sent from the server during linking and stored in RAM at $C800+. This code is not present in the ROM image.
+### Steps
+1. Start tcpser: `tcpser -v 25232 -p 6401 -s 1200 -l 7`
+2. Start server: `./start-server.sh`
+3. In VICE: enable SwiftLink (Settings → Cartridge/IO → SwiftLink, port 25232)
+4. Load: `LOAD "COMPUNET",8,1` then `NEW` then `SYS 33184`
+5. Type `CONNECT`, enter `127.0.0.1:6400`
+6. Login with any username/password (e.g., TEST/TEST)
+7. Duckshoot menu appears!
 
-## What's Missing
+### Why `NEW` is needed
+The `LOAD "...",8,1` command loads the PRG at $8000-$CFXX, which overwrites BASIC's top-of-memory pointer. `NEW` resets BASIC's internal state so that `SYS 33184` doesn't trigger an "OUT OF MEMORY" error. A future improvement will handle this automatically in the ROM's MAIN_INIT.
 
-- **Server implementation** — needed to handle CONNECT, directory browsing, SHOW, BUY, MAIL, etc.
-- **Full application-layer protocol testing** — requires a server to validate command/response sequences.
+## Building from Source
 
-## Frame Format
+```bash
+cd client/c64/src
+make
+# Output: ../compunet-reborn.prg
+```
 
-The Compunet frame format (SEQ files) has been fully reverse-engineered:
+Requires `ca65` and `ld65` from the [cc65](https://cc65.github.io/) suite.
 
-| Bytes | Meaning |
-|-------|---------|
-| `$00` | Frame start marker |
-| `$Fx` | Border colour (low nibble = colour 0-15) |
-| `$Fx` | Background colour (low nibble = colour 0-15) |
-| Stream | PETSCII data with control codes |
-| `$00` | End of frame |
+The build produces a single PRG file with a $8000 load address. The Makefile prepends the 2-byte load address header and concatenates the assembled binary.
 
-Special control codes within the stream:
+## How It Works
 
-| Code | Meaning |
-|------|---------|
-| `$06 <N>` | Repeat space N times (N in range 1-31) |
-| `$06` | Single space (when followed by printable char) |
-| `$07 <char> <count>` | RLE: repeat character count times |
-| `$0D` | Carriage return |
-| `$0E` | Switch to lowercase/uppercase charset |
-| `$8E` | Switch to uppercase/graphics charset |
-| `$12` / `$92` | Reverse video on/off |
-| Colour codes | Standard PETSCII colour changes |
+### Build System
 
-## Acknowledgements
+The source (`compunet.s`) is a single combined assembly file containing:
+1. The original ROM code (generated from disassembly, with labels for all address references)
+2. The terminal code (generated from cnet.prg disassembly)
+3. The ACIA driver (hand-written polling-based communication layer)
 
-Thanks to Charles Headey for providing the cnboot.prg and cnet.prg files — the downloaded terminal software that was previously missing from this analysis.
+The `gen_source.py` script performs recursive-descent disassembly of the original ROM binary, identifying code vs data regions and generating proper ca65 source with labels. Address tables use `.lobyte()/.hibyte()` for correct relocation when code shifts.
 
-## Protocol Summary
+### Communication Model
 
-| Aspect | Detail |
-|--------|--------|
-| Speed | 1200 baud down, 75 baud up (asymmetric Viewdata) |
-| Framing | $01 = start of packet, $02 = end of packet |
-| Commands | ACK ($20), DIR ($21), DAT ($22), OK ($23), ERR ($24), FTL ($25), COM ($26) |
-| Error detection | CRC-CCITT (polynomial $1021) |
-| Flow control | Sliding window, size 4, sequence range $20-$5F |
-| Timeout | 2 minutes idle, 10 minutes in editor |
+The original ROM used IRQ-driven packet assembly — a CIA timer fired at ~60Hz, each tick reading one byte from the brick modem and feeding it into an X.25 state machine. This is incompatible with ACIA/SwiftLink because:
+- The ACIA delivers bytes via NMI (not polled one-at-a-time)
+- TCP delivers data in bursts (not one byte per 833μs)
+- The IRQ handler would consume all buffered bytes in one tick, racing with the main code
 
-## Goal
+Our approach (like CCGMS): NMI stores bytes in a ring buffer. The main code polls the buffer directly, assembling packets inline. No IRQ involvement in receive.
 
-Recreate the Compunet protocol on modern infrastructure so that original C64 clients (or emulated ones) can connect to a new server, and the community experience can be revived.
+### ROM Modifications
 
-## Current Status
-
-- **ROM disassembly**: Complete. All major routines identified and annotated.
-- **Terminal app disassembly**: Complete. Command dispatch, protocol calls, and directory navigation traced.
-- **Frame format**: Fully reverse-engineered and implemented. SEQ files render correctly.
-- **Web client**: Working. BASIC prompt, EDITOR with GET/EDIT/frame navigation, CONNECT with login, directory browsing with highlight bar and column toggle (F7/F8), GOTO page navigation, SHOW with multi-page MORE/FINISH, authentic HELP screen extracted from original cnet.prg.
-- **Server**: Working. Login with hashed passwords, welcome frame, directory tree from JSON metadata, structured directory data, SHOW with multi-page support, GOTO, BACK, ACCNT, MAIL commands. TCP interface with X.25 session establishment (handshake + CNET identification + `*CON` signal).
-- **Protocol**: Binary protocol over WebSocket (web) and TCP (C64). PROTO_CONNECT session establishment reverse-engineered and partially implemented. X.25 packet framing preserved in ROM.
-- **C64 Client**: NMI-driven ACIA receive working. Protocol engine intact. PROTO_CONNECT handshake reaches `*CON` signal stage. Login screen not yet displayed (buffer match issue under investigation).
+The original ROM code is preserved with targeted patches:
+- `MODEM_CHECK` → `JSR ACIA_INIT; JMP L8D52` (skip brick modem detection)
+- `MODEM_WAIT_READY` → `JMP ACIA_WAIT_READY`
+- `MODEM_REG_WRITE` → `JMP ACIA_REG_WRITE`
+- `MODEM_REG_READ` → `JMP ACIA_REG_READ`
+- Dial sequence → `JSR ACIA_DIAL; BCS fail; JSR ACIA_PROTO_CONNECT`
+- Post-login → skip PROTO_FLOW_CONTROL and MODEM_INIT_DOWNLOAD, jump to $A005
+- `$96CC` → `JMP ACIA_PROCESS_CMD` (byte delivery)
+- `$96D2` → `JMP ACIA_FLOW_CONTROL` (packet receive)
 
 ## Next Steps
 
-- Implement UPLD (upload content to server)
-- Implement Courier (MAIL) with send/receive
-- Add user registration and account management
-- Build the TCP protocol layer with X.25 framing for real C64 clients
-- Add more content pages and sub-directories
+- Fix CRC calculation in ACIA_SEND_PACKET (stack offset bug)
+- Server sends welcome frame after login
+- Implement frame serving (DIR, SHOW commands)
+- Handle the `NEW` requirement automatically (BASIC memory pointers)
+- Implement Courier (MAIL) and uploads
+- Proper TX sequence number initialisation
+
+## Acknowledgements
+
+Thanks to Charles Headey for providing the cnboot.prg and cnet.prg files.
 
 ## Links
 

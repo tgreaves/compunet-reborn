@@ -1073,3 +1073,69 @@ Based on the client behaviour, a modern Compunet server must:
 8. **Track sessions** — enforce timeouts, manage concurrent connections
 9. **Version the terminal software** — force re-link when updated
 10. **Implement flow control** — X.25 windowed ACK/NAK with CRC-CCITT verification
+
+## Compunet Reborn — Implementation Notes
+
+### Polling-Based Receive (Replaces IRQ-Driven Assembly)
+
+The original ROM uses IRQ-driven packet assembly — a CIA timer fires at ~60Hz,
+each tick reading one byte from the brick modem. This is incompatible with
+ACIA/SwiftLink hardware (see MODEM.md for full explanation).
+
+Our implementation replaces the protocol engine's receive path with polling:
+
+- **$96CC** (PROTO_PROCESS_CMD) → `JMP ACIA_PROCESS_CMD`
+  - Polls NMI ring buffer for complete X.25 packets
+  - De-stuffs bytes, validates framing
+  - Delivers payload bytes one at a time (non-blocking, C=1 if no data)
+
+- **$96D2** (PROTO_FLOW_CONTROL) → `JMP ACIA_FLOW_CONTROL`
+  - Waits for a complete packet
+  - Stores token in $8034 for caller to check
+  - Returns C=0 success, C=1 error
+
+The X.25 wire protocol is unchanged — same framing ($01/$02), same byte stuffing,
+same CRC-CCITT, same packet structure. Only the receive mechanism differs.
+
+### Skipping the Linking Phase
+
+In Compunet Reborn, the terminal code is embedded in the PRG file (loaded at
+$A000-$BE02). The linking download is skipped:
+
+- After login, the ROM jumps directly to $A005 (terminal entry point)
+- The server sends an ACK for the login packet but does NOT send linking data
+- MODEM_INIT_DOWNLOAD is bypassed entirely
+
+The CNLOAD flag in the login packet's system info bytes ($C100[15+]) signals
+to the server that linking should be skipped. The server checks bytes at
+offset 15/16 — if both are $30 ('0'), skip=True.
+
+### Server Handshake (TCP via tcpser)
+
+The connection flow over TCP:
+
+```
+tcpser ←→ VICE SwiftLink (ip232 on port 25232)
+tcpser ←→ Compunet Server (TCP on port 6400)
+```
+
+1. C64 sends `ATDT127.0.0.1:6400\r` via ACIA
+2. tcpser opens TCP connection to 127.0.0.1:6400
+3. tcpser sends `CONNECT 1200\r` back to C64
+4. Server sends 12 spaces (handshake ready signal)
+5. C64 sends CNET identification string
+6. Server sends `*CON\r`
+7. Login screen appears on C64
+8. C64 sends login packet (X.25 framed)
+9. Server sends ACK packet (X.25 framed)
+10. C64 enters terminal code at $A005
+
+### Known Protocol Deviations
+
+1. **CRC mismatch on login packet** — the ACIA_SEND_PACKET CRC calculation has
+   a stack offset bug. Server logs a warning but accepts the packet anyway.
+2. **TX sequence number** — sent as $7F instead of proper $20-$5F range. Server
+   tolerates this and echoes it back in the ACK.
+3. **No flow control ACKs from client** — the polling receive doesn't send ACKs
+   back to the server. For single-packet exchanges (login → ACK) this is fine.
+   Multi-packet transfers (linking, frame data) will need proper ACK generation.

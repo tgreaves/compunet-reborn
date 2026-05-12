@@ -1,380 +1,243 @@
-# ROM Rewrite Plan — Compunet Reborn
+# ROM Rewrite — Compunet Reborn
 
 ## Rationale
 
-The current approach patches the original 8K ROM binary in-place using Python.
-This has become unmanageable:
-- No free space for new code (every addition overwrites something)
-- Branch offsets break when code moves
-- No labels, no structure, no comments in the output
-- Impossible to see the full picture or reason about interactions
-- Each fix breaks something else
+The original approach patched the 8K ROM binary in-place using Python. This became
+unmanageable — no free space, branch offsets breaking, no labels or structure.
 
-A clean rewrite from source gives us full control over the memory layout while
-preserving the original Compunet UX and functionality.
+The current approach generates full ca65 assembly source from the original ROM via
+recursive-descent disassembly, then builds a single combined PRG containing ROM +
+terminal + ACIA driver.
 
-## Design Principles
+## Architecture — Single PRG File
 
-1. **Preserve all user-facing functionality** — the C64 user experience must be
-   identical to the original: CONNECT, login screen, LINKING, duckshoot, etc.
-2. **Replace only the hardware layer** — ACIA/SwiftLink instead of brick modem
-3. **Replace the receive path** — direct buffer polling instead of IRQ-driven
-   slot assembly (incompatible with ACIA, as documented in MODEM.md)
-4. **Keep the X.25 wire protocol** — framing, CRC, byte stuffing, sequencing
-5. **Keep the original ROM's application code** — editor, duckshoot setup,
-   CNSAVE/CNLOAD, frame rendering, etc. (included as binary blobs)
-
-## Architecture
-
-### Memory Map ($8000-$9FFF, 8K cartridge ROM)
+Instead of an 8K cartridge ROM, we produce a single PRG file (~16KB) that loads
+at $8000 and contains everything needed:
 
 ```
-$8000-$8008  Cartridge header (CBM80 signature)
-$8009-$8031  System parameters (phone number, network, flags)
-$8032-$806F  Configuration data (CNET identification string, etc.)
-$8070-$807F  Reserved
-$807A-$80BB  Version string + startup messages
-$80BC-$80FF  ACIA driver (NMI handler, init, helpers)
-$8100-$815F  Jump table (32 entries, unchanged)
-$8160-$819F  COLD_START (hardware init, BASIC patching)
-$81A0-$81BB  MAIN_INIT (print version, install command parser)
-$81BC-$8268  BASIC command parser (CONNECT/EDITOR/CNLOAD/CNSAVE/HELP)
-$8269-$8354  Command dispatch (HELP, OFF, CNSAVE, CNLOAD handlers)
-$8355-$86FF  Editor, page navigation, screen draw (original binary)
-$8700-$8CFF  Disk I/O, frame buffer, command input (original binary)
-$8D00-$8DFF  MODEM_CHECK + dial sequence (new: ACIA init + Hayes ATDT)
-$8E00-$8EFF  Login screen + MODEM_INIT_DOWNLOAD (mostly original)
-$8F00-$90FF  MODEM_SEND_CMD, I/O routines (original binary)
-$9100-$92FF  CNSAVE, FILE_DOWNLOAD, CNLOAD (original binary)
-$9300-$94BF  Protocol state, duckshoot (original binary)
-$94C0-$9520  Hardware abstraction layer (NEW: ACIA read/write/status)
-$9520-$96BF  Login screen data, editor help text (original data)
-$96C0-$96DA  Protocol dispatch table (redirected to new receive engine)
-$96DB-$9BFF  Protocol engine (SEND path preserved, RECEIVE path replaced)
-$9C00-$9DFF  New receive engine (polling-based, replaces IRQ assembly)
-$9E00-$9FFF  PROTO_CONNECT + IRQ handlers (adapted for ACIA)
+$8000-$9FFF  ROM code (8K) — BASIC commands, protocol engine, frame renderer
+$A000-$BE02  Terminal code — duckshoot, directory navigation, frame display
+$BE03+       ACIA driver — polling-based SwiftLink communication
 ```
 
-### What's New (written from scratch)
-
-| Component | Location | Size | Description |
-|-----------|----------|------|-------------|
-| ACIA Driver | $80BC | ~60 bytes | NMI handler, init, ring buffer management |
-| Dial Sequence | $8D30 | ~90 bytes | Hayes ATDT, CONNECT response parsing |
-| Hardware Layer | $94C0 | ~96 bytes | Register read/write abstraction for ACIA |
-| Receive Engine | $9C00 | ~200 bytes | Polling-based packet receive, de-stuffing |
-| PROTO_CONNECT adapt | $9E69 | ~100 bytes | Adapted for ACIA (direct buffer read) |
-
-### What's Preserved (from original ROM binary)
-
-| Component | Location | Description |
-|-----------|----------|-------------|
-| Jump table | $8100-$815F | All 32 entry points unchanged |
-| Editor | $8355-$86FF | Full page editor |
-| Disk I/O | $8700-$8CFF | Load/save, directory |
-| Login screen | $8E38-$8EEE | User input, buffer build |
-| MODEM_INIT_DOWNLOAD | $8EEF-$8F46 | Linking byte receive loop |
-| MODEM_SEND_CMD | $8F47-$90B6 | Command dispatch, disconnect |
-| I/O routines | $90B7-$9170 | PRINT_STRING, INPUT_LINE |
-| CNSAVE/CNLOAD | $9171-$92CC | File operations |
-| Protocol state | $938B-$94BF | WHITE_BAR, PROTOCOL_RESET |
-| Protocol send | $96DB-$9BFF | Packet send, CRC, flow control |
-| Status display | $9BA4-$9C09 | Status bar rendering |
-| Data tables | $9C0A-$9C1F | Token name table |
-
-### What's Replaced (rewritten for ACIA)
-
-| Original | New | Reason |
-|----------|-----|--------|
-| Modem register read ($94E4-$9506) | ACIA read/write | Different hardware |
-| IRQ packet assembly ($9C46-$9D53) | Polling receive engine | Incompatible with NMI buffer |
-| $9D54-$9E68 (byte receive + assembly) | New receive engine | Direct buffer polling |
-| PROTO_CONNECT ($9E69-$9FFF) | Adapted version | Uses ACIA instead of modem regs |
-
-## New Receive Engine Design
-
-The receive engine replaces the IRQ-driven packet assembly with direct polling,
-matching how CCGMS handles bulk data transfer:
-
+### Boot Sequence
 ```
-RECV_BYTE:
-    ; Called from $96CC (PROTO_PROCESS_CMD replacement)
-    ; Returns one payload byte in A, carry clear
-    ; Or carry set on error/timeout
-
-    ; If we have buffered payload bytes, deliver next one
-    LDA recv_state
-    BNE deliver_next
-
-    ; Need a new packet — poll the NMI ring buffer
-read_packet:
-    JSR get_buffer_byte     ; get next byte from NMI buffer
-    BCS read_packet         ; empty → keep polling
-    CMP #$01                ; start marker?
-    BNE read_packet         ; no → discard, keep looking
-
-    ; Found $01 — read packet content until $02
-    LDY #$00                ; packet buffer index
-read_content:
-    JSR get_buffer_byte
-    BCS read_content        ; empty → keep polling
-    CMP #$02                ; end marker?
-    BEQ packet_complete
-    CMP #$03                ; escape prefix?
-    BNE store_byte
-    JSR get_buffer_byte     ; get escaped byte
-    BCS read_content
-    SEC
-    SBC #$20                ; de-stuff
-store_byte:
-    STA pkt_buffer,Y
-    INY
-    BNE read_content        ; (max 256 bytes)
-
-packet_complete:
-    ; pkt_buffer has: [length] [token] [seq] [payload...] [CRC_hi] [CRC_lo]
-    ; Validate CRC (optional — server already computes correctly)
-    ; Set up payload delivery
-    STY pkt_total           ; total bytes received
-    LDA pkt_buffer+1        ; token
-    STA $8034               ; store for PROTO_FLOW_CONTROL
-    LDA #3                  ; payload starts at offset 3
-    STA recv_pos
-    TYA
-    SEC
-    SBC #2                  ; subtract CRC bytes
-    STA recv_end            ; payload ends here
-    LDA #1
-    STA recv_state          ; state = delivering
-
-deliver_next:
-    LDX recv_pos
-    LDA pkt_buffer,X
-    INX
-    STX recv_pos
-    CPX recv_end
-    BNE :+
-    LDA #0
-    STA recv_state          ; done with this packet
-:   CLC                     ; byte valid
-    RTS
-
-get_buffer_byte:
-    ; Read one byte from NMI ring buffer at $CE00
-    ; Returns: A = byte, C clear. Or C set if empty.
-    LDA $029C               ; head
-    CMP $029B               ; tail
-    BEQ @empty
-    TAX
-    LDA $CE00,X
-    INC $029C
-    CLC
-    RTS
-@empty:
-    SEC
-    RTS
+LOAD "COMPUNET",8,1 : NEW : SYS 33184
 ```
 
-### RECV_FLOW (replacement for PROTO_FLOW_CONTROL):
+- `LOAD "...",8,1` loads the PRG at its embedded address ($8000)
+- `NEW` resets BASIC's memory pointers (corrupted by the load)
+- `SYS 33184` ($81A0) enters MAIN_INIT
 
-```
-RECV_FLOW:
-    ; Wait for first packet, check token
-    JSR RECV_BYTE           ; triggers packet read
-    ; Token is now in $8034
-    LDA $8034
-    CMP #$41                ; error tokens
-    BEQ @error
-    CMP #$42
-    BEQ @error
-    CMP #$40
-    BEQ @error
-    CLC                     ; success
-    RTS
-@error:
-    SEC
-    RTS
-```
+### Why Not a Cartridge?
 
-## ACIA Driver Design
+A cartridge ROM is limited to exactly 8K ($8000-$9FFF). The terminal code and
+ACIA driver don't fit. A PRG file has no size limit and loads everything in one
+shot. The trade-off is needing `NEW` before `SYS` (fixable in future).
 
-### NMI Handler (at $CF00, copied from ROM)
+## Build System
 
-```
-nmi_handler:
-    PHA
-    TXA
-    PHA
-    LDA $DE01               ; read status (acknowledge interrupt)
-    AND #$08                ; RDRF set?
-    BEQ @done               ; no data → exit
-    LDA $DE00               ; read data byte
-    LDX $029B               ; tail pointer
-    STA $CE00,X             ; store in ring buffer
-    INC $029B               ; advance tail
-@done:
-    PLA
-    TAX
-    PLA
-    RTI
-```
+### Toolchain
+- **ca65** — assembler (from cc65 suite)
+- **ld65** — linker (from cc65 suite)
+- **gen_source.py** — recursive-descent disassembler for ROM binary
+- **gen_terminal.py** — disassembler for terminal code (cnet.prg)
 
-Key difference from current: checks RDRF (bit 3) before reading data.
-This prevents reading garbage on spurious NMIs.
-
-### TX with Conditional Re-arm
-
-```
-acia_tx:
-    STA $DE00               ; transmit byte
-    LDA rearm_flag          ; check if re-arm needed
-    BEQ @done               ; no → return
-    LDA #$09
-    STA $DE02               ; re-arm NMI edge detection
-@done:
-    RTS
-```
-
-The `rearm_flag` is set after PROTO_CONNECT completes. During PROTO_CONNECT,
-TX does not re-arm (prevents spurious NMI interference).
-
-### ACIA Init
-
-```
-acia_init:
-    LDA #$00
-    STA $DE02               ; reset ACIA
-    LDA #$1F
-    STA $DE03               ; 19200 baud, 8N1
-    LDA #$09
-    STA $DE02               ; DTR + RX IRQ enabled
-    ; Set NMI vector
-    LDA #<nmi_handler
-    STA $0318
-    LDA #>nmi_handler
-    STA $0319
-    ; Clear buffer pointers
-    LDA #$00
-    STA $029B               ; tail = 0
-    STA $029C               ; head = 0
-    STA rearm_flag          ; re-arm disabled initially
-    RTS
-```
-
-## Toolchain
-
-### Assembler: ca65 (from cc65 suite)
-
-- **Why**: Industry standard for C64 development, supports segments,
-  macros, includes, and produces relocatable object files
-- **Install**: `brew install cc65` (macOS) or from https://cc65.github.io/
-- **Linker**: ld65 with a custom linker config for 8K cartridge
-
-### Build Process
-
-```
-ca65 -t c64 compunet_reborn.s -o compunet_reborn.o
-ld65 -C cartridge.cfg compunet_reborn.o -o compunet_reborn.bin
-python3 make_crt.py compunet_reborn.bin compunet_reborn.crt
-```
-
-### Linker Config (cartridge.cfg)
+### Linker Configuration (compunet.cfg)
 
 ```
 MEMORY {
-    CARTROM: start = $8000, size = $2000, type = ro, fill = yes, fillval = $FF;
+    MAIN: start = $8000, size = $5000, type = rw, fill = no;
 }
+
 SEGMENTS {
-    HEADER:   load = CARTROM, type = ro, start = $8000;
-    CONFIG:   load = CARTROM, type = ro;
-    JUMPTBL:  load = CARTROM, type = ro, start = $8100;
-    CODE:     load = CARTROM, type = ro;
-    ORIGINAL: load = CARTROM, type = ro;
-    DATA:     load = CARTROM, type = ro;
+    HEADER:   load = MAIN, type = ro, start = $8000;
+    CODE:     load = MAIN, type = ro;
+    TERMINAL: load = MAIN, type = ro, start = $A000;
+    ACIA:     load = MAIN, type = ro;
 }
 ```
 
-### Source File Structure
+- **HEADER** — cartridge signature at $8000 (CBM80 + vectors)
+- **CODE** — ROM code ($8009-$9FFF)
+- **TERMINAL** — terminal code, forced to $A000
+- **ACIA** — ACIA driver, immediately after terminal
 
-```
-client/c64/src/
-├── compunet_reborn.s      # Main file — includes all segments in order
-├── header.s               # Cartridge header + system parameters
-├── version.s              # Version string "COMPUNET REBORN 1.00"
-├── acia.s                 # ACIA driver (NMI handler, init, TX with re-arm)
-├── jumptable.s            # 32-entry jump table (addresses may change)
-├── coldstart.s            # COLD_START, MAIN_INIT, BASIC command parser
-├── commands.s             # HELP, OFF, CNSAVE, CNLOAD dispatch
-├── editor.s               # Page editor, navigation, screen draw
-├── diskio.s               # Disk I/O, frame buffer, command input
-├── dial.s                 # MODEM_CHECK + Hayes ATDT dial sequence
-├── login.s                # Login screen, buffer build, send
-├── download.s             # MODEM_INIT_DOWNLOAD (linking byte loop)
-├── sendcmd.s              # MODEM_SEND_CMD, disconnect handling
-├── io.s                   # PRINT_STRING, INPUT_LINE, SETUP_INPUT_PARAMS
-├── filesave.s             # CNSAVE, FILE_DOWNLOAD, CNLOAD
-├── protocol_state.s       # WHITE_BAR, PROTOCOL_RESET, duckshoot setup
-├── hardware.s             # Hardware abstraction (ACIA register mapping)
-├── data.s                 # Login screen layout, editor help text
-├── protocol_dispatch.s    # Dispatch table ($96C0) — redirected entries
-├── protocol_send.s        # Packet send, CRC, flow control, byte stuffing
-├── recv_engine.s          # NEW: polling-based receive engine
-├── proto_connect.s        # PROTO_CONNECT adapted for ACIA
-├── irq.s                  # IRQ handlers (neutered packet assembly)
-├── cartridge.cfg          # ca65/ld65 linker configuration
-├── Makefile               # Build automation
-└── make_crt.py            # Convert raw binary to VICE CRT format
+The gap between end-of-CODE and $A000 is not filled (no `fill = yes`), keeping
+the PRG compact. $9FF0-$9FFF is phone number storage written at runtime.
+
+### Build Command
+
+```bash
+cd client/c64/src
+make
+# Output: ../compunet-reborn.prg
 ```
 
-Each `.s` file corresponds to a logical section of the ROM. The source is
-derived from `modem_bootstrap.asm` (our annotated disassembly) converted to
-ca65 syntax. Modified routines are clearly marked with `;--- MODIFIED ---`
-comments and explanations.
+The Makefile:
+1. Assembles `compunet.s` → `build/compunet.o`
+2. Links with `compunet.cfg` → `build/compunet.bin`
+3. Prepends 2-byte load address ($00 $80) → `../compunet-reborn.prg`
 
-### Original Code Inclusion
+## Source Generation
 
-The entire ROM is written as ca65 assembly source, based on the annotated
-disassembly in `modem_bootstrap.asm`. Unchanged sections assemble to the
-exact same bytes as the original ROM. Modified sections are clearly marked
-with comments explaining the change.
+### gen_source.py — ROM Disassembler
 
-This means:
-- **No binary blobs** — everything is source code
-- **Fully auditable** — diff against original disassembly to see changes
-- **Consistent toolchain** — one `ca65` build produces the entire ROM
-- **Easy to modify** — change any routine by editing its source
+Performs recursive-descent disassembly of the original 8K ROM binary:
 
-The disassembly already has labels and comments. Converting to ca65 syntax
-is mechanical: fix addressing modes, add segment directives, replace hex
-dumps with `.byte` directives.
+1. **Entry point discovery** — starts from known entry points (reset vector,
+   jump table entries, dispatch tables)
+2. **Code tracing** — follows branches, JSR targets, JMP targets
+3. **Data identification** — bytes not reached by code tracing are data
+4. **Label generation** — every referenced address gets a label (L8000, L8123, etc.)
+5. **Address table detection** — identifies lo/hi byte table pairs and generates
+   `.lobyte(label)/.hibyte(label)` expressions
 
-## Migration Strategy
+Output: `compunet_rom.s` — complete ca65 source that assembles to the exact
+same bytes as the original ROM.
 
-1. **Extract original binary blocks** — split the original ROM into segments
-   that don't need modification
-2. **Write new components** — ACIA driver, dial, receive engine, PROTO_CONNECT
-3. **Write adapter shims** — thin wrappers where new code interfaces with
-   original code (e.g., the hardware abstraction at $94C0)
-4. **Assemble and link** — produce the 8K binary
-5. **Wrap as CRT** — add VICE cartridge header
-6. **Test incrementally** — verify each phase (dial, connect, login, linking)
+**Statistics**: ~6843 bytes identified as code (83% of ROM), remainder is data
+(strings, tables, screen layouts).
 
-## What This Fixes
+### gen_terminal.py — Terminal Disassembler
 
-- **ACIA overrun** — receive engine polls at its own pace, no IRQ race
-- **NMI re-arm** — conditional re-arm with proper flag, plenty of code space
-- **Slot overflow** — no slots! Direct buffer → packet → payload delivery
-- **Byte stuffing** — handled cleanly in the receive engine
-- **Version string** — full "COMPUNET REBORN 1.00" with room to spare
-- **Code maintainability** — labelled, commented, structured source
+Same approach for the terminal code (cnet.prg, loaded at $9FF0-$BE02):
 
-## Risks
+1. Traces from known entry points ($A005, $A03B, etc.)
+2. Generates `terminal.s` with full labels
+3. Handles the jump table at $A000-$A004
 
-- **Address sensitivity** — some original code uses absolute addresses.
-  The jump table at $8100 and dispatch table at $96C0 must stay fixed.
-  Other code may reference specific addresses that we need to preserve.
-- **Zero page usage** — original code uses specific ZP locations ($19-$24).
-  New code must avoid conflicts.
-- **Workspace RAM** — $C100-$C2FF layout must be preserved (protocol state).
-- **Downloaded code interface** — the terminal software at $9FF0+ calls back
-  into the ROM via the jump table. Those entry points must not move.
+### Address Relocation
+
+When modem routines are shortened (replaced by JMP to ACIA code), subsequent
+code shifts. ALL hardcoded address references must use labels:
+
+- **RTS-trick dispatch tables** ($8269, $841D, $88BC) — use
+  `.lobyte(label-1), .hibyte(label-1)` (RTS adds 1)
+- **LDA #lo; STA; LDA #hi; STA patterns** — frame buffer callbacks at $C140/$C141
+- **LDX #lo; LDY #hi patterns** — PRINT_STRING addresses, frame data pointers (41 instances)
+- **LDA #lo; LDY #hi patterns** — IRQ handler addresses ($9C46, $9C5A, $9C63, $9FC8)
+
+**Critical**: Must use `.lobyte()/.hibyte()` NOT `<`/`>` in `.byte` directives.
+ca65's `<`/`>` operators don't handle relocatable expressions correctly in data
+contexts.
+
+## ROM Modifications
+
+The combined source (`compunet.s`) contains the original ROM code with targeted
+patches. Each patch replaces a small section of the original with a JMP or JSR
+to the ACIA driver code.
+
+### Hardware Layer Replacements
+
+| Original Routine | Patch | Purpose |
+|-----------------|-------|---------|
+| MODEM_CHECK ($8CDE) | `JSR ACIA_INIT; JMP L8D52` | Skip brick modem detection |
+| MODEM_WAIT_READY ($94E4) | `JMP ACIA_WAIT_READY` | TX with delay + NMI re-arm |
+| MODEM_REG_WRITE ($94F0) | `JMP ACIA_REG_WRITE` | Transmit byte (X=4 only) |
+| MODEM_REG_READ ($94FA) | `JMP ACIA_REG_READ` | Status/data from ring buffer |
+
+### Protocol Engine Replacements
+
+| Original Routine | Patch | Purpose |
+|-----------------|-------|---------|
+| $96CC (PROTO_PROCESS_CMD) | `JMP ACIA_PROCESS_CMD` | Deliver payload bytes |
+| $96D2 (PROTO_FLOW_CONTROL) | `JMP ACIA_FLOW_CONTROL` | Receive complete packet |
+
+### Connection Flow Patches
+
+| Location | Patch | Purpose |
+|----------|-------|---------|
+| Dial sequence | `JSR ACIA_DIAL; BCS fail; JSR ACIA_PROTO_CONNECT` | Hayes dial + handshake |
+| L8E1F (post-login) | Skip PROTO_FLOW_CONTROL, JMP L8EE8 | Can't use original receive |
+| L8EE8 (post-login) | Skip L89D0, JMP $A005 | Skip linking, enter terminal |
+| L9FA9 | Send $20 not $0D | Avoid tcpser break delay |
+| L9FBC | RTS | Neutered delay (deadlocks with ACIA) |
+
+### Input Filter Patch
+
+| Location | Patch | Purpose |
+|----------|-------|---------|
+| L913B | Allow dots/colons in phone input | IP addresses (127.0.0.1:6400) |
+
+## ACIA Driver Components
+
+The ACIA driver lives in the ACIA segment ($BE03+) and provides:
+
+| Routine | Purpose |
+|---------|---------|
+| ACIA_INIT | Reset ACIA, set 19200/8N1, install NMI handler at $CF00 |
+| ACIA_REG_WRITE | Transmit byte with delay, preserve Y |
+| ACIA_REG_READ | Map ring buffer status to modem register format |
+| ACIA_WAIT_READY | TX + delay + NMI re-arm |
+| ACIA_DIAL | Send ATDT + address, wait for CONNECT |
+| ACIA_PROTO_CONNECT | Receive 12 spaces, send CNET ID, wait for *CON |
+| ACIA_SEND_PACKET | Build and send complete X.25 packet with CRC |
+| ACIA_FLOW_CONTROL | Receive complete X.25 packet, de-stuff, validate |
+| ACIA_PROCESS_CMD | Deliver payload bytes one at a time (non-blocking) |
+
+### NMI Handler (at $CF00)
+
+Copied to always-visible RAM at init. Reads $DE01 (acknowledge) and $DE00 (data),
+stores in ring buffer at $CE00. Toggles $DE02 to re-arm NMI edge detection.
+
+Must be in RAM that's visible regardless of ROM banking ($CF00 is always accessible).
+
+## Memory Map (Runtime)
+
+```
+$0000-$00FF  Zero page (shared with BASIC/Kernal)
+$029B        Ring buffer tail pointer (NMI writes)
+$029C        Ring buffer head pointer (main code reads)
+$0801-$7FFF  BASIC RAM (available after NEW)
+$8000-$9FEF  ROM code (loaded from PRG)
+$9FF0-$9FFF  Phone number storage (written at runtime)
+$A000-$BE02  Terminal code (loaded from PRG)
+$BE03-$BFxx  ACIA driver code (loaded from PRG)
+$C000-$C0FF  Terminal workspace
+$C100-$C1FF  Terminal state (cursor, screen mode, flags)
+$C200-$C2FF  Protocol state (connection, packets, buffers)
+$C300-$C3FF  Receive packet buffer (RECV_BUF)
+$CE00-$CEFF  NMI ring buffer (256 bytes)
+$CF00-$CF2F  NMI handler code (copied from ACIA driver at init)
+```
+
+## What's Preserved from Original
+
+- All user-facing functionality (CONNECT, EDITOR, HELP, CNLOAD, CNSAVE)
+- X.25 wire protocol (framing, CRC-CCITT, byte stuffing, sequencing)
+- Login screen layout and input handling
+- Terminal code (duckshoot, directory, frame display)
+- Jump table at $8100 (32 entries, addresses relocated via labels)
+- Protocol dispatch table at $96C0
+- All RAM workspace layouts ($C100-$C2FF)
+
+## What's Replaced
+
+| Original | Replacement | Reason |
+|----------|-------------|--------|
+| Brick modem register access | ACIA register access | Different hardware |
+| IRQ-driven packet assembly | Polling from ring buffer | ACIA/NMI incompatibility |
+| Pulse dialling | Hayes AT commands via tcpser | Modern connectivity |
+| PROTO_CONNECT (IRQ-based) | Polling handshake | No IRQ involvement |
+| Linking download | Embedded terminal code | Already in PRG |
+
+## Known Issues
+
+1. **CRC mismatch** — ACIA_SEND_PACKET has a stack offset bug at `@update_crc`.
+   Server accepts packets despite CRC errors (logs warning).
+2. **TX sequence number** — $C20E not properly initialised, sends as $7F instead
+   of $20-range. Server tolerates this.
+3. **`NEW` required** — BASIC memory pointers corrupted by LOAD. Future fix:
+   add pointer reset to MAIN_INIT (currently overflows ROM segment into TERMINAL).
+4. **No welcome frame** — server needs to send initial frame after login for
+   proper terminal initialisation.
+5. **tcpser break delay** — reduced to 50ms, may need further tuning.
+
+## Design Principles
+
+1. **Preserve the original UX** — the C64 user sees the same screens, same flow
+2. **Replace only the hardware layer** — ACIA instead of brick modem
+3. **Do things the CCGMS way** — polling, not IRQ-driven receive
+4. **Verify against the disassembly** — don't guess behaviour, check the code
+5. **Keep the X.25 wire protocol** — server and client speak the same language
