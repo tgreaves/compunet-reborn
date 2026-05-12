@@ -240,7 +240,67 @@ def format_operand(mnemonic, mode, rom, offset, addr):
     return '???'
 
 def make_label(addr):
+    """Generate a label name — use named label if known, else auto-generate."""
+    named = {
+        0x8160: 'COLD_START',
+        0x81A0: 'MAIN_INIT',
+        0x8445: 'KEYBOARD_SCAN',
+        0x8476: 'KEY_DISPATCH',
+        0x849A: 'INPUT_HANDLER',
+        0x84FF: 'COMMAND_EXEC',
+        0x85E4: 'SCREEN_DRAW',
+        0x869E: 'FILE_OPS',
+        0x89CF: 'FRAME_BUF_READ',
+        0x89E1: 'FRAME_BUF_WRITE',
+        0x8ABE: 'DISK_LOAD',
+        0x8AEB: 'DISK_SAVE',
+        0x8D30: 'MODEM_CHECK',
+        0x8EEF: 'MODEM_INIT_DOWNLOAD',
+        0x8F47: 'MODEM_SEND_CMD',
+        0x9002: 'CLEAR_STATUS',
+        0x901E: 'STATUS_LINE',
+        0x907B: 'PRINT_STATUS_MSG',
+        0x9093: 'CURSOR_HOME',
+        0x90B7: 'PRINT_STRING',
+        0x90C8: 'SETUP_INPUT_PARAMS',
+        0x90DF: 'INPUT_LINE',
+        0x9171: 'FILE_UPLOAD',
+        0x91B2: 'FILE_DOWNLOAD',
+        0x92CD: 'FRAME_STORE',
+        0x938B: 'PROTOCOL_STATE_INIT',
+        0x93C9: 'PROTOCOL_RESET',
+        0x93D0: 'PROTOCOL_CLEANUP',
+        0x94A8: 'MODEM_STATUS_CHECK',
+        0x94C1: 'MODEM_REG_WRITE_WAIT',
+        0x94D5: 'MODEM_REG_READ_STATUS',
+        0x94E4: 'MODEM_WAIT_READY',
+        0x94F0: 'MODEM_REG_WRITE',
+        0x94FA: 'MODEM_REG_READ',
+        0x96C0: 'PROTO_DISPATCH_TABLE',
+        0x96DB: 'PROTO_INIT_REGS',
+        0x96E9: 'PROTO_START_SESSION',
+        0x970A: 'PROTO_DISCONNECT',
+        0x97AD: 'PROTO_RECV_FRAME',
+        0x993A: 'PROTO_ERROR_RECOVERY',
+        0x996B: 'PROTO_PROCESS_CMD',
+        0x9B3B: 'PROTO_FLOW_CONTROL',
+        0x9B79: 'PROTO_SEND_PACKET',
+        0x9B8A: 'PROTO_RECV_PACKET',
+        0x9E69: 'PROTO_CONNECT',
+    }
+    if addr in named:
+        return named[addr]
     return f'L{addr:04X}'
+
+# Set of addresses that have named labels (always emit these)
+named_addrs = set(make_label.__code__.co_consts[1].keys()) if False else {
+    0x8160, 0x81A0, 0x8445, 0x8476, 0x849A, 0x84FF, 0x85E4, 0x869E,
+    0x89CF, 0x89E1, 0x8ABE, 0x8AEB, 0x8D30, 0x8EEF, 0x8F47, 0x9002,
+    0x901E, 0x907B, 0x9093, 0x90B7, 0x90C8, 0x90DF, 0x9171, 0x91B2,
+    0x92CD, 0x938B, 0x93C9, 0x93D0, 0x94A8, 0x94C1, 0x94D5, 0x94E4,
+    0x94F0, 0x94FA, 0x96C0, 0x96DB, 0x96E9, 0x970A, 0x97AD, 0x993A,
+    0x996B, 0x9B3B, 0x9B79, 0x9B8A, 0x9E69,
+}
 
 output = []
 output.append('; =================================================================')
@@ -260,8 +320,8 @@ offset = 0
 while offset < 8192:
     addr = BASE + offset
     
-    # Emit label if needed
-    if addr in branch_targets:
+    # Emit label if needed (branch target OR named label)
+    if addr in branch_targets or addr in named_addrs:
         output.append(f'{make_label(addr)}:')
     
     if is_code[offset]:

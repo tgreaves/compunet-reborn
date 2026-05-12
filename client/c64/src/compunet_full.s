@@ -26,7 +26,7 @@
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $80D0 ................
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $80E0 ................
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $80F0 ................
-    JMP L81A0
+    JMP MAIN_INIT
     .byte $4C, $55, $83, $4C, $30, $8D, $4C, $C1, $94, $4C, $D5, $94, $4C, $EF, $8E, $4C  ; $8103 LU.L0.L..L..L..L
     .byte $47, $8F, $4C, $C9, $93, $4C, $D0, $93, $4C, $C8, $90, $4C, $DF, $90, $4C, $D0  ; $8113 G.L..L..L..L..L.
     .byte $89, $4C, $E2, $89, $4C, $BE, $8A, $4C, $EB, $8A, $4C, $E4, $85, $4C, $9B, $84  ; $8123 .L..L..L..L..L..
@@ -37,10 +37,10 @@
     .byte $53, $E4, $20, $BF, $E3, $20, $22, $E4, $A2, $04, $BD, $B7, $81, $9D, $00, $E0  ; $8173 S. .. ".........
     .byte $CA, $10, $F7, $A0, $00, $84, $1D, $A9, $80, $85, $1E, $B1, $1D, $91, $1D, $C8  ; $8183 ................
     .byte $D0, $F9, $E6, $1E, $A5, $1E, $C9, $A0, $D0, $F1, $20, $35, $83  ; $8193 .......... 5.
-L81A0:
+MAIN_INIT:
     LDX #$7A
     LDY #$80
-    JSR L90B7
+    JSR PRINT_STRING
     LDX #$BC
     LDY #$81
     STX $0302
@@ -112,7 +112,7 @@ L8382:
     STY $C165
     LDX #$AA
     LDY #$83
-    JSR L93C9
+    JSR PROTOCOL_RESET
     LDA #$01
     STA $8033
 L8396:
@@ -120,7 +120,7 @@ L8396:
     JSR $FFD2
     LDX #$65
     LDY #$C1
-    JSR L93D0
+    JSR PROTOCOL_CLEANUP
     BCS L8396
     JSR L840C
     JMP L8396
@@ -231,10 +231,10 @@ L84FD:
     JMP L8495
     LDX #$3D
     LDY #$85
-    JSR L9093
+    JSR CURSOR_HOME
     LDA #$52
     LDX #$53
-    JSR L9171
+    JSR FILE_UPLOAD
     BCS L8576
 L8510:
     JSR L8495
@@ -248,10 +248,10 @@ L8510:
     JSR L89F0
     BCS L8537
     JSR $FFCC
-    JSR L8ABE
+    JSR DISK_LOAD
     LDA $C15D
     BEQ L8510
-    JMP L92CD
+    JMP FRAME_STORE
 L8537:
     JSR $FFE7
     JMP L84D4
@@ -269,6 +269,7 @@ L8576:
     .byte $07, $A6, $1E, $EC, $18, $80, $F0, $AC, $20, $D4, $85, $20, $D2, $FF, $B0, $AA  ; $85BC ........ .. ....
     .byte $90, $D6, $53, $54, $4F, $52, $45, $00, $A9, $00, $2C, $56, $C1, $10, $02, $A9  ; $85CC ..STORE...,V....
     .byte $01, $60, $AE, $19, $80, $AC, $1A, $80  ; $85DC .`......
+SCREEN_DRAW:
     STX $1D
     STY $1E
     LDA #$81
@@ -350,10 +351,11 @@ L8677:
     BCC L86A3
     LDX #$90
     LDY #$86
-    JSR L907B
-    JSR L9002
-    JMP L938B
+    JSR PRINT_STATUS_MSG
+    JSR CLEAR_STATUS
+    JMP PROTOCOL_STATE_INIT
     .byte $50, $52, $49, $4E, $54, $45, $52, $20, $45, $52, $52, $4F, $52, $00  ; $8690 PRINTER ERROR.
+FILE_OPS:
     JSR L874B
     BCC L86A4
 L86A3:
@@ -365,7 +367,7 @@ L86A4:
     STA $0286
     LDX #$2A
     LDY #$87
-    JSR L90B7
+    JSR PRINT_STRING
     LDX $7A
     LDY $7B
     STX $C161
@@ -377,13 +379,13 @@ L86C1:
     LDA #$00
     TAY
     CLC
-    JSR L90C8
+    JSR SETUP_INPUT_PARAMS
     LDX #$00
     LDY #$02
     STX $7A
     STY $7B
     INX
-    JSR L90DF
+    JSR INPUT_LINE
     BCC L86EA
     LDX $C161
     LDY $C162
@@ -500,7 +502,7 @@ L89F0:
     JSR L8A7E
     BCS L8A3B
     STA $D020
-    JSR L938B
+    JSR PROTOCOL_STATE_INIT
     JSR L8A7E
     BCS L8A3B
     STA $D021
@@ -572,13 +574,13 @@ L8A8A:
     .byte $CF, $FF, $B0, $0C, $C9, $01, $D0, $02, $A9, $00, $A6, $90, $8E, $5D, $C1, $18  ; $8A9C .............]..
     .byte $60, $2C, $5D, $C1, $10, $04, $A9, $00, $18, $60, $20, $CC, $96, $6E, $5D, $C1  ; $8AAC `,]......` ..n].
     .byte $18, $60  ; $8ABC .`
-L8ABE:
+DISK_LOAD:
     LDX $8019
     LDY $801A
     JSR L8C70
     LDX $8017
     LDY $8018
-    JSR L8AEB
+    JSR DISK_SAVE
     LDX $8017
     LDY $8018
     STX $8019
@@ -592,7 +594,7 @@ L8AE3:
     STX $8017
     STY $8018
     RTS
-L8AEB:
+DISK_SAVE:
     STX $1D
     STY $1E
     JSR L8C05
@@ -651,7 +653,7 @@ L8B45:
     STA $C15C
 L8B58:
     PLA
-    JSR L94A8
+    JSR MODEM_STATUS_CHECK
     JSR L8B7D
     LDY $D3
     CPY #$27
@@ -876,23 +878,24 @@ L8CD2:
     .byte $00, $0D, $11, $CE, $55, $4D, $42, $45, $52, $3F, $20, $20, $00, $11, $C4, $49  ; $8D0C ....UMBER?  ...I
     .byte $41, $4C, $4C, $49, $4E, $47, $20, $00, $50, $4C, $45, $41, $53, $45, $20, $57  ; $8D1C ALLING .PLEASE W
     .byte $41, $49, $54, $00  ; $8D2C AIT.
+MODEM_CHECK:
     TSX
     STX $C154
     LDX #$03
     LDA #$20
-    JSR L94F0
-    JSR L94FA
+    JSR MODEM_REG_WRITE
+    JSR MODEM_REG_READ
     CMP #$20
     BNE L8D4B
 L8D42:
-    JSR L94FA
+    JSR MODEM_REG_READ
     BEQ L8D52
     CMP #$20
     BEQ L8D42
 L8D4B:
     LDX #$DC
     LDY #$8C
-    JMP L90B7
+    JMP PRINT_STRING
 L8D52:
     JSR L9050
     LDA $8013
@@ -901,25 +904,25 @@ L8D52:
     STA $0286
     LDX #$EA
     LDY #$8C
-    JSR L90B7
+    JSR PRINT_STRING
     LDY #$01
     LDA $9FF0
     BEQ L8D78
     LDX #$01
     LDY #$8D
-    JSR L90B7
+    JSR PRINT_STRING
     LDY #$00
 L8D78:
     LDX #$10
     LDA #$2D
     SEC
-    JSR L90C8
+    JSR SETUP_INPUT_PARAMS
     LDX #$0D
     LDY #$8D
-    JSR L90B7
+    JSR PRINT_STRING
     LDX #$00
     LDY #$02
-    JSR L90DF
+    JSR INPUT_LINE
     BCC L8D91
     RTS
 L8D91:
@@ -935,22 +938,22 @@ L8D9B:
 L8DA4:
     LDX #$19
     LDY #$8D
-    JSR L90B7
-    JSR L96C0
+    JSR PRINT_STRING
+    JSR PROTO_DISPATCH_TABLE
     JSR L96C6
     LDY #$03
     LDX #$08
 L8DB5:
     LDA #$10
-    JSR L94F0
+    JSR MODEM_REG_WRITE
 L8DBA:
-    JSR L94FA
+    JSR MODEM_REG_READ
     AND #$10
     BEQ L8DCB
     JSR $FFE4
     CMP #$03
     BNE L8DBA
-    JMP L96C0
+    JMP PROTO_DISPATCH_TABLE
 L8DCB:
     DEY
     BNE L8DB5
@@ -962,9 +965,9 @@ L8DD0:
     BNE L8DEA
     LDX #$08
     LDA #$10
-    JSR L94F0
+    JSR MODEM_REG_WRITE
 L8DE1:
-    JSR L94FA
+    JSR MODEM_REG_READ
     AND #$10
     BNE L8DE1
     BEQ L8DFC
@@ -974,9 +977,9 @@ L8DEA:
     LDA #$0A
 L8DF0:
     ORA #$A0
-    JSR L94F0
+    JSR MODEM_REG_WRITE
 L8DF5:
-    JSR L94FA
+    JSR MODEM_REG_READ
     AND #$20
     BNE L8DF5
 L8DFC:
@@ -988,23 +991,23 @@ L8DFC:
     BNE L8DD0
     LDX #$03
     LDA #$90
-    JSR L94F0
+    JSR MODEM_REG_WRITE
     LDX #$08
     LDA #$40
-    JSR L94F0
+    JSR MODEM_REG_WRITE
     JSR L96D5
     BCC L8E1F
 L8E1C:
-    JMP L96C0
+    JMP PROTO_DISPATCH_TABLE
 L8E1F:
     LDX #$24
     LDY #$8D
-    JSR L907B
+    JSR PRINT_STATUS_MSG
     CLC
     ROR $C155
     JSR L96D2
     BCC L8E35
-    JSR L96C0
+    JSR PROTO_DISPATCH_TABLE
     JMP L9062
 L8E35:
     JSR L9050
@@ -1024,10 +1027,10 @@ L8E38:
     LDY #$01
     LDA #$00
     CLC
-    JSR L90C8
+    JSR SETUP_INPUT_PARAMS
     LDX #$01
     LDY #$C1
-    JSR L90DF
+    JSR INPUT_LINE
     BCS L8E38
     LDY $1A
     LDA #$20
@@ -1046,7 +1049,7 @@ L8E7A:
     JSR $FFD2
     LDA #$9D
     JSR $FFD2
-    JSR L9002
+    JSR CLEAR_STATUS
     CMP #$0D
     BEQ L8EA3
     CPX #$06
@@ -1084,11 +1087,11 @@ L8EB6:
     STA $C11A
     LDX #$24
     LDY #$8D
-    JSR L907B
+    JSR PRINT_STATUS_MSG
     LDA #$43
     STA $8034
     LDY #$1B
-    JSR L94C1
+    JSR MODEM_REG_WRITE_WAIT
     JSR L96D2
     BCC L8EE8
     JMP L8E38
@@ -1096,6 +1099,7 @@ L8EE8:
     JSR L89D0
     SEC
     ROR $C155
+MODEM_INIT_DOWNLOAD:
     JSR L96CC
     JSR L96CC
     JSR L96CC
@@ -1105,7 +1109,7 @@ L8EE8:
     BCS L8F38
     LDX #$3F
     LDY #$8F
-    JSR L907B
+    JSR PRINT_STATUS_MSG
     JSR L96CC
     STA $1D
     JSR L96CC
@@ -1134,13 +1138,13 @@ L8F38:
     JMP ($001F)
     JMP $4E49
     .byte $4B, $49, $4E, $47, $00  ; $8F42 KING.
-L8F47:
+MODEM_SEND_CMD:
     CPX #$00
     BEQ L8F7E
     STX $C150
     LDX $C154
     TXS
-    JSR L96C0
+    JSR PROTO_DISPATCH_TABLE
     JSR $FFCC
     JSR L8FF2
     LDA $C151
@@ -1149,13 +1153,13 @@ L8F47:
     LDX $8FAF,Y
     LDA $8FB4,Y
     TAY
-    JSR L907B
-    JSR L9002
+    JSR PRINT_STATUS_MSG
+    JSR CLEAR_STATUS
     LDA $C153
     STA $0286
     LDX #$DA
     LDY #$8F
-    JMP L90B7
+    JMP PRINT_STRING
 L8F7E:
     LDX $C154
     TXS
@@ -1164,7 +1168,7 @@ L8F7E:
     STA $0286
     LDX #$F4
     LDY #$9C
-    JSR L90B7
+    JSR PRINT_STRING
 L8F92:
     LDA $DC01
     CMP $DC01
@@ -1178,7 +1182,7 @@ L8F92:
     JSR L96D8
 L8FAA:
     JSR L8FF2
-    JMP L96C0
+    JMP PROTO_DISPATCH_TABLE
     .byte $00, $BA, $BB, $D4, $D7, $C1, $8F, $8F, $8F, $8F, $20, $44, $49, $53, $43, $4F  ; $8FB0 .......... DISCO
     .byte $4E, $4E, $45, $43, $54, $45, $44, $20, $2D, $20, $42, $41, $44, $20, $4C, $49  ; $8FC0 NNECTED - BAD LI
     .byte $4E, $45, $3F, $00, $57, $52, $00, $52, $57, $00, $93, $0E, $43, $4F, $4E, $4E  ; $8FD0 NE?.WR.RW...CONN
@@ -1192,8 +1196,8 @@ L8FFA:
     RTS
     LDX #$10
     LDY #$90
-    JSR L907B
-L9002:
+    JSR PRINT_STATUS_MSG
+CLEAR_STATUS:
     LDA #$00
     STA $C6
     STX $19
@@ -1203,15 +1207,15 @@ L9008:
     LDX $19
     RTS
     .byte $50, $52, $45, $53, $53, $20, $41, $4E, $59, $20, $4B, $45, $59, $00  ; $9010 PRESS ANY KEY.
-L901E:
+STATUS_LINE:
     LDX #$01
     LDY #$01
     LDA #$00
     CLC
-    JSR L90C8
+    JSR SETUP_INPUT_PARAMS
     LDX #$00
     LDY #$02
-    JSR L90DF
+    JSR INPUT_LINE
     BCS L903E
     LDA $0200
     AND #$DF
@@ -1223,15 +1227,15 @@ L903E:
     LDA #$9D
     JSR $FFD2
     CPY #$00
-    BEQ L901E
+    BEQ STATUS_LINE
     JSR $FFD2
-    JMP L901E
+    JMP STATUS_LINE
 L904D:
     CMP #$59
     RTS
 L9050:
     JSR L9062
-    JSR L938B
+    JSR PROTOCOL_STATE_INIT
     JSR L9076
     LDA #$00
     STA $D015
@@ -1256,7 +1260,7 @@ L9076:
     LDA #$92
 L9078:
     JMP $FFD2
-L907B:
+PRINT_STATUS_MSG:
     STX $1B
     STY $1C
     JSR L93B4
@@ -1267,11 +1271,11 @@ L907B:
     PLA
     STA $0286
     JMP L93BF
-L9093:
+CURSOR_HOME:
     STX $1B
     STY $1C
 L9097:
-    JSR L938B
+    JSR PROTOCOL_STATE_INIT
     JSR L90AF
     JSR L9072
     LDA $D021
@@ -1285,7 +1289,7 @@ L90AF:
     LDY #$00
     CLC
     JMP $FFF0
-L90B7:
+PRINT_STRING:
     STX $1B
     STY $1C
 L90BB:
@@ -1298,7 +1302,7 @@ L90BD:
     BNE L90BD
 L90C7:
     RTS
-L90C8:
+SETUP_INPUT_PARAMS:
     STX $C143
     STY $C144
     STA $C146
@@ -1311,7 +1315,7 @@ L90C8:
 L90DB:
     STA $C145
     RTS
-L90DF:
+INPUT_LINE:
     STX $1D
     STY $1E
     LDY #$00
@@ -1390,12 +1394,12 @@ L916C:
     JSR L906A
     CLC
     RTS
-L9171:
+FILE_UPLOAD:
     STA $C147
     STX $8032
     LDX #$56
     LDY #$92
-    JSR L90B7
+    JSR PRINT_STRING
     JSR L92AD
     LDY #$00
     BCS L9186
@@ -1404,12 +1408,12 @@ L9186:
     LDA #$00
     LDX #$10
     CLC
-    JSR L90C8
+    JSR SETUP_INPUT_PARAMS
     LDA $D018
     PHA
     LDX #$1E
     LDY #$80
-    JSR L90DF
+    JSR INPUT_LINE
     STY $19
     PLA
     STA $D018
@@ -1423,6 +1427,7 @@ L91AB:
     BIT $C156
     BPL L91FA
     BMI L91BF
+FILE_DOWNLOAD:
     STA $C147
     STX $8032
     STY $19
@@ -1447,7 +1452,7 @@ L91D9:
     JSR $FFBA
     LDX #$6D
     LDY #$92
-    JSR L9093
+    JSR CURSOR_HOME
     JSR L9290
     JSR $FFC0
     JSR L92A2
@@ -1484,8 +1489,8 @@ L921B:
     BPL L9250
     LDX #$64
     LDY #$92
-    JSR L9093
-    JSR L901E
+    JSR CURSOR_HOME
+    JSR STATUS_LINE
     BNE L924C
     JSR L92AD
     BCS L9250
@@ -1537,7 +1542,7 @@ L92AD:
     PLP
     BCS L92E0
     RTS
-L92CD:
+FRAME_STORE:
     JSR L9290
     LDA #$08
     JSR $FFC3
@@ -1591,10 +1596,10 @@ L931E:
 L932B:
     LDX #$53
     LDY #$93
-    JSR L9093
+    JSR CURSOR_HOME
     LDX #$00
     LDY #$02
-    JSR L90B7
+    JSR PRINT_STRING
 L9339:
     ASL $C149
     BCC L9352
@@ -1603,7 +1608,7 @@ L9339:
     JSR L92E0
     LDA $C149
     BMI L9351
-    JSR L9002
+    JSR CLEAR_STATUS
     LDA $C149
 L9351:
     SEC
@@ -1634,7 +1639,7 @@ L937B:
     LDA $0200
     CMP #$30
     RTS
-L938B:
+PROTOCOL_STATE_INIT:
     LDA $D021
     AND #$0F
     TAX
@@ -1661,11 +1666,11 @@ L93BF:
     LDX $C14A
     LDY $C14B
     JMP $FFF0
-L93C9:
+PROTOCOL_RESET:
     STX $C14E
     STY $C14F
     RTS
-L93D0:
+PROTOCOL_CLEANUP:
     STX $1D
     STY $1E
     LDX $C14E
@@ -1678,7 +1683,7 @@ L93D0:
 L93E5:
     LDX #$00
     JSR L9436
-    JSR L9002
+    JSR CLEAR_STATUS
     CMP #$1D
     BNE L940E
     LDX #$01
@@ -1790,7 +1795,7 @@ L94A1:
     ASL
     BCC L94A1
     RTS
-L94A8:
+MODEM_STATUS_CHECK:
     AND #$7F
     CMP #$20
     BCS L94B2
@@ -1807,7 +1812,7 @@ L94BE:
     EOR #$C0
 L94C0:
     RTS
-L94C1:
+MODEM_REG_WRITE_WAIT:
     STY $C14D
     LDY #$00
 L94C6:
@@ -1819,7 +1824,7 @@ L94C6:
     PLP
     BCC L94C6
     RTS
-L94D5:
+MODEM_REG_READ_STATUS:
     LDY #$00
 L94D7:
     JSR L96CC
@@ -1828,23 +1833,23 @@ L94D7:
     BCC L94D7
     LDA $8034
     RTS
-L94E4:
+MODEM_WAIT_READY:
     PHA
     LDX #$00
 L94E7:
-    JSR L94FA
+    JSR MODEM_REG_READ
     TAX
     BPL L94E7
     PLA
     LDX #$04
-L94F0:
+MODEM_REG_WRITE:
     PHP
     SEI
     STX $DE00
     STA $DE01
     PLP
     RTS
-L94FA:
+MODEM_REG_READ:
     PHP
     SEI
     STX $DE00
@@ -1880,34 +1885,34 @@ L94FA:
     .byte $D4, $CF, $20, $C5, $C4, $C9, $D4, $0D, $06, $02, $46, $4F, $52, $20, $46, $55  ; $9697 .. .......FOR FU
     .byte $4C, $4C, $45, $52, $20, $44, $45, $54, $41, $49, $4C, $53, $00, $00, $00, $00  ; $96A7 LLER DETAILS....
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $96B7 .........
-L96C0:
-    JMP L9B79
+PROTO_DISPATCH_TABLE:
+    JMP PROTO_SEND_PACKET
     .byte $4C, $8A, $9B  ; $96C3 L..
 L96C6:
-    JMP L96DB
+    JMP PROTO_INIT_REGS
 L96C9:
-    JMP L97AD
+    JMP PROTO_RECV_FRAME
 L96CC:
-    JMP L996B
+    JMP PROTO_PROCESS_CMD
     .byte $4C, $3A, $99  ; $96CF L:.
 L96D2:
-    JMP L9B3B
+    JMP PROTO_FLOW_CONTROL
 L96D5:
-    JMP L9E69
+    JMP PROTO_CONNECT
 L96D8:
     JMP $C800
-L96DB:
+PROTO_INIT_REGS:
     LDX #$02
     LDA #$40
-    JSR L94F0
+    JSR MODEM_REG_WRITE
     LDX #$06
     LDA #$05
-    JMP L94F0
-L96E9:
+    JMP MODEM_REG_WRITE
+PROTO_START_SESSION:
     BIT $8038
     BVC L96F3
     LDX #$04
-    JMP L8F47
+    JMP MODEM_SEND_CMD
 L96F3:
     LDA $C20E
     STA $C210
@@ -1918,11 +1923,11 @@ L96F3:
     LDA #$63
     LDY #$9C
     BNE L971F
-L970A:
+PROTO_DISCONNECT:
     BIT $8038
     BPL L9714
     LDX #$05
-    JMP L8F47
+    JMP MODEM_SEND_CMD
 L9714:
     LDA #$40
     STA $8038
@@ -1997,7 +2002,7 @@ L97A2:
     DEX
     BPL L97A2
     JMP L9C2D
-L97AD:
+PROTO_RECV_FRAME:
     STA $19
     PHA
     TXA
@@ -2009,7 +2014,7 @@ L97AD:
     PHA
     BIT $8038
     BMI L97C0
-    JSR L96E9
+    JSR PROTO_START_SESSION
 L97C0:
     LDX $C209
     LDA $C22C,X
@@ -2196,22 +2201,23 @@ L9926:
     ADC #$20
     PHA
     LDA #$03
-    JSR L94E4
+    JSR MODEM_WAIT_READY
     PLA
 L9937:
-    JMP L94E4
+    JMP MODEM_WAIT_READY
+PROTO_ERROR_RECOVERY:
     .byte $48, $8A, $48, $98, $48, $2C, $38, $80, $70, $03, $20, $0A, $97, $2C, $24, $C2  ; $993A H.H.H,8.p. ..,$.
     .byte $30, $18, $A2, $03, $BD, $2C, $C2, $10, $08, $BD, $28, $C2, $CD, $0F, $C2, $F0  ; $994A 0....,....(.....
     .byte $09, $CA, $10, $F0, $20, $06, $9A, $38, $B0, $01, $18, $68, $A8, $68, $AA, $68  ; $995A .... ..8...h.h.h
     .byte $60  ; $996A `
-L996B:
+PROTO_PROCESS_CMD:
     TXA
     PHA
     TYA
     PHA
     BIT $8038
     BVS L9977
-    JSR L970A
+    JSR PROTO_DISCONNECT
 L9977:
     LDX $C209
     LDA $C22C,X
@@ -2446,8 +2452,8 @@ L9B34:
     TAX
     PLA
     RTS
-L9B3B:
-    JSR L970A
+PROTO_FLOW_CONTROL:
+    JSR PROTO_DISCONNECT
     JSR L9A17
     LDA $8034
     CMP #$41
@@ -2460,7 +2466,7 @@ L9B50:
     CLC
     RTS
 L9B52:
-    JSR L94D5
+    JSR MODEM_REG_READ_STATUS
     LDA #$00
     STA $C100,Y
     LDA $8034
@@ -2470,23 +2476,24 @@ L9B52:
     BEQ L9B74
     LDX #$00
     LDY #$C1
-    JSR L907B
-    JSR L9002
-    JSR L938B
+    JSR PRINT_STATUS_MSG
+    JSR CLEAR_STATUS
+    JSR PROTOCOL_STATE_INIT
     SEC
     RTS
 L9B74:
     LDX #$01
-    JMP L8F47
-L9B79:
+    JMP MODEM_SEND_CMD
+PROTO_SEND_PACKET:
     JSR L9C36
     LDX #$03
     LDA #$20
-    JSR L94F0
+    JSR MODEM_REG_WRITE
 L9B83:
-    JSR L94FA
+    JSR MODEM_REG_READ
     AND #$20
     BNE L9B83
+PROTO_RECV_PACKET:
     LDA #$20
     STA $C20E
     STA $C20F
@@ -2626,28 +2633,28 @@ L9E3C:
     RTS
     .byte $2C, $11, $80, $10, $03, $8D, $E7, $07, $60, $C3, $4F, $4E, $4E, $45, $43, $54  ; $9E50 ,.......`.ONNECT
     .byte $49, $4E, $47, $2E, $2E, $2E, $0D, $11, $00  ; $9E60 ING......
-L9E69:
+PROTO_CONNECT:
     LDX #$00
-    JSR L94FA
+    JSR MODEM_REG_READ
     AND #$20
     BNE L9E89
     LDX #$08
-    JSR L94FA
+    JSR MODEM_REG_READ
     AND #$40
     BNE L9E80
     LDX #$02
-    JMP L8F47
+    JMP MODEM_SEND_CMD
 L9E80:
     JSR $FFE4
     CMP #$03
-    BNE L9E69
+    BNE PROTO_CONNECT
     BEQ L9EE1
 L9E89:
     LDA $8012
     STA $D020
     LDX #$03
     LDA #$D0
-    JSR L94F0
+    JSR MODEM_REG_WRITE
     JSR L906E
     JSR L906E
     BIT $8010
@@ -2658,7 +2665,7 @@ L9E89:
 L9EA6:
     LDX #$59
     LDY #$9E
-    JSR L90B7
+    JSR PRINT_STRING
     LDA #$00
     STA $C200
     STA $C202
@@ -2674,7 +2681,7 @@ L9EA6:
     JSR L9FA9
     LDA #$40
     LDX #$08
-    JSR L94F0
+    JSR MODEM_REG_WRITE
 L9ED6:
     LDX $20
     CPX #$0A
@@ -2691,7 +2698,7 @@ L9EE3:
     CPX $20
     BNE L9F14
     LDX #$00
-    JSR L94FA
+    JSR MODEM_REG_READ
     TAX
     BPL L9EE3
     LDX $C202
@@ -2705,7 +2712,7 @@ L9EE3:
 L9F09:
     STX $C202
     LDX #$04
-    JSR L94F0
+    JSR MODEM_REG_WRITE
     JMP L9EE3
 L9F14:
     LDA $C234,X
@@ -2782,11 +2789,11 @@ L9F90:
     BIT $8010
     BPL L9FA3
     LDX #$08
-    JSR L94FA
+    JSR MODEM_REG_READ
     AND #$40
     BNE L9FA3
     LDX #$02
-    JMP L8F47
+    JMP MODEM_SEND_CMD
 L9FA3:
     JSR $FFE4
     CMP #$03
@@ -2794,13 +2801,13 @@ L9FA3:
 L9FA9:
     LDX #$08
     LDA #$10
-    JSR L94F0
+    JSR MODEM_REG_WRITE
 L9FB0:
-    JSR L94FA
+    JSR MODEM_REG_READ
     AND #$10
     BNE L9FB0
     LDA #$0D
-    JMP L94E4
+    JMP MODEM_WAIT_READY
 L9FBC:
     LDA #$00
     STA $A2
