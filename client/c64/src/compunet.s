@@ -4026,9 +4026,8 @@ ROMCALL_31      = $815D   ; FRAME_STORE
 
 .segment "TERMINAL"
 
-L9FF0:
+L9FF0 = $9FF0                           ; Phone number storage (RAM, written at runtime)
 
-    .byte $18, $08, $35, $32, $39, $38, $39, $38, $38, $38, $38, $38, $38, $38, $38, $38; $9FF0 ..52989888888888
     .byte $31, $45, $20, $F0, $B9                                ; $A000 1E ..
     LDA #$00
     STA $C000
@@ -6720,12 +6719,18 @@ NMI_HANDLER_END:
 ACIA_REG_WRITE:
     CPX #$04
     BNE @skip
-    ; Transmit byte with delay
+    ; Transmit byte with delay (preserves Y)
     STA ACIA_DATA
+    PHA
+    TYA
+    PHA
     LDY #$FF
 @txdly:
     DEY
     BNE @txdly
+    PLA
+    TAY
+    PLA
 @skip:
     RTS
 
@@ -6781,10 +6786,16 @@ ACIA_REG_READ:
 ; =================================================================
 ACIA_WAIT_READY:
     STA ACIA_DATA
+    PHA                                 ; Preserve A
+    TYA
+    PHA                                 ; Preserve Y
     LDY #$FF
 @wdly:
     DEY
     BNE @wdly
+    PLA
+    TAY                                 ; Restore Y
+    PLA                                 ; Restore A
     RTS
 
 ; =================================================================
@@ -6807,6 +6818,8 @@ ACIA_DIAL:
     LDY #$00
 @send_digit:
     CPY $9FF0
+    BEQ @send_cr
+    CPY #$14                            ; Safety: max 20 chars
     BEQ @send_cr
     LDA $9FF1,Y
     CMP #$2D                            ; '-' = pause
