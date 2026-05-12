@@ -263,7 +263,14 @@ L823E:
     RTS
     .byte $45, $44, $49, $54, $4F, $D2, $43, $4F, $4E, $4E, $45, $43, $D4, $43, $4E, $4C  ; $8249 EDITO.CONNEC.CNL
     .byte $4F, $41, $C4, $43, $4E, $53, $41, $56, $C5, $48, $45, $4C, $D0, $4F, $46, $C6  ; $8259 OA.CNSAV.HEL.OF.
-    .byte $4C, $83, $2F, $8D, $AB, $82, $A8, $82, $74, $82, $9D, $82  ; $8269 L./.....t...
+    ; Command dispatch table (RTS-trick: address-1)
+    .byte <(L834D-1), >(L834D-1)
+    .byte <(MODEM_CHECK-1), >(MODEM_CHECK-1)
+    .byte <(L82AC-1), >(L82AC-1)
+    .byte <(L82A9-1), >(L82A9-1)
+    .byte <(L8275-1), >(L8275-1)
+    .byte <(L829E-1), >(L829E-1)
+L8275:
     LDX #$7A
     LDY #$80
     JSR PRINT_STRING                    ; PRINT_STRING
@@ -286,13 +293,16 @@ L828A:
     DEX
     BNE L8287
     RTS
+L829E:
     LDX #$83
     LDY #$A4
     STX $0302
     STY $0303
     RTS
+L82A9:
     SEC
     BCS L82AD
+L82AC:
     CLC
 L82AD:
     ROR $19
@@ -372,7 +382,10 @@ L833A:
     STX $8036
     STY $8037
     RTS
-    .byte $A9, $FF, $8D, $4B, $80, $8D, $4C, $80  ; $834D ...K..L.
+L834D:
+    LDA #$FF
+    STA $804B
+    STA $804C
 L8355:
     JSR L89DC
     LDA $804B
@@ -432,8 +445,22 @@ L840C:
     LDA $841B,X
     PHA
     RTS
-    .byte $38, $84, $5F, $87, $45, $84, $76, $84, $94, $84, $CA, $84, $D3, $84, $FF, $84  ; $841D 8._.E.v.........
-    .byte $40, $85, $7F, $85, $DD, $85, $9B, $89, $5A, $87, $9D, $86  ; $842D @.......Z...
+    ; Editor function dispatch table (RTS-trick: address-1)
+    .byte <(L8439-1), >(L8439-1)
+    .byte <(L8760-1), >(L8760-1)
+    .byte <(L8446-1), >(L8446-1)
+    .byte <(L8477-1), >(L8477-1)
+    .byte <(L8495-1), >(L8495-1)
+    .byte <(L84CB-1), >(L84CB-1)
+    .byte <(L84D4-1), >(L84D4-1)
+    .byte <(L8500-1), >(L8500-1)
+    .byte <(L8541-1), >(L8541-1)
+    .byte <(L8580-1), >(L8580-1)
+    .byte <(L85DE-1), >(L85DE-1)
+    .byte <(L899C-1), >(L899C-1)
+    .byte <(L875B-1), >(L875B-1)
+    .byte <(FILE_OPS-1), >(FILE_OPS-1)
+L8439:
     LDX #$89
     LDY #$95                            ; FRAME_BUF_WRITE
     JSR L89E2
@@ -503,6 +530,7 @@ L84B9:
     JSR L8BC0
     LDA #$00
     JMP L8BC0
+L84CB:
     JSR L849B
     JSR DISK_LOAD
     JMP L89DC
@@ -556,6 +584,7 @@ L8537:
     JMP L84D4
     .byte $47, $45, $54  ; $853D GET
     BRK
+L8541:
     LDX #$7C
     LDY #$85                            ; CURSOR_HOME
     JSR CURSOR_HOME
@@ -586,6 +615,7 @@ L8576:
     JMP L89DC
     .byte $50, $55, $54  ; $857C PUT
     BRK
+L8580:
     LDX #$CE
     LDY #$85                            ; CURSOR_HOME
     JSR CURSOR_HOME
@@ -630,7 +660,13 @@ L85D4:
     LDA #$01
 L85DD:
     RTS
-    .byte $AE, $19, $80, $AC, $1A, $80  ; $85DE ......
+L85DE:
+    LDX $8019
+
+; ============================================================
+; SCREEN_DRAW
+; ============================================================
+    LDY $801A
 
 ; --- SCREEN_DRAW ---
 ; Render frame/page to screen
@@ -805,9 +841,11 @@ L874D:
 L8759:
     SEC
     RTS
+L875B:
     PLA                                 ; KERNAL_CHROUT
     PLA
     JMP L9062
+L8760:
     LDA #$09
     JSR KERNAL_CHROUT
     LDA #$02
@@ -979,9 +1017,19 @@ L88B3:
     PHA
     LDA $88BC,X
     PHA
+L88BB:
     RTS
-    .byte $BA, $88, $F0, $88, $DE, $88, $CB, $88, $BA, $88, $3D, $89, $E7, $88, $D1  ; $88BC ..........=....
+    ; Editor mode dispatch table (RTS-trick: address-1)
+    .byte <(L88BB-1), >(L88BB-1)
+    .byte <(L88F1-1), >(L88F1-1)
+    .byte <(L88DF-1), >(L88DF-1)
+    .byte <(L88CC-1), >(L88CC-1)
+    .byte <(L88BB-1), >(L88BB-1)
+    .byte <(L893E-1), >(L893E-1)
+    .byte <(L88E8-1), >(L88E8-1)
+    .byte $D1  ; $88CA .
     DEY
+L88CC:
     INC VIC_BGCOL0
     JMP L88D5
     .byte $EE, $20, $D0  ; $88D2 . .
@@ -990,10 +1038,17 @@ L88D5:
     LDX #$9B
     LDY #$88
     JMP PRINT_STATUS_MSG
-    .byte $AD, $8A, $02, $49, $80, $8D, $8A, $02  ; $88DF ...I....
+L88DF:
+    LDA $028A
+    EOR #$80
+    STA $028A
     RTS
-    .byte $AD, $5B, $C1, $49, $80, $8D, $5B  ; $88E8 .[.I..[
-    CMP ($60,X)
+L88E8:
+    LDA $C15B
+    EOR #$80
+    STA $C15B
+    RTS
+L88F1:
     LDX $D6
     BEQ L893D
     LDA $D1
@@ -1040,6 +1095,7 @@ L8938:
     BPL L8938
 L893D:
     RTS
+L893E:
     LDA #$98
     STA $1D
     LDA #$07
@@ -1094,6 +1150,7 @@ L8983:
     ORA #$D8
     STA $24
     RTS
+L899C:
     LDX #$CF
     LDY #$89
     JSR CURSOR_HOME
@@ -1565,7 +1622,7 @@ L8CD2:
     .byte $41, $49, $54, $00  ; $8D2C AIT.
 
 ; --- MODEM_CHECK ---
-; ;--- MODIFIED: Initialize ACIA, skip brick modem check ---
+; ;--- MODIFIED: ACIA init, skip brick modem check ---
 MODEM_CHECK:
     TSX
     STX $C154
@@ -2557,43 +2614,19 @@ L94D7:
     RTS                                 ; MODEM_REG_SELECT
 
 ; --- MODEM_WAIT_READY ---
-; ;--- MODIFIED: trampoline to ACIA driver ---
+; ;--- MODIFIED: redirect to ACIA driver ---
 MODEM_WAIT_READY:
     JMP $BE90                           ; ACIA_WAIT_READY
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
 
 ; --- MODEM_REG_WRITE ---
-; ;--- MODIFIED: trampoline to ACIA driver ---
+; ;--- MODIFIED: redirect to ACIA driver ---
 MODEM_REG_WRITE:
     JMP $BE4D                           ; ACIA_REG_WRITE
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
 
 ; --- MODEM_REG_READ ---
-; ;--- MODIFIED: trampoline to ACIA driver ---
+; ;--- MODIFIED: redirect to ACIA driver ---
 MODEM_REG_READ:
     JMP $BE5A                           ; ACIA_REG_READ
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
     .byte $00, $F4, $FF, $8E, $07, $0D, $0C, $20, $20, $90, $B0, $07, $C0, $21, $AE, $9B  ; $9507 .......  ....!..
     .byte $0D, $20, $20, $90, $DD, $43, $4F, $4D, $50, $55, $4E, $45, $54, $20, $53, $59  ; $9517 .  ..COMPUNET SY
     .byte $53, $54, $45, $4D, $20, $4C, $4F, $47, $4F, $4E, $2E, $06, $0B, $DD, $9B, $0D  ; $9527 STEM LOGON......
@@ -3846,7 +3879,7 @@ L9FB0:
     JSR MODEM_REG_READ
     AND #$10
     BNE L9FB0
-    LDA #$20                            ; ;--- MODIFIED: space not CR (avoids tcpser break delay)
+    LDA #$20                            ; ;--- MODIFIED: space not CR (tcpser break delay)
     JMP MODEM_WAIT_READY
 L9FBC:
     LDA #$00

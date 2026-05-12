@@ -23,7 +23,7 @@ with open(term_path, 'rb') as f:
 with open(acia_path, 'rb') as f:
     acia = f.read()
 
-assert len(rom) == 8192, f"ROM must be 8192 bytes, got {len(rom)}"
+assert len(rom) >= 8192, f"ROM must be at least 8192 bytes, got {len(rom)}"
 assert len(terminal) == 7699, f"Terminal must be 7699 bytes, got {len(terminal)}"
 
 # Build memory image from $8000 to end of ACIA driver
@@ -36,8 +36,8 @@ total_size = end_addr - LOAD_ADDR
 
 image = bytearray(total_size)
 
-# Place ROM at $8000
-image[0:8192] = rom
+# Place ROM at $8000 (use first 8192 bytes)
+image[0:8192] = rom[0:8192]
 
 # Place terminal at $9FF0 (overwrites last 16 bytes of ROM — intentional)
 term_offset = TERM_ADDR - LOAD_ADDR

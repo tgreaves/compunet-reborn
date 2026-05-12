@@ -125,6 +125,14 @@ for i in range(32):
 # Additional entry points discovered by verify_data.py
 # These are routines reachable via indirect dispatch or from downloaded terminal code
 entry_points += [
+    # Command dispatch table targets (RTS-trick at $8269)
+    0x834D, 0x8D30, 0x82AC, 0x82A9, 0x8275, 0x829E,
+    # Editor dispatch table targets (RTS-trick at $841D)
+    0x8439, 0x8760, 0x8446, 0x8477, 0x8495, 0x84CB,
+    0x84D4, 0x8500, 0x8541, 0x8580, 0x85DE, 0x899C,
+    0x875B, 0x869E,
+    # Editor mode dispatch table targets (RTS-trick at $88BC)
+    0x88BB, 0x88F1, 0x88DF, 0x88CC, 0x893E, 0x88E8,
     # BASIC/init routines (called from COLD_START area)
     0x81BC,  # Routine after COLD_START setup
     0x8201,  # JSR $8ED0 — init routine
@@ -282,6 +290,17 @@ for ep in entry_points:
 print(f"Code bytes: {sum(is_code)} / 8192")
 print(f"Code instructions: {len(code_start)}")
 print(f"Branch targets: {len(branch_targets)}")
+
+# Ensure all dispatch table targets have labels (add to branch_targets)
+dispatch_targets = [
+    0x834D, 0x8D30, 0x82AC, 0x82A9, 0x8275, 0x829E,
+    0x8439, 0x8760, 0x8446, 0x8477, 0x8495, 0x84CB,
+    0x84D4, 0x8500, 0x8541, 0x8580, 0x85DE, 0x899C,
+    0x875B, 0x869E,
+    0x88BB, 0x88F1, 0x88DF, 0x88CC, 0x893E, 0x88E8,
+]
+for t in dispatch_targets:
+    branch_targets.add(t)
 
 # ============================================================
 # Extract comments from annotated disassembly
@@ -643,21 +662,49 @@ while offset < 8192:
         output.append(line)
         offset += size
     else:
-        # Emit data bytes (group consecutive non-code bytes)
-        data_start = offset
-        while offset < 8192 and not is_code[offset] and (BASE + offset) not in branch_targets and (BASE + offset) not in named_addrs:
-            offset += 1
-            if (offset - data_start) >= 16:
-                break
-        
-        # Safety: ensure we advance at least 1 byte
-        if offset == data_start:
-            offset += 1
-        
-        chunk = rom[data_start:offset]
-        byte_str = ', '.join(f'${b:02X}' for b in chunk)
-        ascii_repr = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
-        output.append(f'    .byte {byte_str}  ; ${BASE+data_start:04X} {ascii_repr}')
+        # Check if this is a known address table that needs label references
+        if addr == 0x8269:
+            # RTS-trick command dispatch table (6 entries)
+            output.append('    ; Command dispatch table (RTS-trick: address-1)')
+            rts_targets = [0x834D, 0x8D30, 0x82AC, 0x82A9, 0x8275, 0x829E]
+            for i, target in enumerate(rts_targets):
+                lbl = make_label(target)
+                output.append(f'    .byte <({lbl}-1), >({lbl}-1)')
+            offset += 12
+        elif addr == 0x841D:
+            # RTS-trick editor dispatch table (14 entries)
+            output.append('    ; Editor function dispatch table (RTS-trick: address-1)')
+            rts_targets = [0x8439, 0x8760, 0x8446, 0x8477, 0x8495, 0x84CB,
+                          0x84D4, 0x8500, 0x8541, 0x8580, 0x85DE, 0x899C,
+                          0x875B, 0x869E]
+            for i, target in enumerate(rts_targets):
+                lbl = make_label(target)
+                output.append(f'    .byte <({lbl}-1), >({lbl}-1)')
+            offset += 28
+        elif addr == 0x88BC:
+            # Editor mode dispatch table (7 entries)
+            output.append('    ; Editor mode dispatch table (RTS-trick: address-1)')
+            rts_targets = [0x88BB, 0x88F1, 0x88DF, 0x88CC, 0x88BB, 0x893E, 0x88E8]
+            for i, target in enumerate(rts_targets):
+                lbl = make_label(target)
+                output.append(f'    .byte <({lbl}-1), >({lbl}-1)')
+            offset += 14
+        else:
+            # Emit data bytes (group consecutive non-code bytes)
+            data_start = offset
+            while offset < 8192 and not is_code[offset] and (BASE + offset) not in branch_targets and (BASE + offset) not in named_addrs:
+                offset += 1
+                if (offset - data_start) >= 16:
+                    break
+            
+            # Safety: ensure we advance at least 1 byte
+            if offset == data_start:
+                offset += 1
+            
+            chunk = rom[data_start:offset]
+            byte_str = ', '.join(f'${b:02X}' for b in chunk)
+            ascii_repr = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
+            output.append(f'    .byte {byte_str}  ; ${BASE+data_start:04X} {ascii_repr}')
 
 with open(output_path, 'w') as f:
     f.write('\n'.join(output) + '\n')
