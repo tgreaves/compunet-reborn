@@ -298,37 +298,55 @@ SEGMENTS {
 
 ```
 client/c64/src/
-├── compunet_reborn.s      # Main file — includes everything
-├── header.s               # Cartridge header ($8000-$8008)
-├── config.s               # System parameters, CNET string
-├── version.s              # Version string, startup messages
-├── acia.s                 # ACIA driver (NMI handler, init, TX)
-├── jumptable.s            # 32-entry jump table
-├── coldstart.s            # COLD_START, MAIN_INIT, command parser
-├── dial.s                 # Hayes ATDT dial sequence
-├── login.s                # Login screen (mostly original binary)
-├── recv_engine.s          # New polling-based receive engine
+├── compunet_reborn.s      # Main file — includes all segments in order
+├── header.s               # Cartridge header + system parameters
+├── version.s              # Version string "COMPUNET REBORN 1.00"
+├── acia.s                 # ACIA driver (NMI handler, init, TX with re-arm)
+├── jumptable.s            # 32-entry jump table (addresses may change)
+├── coldstart.s            # COLD_START, MAIN_INIT, BASIC command parser
+├── commands.s             # HELP, OFF, CNSAVE, CNLOAD dispatch
+├── editor.s               # Page editor, navigation, screen draw
+├── diskio.s               # Disk I/O, frame buffer, command input
+├── dial.s                 # MODEM_CHECK + Hayes ATDT dial sequence
+├── login.s                # Login screen, buffer build, send
+├── download.s             # MODEM_INIT_DOWNLOAD (linking byte loop)
+├── sendcmd.s              # MODEM_SEND_CMD, disconnect handling
+├── io.s                   # PRINT_STRING, INPUT_LINE, SETUP_INPUT_PARAMS
+├── filesave.s             # CNSAVE, FILE_DOWNLOAD, CNLOAD
+├── protocol_state.s       # WHITE_BAR, PROTOCOL_RESET, duckshoot setup
+├── hardware.s             # Hardware abstraction (ACIA register mapping)
+├── data.s                 # Login screen layout, editor help text
+├── protocol_dispatch.s    # Dispatch table ($96C0) — redirected entries
+├── protocol_send.s        # Packet send, CRC, flow control, byte stuffing
+├── recv_engine.s          # NEW: polling-based receive engine
 ├── proto_connect.s        # PROTO_CONNECT adapted for ACIA
-├── proto_send.s           # Protocol send path (original, with byte stuffing)
-├── original_code.s        # .incbin blocks for preserved original code
-├── cartridge.cfg          # Linker configuration
-└── make_crt.py            # Convert raw binary to CRT format
+├── irq.s                  # IRQ handlers (neutered packet assembly)
+├── cartridge.cfg          # ca65/ld65 linker configuration
+├── Makefile               # Build automation
+└── make_crt.py            # Convert raw binary to VICE CRT format
 ```
+
+Each `.s` file corresponds to a logical section of the ROM. The source is
+derived from `modem_bootstrap.asm` (our annotated disassembly) converted to
+ca65 syntax. Modified routines are clearly marked with `;--- MODIFIED ---`
+comments and explanations.
 
 ### Original Code Inclusion
 
-Large blocks of original ROM code that don't need modification are included
-as binary blobs:
+The entire ROM is written as ca65 assembly source, based on the annotated
+disassembly in `modem_bootstrap.asm`. Unchanged sections assemble to the
+exact same bytes as the original ROM. Modified sections are clearly marked
+with comments explaining the change.
 
-```asm
-.segment "ORIGINAL"
-; Editor, disk I/O, frame buffer — unchanged from original ROM
-.incbin "original_editor.bin"      ; $8355-$86FF
-.incbin "original_diskio.bin"      ; $8700-$8CFF
-; ... etc
-```
+This means:
+- **No binary blobs** — everything is source code
+- **Fully auditable** — diff against original disassembly to see changes
+- **Consistent toolchain** — one `ca65` build produces the entire ROM
+- **Easy to modify** — change any routine by editing its source
 
-These are extracted from the original ROM image by a preparation script.
+The disassembly already has labels and comments. Converting to ca65 syntax
+is mechanical: fix addressing modes, add segment directives, replace hex
+dumps with `.byte` directives.
 
 ## Migration Strategy
 

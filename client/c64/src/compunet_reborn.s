@@ -4,31 +4,20 @@
 ; Target: 6551 ACIA (SwiftLink) via tcpser + TCP server
 ; Assembler: ca65 (cc65 suite)
 ; Build: make
-;
-; This is a clean rewrite of the Compunet Terminal ROM v1.22,
-; replacing the custom modem hardware layer with ACIA/SwiftLink
-; and the IRQ-driven packet assembly with direct buffer polling.
-;
-; The X.25 wire protocol (framing, CRC, byte stuffing, sequencing)
-; is preserved. The user experience is identical to the original.
 ; =================================================================
 
 .segment "HEADER"
 
 ; --- Cartridge header ---
-; Bytes $8000-$8008: entry vectors + CBM80 signature
-; The C64 KERNAL checks for "CBM80" at $8004 to detect a cartridge.
-; If found, it jumps to the address at $8000 (cold) or $8002 (warm).
-
 .word   COLD_START          ; $8000: Cold start vector
-.word   COLD_START          ; $8002: Warm start vector (reuse cold)
-.byte   $C3, $C2, $CD       ; $8004: "CBM" (part of CBM80 signature)
+.word   COLD_START          ; $8002: Warm start vector
+.byte   $C3, $C2, $CD       ; $8004: "CBM"
 .byte   $38, $30             ; $8007: "80"
 
 .segment "CODE"
 
 ; =================================================================
-; COLD_START — Initialize C64 hardware and display version
+; COLD_START — matches original Compunet ROM sequence
 ; =================================================================
 COLD_START:
     JSR $FF84               ; KERNAL IOINIT
@@ -37,21 +26,21 @@ COLD_START:
     JSR $FF81               ; KERNAL CINT
     CLI
     LDA #$01
-    STA $0286               ; Set text colour (white)
+    STA $D021               ; Background = white (like original)
+    JSR $E453               ; BASIC_RUNC (init runtime)
+    JSR $E3BF               ; BASIC_MAIN (prints banner, returns)
+    JSR $E422               ; BASIC_LINKPRG (link program lines)
 
-    ; Print version string
+    ; Print our version string (after BASIC banner)
     LDX #<version_str
     LDY #>version_str
     JSR print_string
 
-    ; Enter BASIC (warm start)
-    JSR $E453               ; BASIC INIT
-    JSR $E3BF               ; BASIC main loop
-    JMP ($A002)             ; Should not reach here
+    ; Enter BASIC main loop (prints READY. and accepts input)
+    JMP $A474               ; BASIC warm start (READY. prompt)
 
 ; =================================================================
-; print_string — Print null-terminated string
-; Entry: X=low byte, Y=high byte of string address
+; print_string — Print PETSCII null-terminated string at X(lo)/Y(hi)
 ; =================================================================
 print_string:
     STX $FB
@@ -67,11 +56,14 @@ print_string:
     RTS
 
 ; =================================================================
-; Version string
+; Version strings (PETSCII uppercase)
 ; =================================================================
 version_str:
-    .byte $0D               ; Carriage return
-    .byte " COMPUNET REBORN 1.00"
-    .byte $0D
-    .byte " 2026 - REBUILT FOR SWIFTLINK"
-    .byte $0D, $0D, $00
+    .byte $0D               ; CR
+    .byte $20, $43, $4F, $4D, $50, $55, $4E, $45, $54  ; " COMPUNET"
+    .byte $20, $54, $45, $52, $4D, $49, $4E, $41, $4C  ; " TERMINAL"
+    .byte $20, $31, $2E, $32, $32                        ; " 1.22"
+    .byte $0D               ; CR
+    .byte $20, $52, $45, $42, $4F, $52, $4E             ; " REBORN"
+    .byte $20, $31, $2E, $30, $30                        ; " 1.00"
+    .byte $0D, $0D, $00     ; CR, CR, null
