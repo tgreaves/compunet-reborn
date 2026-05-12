@@ -1,7 +1,7 @@
 ; =================================================================
 ; ACIA DRIVER — SwiftLink/6551 hardware layer
 ; =================================================================
-; Loaded to $C800-$CFFF (RAM) at boot by COLD_START
+; Located after terminal code (at $BE03+)
 ; Called from ROM via JMP trampolines at MODEM_REG_WRITE/MODEM_REG_READ
 ;
 ; This replaces the original Compunet brick modem hardware layer.
@@ -10,27 +10,31 @@
 ; We translate those register-select calls to ACIA operations.
 ; =================================================================
 
-.segment "ACIADRV"
+.segment "ACIA"
 
-; --- Equates ---
+; --- Hardware Registers ---
 ACIA_DATA       = $DE00
 ACIA_STATUS     = $DE01
 ACIA_CMD        = $DE02
 ACIA_CTRL       = $DE03
+
+; --- NMI Ring Buffer ---
 NMI_BUF         = $CE00   ; 256-byte ring buffer
 NMI_BUF_TAIL    = $029B   ; Write pointer (NMI handler advances)
 NMI_BUF_HEAD    = $029C   ; Read pointer (main code advances)
-NMI_VECTOR      = $0318
-KERNAL_CHROUT   = $FFD2
+
+; --- System Vectors ---
+NMI_VECTOR_LO   = $0318
+NMI_VECTOR_HI   = $0319
 
 ; =================================================================
 ; ACIA_INIT — Initialize ACIA and install NMI handler
-; Called from MODEM_CHECK trampoline in ROM
+; Called from MODEM_CHECK trampoline
 ; =================================================================
 ACIA_INIT:
     ; Reset ACIA
     LDA #$00
-    STA ACIA_CMD                        ; Programmed reset
+    STA ACIA_CMD
     ; Configure: 19200 baud, 8N1, 1 stop bit
     LDA #$1F
     STA ACIA_CTRL
@@ -44,9 +48,9 @@ ACIA_INIT:
     ; Install NMI handler
     SEI
     LDA #<NMI_HANDLER
-    STA NMI_VECTOR
+    STA NMI_VECTOR_LO
     LDA #>NMI_HANDLER
-    STA NMI_VECTOR+1
+    STA NMI_VECTOR_HI
     CLI
     RTS
 
@@ -84,9 +88,8 @@ NMI_HANDLER:
 ACIA_REG_WRITE:
     CPX #$04
     BNE @skip
-    ; Transmit byte
+    ; Transmit byte with delay
     STA ACIA_DATA
-    ; Delay for byte to complete at baud rate
     LDY #$FF
 @txdly:
     DEY
@@ -112,8 +115,8 @@ ACIA_REG_READ:
     RTS
 
 @status:
-    ; Check NMI buffer for data, also poke ACIA to trigger VICE socket poll
-    LDA ACIA_STATUS                     ; Triggers VICE to check ip232 socket
+    ; Poke ACIA to trigger VICE socket poll, then check buffer
+    LDA ACIA_STATUS
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
     BEQ @no_rx
@@ -140,13 +143,13 @@ ACIA_REG_READ:
     RTS
 
 ; =================================================================
-; ACIA_WAIT_READY — Wait for TX ready, then send byte
+; ACIA_WAIT_READY — Replacement for MODEM_WAIT_READY
 ; Input: A = byte to transmit
-; Used by protocol engine for reliable TX with TDRE check
+; Transmits with delay (same interface as original)
 ; =================================================================
 ACIA_WAIT_READY:
-    STA ACIA_DATA                       ; Transmit byte
-    LDY #$FF                            ; Delay
+    STA ACIA_DATA
+    LDY #$FF
 @wdly:
     DEY
     BNE @wdly
@@ -160,13 +163,13 @@ ACIA_WAIT_READY:
 ; =================================================================
 ACIA_DIAL:
     ; Send "ATDT"
-    LDA #$41                            ; 'A'
+    LDA #'A'
     JSR ACIA_WAIT_READY
-    LDA #$54                            ; 'T'
+    LDA #'T'
     JSR ACIA_WAIT_READY
-    LDA #$44                            ; 'D'
+    LDA #'D'
     JSR ACIA_WAIT_READY
-    LDA #$54                            ; 'T'
+    LDA #'T'
     JSR ACIA_WAIT_READY
     ; Send phone number digits
     LDY #$00
@@ -176,31 +179,31 @@ ACIA_DIAL:
     LDA $9FF1,Y
     CMP #$2D                            ; '-' = pause
     BNE @not_pause
-    LDA #$2C                            ; Hayes pause ','
+    LDA #','                            ; Hayes pause
 @not_pause:
     JSR ACIA_WAIT_READY
     INY
     BNE @send_digit
 @send_cr:
-    LDA #$0D                            ; CR
+    LDA #$0D
     JSR ACIA_WAIT_READY
     ; Re-arm NMI edge detection after TX burst
     LDA #$01
     STA ACIA_CMD                        ; Disable RX IRQ
     LDA #$09
     STA ACIA_CMD                        ; Re-enable (re-arms NMI edge)
-    ; Wait for "CONNECT" response — poll buffer for CR
+    ; Wait for "CONNECT" response — poll for CR
 @wait_resp:
     LDA ACIA_STATUS                     ; Poke VICE to check socket
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
-    BEQ @wait_resp                      ; Spin until data
+    BEQ @wait_resp
     TAX
     LDA NMI_BUF,X
     INC NMI_BUF_HEAD
     CMP #$0D                            ; CR = end of response
     BNE @wait_resp
-    ; Success — flush any trailing LF
+    ; Flush remaining buffer
     LDA NMI_BUF_TAIL
     STA NMI_BUF_HEAD
     CLC                                 ; C=0 = success
@@ -209,4 +212,3 @@ ACIA_DIAL:
 ; =================================================================
 ; End of ACIA driver
 ; =================================================================
-ACIA_DRIVER_END:
