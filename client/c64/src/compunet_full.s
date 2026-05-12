@@ -78,20 +78,45 @@ NMI_BUF_HEAD    = $029C   ; Read pointer (main code advances)
     .byte $31, $30, $30, $0D, $41, $44, $50, $0D, $4E, $4F, $0D, $52, $55, $4E, $0D, $00  ; $8060 100.ADP.NO.RUN..
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $0D, $20, $43, $4F, $4D, $50  ; $8070 ........... COMP
     .byte $55, $4E, $45, $54, $20, $54, $45, $52, $4D, $49, $4E, $41, $4C, $20, $31, $2E  ; $8080 UNET TERMINAL 1.
-    .byte $32, $32, $0D, $20, $52, $45, $42, $4F, $52, $4E, $20, $31, $2E, $30, $30, $0D  ; $8090 22. REBORN 1.00.
-    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $80A0 ................
-    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $80B0 ................
+    .byte $32, $32, $0D, $00, $20, $53, $45, $50, $54, $45, $4D, $42, $45, $52, $20, $31  ; $8090 22.. SEPTEMBER 1
+    .byte $39, $38, $34, $20, $41, $52, $49, $41, $44, $4E, $45, $20, $53, $4F, $46, $54  ; $80A0 984 ARIADNE SOFT
+    .byte $57, $41, $52, $45, $20, $4C, $54, $44, $2E, $0D, $0D, $00, $00, $00, $00, $00  ; $80B0 WARE LTD........
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $80C0 ................
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $80D0 ................
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $80E0 ................
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $80F0 ................
     JMP MAIN_INIT
-    .byte $4C, $55, $83, $4C, $30, $8D, $4C, $C1, $94, $4C, $D5, $94, $4C, $EF, $8E, $4C  ; $8103 LU.L0.L..L..L..L
-    .byte $47, $8F, $4C, $C9, $93, $4C, $D0, $93, $4C, $C8, $90, $4C, $DF, $90, $4C, $D0  ; $8113 G.L..L..L..L..L.
-    .byte $89, $4C, $E2, $89, $4C, $BE, $8A, $4C, $EB, $8A, $4C, $E4, $85, $4C, $9B, $84  ; $8123 .L..L..L..L..L..
-    .byte $4C, $46, $84, $4C, $77, $84, $4C, $00, $85, $4C, $9E, $86, $4C, $B7, $90, $4C  ; $8133 LF.Lw.L..L..L..L
-    .byte $93, $90, $4C, $7B, $90, $4C, $FB, $8F, $4C, $02, $90, $4C, $1E, $90, $4C, $8B  ; $8143 ..L{.L..L..L..L.
-    .byte $93, $4C, $A8, $94, $4C, $71, $91, $4C, $B2, $91, $4C, $CD, $92  ; $8153 .L..Lq.L..L..
+    JMP L8355
+    JMP MODEM_CHECK
+    JMP MODEM_REG_WRITE_WAIT
+    JMP MODEM_REG_READ_STATUS
+    JMP MODEM_INIT_DOWNLOAD
+    JMP MODEM_SEND_CMD
+    JMP PROTOCOL_RESET
+    JMP PROTOCOL_CLEANUP
+    JMP SETUP_INPUT_PARAMS
+    JMP INPUT_LINE
+    JMP L89D0
+    JMP L89E2
+    JMP DISK_LOAD
+    JMP DISK_SAVE
+    JMP SCREEN_DRAW
+    JMP L849B
+    JMP L8446
+    JMP L8477
+    JMP L8500
+    JMP FILE_OPS
+    JMP PRINT_STRING
+    JMP CURSOR_HOME
+    JMP PRINT_STATUS_MSG
+    JMP L8FFB
+    JMP CLEAR_STATUS
+    JMP STATUS_LINE
+    JMP PROTOCOL_STATE_INIT
+    JMP MODEM_STATUS_CHECK
+    JMP FILE_UPLOAD
+    JMP FILE_DOWNLOAD
+    JMP FRAME_STORE
 
 ; ============================================================
 ; COLD_START
@@ -148,30 +173,193 @@ MAIN_INIT:
     LDX #$FB
     TXS
     JMP BASIC_READY                     ; BASIC_READY
-    .byte $00, $F6, $F1, $0E, $00, $20, $60, $A5, $86, $7A, $84, $7B, $20, $73, $00, $AA  ; $81B7 ..... `..z.{ s..
-    .byte $F0, $F3, $A2, $FF, $86, $3A, $B0, $03, $4C, $9C, $A4, $A6, $7A, $A0, $00, $84  ; $81C7 .....:..L...z...
-    .byte $1A, $BD, $00, $02, $38, $F9, $49, $82, $D0, $04, $E8, $C8, $D0, $F3, $C9, $80  ; $81D7 ....8.I.........
-    .byte $F0, $01, $18, $A5, $1A, $B0, $12, $88, $A6, $7A, $E6, $1A, $C9, $05, $F0, $40  ; $81E7 .........z.....@
-    .byte $C8, $B9, $49, $82, $10, $FA, $C8, $D0, $D8, $AE, $20, $D0, $8E, $51, $C1, $AE  ; $81F7 ..I....... ..Q..
-    .byte $21, $D0, $8E, $52, $C1, $AE, $86, $02, $8E, $53, $C1, $A2, $36, $86, $01, $20  ; $8207 !..R.....S..6.. 
-    .byte $3E, $82, $AD, $51, $C1, $8D, $20, $D0, $AD, $52, $C1, $8D, $21, $D0, $AD, $53  ; $8217 >..Q.. ..R..!..S
-    .byte $C1, $8D, $86, $02, $A2, $37, $86, $01, $A9, $09, $20, $D2, $FF, $4C, $74, $A4  ; $8227 .....7.... ..Lt.
-    .byte $A2, $FF, $A0, $01, $4C, $86, $A4, $0A, $A8, $B9, $6A, $82, $48, $B9, $69, $82  ; $8237 ....L.....j.H.i.
-    .byte $48, $60, $45, $44, $49, $54, $4F, $D2, $43, $4F, $4E, $4E, $45, $43, $D4, $43  ; $8247 H`EDITO.CONNEC.C
-    .byte $4E, $4C, $4F, $41, $C4, $43, $4E, $53, $41, $56, $C5, $48, $45, $4C, $D0, $4F  ; $8257 NLOA.CNSAV.HEL.O
-    .byte $46, $C6, $4C, $83, $2F, $8D, $AB, $82, $A8, $82, $74, $82, $9D, $82, $A2, $7A  ; $8267 F.L./.....t....z
-    .byte $A0, $80, $20, $B7, $90, $A2, $94, $A0, $80, $20, $B7, $90, $A2, $06, $A0, $00  ; $8277 .. ...... ......
-    .byte $20, $6A, $90, $B9, $49, $82, $08, $29, $7F, $20, $D2, $FF, $C8, $28, $10, $F3  ; $8287  j..I..). ...(..
-    .byte $20, $6E, $90, $CA, $D0, $EA, $60, $A2, $83, $A0, $A4, $8E, $02, $03, $8C, $03  ; $8297  n....`.........
-    .byte $03, $60, $38, $B0, $01, $18, $66, $19, $20, $AD, $92, $B0, $0F, $A9, $08, $48  ; $82A7 .`8...f. ......H
-    .byte $24, $19, $10, $0B, $A9, $07, $A2, $2E, $A0, $83, $D0, $09, $A9, $01, $48, $A9  ; $82B7 $.............H.
-    .byte $04, $A2, $31, $A0, $83, $20, $BD, $FF, $68, $AA, $A0, $01, $20, $BA, $FF, $A2  ; $82C7 ..1.. ..h... ...
-    .byte $F0, $A0, $9F, $86, $1D, $84, $1E, $24, $19, $10, $12, $A9, $1D, $AE, $36, $80  ; $82D7 .......$......6.
-    .byte $AC, $37, $80, $20, $D8, $FF, $20, $5F, $93, $D0, $25, $F0, $37, $20, $35, $83  ; $82E7 .7. .. _..%.7 5.
-    .byte $A9, $00, $20, $D5, $FF, $90, $06, $20, $5F, $93, $4C, $0F, $83, $8E, $36, $80  ; $82F7 .. .... _.L...6.
-    .byte $8C, $37, $80, $20, $5F, $93, $F0, $1C, $20, $35, $83, $2C, $56, $C1, $30, $14  ; $8307 .7. _... 5.,V.0.
-    .byte $20, $6E, $90, $A2, $53, $A0, $93, $20, $B7, $90, $A2, $00, $A0, $02, $20, $B7  ; $8317  n..S.. ...... .
-    .byte $90, $20, $6E, $90, $4C, $E0, $92, $40, $30, $3A, $43, $4E, $45, $54  ; $8327 . n.L..@0:CNET
+    .byte $00, $F6, $F1, $0E, $00  ; $81B7 .....
+
+; ============================================================
+; BASIC_CMD_PARSER - Intercepts BASIC input to handle custom commands
+; Commands: EDITOR, CONNECT, CNLOAD, CNSAVE, HELP
+; ============================================================
+L81BC:
+    JSR $A560
+    STX $7A
+    STY $7B
+    JSR $0073
+    TAX
+    BEQ L81BC
+    LDX #$FF
+    STX $3A
+    BCS L81D2
+    JMP $A49C
+
+; Compare input buffer against command table at $8249
+L81D2:
+    LDX $7A
+    LDY #$00
+    STY $1A
+L81D8:
+    LDA $0200,X
+    SEC
+    SBC $8249,Y
+    BNE L81E5
+    INX
+    INY
+    BNE L81D8
+L81E5:
+    CMP #$80
+    BEQ L81EA
+    CLC
+L81EA:
+    LDA $1A
+    BCS L8200
+    DEY
+    LDX $7A
+    INC $1A
+    CMP #$05
+    BEQ L8237
+L81F7:
+    INY
+    LDA $8249,Y
+    BPL L81F7
+    INY
+    BNE L81D8
+
+; Command matched - save screen state and dispatch
+L8200:
+    LDX VIC_BORDER                      ; VIC_BORDER
+    STX $C151                           ; workspace
+    LDX VIC_BGCOL0                      ; VIC_BGCOL0
+    STX $C152                           ; workspace
+    LDX $0286
+    STX $C153                           ; workspace
+    LDX #$36
+    STX $01
+    JSR L823E
+
+; Restore screen state after command returns
+    LDA $C151                           ; workspace
+    STA VIC_BORDER                      ; VIC_BORDER
+    LDA $C152                           ; workspace
+    STA VIC_BGCOL0                      ; VIC_BGCOL0
+    LDA $C153                           ; workspace
+    STA $0286
+    LDX #$37
+    STX $01
+    LDA #$09
+    JSR KERNAL_CHROUT                   ; KERNAL_CHROUT
+    JMP BASIC_READY                     ; BASIC_READY
+L8237:
+    LDX #$FF
+    LDY #$01
+    JMP $A486
+
+; Dispatch via address table at $8269 (RTS trick)
+L823E:
+    ASL
+    TAY
+    LDA $826A,Y
+    PHA
+    LDA $8269,Y
+    PHA
+    RTS
+    .byte $45, $44, $49, $54, $4F, $D2, $43, $4F, $4E, $4E, $45, $43, $D4, $43, $4E, $4C  ; $8249 EDITO.CONNEC.CNL
+    .byte $4F, $41, $C4, $43, $4E, $53, $41, $56, $C5, $48, $45, $4C, $D0, $4F, $46, $C6  ; $8259 OA.CNSAV.HEL.OF.
+    .byte $4C, $83, $2F, $8D, $AB, $82, $A8, $82, $74, $82, $9D, $82  ; $8269 L./.....t...
+    LDX #$7A
+    LDY #$80
+    JSR PRINT_STRING                    ; PRINT_STRING
+    LDX #$94
+    LDY #$80
+    JSR PRINT_STRING                    ; PRINT_STRING
+    LDX #$06
+    LDY #$00
+L8287:
+    JSR L906A
+L828A:
+    LDA $8249,Y
+    PHP
+    AND #$7F
+    JSR KERNAL_CHROUT                   ; KERNAL_CHROUT
+    INY
+    PLP
+    BPL L828A
+    JSR L906E
+    DEX
+    BNE L8287
+    RTS
+    LDX #$83
+    LDY #$A4
+    STX $0302
+    STY $0303
+    RTS
+    SEC
+    BCS L82AD
+    CLC
+L82AD:
+    ROR $19
+    JSR L92AD
+    BCS L82C3
+    LDA #$08
+    PHA
+    BIT $19
+    BPL L82C6
+    LDA #$07
+    LDX #$2E
+    LDY #$83
+    BNE L82CC
+L82C3:
+    LDA #$01
+    PHA
+L82C6:
+    LDA #$04
+    LDX #$31
+    LDY #$83
+L82CC:
+    JSR KERNAL_SETNAM                   ; KERNAL_SETNAM
+    PLA
+    TAX
+    LDY #$01
+    JSR KERNAL_SETLFS                   ; KERNAL_SETLFS
+    LDX #$F0
+    LDY #$9F
+    STX $1D
+    STY $1E
+    BIT $19
+    BPL L82F4
+    LDA #$1D
+    LDX $8036
+    LDY $8037
+    JSR KERNAL_SAVE                     ; KERNAL_SAVE
+    JSR L935F
+    BNE L8317
+    BEQ L832B
+L82F4:
+    JSR L8335
+    LDA #$00
+    JSR KERNAL_LOAD                     ; KERNAL_LOAD
+    BCC L8304
+    JSR L935F
+    JMP L830F
+L8304:
+    STX $8036
+    STY $8037
+    JSR L935F
+    BEQ L832B
+L830F:
+    JSR L8335
+    BIT $C156                           ; workspace
+    BMI L832B
+L8317:
+    JSR L906E
+    LDX #$53
+    LDY #$93
+    JSR PRINT_STRING                    ; PRINT_STRING
+    LDX #$00
+    LDY #$02
+    JSR PRINT_STRING                    ; PRINT_STRING
+    JSR L906E
+L832B:
+    JMP L92E0
+    .byte $40, $30, $3A, $43, $4E, $45, $54  ; $832E @0:CNET
 L8335:
     LDA #$00
     STA $9FF0
@@ -185,6 +373,7 @@ L833A:
     STY $8037
     RTS
     .byte $A9, $FF, $8D, $4B, $80, $8D, $4C, $80  ; $834D ...K..L.
+L8355:
     JSR L89DC
     LDA $804B
     STA $1D
@@ -244,13 +433,12 @@ L840C:
     PHA
     RTS
     .byte $38, $84, $5F, $87, $45, $84, $76, $84, $94, $84, $CA, $84, $D3, $84, $FF, $84  ; $841D 8._.E.v.........
-    .byte $40, $85, $7F, $85, $DD, $85, $9B, $89, $5A, $87, $9D, $86, $A2, $89, $A0, $95  ; $842D @.......Z.......
-    .byte $20, $E2, $89, $20, $FB, $8F, $4C, $DC  ; $843D  .. ..L.
-
-; --- KEYBOARD_SCAN ---
-; Scan keyboard for input
-KEYBOARD_SCAN:
-    .byte $89  ; $8445 .
+    .byte $40, $85, $7F, $85, $DD, $85, $9B, $89, $5A, $87, $9D, $86  ; $842D @.......Z...
+    LDX #$89
+    LDY #$95                            ; FRAME_BUF_WRITE
+    JSR L89E2
+    JSR L8FFB
+    JMP L89DC
 L8446:
     LDX $8019
     LDY $801A
@@ -276,6 +464,7 @@ L8461:
     LDA $1E
     STA $801A
     JMP L89DC
+L8477:
     JSR L8CAB
     JSR L8CC5
     LDX $1D
@@ -314,7 +503,9 @@ L84B9:
     JSR L8BC0
     LDA #$00
     JMP L8BC0
-    .byte $20, $9B, $84, $20, $BE, $8A, $4C, $DC, $89  ; $84CB  .. ..L..
+    JSR L849B
+    JSR DISK_LOAD
+    JMP L89DC
 L84D4:
     LDX $8019
     LDY $801A
@@ -336,6 +527,7 @@ L84FA:
     JMP L8446
 L84FD:
     JMP L8495
+L8500:
     LDX #$3D
     LDY #$85                            ; CURSOR_HOME
     JSR CURSOR_HOME
@@ -362,20 +554,83 @@ L8510:
 L8537:
     JSR $FFE7
     JMP L84D4
-    .byte $47, $45, $54, $00, $A2, $7C, $A0, $85, $20, $93, $90, $A9, $57, $A2, $53, $20  ; $853D GET..|.. ...W.S 
-    .byte $71, $91, $B0, $25, $20, $AB, $8C, $A2, $08, $20, $C9, $FF, $B0, $1B, $20, $D4  ; $854D q..% .... .... .
-    .byte $85, $20, $D2, $FF, $B0, $13, $E6, $1D, $D0, $02, $E6, $1E, $20, $B6, $8C, $C9  ; $855D . .......... ...
-    .byte $00, $D0, $EE, $20, $CC, $FF, $4C, $CD, $92  ; $856D ... ..L..
+    .byte $47, $45, $54  ; $853D GET
+    BRK
+    LDX #$7C
+    LDY #$85                            ; CURSOR_HOME
+    JSR CURSOR_HOME
+    LDA #$57
+    LDX #$53                            ; FILE_UPLOAD
+    JSR FILE_UPLOAD
+    BCS L8576
+    JSR L8CAB
+    LDX #$08                            ; KERNAL_CHKOUT
+    JSR $FFC9
+    BCS L8576
+    JSR L85D4
+L855E:
+    JSR KERNAL_CHROUT
+    BCS L8576
+    INC $1D
+    BNE L8569
+    INC $1E
+L8569:
+    JSR L8CB6
+    CMP #$00
+    BNE L855E                           ; KERNAL_CLRCHN
+L8570:
+    JSR KERNAL_CLRCHN
+    JMP FRAME_STORE
 L8576:
     JSR $FFE7
     JMP L89DC
-    .byte $50, $55, $54, $00, $A2, $CE, $A0, $85, $20, $93, $90, $A9, $57, $A2, $53, $20  ; $857C PUT..... ...W.S 
-    .byte $71, $91, $B0, $E6, $AE, $15, $80, $AC, $16, $80, $86, $1D, $84, $1E, $A2, $08  ; $858C q...............
-    .byte $20, $C9, $FF, $B0, $D5, $20, $D4, $85, $20, $D2, $FF, $B0, $CD, $E6, $1D, $D0  ; $859C  .... .. .......
-    .byte $02, $E6, $1E, $20, $B6, $8C, $C9, $00, $D0, $EE, $A6, $1D, $EC, $17, $80, $D0  ; $85AC ... ............
-    .byte $07, $A6, $1E, $EC, $18, $80, $F0, $AC, $20, $D4, $85, $20, $D2, $FF, $B0, $AA  ; $85BC ........ .. ....
-    .byte $90, $D6, $53, $54, $4F, $52, $45, $00, $A9, $00, $2C, $56, $C1, $10, $02, $A9  ; $85CC ..STORE...,V....
-    .byte $01, $60, $AE, $19, $80, $AC, $1A, $80  ; $85DC .`......
+    .byte $50, $55, $54  ; $857C PUT
+    BRK
+    LDX #$CE
+    LDY #$85                            ; CURSOR_HOME
+    JSR CURSOR_HOME
+    LDA #$57
+    LDX #$53                            ; FILE_UPLOAD
+    JSR FILE_UPLOAD
+    BCS L8576
+    LDX $8015
+    LDY $8016
+    STX $1D
+    STY $1E
+    LDX #$08                            ; KERNAL_CHKOUT
+    JSR $FFC9
+    BCS L8576
+    JSR L85D4
+L85A4:
+    JSR KERNAL_CHROUT
+    BCS L8576
+    INC $1D
+    BNE L85AF
+    INC $1E
+L85AF:
+    JSR L8CB6
+    CMP #$00
+    BNE L85A4
+    LDX $1D
+    CPX $8017
+    BNE L85C4
+    LDX $1E
+    CPX $8018
+    BEQ L8570
+L85C4:
+    JSR L85D4
+    JSR KERNAL_CHROUT
+    BCS L8576
+    BCC L85A4
+    .byte $53, $54, $4F, $52, $45, $00  ; $85CE STORE.
+L85D4:
+    LDA #$00
+    BIT $C156
+    BPL L85DD
+    LDA #$01
+L85DD:
+    RTS
+    .byte $AE, $19, $80, $AC, $1A, $80  ; $85DE ......
 
 ; --- SCREEN_DRAW ---
 ; Render frame/page to screen
@@ -464,7 +719,8 @@ L8677:
     JSR PRINT_STATUS_MSG                ; CLEAR_STATUS
     JSR CLEAR_STATUS                    ; PROTOCOL_STATE_INIT
     JMP PROTOCOL_STATE_INIT
-    .byte $50, $52, $49, $4E, $54, $45, $52, $20, $45, $52, $52, $4F, $52, $00  ; $8690 PRINTER ERROR.
+    .byte $50, $52, $49, $4E, $54, $45, $52, $20, $45, $52, $52, $4F, $52  ; $8690 PRINTER ERROR
+    BRK
 
 ; --- FILE_OPS ---
 ; File operations dispatcher
@@ -549,46 +805,314 @@ L874D:
 L8759:
     SEC
     RTS
-    .byte $68, $68, $4C, $62, $90, $A9, $09, $20, $D2, $FF, $A9, $02, $8D, $86, $02, $A2  ; $875B hhLb... ........
-    .byte $19, $B5, $D9, $09, $80, $95, $D9, $CA, $10, $F7, $18, $6E, $5B, $C1, $A2, $9B  ; $876B ...........n[...
-    .byte $A0, $88, $20, $7B, $90, $20, $66, $90, $A9, $00, $85, $D4, $85, $D8, $20, $26  ; $877B .. {. f....... &
-    .byte $8C, $A5, $D6, $C9, $18, $D0, $05, $A9, $91, $20, $D2, $FF, $A4, $D3, $B1, $D1  ; $878B ......... ......
-    .byte $8D, $57, $C1, $20, $24, $EA, $B1, $F3, $2C, $5B, $C1, $10, $03, $AD, $86, $02  ; $879B .W. $...,[......
-    .byte $8D, $58, $C1, $A9, $FF, $8D, $59, $C1, $8D, $5A, $C1, $20, $E4, $FF, $D0, $2A  ; $87AB .X....Y..Z. ...*
-    .byte $EE, $59, $C1, $D0, $F6, $EE, $5A, $C1, $D0, $F1, $A9, $E0, $8D, $5A, $C1, $A4  ; $87BB .Y....Z......Z..
-    .byte $D3, $B1, $D1, $49, $80, $91, $D1, $AE, $86, $02, $8A, $51, $F3, $29, $0F, $D0  ; $87CB ...I.......Q.)..
-    .byte $03, $AE, $58, $C1, $8A, $91, $F3, $4C, $B6, $87, $48, $AD, $57, $C1, $A4, $D3  ; $87DB ..X....L..H.W...
-    .byte $91, $D1, $AD, $58, $C1, $91, $F3, $68, $C9, $03, $D0, $73, $20, $8B, $93, $AE  ; $87EB ...X...h...s ...
-    .byte $19, $80, $AC, $1A, $80, $20, $70, $8C, $AE, $17, $80, $AC, $18, $80, $20, $EB  ; $87FB ..... p....... .
-    .byte $8A, $AE, $17, $80, $AC, $18, $80, $86, $1F, $84, $20, $A5, $1D, $D0, $02, $C6  ; $880B .......... .....
-    .byte $1E, $C6, $1D, $A5, $1D, $8D, $17, $80, $A5, $1E, $8D, $18, $80, $EC, $19, $80  ; $881B ................
-    .byte $D0, $05, $CC, $1A, $80, $F0, $37, $A0, $00, $A2, $34, $78, $86, $01, $B1, $1F  ; $882B ......7...4x....
-    .byte $A2, $36, $86, $01, $58, $91, $1D, $A5, $1D, $D0, $02, $C6, $1E, $C6, $1D, $A5  ; $883B .6..X...........
-    .byte $1F, $D0, $02, $C6, $20, $C6, $1F, $A6, $1F, $EC, $19, $80, $D0, $DB, $A6, $20  ; $884B .... .......... 
-    .byte $EC, $1A, $80, $D0, $D4, $AE, $19, $80, $AC, $1A, $80, $20, $EB, $8A, $60, $C9  ; $885B ........... ..`.
-    .byte $83, $D0, $03, $4C, $DC, $89, $C9, $85, $90, $1A, $C9, $8D, $90, $2F, $C9, $93  ; $886B ...L........./..
-    .byte $D0, $06, $20, $D2, $FF, $4C, $79, $87, $C9, $94, $D0, $08, $A9, $20, $A0, $27  ; $887B .. ..Ly...... .'
-    .byte $91, $D1, $A9, $94, $C9, $A0, $D0, $02, $A9, $20, $20, $D2, $FF, $4C, $83, $87  ; $888B .........  ..L..
-    .byte $53, $54, $4F, $50, $20, $54, $4F, $20, $45, $58, $49, $54, $00, $38, $E9, $85  ; $889B STOP TO EXIT.8..
-    .byte $0A, $AA, $20, $B3, $88, $4C, $83, $87, $BD, $BD, $88, $48, $BD, $BC, $88, $48  ; $88AB .. ..L.....H...H
-    .byte $60, $BA, $88, $F0, $88, $DE, $88, $CB, $88, $BA, $88, $3D, $89, $E7, $88, $D1  ; $88BB `..........=....
-    .byte $88, $EE, $21, $D0, $4C, $D5, $88, $EE, $20, $D0, $20, $8B, $93, $A2, $9B, $A0  ; $88CB ..!.L... . .....
-    .byte $88, $4C, $7B, $90, $AD, $8A, $02, $49, $80, $8D, $8A, $02, $60, $AD, $5B, $C1  ; $88DB .L{....I....`.[.
-    .byte $49, $80, $8D, $5B, $C1, $60, $A6, $D6, $F0, $48, $A5, $D1, $85, $1D, $38, $E9  ; $88EB I..[.`...H....8.
-    .byte $28, $85, $D1, $85, $1F, $A5, $D2, $85, $1E, $E9, $00, $85, $D2, $85, $20, $C6  ; $88FB (............. .
-    .byte $D6, $20, $83, $89, $A0, $27, $B1, $1D, $91, $1F, $B1, $21, $91, $23, $88, $10  ; $890B . ...'.....!.#..
-    .byte $F5, $E8, $E0, $18, $F0, $13, $18, $A5, $1D, $85, $1F, $69, $28, $85, $1D, $A5  ; $891B ...........i(...
-    .byte $1E, $85, $20, $90, $DC, $E6, $1E, $B0, $D8, $A9, $20, $A0, $27, $91, $1D, $88  ; $892B .. ....... .'...
-    .byte $10, $FB, $60, $A9, $98, $85, $1D, $A9, $07, $85, $1E, $A9, $70, $85, $1F, $A9  ; $893B ..`.........p...
-    .byte $07, $85, $20, $A2, $17, $E4, $D6, $D0, $0A, $A9, $20, $A0, $27, $91, $1D, $88  ; $894B .. ....... .'...
-    .byte $10, $FB, $60, $20, $83, $89, $A0, $27, $B1, $1F, $91, $1D, $B1, $23, $91, $21  ; $895B ..` ...'.....#.!
-    .byte $88, $10, $F5, $A5, $1F, $85, $1D, $38, $E9, $28, $85, $1F, $A5, $20, $85, $1E  ; $896B .......8.(... ..
-    .byte $E9, $00, $85, $20, $CA, $4C, $50, $89, $A5, $1D, $85, $21, $A5, $1F, $85, $23  ; $897B ... .LP....!...#
-    .byte $A5, $1E, $29, $03, $09, $D8, $85, $22, $A5, $20, $29, $03, $09, $D8, $85, $24  ; $898B ..)....". )....$
-    .byte $60, $A2, $CF, $A0, $89, $20, $93, $90, $38, $A9, $00, $ED, $17, $80, $AA, $A9  ; $899B `.... ..8.......
-    .byte $00, $ED, $18, $80, $A0, $37, $84, $01, $20, $CD, $BD, $A0, $36, $84, $01, $A2  ; $89AB .....7.. ...6...
-    .byte $C4, $A0, $89, $20, $B7, $90, $4C, $02, $90, $20, $43, $48, $41, $52, $53, $20  ; $89BB ... ..L.. CHARS 
-    .byte $46, $52, $45, $45  ; $89CB FREE
+    PLA                                 ; KERNAL_CHROUT
+    PLA
+    JMP L9062
+    LDA #$09
+    JSR KERNAL_CHROUT
+    LDA #$02
+    STA $0286
+    LDX #$19
+L876C:
+    LDA $D9,X
+    ORA #$80
+    STA $D9,X
+    DEX
+    BPL L876C
+    CLC
+    ROR $C15B                           ; PRINT_STATUS_MSG
+L8779:
+    LDX #$9B
+    LDY #$88
+    JSR PRINT_STATUS_MSG
+    JSR L9066
+L8783:
+    LDA #$00
+    STA $D4
+    STA $D8
+    JSR L8C26
+    LDA $D6
+    CMP #$18
+    BNE L8797
+    LDA #$91
+    JSR KERNAL_CHROUT                   ; workspace
+L8797:
+    LDY $D3
+    LDA ($D1),Y
+    STA $C157
+    JSR $EA24
+    LDA ($F3),Y
+    BIT $C15B
+    BPL L87AB
+    LDA $0286
+L87AB:
+    STA $C158
+    LDA #$FF
+    STA $C159
+    STA $C15A
+L87B6:
+    JSR KERNAL_GETIN
+    BNE L87E5                           ; workspace
+    INC $C159
+    BNE L87B6
+    INC $C15A                           ; workspace
+    BNE L87B6
+    LDA #$E0
+    STA $C15A
+    LDY $D3
+    LDA ($D1),Y
+    EOR #$80
+    STA ($D1),Y
+    LDX $0286
+    TXA                                 ; workspace
+    EOR ($F3),Y
+    AND #$0F
+    BNE L87DF
+    LDX $C158
+L87DF:
+    TXA                                 ; workspace
+    STA ($F3),Y
+    JMP L87B6
+L87E5:
+    PHA
+    LDA $C157                           ; workspace
+    LDY $D3
+    STA ($D1),Y
+    LDA $C158
+    STA ($F3),Y                         ; PROTOCOL_STATE_INIT
+    PLA
+    CMP #$03
+    BNE L886A
+    JSR PROTOCOL_STATE_INIT
+    LDX $8019
+    LDY $801A
+    JSR L8C70
+    LDX $8017
+    LDY $8018
+    JSR DISK_SAVE
+    LDX $8017
+    LDY $8018
+    STX $1F
+    STY $20
+    LDA $1D
+    BNE L881C
+    DEC $1E
+L881C:
+    DEC $1D
+    LDA $1D
+    STA $8017
+    LDA $1E
+    STA $8018
+    CPX $8019
+    BNE L8832
+    CPY $801A
+    BEQ L8869
+L8832:
+    LDY #$00
+L8834:
+    LDX #$34
+    SEI
+    STX $01
+    LDA ($1F),Y
+    LDX #$36
+    STX $01
+    CLI
+    STA ($1D),Y
+    LDA $1D
+    BNE L8848
+    DEC $1E
+L8848:
+    DEC $1D
+    LDA $1F
+    BNE L8850
+    DEC $20
+L8850:
+    DEC $1F
+    LDX $1F
+    CPX $8019
+    BNE L8834
+    LDX $20
+    CPX $801A
+    BNE L8834
+    LDX $8019
+    LDY $801A
+    JSR DISK_SAVE
+L8869:
+    RTS
+L886A:
+    CMP #$83
+    BNE L8871
+    JMP L89DC
+L8871:
+    CMP #$85
+    BCC L888F
+    CMP #$8D
+    BCC L88A8
+    CMP #$93
+    BNE L8883
+    JSR KERNAL_CHROUT
+    JMP L8779
+L8883:
+    CMP #$94
+    BNE L888F
+    LDA #$20
+    LDY #$27
+    STA ($D1),Y
+    LDA #$94
+L888F:
+    CMP #$A0
+    BNE L8895
+    LDA #$20
+L8895:
+    JSR KERNAL_CHROUT
+    JMP L8783
+    .byte $53, $54, $4F, $50, $20, $54, $4F, $20, $45, $58, $49, $54, $00  ; $889B STOP TO EXIT.
+L88A8:
+    SEC
+    SBC #$85
+    ASL
+    TAX
+    JSR L88B3
+    JMP L8783
+L88B3:
+    LDA $88BD,X
+    PHA
+    LDA $88BC,X
+    PHA
+    RTS
+    .byte $BA, $88, $F0, $88, $DE, $88, $CB, $88, $BA, $88, $3D, $89, $E7, $88, $D1  ; $88BC ..........=....
+    DEY
+    INC VIC_BGCOL0
+    JMP L88D5
+    .byte $EE, $20, $D0  ; $88D2 . .
+L88D5:
+    JSR PROTOCOL_STATE_INIT
+    LDX #$9B
+    LDY #$88
+    JMP PRINT_STATUS_MSG
+    .byte $AD, $8A, $02, $49, $80, $8D, $8A, $02  ; $88DF ...I....
+    RTS
+    .byte $AD, $5B, $C1, $49, $80, $8D, $5B  ; $88E8 .[.I..[
+    CMP ($60,X)
+    LDX $D6
+    BEQ L893D
+    LDA $D1
+    STA $1D
+    SEC
+    SBC #$28
+    STA $D1
+    STA $1F
+    LDA $D2
+    STA $1E
+    SBC #$00
+    STA $D2
+    STA $20
+    DEC $D6
+L890C:
+    JSR L8983
+    LDY #$27
+L8911:
+    LDA ($1D),Y
+    STA ($1F),Y
+    LDA ($21),Y
+    STA ($23),Y
+    DEY
+    BPL L8911
+    INX
+    CPX #$18
+    BEQ L8934
+    CLC
+    LDA $1D
+    STA $1F
+    ADC #$28
+    STA $1D
+    LDA $1E
+    STA $20
+    BCC L890C
+    INC $1E
+    BCS L890C
+L8934:
+    LDA #$20
+    LDY #$27
+L8938:
+    STA ($1D),Y
+    DEY
+    BPL L8938
+L893D:
+    RTS
+    LDA #$98
+    STA $1D
+    LDA #$07
+    STA $1E
+    LDA #$70
+    STA $1F
+    LDA #$07
+    STA $20
+    LDX #$17
+L8950:
+    CPX $D6
+    BNE L895E
+    LDA #$20
+    LDY #$27
+L8958:
+    STA ($1D),Y
+    DEY
+    BPL L8958
+    RTS
+L895E:
+    JSR L8983
+    LDY #$27
+L8963:
+    LDA ($1F),Y
+    STA ($1D),Y
+    LDA ($23),Y
+    STA ($21),Y
+    DEY
+    BPL L8963
+    LDA $1F
+    STA $1D
+    SEC
+    SBC #$28
+    STA $1F
+    LDA $20
+    STA $1E
+    SBC #$00
+    STA $20
+    DEX
+    JMP L8950
+L8983:
+    LDA $1D
+    STA $21
+    LDA $1F
+    STA $23
+    LDA $1E
+    AND #$03
+    ORA #$D8
+    STA $22
+    LDA $20
+    AND #$03
+    ORA #$D8
+    STA $24
+    RTS
+    LDX #$CF
+    LDY #$89
+    JSR CURSOR_HOME
+    SEC
+    LDA #$00
+    SBC $8017
+    TAX
+    LDA #$00
+    SBC $8018
+    LDY #$37
+    STY $01
+    JSR $BDCD
+    LDY #$36                            ; PRINT_STRING
+    STY $01
+    LDX #$C4
+    LDY #$89
+    JSR PRINT_STRING
+    JMP CLEAR_STATUS
+    .byte $20, $43, $48, $41, $52, $53, $20, $46, $52, $45, $45  ; $89C4  CHARS FREE
 
 ; --- FRAME_BUF_READ ---
 ; Read from frame buffer
@@ -649,7 +1173,13 @@ L8A3B:
     LDA #$00
     STA $D4
     RTS
-    .byte $A0, $00, $91, $D1, $E6, $D1, $D0, $02, $E6, $D2, $60  ; $8A40 ..........`
+    LDY #$00
+    STA ($D1),Y                         ; workspace
+    INC $D1
+    BNE L8A4A
+    INC $D2
+L8A4A:
+    RTS                                 ; workspace
 L8A4B:
     LDA $C15F
     BEQ L8A58
@@ -688,10 +1218,37 @@ L8A7E:
 L8A8A:
     CLC
     RTS
-    .byte $AE, $5D, $C1, $F0, $03, $A9, $00, $60, $A2, $08, $20, $C6, $FF, $B0, $11, $20  ; $8A8C .].....`.. .... 
-    .byte $CF, $FF, $B0, $0C, $C9, $01, $D0, $02, $A9, $00, $A6, $90, $8E, $5D, $C1, $18  ; $8A9C .............]..
-    .byte $60, $2C, $5D, $C1, $10, $04, $A9, $00, $18, $60, $20, $CC, $96, $6E, $5D, $C1  ; $8AAC `,]......` ..n].
-    .byte $18, $60  ; $8ABC .`
+    .byte $AE  ; $8A8C .
+    EOR $F0C1,X                         ; KERNAL_CHKIN
+    .byte $03, $A9, $00, $60  ; $8A90 ...`
+    LDX #$08
+    JSR $FFC6
+    BCS L8AAC
+    JSR KERNAL_CHRIN
+    BCS L8AAC
+    CMP #$01
+    BNE L8AA6
+    LDA #$00
+L8AA6:
+    LDX $90
+    STX $C15D
+    CLC
+L8AAC:
+    RTS
+    BIT $C15D
+    BPL L8AB6                           ; workspace
+    LDA #$00
+    CLC
+
+; ============================================================
+; DISK_LOAD
+; ============================================================
+    RTS
+L8AB6:
+    JSR L96CC
+    ROR $C15D
+    CLC
+    RTS
 
 ; --- DISK_LOAD ---
 ; Load file from disk
@@ -1335,6 +1892,7 @@ L8FF2:
     JSR L833A
 L8FFA:
     RTS                                 ; KERNAL_GETIN
+L8FFB:
     LDX #$10
     LDY #$90
     JSR PRINT_STATUS_MSG
@@ -1691,8 +2249,15 @@ L9250:
     RTS
     .byte $09, $20, $46, $49, $4C, $45, $20, $4E, $41, $4D, $45, $3F, $20, $00, $52, $45  ; $9256 . FILE NAME? .RE
     .byte $50, $4C, $41, $43, $45, $3F, $20, $00, $C9, $0D, $D0, $04, $38, $66, $19, $60  ; $9266 PLACE? .....8f.`
-    .byte $24, $19, $10, $13, $18, $66, $19, $48, $8A, $48, $98, $48, $20, $8B, $93, $20  ; $9276 $....f.H.H.H .. 
-    .byte $AF, $90, $68, $A8, $68, $AA, $68, $4C, $CA, $F1  ; $9286 ..h.h.hL..
+    .byte $24, $19, $10, $13, $18, $66, $19, $48, $8A, $48, $98, $48  ; $9276 $....f.H.H.H
+    JSR PROTOCOL_STATE_INIT
+    JSR L90AF
+    PLA
+    TAY
+    PLA
+    TAX
+    PLA
+    JMP $F1CA
 L9290:
     LDX #$6E
     LDY #$92
@@ -2126,7 +2691,7 @@ MODEM_REG_READ:
 ; Protocol function dispatch (9 x JMP)
 PROTO_DISPATCH_TABLE:
     JMP PROTO_SEND_PACKET               ; PROTO_ERROR_RECOVERY
-    .byte $4C, $8A, $9B  ; $96C3 L..
+    JMP PROTO_RECV_PACKET               ; PROTO_FLOW_CONTROL
 L96C6:
     JMP PROTO_INIT_REGS                 ; PROTO_CONNECT
 L96C9:
@@ -2137,7 +2702,7 @@ L96C9:
 ; ============================================================
 L96CC:
     JMP PROTO_PROCESS_CMD
-    .byte $4C, $3A, $99  ; $96CF L:.
+    JMP PROTO_ERROR_RECOVERY
 L96D2:
     JMP PROTO_FLOW_CONTROL
 L96D5:
@@ -2464,10 +3029,43 @@ L9937:
 ; --- PROTO_ERROR_RECOVERY ---
 ; Handle protocol errors, check for retransmit
 PROTO_ERROR_RECOVERY:
-    .byte $48  ; $993A H
-    .byte $8A, $48, $98, $48, $2C, $38, $80, $70, $03, $20, $0A, $97, $2C, $24, $C2, $30  ; $993B .H.H,8.p. ..,$.0
-    .byte $18, $A2, $03, $BD, $2C, $C2, $10, $08, $BD, $28, $C2, $CD, $0F, $C2, $F0, $09  ; $994B ....,....(......
-    .byte $CA, $10, $F0, $20, $06, $9A, $38, $B0, $01, $18, $68, $A8, $68, $AA, $68, $60  ; $995B ... ..8...h.h.h`
+    PHA
+    TXA
+    PHA
+    TYA
+    PHA
+    BIT $8038
+    BVS L9947
+    JSR PROTO_DISCONNECT
+L9947:
+    BIT $C224                           ; workspace
+    BMI L9964
+    LDX #$03
+L994E:
+    LDA $C22C,X
+    BPL L995B
+    LDA $C228,X
+    CMP $C20F
+    BEQ L9964
+L995B:
+    DEX
+
+; ============================================================
+; PROTO_PROCESS_CMD
+; ============================================================
+    BPL L994E
+    JSR L9A06
+    SEC
+    BCS L9965
+L9964:
+    CLC
+L9965:
+    PLA                                 ; PROTO_DISCONNECT
+    TAY
+    PLA
+    TAX                                 ; workspace
+    PLA
+    RTS
 
 ; --- PROTO_PROCESS_CMD ---
 ; Process received command — delivers one byte to caller
@@ -2864,49 +3462,278 @@ L9C3D:
     STY $0315
     CLI
     RTS
-    .byte $20, $7D, $9C, $A2, $00, $20, $FA, $94, $29, $20, $F0, $03, $4C, $31, $EA, $A2  ; $9C46  }... ..) ..L1..
-    .byte $02, $4C, $47, $8F, $20, $7D, $9C, $20, $8F, $9C, $4C, $71, $9C, $20, $00, $9D  ; $9C56 .LG. }. ..Lq. ..
-    .byte $EE, $21, $C2, $D0, $03, $EE, $22, $C2, $20, $7D, $9C, $20, $EA, $FF, $AD, $0D  ; $9C66 .!....". }. ....
-    .byte $DC, $68, $A8, $68, $AA, $68, $40, $AD, $01, $DC, $CD, $01, $DC, $D0, $F8, $C9  ; $9C76 .h.h.h@.........
-    .byte $7B, $F0, $01, $60, $A2, $00, $4C, $47, $8F, $20, $54, $9D, $2C, $23, $C2, $30  ; $9C86 {..`..LG. T.,#.0
-    .byte $01, $60, $AC, $85, $C4, $AD, $86, $C4, $C0, $20, $D0, $03, $AD, $87, $C4, $A2  ; $9C96 .`....... ......
-    .byte $20, $20, $A4, $9B, $AD, $85, $C4, $C9, $20, $F0, $40, $A2, $03, $BD, $2C, $C2  ; $9CA6   ...... .@...,.
-    .byte $10, $05, $CA, $10, $F8, $30, $34, $A5, $1B, $48, $A5, $1C, $48, $BD, $03, $9B  ; $9CB6 .....04..H..H...
-    .byte $85, $1B, $BD, $07, $9B, $85, $1C, $A9, $80, $9D, $2C, $C2, $AD, $85, $C4, $9D  ; $9CC6 ..........,.....
-    .byte $30, $C2, $AD, $86, $C4, $9D, $28, $C2, $A0, $00, $B9, $84, $C4, $91, $1B, $C8  ; $9CD6 0.....(.........
-    .byte $CC, $12, $C2, $D0, $F5, $68, $85, $1C, $68, $85, $1B, $4C, $3C, $9E, $93, $0E  ; $9CE6 .....h..h..L<...
-    .byte $C1, $42, $4F, $52, $54, $45, $44, $0D, $0D, $00, $20, $54, $9D, $2C, $23, $C2  ; $9CF6 .BORTED... T.,#.
-    .byte $30, $01, $60, $AD, $85, $C4, $C9, $20, $D0, $30, $A0, $03, $B9, $84, $C4, $8C  ; $9D06 0.`.... .0......
-    .byte $27, $C2, $A2, $20, $A0, $20, $20, $A4, $9B, $AC, $27, $C2, $B9, $84, $C4, $AE  ; $9D16 '.. .  ...'.....
-    .byte $43, $80, $DD, $28, $C2, $F0, $05, $CA, $10, $F8, $30, $05, $A9, $00, $9D, $2C  ; $9D26 C..(......0....,
-    .byte $C2, $C8, $CC, $12, $C2, $D0, $D5, $4C, $3C, $9E, $AD, $86, $C4, $20, $F0, $99  ; $9D36 .......L<.... ..
-    .byte $D0, $F5, $AE, $43, $80, $A9, $00, $9D, $2C, $C2, $CA, $10, $FA, $60, $A9, $00  ; $9D46 ...C....,....`..
-    .byte $8D, $23, $C2, $A2, $00, $20, $FA, $94, $AA, $29, $40, $D0, $22, $8A, $29, $20  ; $9D56 .#... ...)@.".) 
-    .byte $D0, $05, $A2, $02, $4C, $47, $8F, $EE, $18, $C2, $D0, $0D, $EE, $19, $C2, $AD  ; $9D66 ....LG..........
-    .byte $49, $80, $F0, $05, $CD, $19, $C2, $F0, $01, $60, $A2, $03, $4C, $47, $8F, $A9  ; $9D76 I........`..LG..
-    .byte $00, $85, $A2, $8D, $18, $C2, $8D, $19, $C2, $A2, $04, $20, $FA, $94, $2C, $13  ; $9D86 ........... ..,.
-    .byte $C2, $10, $0A, $C9, $01, $D0, $05, $A9, $00, $8D, $13, $C2, $60, $C9, $01, $D0  ; $9D96 ............`...
-    .byte $08, $A9, $93, $20, $50, $9E, $4C, $41, $9E, $C9, $02, $D0, $36, $AD, $84, $C4  ; $9DA6 ... P.LA....6...
-    .byte $CD, $12, $C2, $F0, $04, $A9, $8E, $D0, $7A, $AD, $1A, $C2, $F0, $04, $A9, $83  ; $9DB6 ........z.......
-    .byte $D0, $71, $AD, $1B, $C2, $D0, $F7, $AD, $12, $C2, $C9, $05, $B0, $04, $A9, $95  ; $9DC6 .q..............
-    .byte $D0, $61, $CE, $12, $C2, $CE, $12, $C2, $A9, $A0, $20, $50, $9E, $A9, $FF, $8D  ; $9DD6 .a........ P....
-    .byte $23, $C2, $60, $AC, $12, $C2, $C0, $94, $D0, $04, $A9, $8F, $D0, $45, $2C, $14  ; $9DE6 #.`..........E,.
-    .byte $C2, $10, $0B, $A2, $00, $8E, $14, $C2, $38, $E9, $20, $4C, $0E, $9E, $C9, $03  ; $9DF6 ........8. L....
-    .byte $D0, $06, $A9, $FF, $8D, $14, $C2, $60, $99, $84, $C4, $EE, $12, $C2, $8D, $1C  ; $9E06 .......`........
-    .byte $C2, $A2, $07, $18, $2E, $1C, $C2, $2E, $1B, $C2, $2E, $1A, $C2, $90, $10, $AD  ; $9E16 ................
-    .byte $1A, $C2, $49, $10, $8D, $1A, $C2, $AD, $1B, $C2, $49, $21, $8D, $1B, $C2, $CA  ; $9E26 ..I.......I!....
-    .byte $10, $E1, $60, $20, $50, $9E  ; $9E36 ..` P.
+    JSR L9C7D
+    LDX #$00
+    JSR MODEM_REG_READ
+    AND #$20
+    BEQ L9C55
+    JMP $EA31
+L9C55:
+    LDX #$02
+    JMP MODEM_SEND_CMD                  ; workspace
+    JSR L9C7D
+    JSR L9C8F
+    JMP L9C71
+    JSR L9D00
+    INC $C221
+    BNE L9C6E
+    INC $C222
+L9C6E:
+    JSR L9C7D                           ; CIA1_PRB
+L9C71:
+    JSR KERNAL_UDTIM                    ; CIA1_PRB
+    LDA CIA1_ICR
+    PLA
+    TAY
+    PLA
+    TAX
+    PLA
+    RTI
+L9C7D:
+    LDA CIA1_PRB                        ; MODEM_SEND_CMD
+    CMP CIA1_PRB
+    BNE L9C7D                           ; workspace
+    CMP #$7B
+    BEQ L9C8A
+    RTS
+L9C8A:
+    LDX #$00
+    JMP MODEM_SEND_CMD
+L9C8F:
+    JSR L9D54
+    BIT $C223
+    BMI L9C98
+    RTS
+L9C98:
+    LDY $C485
+    LDA $C486
+    CPY #$20
+    BNE L9CA5
+    LDA $C487
+L9CA5:
+    LDX #$20
+    JSR L9BA4
+    LDA $C485
+    CMP #$20
+    BEQ L9CF1
+    LDX #$03
+L9CB3:
+    LDA $C22C,X
+    BPL L9CBD
+    DEX
+    BPL L9CB3
+    BMI L9CF1
+L9CBD:
+    LDA $1B
+    PHA
+    LDA $1C
+    PHA
+    LDA $9B03,X
+    STA $1B
+    LDA $9B07,X
+    STA $1C
+    LDA #$80
+    STA $C22C,X
+    LDA $C485
+    STA $C230,X
+    LDA $C486
+    STA $C228,X
+    LDY #$00
+L9CE0:
+    LDA $C484,Y
+    STA ($1B),Y
+    INY
+    CPY $C212
+    BNE L9CE0
+    PLA
+    STA $1C
+    PLA
+    STA $1B
+L9CF1:
+    JMP L9E3C
+    .byte $93, $0E, $C1, $42, $4F, $52, $54, $45, $44, $0D, $0D, $00  ; $9CF4 ...BORTED...
+L9D00:
+    JSR L9D54
+    BIT $C223
+    BMI L9D09                           ; workspace
+    RTS
+L9D09:
+    LDA $C485
+    CMP #$20
+    BNE L9D40
+    LDY #$03                            ; workspace
+L9D12:
+    LDA $C484,Y
+    STY $C227
+    LDX #$20
+    LDY #$20
+    JSR L9BA4
+    LDY $C227
+    LDA $C484,Y
+    LDX $8043
+L9D28:
+    CMP $C228,X
+    BEQ L9D32
+    DEX
+    BPL L9D28
+    BMI L9D37
+L9D32:
+    LDA #$00
+    STA $C22C,X
+L9D37:
+    INY
+    CPY $C212
+    BNE L9D12
+L9D3D:
+    JMP L9E3C
+L9D40:
+    LDA $C486
+    JSR L99F0
+    BNE L9D3D
+    LDX $8043
+    LDA #$00
+L9D4D:
+    STA $C22C,X
+    DEX
+    BPL L9D4D
+    RTS
+L9D54:
+    LDA #$00
+    STA $C223
+    LDX #$00
+    JSR MODEM_REG_READ                  ; MODEM_SEND_CMD
+    TAX                                 ; workspace
+    AND #$40
+    BNE L9D85
+    TXA                                 ; workspace
+    AND #$20
+    BNE L9D6D
+    LDX #$02
+    JMP MODEM_SEND_CMD
+L9D6D:
+    INC $C218
+    BNE L9D7F
+    INC $C219
+    LDA $8049
+    BEQ L9D7F
+    CMP $C219                           ; workspace
+    BEQ L9D80                           ; workspace
+L9D7F:
+    RTS
+L9D80:
+    LDX #$03
+    JMP MODEM_SEND_CMD                  ; MODEM_REG_READ
+L9D85:
+    LDA #$00                            ; workspace
+    STA $A2
+    STA $C218
+    STA $C219
+    LDX #$04
+    JSR MODEM_REG_READ
+    BIT $C213
+    BPL L9DA3
+    CMP #$01
+    BNE L9DA2
+    LDA #$00
+    STA $C213
+L9DA2:
+    RTS
+L9DA3:
+    CMP #$01
+    BNE L9DAF
+    LDA #$93                            ; workspace
+    JSR L9E50
+    JMP L9E41
+L9DAF:
+    CMP #$02
+    BNE L9DE9
+    LDA $C484
+    CMP $C212
+    BEQ L9DBF                           ; workspace
+    LDA #$8E
+    BNE L9E39
+L9DBF:
+    LDA $C21A
+    BEQ L9DC8
+L9DC4:
+    LDA #$83
+    BNE L9E39
+L9DC8:
+    LDA $C21B
+    BNE L9DC4
+    LDA $C212
+    CMP #$05
+    BCS L9DD8
+    LDA #$95
+    BNE L9E39                           ; workspace
+L9DD8:
+    DEC $C212
+    DEC $C212
+    LDA #$A0
+    JSR L9E50
+    LDA #$FF
+    STA $C223                           ; workspace
+    RTS
+L9DE9:
+    LDY $C212
+    CPY #$94                            ; workspace
+    BNE L9DF4
+    LDA #$8F
+    BNE L9E39
+L9DF4:
+    BIT $C214
+    BPL L9E04
+    LDX #$00
+    STX $C214                           ; workspace
+    SEC
+    SBC #$20
+    JMP L9E0E
+L9E04:
+    CMP #$03
+    BNE L9E0E
+    LDA #$FF
+    STA $C214
+    RTS
+L9E0E:
+    STA $C484,Y                         ; workspace
+    INC $C212                           ; workspace
+    STA $C21C
+    LDX #$07
+L9E19:
+    CLC
+    ROL $C21C
+    ROL $C21B
+    ROL $C21A
+    BCC L9E35                           ; workspace
+    LDA $C21A
+    EOR #$10
+    STA $C21A
+    LDA $C21B
+    EOR #$21
+    STA $C21B
+L9E35:
+    DEX
+    BPL L9E19
+    RTS
+L9E39:
+    JSR L9E50
 L9E3C:
     LDA #$FF
     STA $C213
+L9E41:
     LDA #$00
     STA $C212
     STA $C214
     STA $C21A
     STA $C21B
     RTS
-    .byte $2C, $11, $80, $10, $03, $8D, $E7, $07, $60, $C3, $4F, $4E, $4E, $45, $43, $54  ; $9E50 ,.......`.ONNECT
-    .byte $49, $4E, $47, $2E, $2E, $2E, $0D, $11, $00  ; $9E60 ING......
+L9E50:
+    BIT $8011
+    BPL L9E58
+    STA $07E7
+L9E58:
+    RTS
+    .byte $C3, $4F, $4E, $4E, $45, $43, $54, $49, $4E, $47, $2E, $2E, $2E, $0D, $11, $00  ; $9E59 .ONNECTING......
 
 ; --- PROTO_CONNECT ---
 ; Connection handshake — wait for *CON from server
@@ -3093,7 +3920,23 @@ L9FC3:
     CMP $A2
     BCS L9FC3                           ; MODEM_REG_READ
     RTS
-    .byte $A2, $00, $20, $FA, $94, $A8, $29, $40, $F0, $0F, $A2, $04, $20, $FA, $94, $A6  ; $9FC8 .. ...)@.... ...
-    .byte $20, $9D, $34, $C2, $E6, $20, $4C, $31, $EA, $98, $29, $20, $D0, $F8, $A2, $02  ; $9FD8  .4.. L1..) ....
-    .byte $4C, $47, $8F, $00, $00, $00, $00, $00, $00, $AA, $AA, $AA, $AA, $AA, $AA, $AA  ; $9FE8 LG..............
-    .byte $AA, $AA, $AA, $AA, $AA, $AA, $AA, $AA  ; $9FF8 ........
+    LDX #$00
+    JSR MODEM_REG_READ
+    TAY
+    AND #$40
+    BEQ L9FE1
+    LDX #$04
+    JSR MODEM_REG_READ
+    LDX $20
+    STA $C234,X                         ; MODEM_SEND_CMD
+    INC $20
+L9FDE:
+    JMP $EA31
+L9FE1:
+    TYA
+    AND #$20
+    BNE L9FDE
+    LDX #$02
+    JMP MODEM_SEND_CMD
+    .byte $00, $00, $00, $00, $00, $00, $AA, $AA, $AA, $AA, $AA, $AA, $AA, $AA, $AA, $AA  ; $9FEB ................
+    .byte $AA, $AA, $AA, $AA, $AA  ; $9FFB .....

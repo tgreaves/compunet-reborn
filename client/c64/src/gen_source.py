@@ -110,16 +110,105 @@ branch_targets = set()  # addresses that are branch/jump targets
 # Known entry points
 entry_points = [
     0x8009,  # Cold start (JMP from header)
-    0x8100,  # Jump table entries (we'll add these)
     0x8160,  # COLD_START (reached from cartridge header vectors at $8000/$8002)
 ]
 
 # Add all jump table entries ($8100-$815F, 32 x 3-byte JMP instructions)
+# Also add the JMP instructions themselves as code
 for i in range(32):
     addr = 0x8100 + i * 3
+    entry_points.append(addr)  # The JMP instruction itself
     target = rom[addr - BASE + 1] | (rom[addr - BASE + 2] << 8)
     if 0x8000 <= target <= 0x9FFF:
         entry_points.append(target)
+
+# Additional entry points discovered by verify_data.py
+# These are routines reachable via indirect dispatch or from downloaded terminal code
+entry_points += [
+    # BASIC/init routines (called from COLD_START area)
+    0x81BC,  # Routine after COLD_START setup
+    0x8201,  # JSR $8ED0 — init routine
+    0x823E,  # Called from $8216
+    0x8275,  # String print sequence
+    0x829E,  # Short routine (STX/STY/RTS)
+    0x82A9,  # Protocol/command handler
+    0x830F,  # Called from JMP $830F
+    # Keyboard/input handlers
+    0x8400,  # Referenced from dispatch table
+    0x8439,  # JSR sequence
+    0x843D,  # JSR $89E2 sequence
+    # File/disk operations
+    0x8541,  # File operation routine
+    0x8580,  # File operation routine
+    0x85D4,  # Called from $855B, $85A1, $85C4
+    # Frame/screen routines
+    0x875B,  # Large routine (120 insns)
+    0x8779,  # Called from JMP $8779
+    0x8783,  # Called from JMP $8783
+    0x87B6,  # Called from JMP $87B6
+    0x87F7,  # JSR $938B sequence
+    # Editor/mode handlers
+    0x8812,  # Referenced from dispatch table
+    0x886A,  # Compare/branch dispatch
+    0x88B3,  # Called from JSR $88B3
+    0x88D5,  # JSR $938B / JMP $907B
+    0x88EF,  # Large routine (42 insns)
+    0x893E,  # LDA/STA init sequence
+    0x8950,  # Called from JMP $8950
+    0x895E,  # JSR $8983 sequence
+    0x8983,  # Called from $890C, $895E
+    0x899C,  # Routine with JSR $9093
+    0x89A0,  # JSR $9093
+    # Disk/buffer routines
+    0x8A40,  # Short buffer routine
+    0x8A94,  # JSR/BCS sequence
+    0x8AAD,  # BIT/BPL/LDA/CLC/RTS
+    0x8AB6,  # JSR $96CC
+    # Modem/protocol routines
+    0x9282,  # JSR $938B / JSR $90AF
+    # NOTE: $9500-$96BF is text strings (login prompts, editor help) — NOT code
+    0x993A,  # PROTO_ERROR_RECOVERY (PHA/TXA/PHA/TYA/PHA...)
+    # IRQ-driven slot assembly ($9C46-$9E50)
+    0x9C46,  # IRQ handler entry
+    0x9C63,  # JSR $9D00 — main IRQ dispatch
+    0x9C71,  # Called from JMP $9C71
+    0x9C7D,  # Subroutine (LDA/CMP/BNE/CMP/BEQ/RTS)
+    0x9C8F,  # JSR $9D54
+    0x9C98,  # Large routine (41 insns)
+    0x9D00,  # Slot assembly main (JSR $9D54)
+    0x9D54,  # Byte receive/process subroutine
+    0x9D80,  # LDX/JMP error handler
+    0x9DA3,  # Compare/dispatch routine
+    0x9DE9,  # Loop routine
+    0x9E0E,  # STA/INC/STA sequence
+    0x9E50,  # Called from $9DA9, $9DE0, $9E39
+    # Post-connect routines
+    0x9FC8,  # LDX/JSR sequence
+    # Additional missed code (second pass verification)
+    0x84CB,  # JSR $849B; JSR $8ABE; JMP $89DC
+    0x84D3,  # Continuation after JMP
+    0x8540,  # Referenced from address table
+    0x857F,  # Referenced from address table
+    0x869D,  # Referenced from address table
+    0x88CF,  # JMP $88D5
+    0x88CB,  # Dispatch target
+    0x88E7,  # Dispatch target
+    0x88D1,  # Dispatch target
+    0x88BA,  # Dispatch target (from address table at $88BC)
+    0x88DE,  # Dispatch target (from address table at $88BC)
+    0x88F0,  # Dispatch target (from address table at $88BC)
+    0x893D,  # Dispatch target (from address table at $88BC)
+    0x9C5A,  # IRQ handler: JSR $9C7D; JSR $9C8F; JMP $9C71
+    # Routines called from downloaded terminal code (not reachable from ROM alone)
+    0x8760,  # Screen setup (LDA #$09; JSR CHROUT; ...)
+    0x8A8D,  # Small subroutine (LDA $C1,X; BEQ; LDA #$00; RTS)
+]
+
+# The protocol dispatch table at $96C0 has 9 x JMP instructions
+# Trace each one individually
+for i in range(9):
+    addr = 0x96C0 + i * 3
+    entry_points.append(addr)
 
 def trace(start_addr):
     """Trace code from start_addr, marking code bytes."""
