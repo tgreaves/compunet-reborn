@@ -322,6 +322,17 @@ ADDR_IMM_HI = {
 for t in set(ADDR_IMM_LO.values()) | set(ADDR_IMM_HI.values()):
     branch_targets.add(t)
 
+# LDX #lo; LDY #hi address references — all need labels
+ldx_ldy_targets = [
+    0x801B, 0x801C, 0x801E, 0x807A, 0x8094, 0x81BC, 0x832E, 0x8331,
+    0x83AA, 0x853D, 0x857C, 0x85CE, 0x8690, 0x872A, 0x889B, 0x89C4,
+    0x89CF, 0x8CDC, 0x8CEA, 0x8D01, 0x8D0D, 0x8D19, 0x8D24, 0x8F3F,
+    0x8FDA, 0x9010, 0x9256, 0x9264, 0x926D, 0x926E, 0x9353, 0x9507,
+    0x9589, 0x9CF4, 0x9E59, 0x9FF0,
+]
+for t in ldx_ldy_targets:
+    branch_targets.add(t)
+
 # ============================================================
 # Extract comments from annotated disassembly
 # ============================================================
