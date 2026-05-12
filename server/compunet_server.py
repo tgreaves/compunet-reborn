@@ -776,119 +776,18 @@ async def tcp_handler(reader, writer):
                             return
                         
                         authenticated = True
-                        log.info('TCP: login OK! Sending linking data...')
+                        log.info('TCP: login OK! Skipping LINKING (terminal pre-loaded)')
                         
-                        # ============================================================
-                        # Login response: send DAT packets (NOT ACK!)
-                        #
-                        # The ROM's PROTO_FLOW_CONTROL ($9B3B) checks the received
-                        # packet's token. If it's $41/$42/$40 → error. Otherwise → CLC.
-                        # So we send DAT packets (token $22) which pass the check.
-                        #
-                        # Flow after PROTO_FLOW_CONTROL returns CLC:
-                        #   $89D0 FRAME_BUF_READ — reads first DAT payload (discarded)
-                        #   Then MODEM_INIT_DOWNLOAD reads bytes via $96CC:
-                        #     Bytes 1-2: discarded
-                        #     Bytes 3-4: return address (low, high) ← "LINKING" appears after this
-                        #     Bytes 5-6: dest address
-                        #     Bytes 7-8: length
-                        #     Bytes 9+:  payload (terminal code)
-                        # ============================================================
-                        
-                        # Send initial DAT packet (consumed by PROTO_FLOW_CONTROL + FRAME_BUF_READ)
-                        # First, ACK the login COM packet to stop retransmission.
-                        # The ROM's outgoing packet seq is parsed correctly now.
+                        # Send ACK for the login packet
                         login_seq = seq
                         ack_pkt = x25.make_ack(login_seq)
                         writer.write(ack_pkt)
                         await writer.drain()
                         log.info('TCP: sent ACK for login packet seq=$%02X', login_seq)
                         
-                        # Now send the linking data directly.
-                        # The first DAT packet's token ($22) satisfies PROTO_FLOW_CONTROL.
-                        # FRAME_BUF_READ reads its payload (first linking byte).
-                        # MODEM_INIT_DOWNLOAD reads subsequent bytes via $96CC.
-                        
-                        # Wait for ROM to process the ACK and clear retransmit state
-                        await asyncio.sleep(0.5)
-                        
-                        # Build the full linking stream
-                        cnet_path = os.path.join(os.path.dirname(__file__), '..', 'historical', 'cnet.prg')
-                        with open(cnet_path, 'rb') as cf:
-                            cnet_data = cf.read()
-                        terminal_code = cnet_data[2:]  # strip PRG load address
-                        
-                        linking = bytearray()
-                        linking.append(0x00)  # header byte 1 (discarded by ROM)
-                        linking.append(0x00)  # header byte 2 (discarded by ROM)
-                        linking.append(0x05)  # return addr low ($A005)
-                        linking.append(0xA0)  # return addr high
-                        linking.append(0xF0)  # dest addr low ($9FF0)
-                        linking.append(0x9F)  # dest addr high
-                        linking.append(len(terminal_code) & 0xFF)  # length low
-                        linking.append((len(terminal_code) >> 8) & 0xFF)  # length high
-                        linking.extend(terminal_code)
-                        
-                        log.info('TCP: sending %d bytes of linking data (%d bytes terminal code)',
-                                 len(linking), len(terminal_code))
-                        
-                        # Send linking stream as DAT packets with proper X.25 flow control.
-                        # Window size = 4: send up to 4 packets, then wait for ACKs.
-                        # The ROM ACKs each packet via the IRQ handler at $9C98.
-                        CHUNK_SIZE = 1  # 1 byte per packet for now
-                        
-                        # Send all linking data with flow control
-                        send_idx = 0
-                        unacked = 0
-                        WINDOW = 1  # Send 1 at a time for reliability
-                        
-                        linking_complete = False
-                        while send_idx < len(linking):
-                            # Send up to WINDOW packets
-                            while unacked < WINDOW and send_idx < len(linking):
-                                chunk = linking[send_idx:send_idx+CHUNK_SIZE]
-                                pkt = x25.make_data_packet(bytes(chunk), TOKEN_DAT)
-                                writer.write(pkt)
-                                await writer.drain()
-                                unacked += 1
-                                send_idx += CHUNK_SIZE
-                                await asyncio.sleep(0.1)  # 100ms between packets
-                            
-                            if send_idx >= len(linking) and unacked == 0:
-                                linking_complete = True
-                                break
-                            
-                            # Wait for ACK(s) from the ROM
-                            try:
-                                data = await asyncio.wait_for(reader.read(256), timeout=30.0)
-                            except asyncio.TimeoutError:
-                                log.warning('TCP: timeout waiting for ACK at byte %d/%d (unacked=%d)',
-                                            send_idx, len(linking), unacked)
-                                break
-                            if not data:
-                                log.info('TCP: connection closed during linking')
-                                break
-                            
-                            # Parse ACKs — only count valid ACK packets (token=$20)
-                            ack_packets = x25.feed_data(data)
-                            for tok, seq_rx, pay in ack_packets:
-                                if tok == 0x20:
-                                    # Valid ACK
-                                    unacked = max(0, unacked - 1)
-                                    log.debug('TCP: valid ACK seq=$%02X, unacked=%d', seq_rx, unacked)
-                                elif tok == 0x43:
-                                    # Retransmitted login — ignore
-                                    log.debug('TCP: ignoring retransmitted login during linking')
-                                else:
-                                    log.debug('TCP: ignoring non-ACK packet tok=$%02X during linking', tok)
-                            
-                            if send_idx % 512 == 0 and send_idx > 0:
-                                log.info('TCP: linking progress %d/%d bytes', send_idx, len(linking))
-                        
-                        if linking_complete:
-                            log.info('TCP: linking complete! %d bytes sent', len(linking))
-                        else:
-                            log.warning('TCP: linking FAILED at byte %d/%d', send_idx, len(linking))
+                        # No LINKING needed — terminal code is pre-loaded in the PRG.
+                        # The C64 will skip MODEM_INIT_DOWNLOAD and enter terminal directly.
+                        # TODO: Send welcome frame after terminal starts
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it

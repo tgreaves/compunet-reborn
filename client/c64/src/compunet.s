@@ -1819,16 +1819,19 @@ L8EB6:
     STA $8034
     LDY #$1B
     JSR MODEM_REG_WRITE_WAIT
-    JSR L96D2
-    BCC L8EE8
-    JMP L8E38
+    ; ;--- MODIFIED: Skip PROTO_FLOW_CONTROL — can't receive ACK via protocol engine ---
+    ; Server sends ACK but we skip waiting for it (terminal pre-loaded, no LINKING needed)
+    JMP L8EE8
 L8EE8:
     JSR L89D0
     SEC
     ROR $C155
+    ; ;--- MODIFIED: Skip LINKING — terminal code already in RAM ---
+    ; Jump directly to terminal entry point
+    JMP $A005
 
 ; --- MODEM_INIT_DOWNLOAD ---
-; Receive terminal software during LINKING phase
+; Receive terminal software during LINKING phase (skipped — terminal pre-loaded)
 MODEM_INIT_DOWNLOAD:
     JSR L96CC
     JSR L96CC
