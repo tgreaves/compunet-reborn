@@ -1,35 +1,45 @@
-# Compunet Reborn ROM — Build System
+# Compunet Reborn — Build System
 # Usage: make (from this directory)
-# Output: ../compunet-reborn.crt
+# Output: ../compunet-reborn.crt + build/terminal.bin
 
 CA65 = ca65
 LD65 = ld65
 PYTHON = python3
 
-TARGET = ../compunet-reborn.crt
-BIN = build/compunet_reborn.bin
-OBJ = build/compunet_reborn.o
-SRC = compunet_rom.s
+CRT = ../compunet-reborn.crt
+ROM_BIN = build/compunet_reborn.bin
+TERM_BIN = build/terminal.bin
+ROM_OBJ = build/compunet_reborn.o
+TERM_OBJ = build/terminal.o
+ROM_SRC = compunet_rom.s
+TERM_SRC = terminal.s
 CFG = cartridge.cfg
 
-.PHONY: all clean
+.PHONY: all clean verify
 
-all: $(TARGET) verify
+all: $(CRT) $(TERM_BIN) verify
 
-$(TARGET): $(BIN)
-	$(PYTHON) make_crt.py $(BIN) $(TARGET)
+$(CRT): $(ROM_BIN)
+	$(PYTHON) make_crt.py $(ROM_BIN) $(CRT)
 
-verify: $(BIN)
-	@cmp -s $(BIN) original_rom.bin && echo "✓ BYTE-IDENTICAL to original ROM" || echo "✗ DIFFERS from original ROM"
+$(ROM_BIN): $(ROM_OBJ) $(CFG)
+	$(LD65) -C $(CFG) $(ROM_OBJ) -o $(ROM_BIN)
 
-$(BIN): $(OBJ) $(CFG)
-	$(LD65) -C $(CFG) $(OBJ) -o $(BIN)
+$(ROM_OBJ): $(ROM_SRC) | build
+	$(CA65) -t c64 $(ROM_SRC) -o $(ROM_OBJ)
 
-$(OBJ): $(SRC) $(wildcard *.s) | build
-	$(CA65) -t c64 $(SRC) -o $(OBJ)
+$(TERM_BIN): $(TERM_OBJ) terminal.cfg
+	$(LD65) -C terminal.cfg $(TERM_OBJ) -o $(TERM_BIN)
+
+$(TERM_OBJ): $(TERM_SRC) | build
+	$(CA65) -t c64 $(TERM_SRC) -o $(TERM_OBJ)
+
+verify: $(ROM_BIN) $(TERM_BIN)
+	@cmp -s $(ROM_BIN) original_rom.bin && echo "✓ ROM: BYTE-IDENTICAL to original" || echo "✗ ROM: DIFFERS from original (modified)"
+	@$(PYTHON) -c "import sys; d=open('$(TERM_BIN)','rb').read(); r=open('../../../historical/cnet.prg','rb').read()[2:]; print('✓ TERMINAL: BYTE-IDENTICAL to original' if d==r else '✗ TERMINAL: DIFFERS from original (modified)')"
 
 build:
 	mkdir -p build
 
 clean:
-	rm -rf build $(TARGET)
+	rm -rf build $(CRT)
