@@ -41,6 +41,25 @@ The modem holds exactly one byte until read. There is no race condition because
 there's only one consumer. The IRQ-driven $9D54 is the sole reader during the
 X.25 phase.
 
+**Why the ROM uses IRQ-driven packet assembly**: Because the brick modem has no
+buffer, the ROM MUST read each byte before the next one arrives (~833μs at 1200
+baud). The CIA timer IRQ fires at ~60Hz (every ~16ms) and calls $9D54 to read
+one byte from the modem. Packet assembly happens one byte per IRQ tick across
+many ticks. The main code checks the 4-slot buffer between IRQ ticks and has
+plenty of time to find completed packets.
+
+**Why this breaks with ACIA + NMI buffer**: The NMI handler stores ALL incoming
+bytes in a ring buffer instantly (TCP delivers them as a burst). When the IRQ
+fires and calls $9D54, it reads ALL buffered bytes in one tick — assembling a
+complete packet, storing it in a slot, and potentially filling all 4 slots before
+the main code gets a single CPU cycle. The main code's $9A17 loop finds slots
+already processed and cleared, or all slots full (triggering protocol reset).
+
+**The fix**: Replace the IRQ-driven packet assembly with direct polling from the
+main code. The NMI handler stores bytes (like CCGMS). The main code reads from
+the buffer and assembles packets inline — no IRQ involvement, no slot race.
+This matches how CCGMS handles bulk data transfer (XMODEM etc.).
+
 ## 6551 ACIA (SwiftLink)
 
 ### Register Layout
