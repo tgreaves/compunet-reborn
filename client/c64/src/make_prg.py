@@ -51,4 +51,4 @@ with open(output_path, 'wb') as f:
     f.write(bytes([LOAD_ADDR & 0xFF, (LOAD_ADDR >> 8) & 0xFF]))
     f.write(image)
 
-print(f"Created {output_path} ({len(image) + 2} bytes, load at ${LOAD_ADDR:04X}, SYS {0x8160})")
+print(f"Created {output_path} ({len(image) + 2} bytes, load at ${LOAD_ADDR:04X}, SYS {0x81A0})")
