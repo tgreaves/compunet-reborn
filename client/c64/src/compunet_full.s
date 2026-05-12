@@ -32,22 +32,36 @@
     .byte $89, $4C, $E2, $89, $4C, $BE, $8A, $4C, $EB, $8A, $4C, $E4, $85, $4C, $9B, $84  ; $8123 .L..L..L..L..L..
     .byte $4C, $46, $84, $4C, $77, $84, $4C, $00, $85, $4C, $9E, $86, $4C, $B7, $90, $4C  ; $8133 LF.Lw.L..L..L..L
     .byte $93, $90, $4C, $7B, $90, $4C, $FB, $8F, $4C, $02, $90, $4C, $1E, $90, $4C, $8B  ; $8143 ..L{.L..L..L..L.
-    .byte $93, $4C, $A8, $94, $4C, $71, $91, $4C, $B2, $91, $4C, $CD, $92, $20, $84, $FF  ; $8153 .L..Lq.L..L.. ..
-    .byte $20, $87, $FF, $20, $8A, $FF, $20, $81, $FF, $58, $A9, $01, $8D, $21, $D0, $20  ; $8163  .. .. ..X...!. 
-    .byte $53, $E4, $20, $BF, $E3, $20, $22, $E4, $A2, $04, $BD, $B7, $81, $9D, $00, $E0  ; $8173 S. .. ".........
-    .byte $CA, $10, $F7, $A0, $00, $84, $1D, $A9, $80, $85, $1E, $B1, $1D, $91, $1D, $C8  ; $8183 ................
-    .byte $D0, $F9, $E6, $1E, $A5, $1E, $C9, $A0, $D0, $F1, $20, $35, $83  ; $8193 .......... 5.
+    .byte $93, $4C, $A8, $94, $4C, $71, $91, $4C, $B2, $91, $4C, $CD, $92  ; $8153 .L..Lq.L..L..
+
+; ============================================================
+; COLD_START
+; ============================================================
+
+; --- COLD_START ---
+; Initialize C64 hardware, BASIC, and install command extensions
+COLD_START:
+    .byte $20  ; $8160  
+    .byte $84, $FF, $20, $87, $FF, $20, $8A, $FF, $20, $81, $FF, $58, $A9, $01, $8D, $21  ; $8161 .. .. .. ..X...!
+    .byte $D0, $20, $53, $E4, $20, $BF, $E3, $20, $22, $E4, $A2, $04, $BD, $B7, $81, $9D  ; $8171 . S. .. ".......
+    .byte $00, $E0, $CA, $10, $F7, $A0, $00, $84, $1D, $A9, $80, $85, $1E, $B1, $1D, $91  ; $8181 ................
+    .byte $1D, $C8, $D0, $F9, $E6, $1E, $A5, $1E, $C9, $A0, $D0, $F1, $20, $35, $83  ; $8191 ............ 5.
+
+; Print " COMPUNET TERMINAL 1.22" version string
+
+; --- MAIN_INIT ---
+; Print version string, install BASIC command parser, enter READY prompt
 MAIN_INIT:
     LDX #$7A
     LDY #$80
-    JSR PRINT_STRING
+    JSR PRINT_STRING                    ; PRINT_STRING
     LDX #$BC
     LDY #$81
     STX $0302
     STY $0303
     LDX #$FB
     TXS
-    JMP $A474
+    JMP $A474                           ; BASIC_READY
     .byte $00, $F6, $F1, $0E, $00, $20, $60, $A5, $86, $7A, $84, $7B, $20, $73, $00, $AA  ; $81B7 ..... `..z.{ s..
     .byte $F0, $F3, $A2, $FF, $86, $3A, $B0, $03, $4C, $9C, $A4, $A6, $7A, $A0, $00, $84  ; $81C7 .....:..L...z...
     .byte $1A, $BD, $00, $02, $38, $F9, $49, $82, $D0, $04, $E8, $C8, $D0, $F3, $C9, $80  ; $81D7 ....8.I.........
@@ -109,18 +123,18 @@ L8382:
     INX
     CPX #$0F
     BNE L8366
-    STY $C165
+    STY $C165                           ; workspace
     LDX #$AA
     LDY #$83
-    JSR PROTOCOL_RESET
+    JSR PROTOCOL_RESET                  ; PROTOCOL_RESET
     LDA #$01
     STA $8033
 L8396:
     LDA #$08
-    JSR $FFD2
+    JSR $FFD2                           ; KERNAL_CHROUT
     LDX #$65
     LDY #$C1
-    JSR PROTOCOL_CLEANUP
+    JSR PROTOCOL_CLEANUP                ; PROTOCOL_CLEANUP
     BCS L8396
     JSR L840C
     JMP L8396
@@ -143,7 +157,12 @@ L840C:
     RTS
     .byte $38, $84, $5F, $87, $45, $84, $76, $84, $94, $84, $CA, $84, $D3, $84, $FF, $84  ; $841D 8._.E.v.........
     .byte $40, $85, $7F, $85, $DD, $85, $9B, $89, $5A, $87, $9D, $86, $A2, $89, $A0, $95  ; $842D @.......Z.......
-    .byte $20, $E2, $89, $20, $FB, $8F, $4C, $DC, $89  ; $843D  .. ..L..
+    .byte $20, $E2, $89, $20, $FB, $8F, $4C, $DC  ; $843D  .. ..L.
+
+; --- KEYBOARD_SCAN ---
+; Scan keyboard for input
+KEYBOARD_SCAN:
+    .byte $89  ; $8445 .
 L8446:
     LDX $8019
     LDY $801A
@@ -224,33 +243,33 @@ L84F0:
     CPX $8015
     BNE L84FA
     CPY $8016
-    BEQ L84FD
+    BEQ L84FD                           ; KEYBOARD_SCAN
 L84FA:
     JMP L8446
 L84FD:
     JMP L8495
     LDX #$3D
-    LDY #$85
+    LDY #$85                            ; CURSOR_HOME
     JSR CURSOR_HOME
     LDA #$52
-    LDX #$53
+    LDX #$53                            ; FILE_UPLOAD
     JSR FILE_UPLOAD
     BCS L8576
 L8510:
     JSR L8495
-    LDA #$8C
+    LDA #$8C                            ; workspace
     STA $C140
-    LDA #$8A
+    LDA #$8A                            ; workspace
     STA $C141
-    LDX #$08
+    LDX #$08                            ; KERNAL_CHKIN
     JSR $FFC6
     BCS L8537
     JSR L89F0
-    BCS L8537
+    BCS L8537                           ; KERNAL_CLRCHN
     JSR $FFCC
     JSR DISK_LOAD
     LDA $C15D
-    BEQ L8510
+    BEQ L8510                           ; FRAME_STORE
     JMP FRAME_STORE
 L8537:
     JSR $FFE7
@@ -269,6 +288,9 @@ L8576:
     .byte $07, $A6, $1E, $EC, $18, $80, $F0, $AC, $20, $D4, $85, $20, $D2, $FF, $B0, $AA  ; $85BC ........ .. ....
     .byte $90, $D6, $53, $54, $4F, $52, $45, $00, $A9, $00, $2C, $56, $C1, $10, $02, $A9  ; $85CC ..STORE...,V....
     .byte $01, $60, $AE, $19, $80, $AC, $1A, $80  ; $85DC .`......
+
+; --- SCREEN_DRAW ---
+; Render frame/page to screen
 SCREEN_DRAW:
     STX $1D
     STY $1E
@@ -281,14 +303,14 @@ SCREEN_DRAW:
     JSR L8A7E
     LDA #$00
     STA $C15F
-    JSR L8A4B
+    JSR L8A4B                           ; workspace
     STA $C15E
     LDA #$04
-    TAX
+    TAX                                 ; KERNAL_SETLFS
     LDY #$00
     JSR $FFBA
     LDA #$00
-    JSR $FFBD
+    JSR $FFBD                           ; KERNAL_OPEN
     JSR $FFC0
     LDX #$04
     JSR $FFC9
@@ -311,7 +333,7 @@ L8637:
 L863A:
     JSR L906A
     BCS L8677
-    DEX
+    DEX                                 ; workspace
     BNE L863A
     BIT $C15E
     BMI L864E
@@ -335,7 +357,7 @@ L8663:
 L8665:
     CMP $8BF5,X
     BEQ L8651
-    DEX
+    DEX                                 ; KERNAL_CHROUT
     BPL L8665
     JSR $FFD2
     BCS L8677
@@ -351,24 +373,27 @@ L8677:
     BCC L86A3
     LDX #$90
     LDY #$86
-    JSR PRINT_STATUS_MSG
-    JSR CLEAR_STATUS
+    JSR PRINT_STATUS_MSG                ; CLEAR_STATUS
+    JSR CLEAR_STATUS                    ; PROTOCOL_STATE_INIT
     JMP PROTOCOL_STATE_INIT
     .byte $50, $52, $49, $4E, $54, $45, $52, $20, $45, $52, $52, $4F, $52, $00  ; $8690 PRINTER ERROR.
+
+; --- FILE_OPS ---
+; File operations dispatcher
 FILE_OPS:
     JSR L874B
     BCC L86A4
 L86A3:
-    RTS
+    RTS                                 ; VIC_BGCOL0
 L86A4:
     LDA $8013
     STA $D021
     LDA $8014
     STA $0286
-    LDX #$2A
+    LDX #$2A                            ; PRINT_STRING
     LDY #$87
     JSR PRINT_STRING
-    LDX $7A
+    LDX $7A                             ; workspace
     LDY $7B
     STX $C161
     STY $C162
@@ -376,7 +401,7 @@ L86C1:
     LDA #$40
     JSR $FFD2
     LDX #$26
-    LDA #$00
+    LDA #$00                            ; SETUP_INPUT_PARAMS
     TAY
     CLC
     JSR SETUP_INPUT_PARAMS
@@ -411,7 +436,7 @@ L86EA:
     STX $01
     LDA #$40
     JSR $CD10
-    LDX #$36
+    LDX #$36                            ; workspace
     STX $01
     LDX $C163
     LDY $C164
@@ -475,7 +500,12 @@ L8759:
     .byte $60, $A2, $CF, $A0, $89, $20, $93, $90, $38, $A9, $00, $ED, $17, $80, $AA, $A9  ; $899B `.... ..8.......
     .byte $00, $ED, $18, $80, $A0, $37, $84, $01, $20, $CD, $BD, $A0, $36, $84, $01, $A2  ; $89AB .....7.. ...6...
     .byte $C4, $A0, $89, $20, $B7, $90, $4C, $02, $90, $20, $43, $48, $41, $52, $53, $20  ; $89BB ... ..L.. CHARS 
-    .byte $46, $52, $45, $45, $00  ; $89CB FREE.
+    .byte $46, $52, $45, $45  ; $89CB FREE
+
+; --- FRAME_BUF_READ ---
+; Read from frame buffer
+FRAME_BUF_READ:
+    .byte $00  ; $89CF .
 L89D0:
     LDA #$AD
     STA $C140
@@ -484,10 +514,10 @@ L89D0:
     BNE L89F0
 L89DC:
     LDX $8019
-    LDY $801A
+    LDY $801A                           ; workspace
 L89E2:
     STX $1D
-    STY $1E
+    STY $1E                             ; workspace
     LDA #$81
     STA $C140
     LDA #$8A
@@ -514,9 +544,9 @@ L8A18:
     CMP #$00
     BEQ L8A37
     CMP #$0D
-    BNE L8A31
+    BNE L8A31                           ; KERNAL_CHROUT
     JSR L8C26
-    BCC L8A2F
+    BCC L8A2F                           ; KERNAL_CHROUT
     LDA #$91
     JSR $FFD2
 L8A2F:
@@ -547,7 +577,7 @@ L8A58:
     LDA #$20
     BNE L8A6E
 L8A65:
-    CMP #$07
+    CMP #$07                            ; workspace
     BNE L8A7C
     JSR L8A7E
     BCS L8A7D
@@ -574,10 +604,13 @@ L8A8A:
     .byte $CF, $FF, $B0, $0C, $C9, $01, $D0, $02, $A9, $00, $A6, $90, $8E, $5D, $C1, $18  ; $8A9C .............]..
     .byte $60, $2C, $5D, $C1, $10, $04, $A9, $00, $18, $60, $20, $CC, $96, $6E, $5D, $C1  ; $8AAC `,]......` ..n].
     .byte $18, $60  ; $8ABC .`
+
+; --- DISK_LOAD ---
+; Load file from disk
 DISK_LOAD:
     LDX $8019
     LDY $801A
-    JSR L8C70
+    JSR L8C70                           ; DISK_SAVE
     LDX $8017
     LDY $8018
     JSR DISK_SAVE
@@ -588,12 +621,19 @@ DISK_LOAD:
     LDY $1E
     LDX $1D
     BNE L8AE3
+
+; ============================================================
+; DISK_SAVE
+; ============================================================
     DEY
 L8AE3:
     DEX
     STX $8017
     STY $8018
     RTS
+
+; --- DISK_SAVE ---
+; Save file to disk
 DISK_SAVE:
     STX $1D
     STY $1E
@@ -629,15 +669,15 @@ L8B17:
 L8B27:
     LDY $D3
     LDA ($D1),Y
-    PHA
+    PHA                                 ; workspace
     CMP #$20
     BEQ L8B45
-    LDA ($F3),Y
+    LDA ($F3),Y                         ; workspace
     AND #$0F
     CMP $C158
     BEQ L8B43
     STA $C158
-    TAY
+    TAY                                 ; workspace
     LDA $8BF5,Y
     JSR L8B7D
 L8B43:
@@ -648,7 +688,7 @@ L8B45:
     BPL L8B58
     LDA $C15C
     JSR L8B7D
-    LDA $C15C
+    LDA $C15C                           ; MODEM_STATUS_CHECK
     EOR #$80
     STA $C15C
 L8B58:
@@ -878,10 +918,13 @@ L8CD2:
     .byte $00, $0D, $11, $CE, $55, $4D, $42, $45, $52, $3F, $20, $20, $00, $11, $C4, $49  ; $8D0C ....UMBER?  ...I
     .byte $41, $4C, $4C, $49, $4E, $47, $20, $00, $50, $4C, $45, $41, $53, $45, $20, $57  ; $8D1C ALLING .PLEASE W
     .byte $41, $49, $54, $00  ; $8D2C AIT.
+
+; --- MODEM_CHECK ---
+; Verify modem present, initialize hardware
 MODEM_CHECK:
     TSX
     STX $C154
-    LDX #$03
+    LDX #$03                            ; MODEM_REG_READ
     LDA #$20
     JSR MODEM_REG_WRITE
     JSR MODEM_REG_READ
@@ -904,19 +947,19 @@ L8D52:
     STA $0286
     LDX #$EA
     LDY #$8C
-    JSR PRINT_STRING
+    JSR PRINT_STRING                    ; PRINT_STRING
     LDY #$01
     LDA $9FF0
     BEQ L8D78
-    LDX #$01
+    LDX #$01                            ; SETUP_INPUT_PARAMS
     LDY #$8D
     JSR PRINT_STRING
-    LDY #$00
+    LDY #$00                            ; PRINT_STRING
 L8D78:
     LDX #$10
     LDA #$2D
     SEC
-    JSR SETUP_INPUT_PARAMS
+    JSR SETUP_INPUT_PARAMS              ; INPUT_LINE
     LDX #$0D
     LDY #$8D
     JSR PRINT_STRING
@@ -942,12 +985,12 @@ L8DA4:
     JSR PROTO_DISPATCH_TABLE
     JSR L96C6
     LDY #$03
-    LDX #$08
+    LDX #$08                            ; KERNAL_GETIN
 L8DB5:
     LDA #$10
     JSR MODEM_REG_WRITE
 L8DBA:
-    JSR MODEM_REG_READ
+    JSR MODEM_REG_READ                  ; PROTO_DISPATCH_TABLE
     AND #$10
     BEQ L8DCB
     JSR $FFE4
@@ -959,8 +1002,8 @@ L8DCB:
     BNE L8DB5
     LDY #$00
 L8DD0:
-    LDA $9FF1,Y
-    JSR $FFD2
+    LDA $9FF1,Y                         ; MODEM_REG_WRITE
+    JSR $FFD2                           ; MODEM_REG_READ
     CMP #$2D
     BNE L8DEA
     LDX #$08
@@ -968,13 +1011,13 @@ L8DD0:
     JSR MODEM_REG_WRITE
 L8DE1:
     JSR MODEM_REG_READ
-    AND #$10
+    AND #$10                            ; MODEM_REG_WRITE
     BNE L8DE1
     BEQ L8DFC
 L8DEA:
     AND #$0F
     BNE L8DF0
-    LDA #$0A
+    LDA #$0A                            ; KERNAL_GETIN
 L8DF0:
     ORA #$A0
     JSR MODEM_REG_WRITE
@@ -984,7 +1027,7 @@ L8DF5:
     BNE L8DF5
 L8DFC:
     JSR $FFE4
-    CMP #$03
+    CMP #$03                            ; MODEM_REG_WRITE
     BEQ L8E1C
     INY
     CPY $9FF0
@@ -1001,7 +1044,7 @@ L8E1C:
     JMP PROTO_DISPATCH_TABLE
 L8E1F:
     LDX #$24
-    LDY #$8D
+    LDY #$8D                            ; PROTO_DISPATCH_TABLE
     JSR PRINT_STATUS_MSG
     CLC
     ROR $C155
@@ -1012,7 +1055,7 @@ L8E1F:
 L8E35:
     JSR L9050
 L8E38:
-    LDX #$07
+    LDX #$07                            ; workspace
     LDY #$95
     JSR L89E2
     LDA #$02
@@ -1023,7 +1066,7 @@ L8E38:
     LDY #$12
     CLC
     JSR $FFF0
-    LDX #$08
+    LDX #$08                            ; INPUT_LINE
     LDY #$01
     LDA #$00
     CLC
@@ -1038,7 +1081,7 @@ L8E68:
     STA $C101,Y
     INY
     CPY #$08
-    BCC L8E68
+    BCC L8E68                           ; KERNAL_CHROUT
     LDX #$12
     LDY #$0D
     CLC
@@ -1054,7 +1097,7 @@ L8E7A:
     BEQ L8EA3
     CPX #$06
     BEQ L8E7A
-    STA $C109,X
+    STA $C109,X                         ; KERNAL_CHROUT
     CMP #$30
     BCC L8E7A
     CMP #$5B
@@ -1085,7 +1128,7 @@ L8EB6:
     STA $C119
     LDA $A001
     STA $C11A
-    LDX #$24
+    LDX #$24                            ; MODEM_REG_WRITE_WAIT
     LDY #$8D
     JSR PRINT_STATUS_MSG
     LDA #$43
@@ -1099,6 +1142,9 @@ L8EE8:
     JSR L89D0
     SEC
     ROR $C155
+
+; --- MODEM_INIT_DOWNLOAD ---
+; Receive terminal software during LINKING phase
 MODEM_INIT_DOWNLOAD:
     JSR L96CC
     JSR L96CC
@@ -1134,12 +1180,19 @@ L8F29:
     STY $8037
 L8F38:
     CLC
+
+; ============================================================
+; MODEM_SEND_CMD
+; ============================================================
     ROR $C155
     JMP ($001F)
     JMP $4E49
     .byte $4B, $49, $4E, $47, $00  ; $8F42 KING.
+
+; --- MODEM_SEND_CMD ---
+; Send command packet, handle disconnect states
 MODEM_SEND_CMD:
-    CPX #$00
+    CPX #$00                            ; KERNAL_CLRCHN
     BEQ L8F7E
     STX $C150
     LDX $C154
@@ -1156,13 +1209,13 @@ MODEM_SEND_CMD:
     JSR PRINT_STATUS_MSG
     JSR CLEAR_STATUS
     LDA $C153
-    STA $0286
+    STA $0286                           ; KERNAL_CLRCHN
     LDX #$DA
     LDY #$8F
     JMP PRINT_STRING
 L8F7E:
     LDX $C154
-    TXS
+    TXS                                 ; PRINT_STRING
     JSR $FFCC
     LDA $8014
     STA $0286
@@ -1193,10 +1246,13 @@ L8FF2:
     BPL L8FFA
     JSR L833A
 L8FFA:
-    RTS
+    RTS                                 ; KERNAL_GETIN
     LDX #$10
     LDY #$90
     JSR PRINT_STATUS_MSG
+
+; --- CLEAR_STATUS ---
+; Clear the status bar
 CLEAR_STATUS:
     LDA #$00
     STA $C6
@@ -1206,9 +1262,15 @@ L9008:
     BEQ L9008
     LDX $19
     RTS
+
+; ============================================================
+; ============================================================
     .byte $50, $52, $45, $53, $53, $20, $41, $4E, $59, $20, $4B, $45, $59, $00  ; $9010 PRESS ANY KEY.
+
+; --- STATUS_LINE ---
+; Display status line
 STATUS_LINE:
-    LDX #$01
+    LDX #$01                            ; INPUT_LINE
     LDY #$01
     LDA #$00
     CLC
@@ -1222,12 +1284,12 @@ STATUS_LINE:
     CMP #$59
     BEQ L904D
     CMP #$4E
-    BEQ L904D
+    BEQ L904D                           ; STATUS_LINE
 L903E:
     LDA #$9D
     JSR $FFD2
     CPY #$00
-    BEQ STATUS_LINE
+    BEQ STATUS_LINE                     ; PROTOCOL_STATE_INIT
     JSR $FFD2
     JMP STATUS_LINE
 L904D:
@@ -1248,7 +1310,7 @@ L9066:
     LDA #$13
     BNE L9078
 L906A:
-    LDA #$20
+    LDA #$20                            ; KERNAL_CHROUT
     BNE L9078
 L906E:
     LDA #$0D
@@ -1260,17 +1322,26 @@ L9076:
     LDA #$92
 L9078:
     JMP $FFD2
+
+; --- PRINT_STATUS_MSG ---
+; Print message on status bar
 PRINT_STATUS_MSG:
     STX $1B
     STY $1C
     JSR L93B4
     LDA $0286
+
+; ============================================================
+; ============================================================
     PHA
     JSR L9097
-    JSR L9076
+    JSR L9076                           ; PROTOCOL_STATE_INIT
     PLA
     STA $0286
     JMP L93BF
+
+; --- CURSOR_HOME ---
+; Move cursor to home position
 CURSOR_HOME:
     STX $1B
     STY $1C
@@ -1282,30 +1353,44 @@ L9097:
     AND #$0F
     TAX
     LDA $93A4,X
+
+; ============================================================
+; PRINT_STRING
+; ============================================================
     STA $0286
     JMP L90BB
 L90AF:
     LDX #$18
     LDY #$00
-    CLC
+    CLC                                 ; KERNAL_CHROUT
     JMP $FFF0
+
+; --- PRINT_STRING ---
+; Print null-terminated string (X=lo, Y=hi)
 PRINT_STRING:
     STX $1B
     STY $1C
 L90BB:
     LDY #$00
 L90BD:
-    LDA ($1B),Y
+    LDA ($1B),Y                         ; workspace
     BEQ L90C7
     JSR $FFD2
     INY
     BNE L90BD
 L90C7:
     RTS
+
+; --- SETUP_INPUT_PARAMS ---
+; Configure input line parameters
 SETUP_INPUT_PARAMS:
     STX $C143
     STY $C144
     STA $C146
+
+; ============================================================
+; INPUT_LINE
+; ============================================================
     TAX
     LDA #$00
     ROR
@@ -1315,14 +1400,17 @@ SETUP_INPUT_PARAMS:
 L90DB:
     STA $C145
     RTS
+
+; --- INPUT_LINE ---
+; Read a line of user input
 INPUT_LINE:
     STX $1D
-    STY $1E
+    STY $1E                             ; KERNAL_CHROUT
     LDY #$00
     STY $1A
     STY $C6
 L90E9:
-    LDA #$00
+    LDA #$00                            ; KERNAL_GETIN
     STA $D4
     LDA #$5F
     JSR $FFD2
@@ -1344,7 +1432,7 @@ L9107:
     BEQ L916C
 L9110:
     CPY #$00
-    BEQ L9128
+    BEQ L9128                           ; KERNAL_CHROUT
     CMP #$14
     BNE L9128
     JSR L906A
@@ -1394,6 +1482,9 @@ L916C:
     JSR L906A
     CLC
     RTS
+
+; --- FILE_UPLOAD ---
+; Upload file to server (CNSAVE)
 FILE_UPLOAD:
     STA $C147
     STX $8032
@@ -1406,13 +1497,13 @@ FILE_UPLOAD:
     INY
 L9186:
     LDA #$00
-    LDX #$10
+    LDX #$10                            ; INPUT_LINE
     CLC
     JSR SETUP_INPUT_PARAMS
-    LDA $D018
+    LDA $D018                           ; VIC_MEMSETUP
     PHA
     LDX #$1E
-    LDY #$80
+    LDY #$80                            ; KERNAL_CHROUT
     JSR INPUT_LINE
     STY $19
     PLA
@@ -1427,6 +1518,9 @@ L91AB:
     BIT $C156
     BPL L91FA
     BMI L91BF
+
+; --- FILE_DOWNLOAD ---
+; Download file from server
 FILE_DOWNLOAD:
     STA $C147
     STX $8032
@@ -1436,15 +1530,15 @@ FILE_DOWNLOAD:
 L91BF:
     LDA $19
     LDX #$1E
-    LDY #$80
+    LDY #$80                            ; workspace
     JSR $FFBD
     LDA $8032
     CMP #$50
     BEQ L91F7
-    LDY #$00
+    LDY #$00                            ; KERNAL_SETLFS
     LDA $C147
     CMP #$57
-    BNE L91D9
+    BNE L91D9                           ; CURSOR_HOME
     INY
 L91D9:
     LDX #$01
@@ -1470,12 +1564,12 @@ L91FA:
     STA $801F,Y
     LDA #$2C
     STA $801E,Y
-    STA $8020,Y
+    STA $8020,Y                         ; KERNAL_SETNAM
     TYA
     CLC
     ADC #$06
-    STA $C148
-    LDX #$1C
+    STA $C148                           ; KERNAL_SETLFS
+    LDX #$1C                            ; KERNAL_OPEN
     LDY #$80
 L921B:
     JSR $FFBD
@@ -1483,15 +1577,15 @@ L921B:
     TAX
     TAY
     JSR $FFBA
-    JSR $FFC0
-    JSR L92E8
+    JSR $FFC0                           ; CURSOR_HOME
+    JSR L92E8                           ; STATUS_LINE
     BCC L9250
     BPL L9250
     LDX #$64
     LDY #$92
     JSR CURSOR_HOME
-    JSR STATUS_LINE
-    BNE L924C
+    JSR STATUS_LINE                     ; workspace
+    BNE L924C                           ; workspace
     JSR L92AD
     BCS L9250
     LDX #$1B
@@ -1524,17 +1618,21 @@ L92A2:
     LDX #$CA
     LDY #$F1
     STX $0326
-    STY $0327
-    RTS
+    STY $0327                           ; KERNAL_SETLFS
+    RTS                                 ; KERNAL_OPEN
 L92AD:
     LDA #$00
     JSR $FFBD
     LDA #$0F
     TAY
-    LDX #$08
+    LDX #$08                            ; workspace
     JSR $FFBA
     JSR $FFC0
     LDX #$0F
+
+; ============================================================
+; FRAME_STORE
+; ============================================================
     JSR $FFC9
     PHP
     ROR $C156
@@ -1542,11 +1640,14 @@ L92AD:
     PLP
     BCS L92E0
     RTS
+
+; --- FRAME_STORE ---
+; Store frame data
 FRAME_STORE:
     JSR L9290
     LDA #$08
     JSR $FFC3
-    BCC L92DA
+    BCC L92DA                           ; KERNAL_CLOSE
     JSR $FFE7
 L92DA:
     JSR L92A2
@@ -1569,7 +1670,7 @@ L92E8:
     LDX #$80
     CMP #$36
     BNE L9306
-    LDY $0201
+    LDY $0201                           ; workspace
     CPY #$33
     BNE L9306
     LDX #$C0
@@ -1588,23 +1689,23 @@ L9316:
     BNE L9316
 L931E:
     LDA $0200,X
-    INX
+    INX                                 ; CURSOR_HOME
     CMP #$2C
     BNE L931E
     LDA #$00
-    STA $01FF,X
+    STA $01FF,X                         ; PRINT_STRING
 L932B:
-    LDX #$53
+    LDX #$53                            ; workspace
     LDY #$93
     JSR CURSOR_HOME
-    LDX #$00
+    LDX #$00                            ; KERNAL_CLOSE
     LDY #$02
     JSR PRINT_STRING
 L9339:
     ASL $C149
     BCC L9352
     LDA #$08
-    JSR $FFC3
+    JSR $FFC3                           ; workspace
     JSR L92E0
     LDA $C149
     BMI L9351
@@ -1616,7 +1717,7 @@ L9352:
     RTS
     .byte $44, $49, $53, $4B, $20, $45, $52, $52, $4F, $52, $20, $00  ; $9353 DISK ERROR .
 L935F:
-    BIT $C156
+    BIT $C156                           ; KERNAL_GETIN
     BPL L9367
     LDA #$00
     RTS
@@ -1627,7 +1728,7 @@ L9367:
 L936E:
     JSR $FFE4
     CMP #$0D
-    BEQ L937B
+    BEQ L937B                           ; KERNAL_CLRCHN
     STA $0200,X
     INX
     BNE L936E
@@ -1639,6 +1740,9 @@ L937B:
     LDA $0200
     CMP #$30
     RTS
+
+; --- PROTOCOL_STATE_INIT ---
+; Initialize protocol state variables
 PROTOCOL_STATE_INIT:
     LDA $D021
     AND #$0F
@@ -1656,7 +1760,7 @@ L9397:
     RTS
     .byte $01, $00, $01, $00, $01, $01, $01, $00, $00, $01, $00, $01, $01, $00, $01, $00  ; $93A4 ................
 L93B4:
-    SEC
+    SEC                                 ; workspace
     JSR $FFF0
     STX $C14A
     STY $C14B
@@ -1666,10 +1770,16 @@ L93BF:
     LDX $C14A
     LDY $C14B
     JMP $FFF0
+
+; --- PROTOCOL_RESET ---
+; Reset protocol to idle state
 PROTOCOL_RESET:
     STX $C14E
     STY $C14F
     RTS
+
+; --- PROTOCOL_CLEANUP ---
+; Clean up protocol resources
 PROTOCOL_CLEANUP:
     STX $1D
     STY $1E
@@ -1699,7 +1809,7 @@ L93F3:
     LDY #$00
 L9408:
     INY
-    STY $8033
+    STY $8033                           ; workspace
     BNE L93E5
 L940E:
     CMP #$9D
@@ -1718,13 +1828,13 @@ L9420:
     BNE L9420
     BEQ L93E5
 L942B:
-    CMP #$0D
+    CMP #$0D                            ; VIC_BGCOL0
     BNE L9434
     LDA $8033
     CLC
     RTS
 L9434:
-    SEC
+    SEC                                 ; workspace
     RTS
 L9436:
     TXA
@@ -1754,7 +1864,7 @@ L945A:
     ADC $1A
     TAY
     LDA ($1F),Y
-    AND #$3F
+    AND #$3F                            ; workspace
     CPX #$12
     BCC L946E
     CPX #$18
@@ -1775,7 +1885,7 @@ L9470:
     LDA #$00
     STA $1A
     LDY $19
-    CPY $C14C
+    CPY $C14C                           ; VIC_CTRL1
     BNE L9493
     LDY #$00
 L9493:
@@ -1784,6 +1894,10 @@ L9493:
     BNE L945A
 L9498:
     PLA
+
+; ============================================================
+; MODEM_STATUS_CHECK
+; ============================================================
     TAX
     RTS
 L949B:
@@ -1795,14 +1909,21 @@ L94A1:
     ASL
     BCC L94A1
     RTS
+
+; --- MODEM_STATUS_CHECK ---
+; Check modem status register
 MODEM_STATUS_CHECK:
     AND #$7F
     CMP #$20
     BCS L94B2
     ORA #$40
     BNE L94C0
+
+; ============================================================
+; MODEM_REG_WRITE_WAIT
+; ============================================================
 L94B2:
-    CMP #$40
+    CMP #$40                            ; workspace
     BCC L94C0
     CMP #$60
     BCS L94BE
@@ -1812,9 +1933,16 @@ L94BE:
     EOR #$C0
 L94C0:
     RTS
+
+; --- MODEM_REG_WRITE_WAIT ---
+; Send bytes from $C100 buffer via protocol engine
 MODEM_REG_WRITE_WAIT:
     STY $C14D
     LDY #$00
+
+; ============================================================
+; MODEM_REG_READ_STATUS
+; ============================================================
 L94C6:
     LDA $C100,Y
     INY
@@ -1824,6 +1952,13 @@ L94C6:
     PLP
     BCC L94C6
     RTS
+
+; ============================================================
+; MODEM_WAIT_READY
+; ============================================================
+
+; --- MODEM_REG_READ_STATUS ---
+; Read modem status into $C100 buffer
 MODEM_REG_READ_STATUS:
     LDY #$00
 L94D7:
@@ -1832,23 +1967,36 @@ L94D7:
     INY
     BCC L94D7
     LDA $8034
-    RTS
+    RTS                                 ; MODEM_REG_SELECT
+
+; --- MODEM_WAIT_READY ---
+; Wait for modem TX ready, then send byte
 MODEM_WAIT_READY:
     PHA
     LDX #$00
 L94E7:
     JSR MODEM_REG_READ
     TAX
+
+; ============================================================
+; MODEM_REG_READ
+; ============================================================
     BPL L94E7
-    PLA
+    PLA                                 ; MODEM_REG_SELECT
     LDX #$04
+
+; --- MODEM_REG_WRITE ---
+; Write value to modem register (X=reg, A=value)
 MODEM_REG_WRITE:
-    PHP
+    PHP                                 ; MODEM_DATA
     SEI
     STX $DE00
     STA $DE01
     PLP
     RTS
+
+; --- MODEM_REG_READ ---
+; Read modem register (X=reg, returns A=value)
 MODEM_REG_READ:
     PHP
     SEI
@@ -1885,13 +2033,20 @@ MODEM_REG_READ:
     .byte $D4, $CF, $20, $C5, $C4, $C9, $D4, $0D, $06, $02, $46, $4F, $52, $20, $46, $55  ; $9697 .. .......FOR FU
     .byte $4C, $4C, $45, $52, $20, $44, $45, $54, $41, $49, $4C, $53, $00, $00, $00, $00  ; $96A7 LLER DETAILS....
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $96B7 .........
+
+; --- PROTO_DISPATCH_TABLE ---
+; Protocol function dispatch (9 x JMP)
 PROTO_DISPATCH_TABLE:
-    JMP PROTO_SEND_PACKET
+    JMP PROTO_SEND_PACKET               ; PROTO_ERROR_RECOVERY
     .byte $4C, $8A, $9B  ; $96C3 L..
 L96C6:
-    JMP PROTO_INIT_REGS
+    JMP PROTO_INIT_REGS                 ; PROTO_CONNECT
 L96C9:
     JMP PROTO_RECV_FRAME
+
+; ============================================================
+; PROTO_INIT_REGS
+; ============================================================
 L96CC:
     JMP PROTO_PROCESS_CMD
     .byte $4C, $3A, $99  ; $96CF L:.
@@ -1901,13 +2056,19 @@ L96D5:
     JMP PROTO_CONNECT
 L96D8:
     JMP $C800
+
+; --- PROTO_INIT_REGS ---
+; Initialize modem registers for protocol mode
 PROTO_INIT_REGS:
     LDX #$02
     LDA #$40
     JSR MODEM_REG_WRITE
     LDX #$06
-    LDA #$05
+    LDA #$05                            ; workspace
     JMP MODEM_REG_WRITE
+
+; --- PROTO_START_SESSION ---
+; Start protocol session (set connected state)
 PROTO_START_SESSION:
     BIT $8038
     BVC L96F3
@@ -1923,6 +2084,9 @@ L96F3:
     LDA #$63
     LDY #$9C
     BNE L971F
+
+; --- PROTO_DISCONNECT ---
+; Handle disconnect / check connection state
 PROTO_DISCONNECT:
     BIT $8038
     BPL L9714
@@ -1941,12 +2105,12 @@ L971F:
     STA $23
     LDA $9B07,X
     STA $24
-    PLA
+    PLA                                 ; workspace
     JSR L9C3D
     LDX $8046
-    STX $DC05
-    JSR L9E3C
-    LDA #$00
+    STX $DC05                           ; workspace
+    JSR L9E3C                           ; workspace
+    LDA #$00                            ; workspace
     STA $C209
     STA $A2
     STA $A1
@@ -1968,7 +2132,7 @@ L974E:
 L9762:
     LDY #$01
     LDA ($21),Y
-    ORA #$40
+    ORA #$40                            ; workspace
     STA ($21),Y
     LDA $C20B
     CLC
@@ -1981,7 +2145,7 @@ L9762:
 L977B:
     LDA ($21),Y
     JSR L9B10
-    INY
+    INY                                 ; workspace
     CPY $C20B
     BNE L977B
     JSR L9B0B
@@ -2002,11 +2166,14 @@ L97A2:
     DEX
     BPL L97A2
     JMP L9C2D
+
+; --- PROTO_RECV_FRAME ---
+; Send one byte and process receive (called per byte)
 PROTO_RECV_FRAME:
     STA $19
     PHA
     TXA
-    PHA
+    PHA                                 ; workspace
     TYA
     PHA
     PHP
@@ -2024,16 +2191,16 @@ L97C0:
     LDX #$FF
 L97CF:
     INX
-    STX $C209
+    STX $C209                           ; workspace
     LDA $9B03,X
     STA $21
     LDA $9B07,X
-    STA $22
+    STA $22                             ; workspace
     LDA #$03
     STA $C20B
     LDA $C228,X
     BEQ L97EA
-    JSR L98F5
+    JSR L98F5                           ; workspace
 L97EA:
     LDA $C20B
     CMP #$03
@@ -2042,7 +2209,7 @@ L97EA:
     STY $C21D
     STY $C21E
     LDA $8045
-    STA ($21),Y
+    STA ($21),Y                         ; workspace
     JSR L9B10
     INY
     LDA $8034
@@ -2053,13 +2220,13 @@ L97EA:
     LDX $C209
     STA $C228,X
     TAX
-    INX
+    INX                                 ; workspace
     CPX #$60
     BNE L981C
     LDX #$20
 L981C:
     STX $C20E
-    STA ($21),Y
+    STA ($21),Y                         ; workspace
     JSR L9B10
 L9824:
     LDY $C20B
@@ -2087,11 +2254,11 @@ L9851:
     BCC L985C
     JSR L9762
     LDA #$00
-    STA $8038
+    STA $8038                           ; workspace
 L985C:
     PLA
     TAY
-    PLA
+    PLA                                 ; workspace
     TAX
     PLA
     RTS
@@ -2099,11 +2266,11 @@ L9862:
     LDX $8043
 L9865:
     LDA $C228,X
-    CMP $C211
+    CMP $C211                           ; workspace
     BNE L987D
     LDY $C211
     INY
-    CPY #$60
+    CPY #$60                            ; workspace
     BNE L9877
     LDY #$20
 L9877:
@@ -2120,8 +2287,8 @@ L988A:
     INX
 L988B:
     STX $C20A
-    LDA $C22C,X
-    BPL L98F5
+    LDA $C22C,X                         ; workspace
+    BPL L98F5                           ; workspace
     LDA $C228,X
     CMP $C220
     BNE L98B5
@@ -2129,7 +2296,7 @@ L988B:
     STA $C221
     STA $C222
     LDA $804A
-    BEQ L98B2
+    BEQ L98B2                           ; workspace
 L98A8:
     LDY $C22C,X
     BPL L98F5
@@ -2143,12 +2310,12 @@ L98B5:
     LDY $8034
     JSR L9BA4
     LDX $C20A
-    LDA $9B03,X
+    LDA $9B03,X                         ; workspace
     STA $23
-    LDA $9B07,X
+    LDA $9B07,X                         ; workspace
     STA $24
     JSR L991E
-    LDY #$00
+    LDY #$00                            ; workspace
     STY $C20C
     LDA ($23),Y
     STA $C20D
@@ -2171,13 +2338,13 @@ L98F8:
     CMP $C210
     BEQ L9903
     DEX
-    BPL L98F8
+    BPL L98F8                           ; workspace
 L9903:
     LDA $C22C,X
     BPL L990B
     JMP L9862
 L990B:
-    LDA #$00
+    LDA #$00                            ; workspace
     STA $C228,X
     LDX $C210
     INX
@@ -2192,10 +2359,10 @@ L991E:
     BNE L9937
 L9922:
     LDA #$02
-    BNE L9937
+    BNE L9937                           ; MODEM_WAIT_READY
 L9926:
     CMP #$00
-    BEQ L9937
+    BEQ L9937                           ; MODEM_WAIT_READY
     CMP #$04
     BCS L9937
     ADC #$20
@@ -2205,11 +2372,17 @@ L9926:
     PLA
 L9937:
     JMP MODEM_WAIT_READY
+
+; --- PROTO_ERROR_RECOVERY ---
+; Handle protocol errors, check for retransmit
 PROTO_ERROR_RECOVERY:
-    .byte $48, $8A, $48, $98, $48, $2C, $38, $80, $70, $03, $20, $0A, $97, $2C, $24, $C2  ; $993A H.H.H,8.p. ..,$.
-    .byte $30, $18, $A2, $03, $BD, $2C, $C2, $10, $08, $BD, $28, $C2, $CD, $0F, $C2, $F0  ; $994A 0....,....(.....
-    .byte $09, $CA, $10, $F0, $20, $06, $9A, $38, $B0, $01, $18, $68, $A8, $68, $AA, $68  ; $995A .... ..8...h.h.h
-    .byte $60  ; $996A `
+    .byte $48  ; $993A H
+    .byte $8A, $48, $98, $48, $2C, $38, $80, $70, $03, $20, $0A, $97, $2C, $24, $C2, $30  ; $993B .H.H,8.p. ..,$.0
+    .byte $18, $A2, $03, $BD, $2C, $C2, $10, $08, $BD, $28, $C2, $CD, $0F, $C2, $F0, $09  ; $994B ....,....(......
+    .byte $CA, $10, $F0, $20, $06, $9A, $38, $B0, $01, $18, $68, $A8, $68, $AA, $68, $60  ; $995B ... ..8...h.h.h`
+
+; --- PROTO_PROCESS_CMD ---
+; Process received command — delivers one byte to caller
 PROTO_PROCESS_CMD:
     TXA
     PHA
@@ -2217,25 +2390,25 @@ PROTO_PROCESS_CMD:
     PHA
     BIT $8038
     BVS L9977
-    JSR PROTO_DISCONNECT
+    JSR PROTO_DISCONNECT                ; workspace
 L9977:
-    LDX $C209
+    LDX $C209                           ; workspace
     LDA $C22C,X
-    BMI L9986
+    BMI L9986                           ; workspace
     JSR L9A17
     SEC
     ROR $C224
 L9986:
     LDY $C20B
     LDA ($21),Y
-    INY
+    INY                                 ; workspace
     STY $C20B
     CPY $C217
     BEQ L9997
-    CLC
+    CLC                                 ; workspace
     BCC L99E7
 L9997:
-    PHA
+    PHA                                 ; workspace
     LDA #$00
     LDX $C209
     STA $C228,X
@@ -2303,7 +2476,7 @@ L9A05:
 L9A06:
     LDA $A1
     CMP $8048
-    BCC L9A16
+    BCC L9A16                           ; workspace
     JSR L9922
     LDA #$00
     STA $A2
@@ -2314,7 +2487,7 @@ L9A17:
     JSR L9A06
     LDX $C209
     LDA $C22C,X
-    BMI L9A25
+    BMI L9A25                           ; workspace
     JMP L9AAC
 L9A25:
     AND #$40
@@ -2327,7 +2500,7 @@ L9A2C:
     LDX #$03
 L9A37:
     LDA $C22C,X
-    AND #$40
+    AND #$40                            ; workspace
     BEQ L9A44
     TYA
     CMP $C228,X
@@ -2339,7 +2512,7 @@ L9A44:
     STY $C215
     LDY $C20F
 L9A4F:
-    CPY $C215
+    CPY $C215                           ; workspace
     BEQ L9A6B
     INY
     CPY #$60
@@ -2347,7 +2520,7 @@ L9A4F:
     LDY #$20
 L9A5B:
     DEX
-    BPL L9A4F
+    BPL L9A4F                           ; workspace
 L9A5E:
     LDX $C209
     LDA #$00
@@ -2360,7 +2533,7 @@ L9A6B:
     STA $C22C,X
 L9A73:
     LDA $C228,X
-    CMP $C20F
+    CMP $C20F                           ; workspace
     BNE L9AAC
     LDY $C20F
     INY
@@ -2368,7 +2541,7 @@ L9A73:
     BNE L9A85
     LDY #$20
 L9A85:
-    STY $C20F
+    STY $C20F                           ; workspace
     LDA $9B03,X
     STA $21
     LDA $9B07,X
@@ -2376,37 +2549,37 @@ L9A85:
     LDA #$03
     STA $C20B
     LDY #$00
-    LDA ($21),Y
+    LDA ($21),Y                         ; workspace
     SEC
     SBC #$02
     STA $C217
     INY
     LDA ($21),Y
     STA $8034
-    ASL
+    ASL                                 ; workspace
     STA $C216
     RTS
 L9AAC:
     LDX $C209
     INX
-    CPX #$04
+    CPX #$04                            ; workspace
     BNE L9AB6
     LDX #$00
 L9AB6:
     STX $C209
     JMP L9A17
 L9ABC:
-    LDA $C228,X
+    LDA $C228,X                         ; workspace
     STA $C206
     LDX #$19
-    LDY #$20
+    LDY #$20                            ; workspace
     JSR L9BA4
     LDA #$40
     STA $C21D
     LDA #$E6
-    STA $C21E
-    LDA $C206
-    JSR L9B10
+    STA $C21E                           ; workspace
+    LDA $C206                           ; workspace
+    JSR L9B10                           ; workspace
     JSR L9B0B
     LDA $C21D
     STA $C207
@@ -2426,23 +2599,27 @@ L9AF0:
     .byte $34, $C8, $5C, $F0, $C2, $C2, $C3, $C3  ; $9B03 4.\.....
 L9B0B:
     LDA #$00
-    JSR L9B10
+    JSR L9B10                           ; workspace
 L9B10:
-    PHA
+    PHA                                 ; workspace
     STA $C21F
     TXA
-    PHA
+    PHA                                 ; workspace
     LDX #$07
 L9B18:
     CLC
     ROL $C21F
     ROL $C21E
     ROL $C21D
-    BCC L9B34
+    BCC L9B34                           ; workspace
     LDA $C21D
     EOR #$10
     STA $C21D
-    LDA $C21E
+
+; ============================================================
+; PROTO_FLOW_CONTROL
+; ============================================================
+    LDA $C21E                           ; PROTO_DISCONNECT
     EOR #$21
     STA $C21E
 L9B34:
@@ -2452,6 +2629,9 @@ L9B34:
     TAX
     PLA
     RTS
+
+; --- PROTO_FLOW_CONTROL ---
+; Wait for response packet, check token
 PROTO_FLOW_CONTROL:
     JSR PROTO_DISCONNECT
     JSR L9A17
@@ -2469,30 +2649,36 @@ L9B52:
     JSR MODEM_REG_READ_STATUS
     LDA #$00
     STA $C100,Y
-    LDA $8034
-    CMP #$40
+    LDA $8034                           ; PRINT_STATUS_MSG
+    CMP #$40                            ; CLEAR_STATUS
     BEQ L9B50
     CMP #$42
     BEQ L9B74
     LDX #$00
-    LDY #$C1
+    LDY #$C1                            ; MODEM_SEND_CMD
     JSR PRINT_STATUS_MSG
     JSR CLEAR_STATUS
     JSR PROTOCOL_STATE_INIT
     SEC
     RTS
 L9B74:
-    LDX #$01
+    LDX #$01                            ; MODEM_REG_READ
     JMP MODEM_SEND_CMD
+
+; --- PROTO_SEND_PACKET ---
+; Send complete packet with framing ($01...$02)
 PROTO_SEND_PACKET:
     JSR L9C36
     LDX #$03
     LDA #$20
-    JSR MODEM_REG_WRITE
+    JSR MODEM_REG_WRITE                 ; workspace
 L9B83:
-    JSR MODEM_REG_READ
-    AND #$20
+    JSR MODEM_REG_READ                  ; workspace
+    AND #$20                            ; workspace
     BNE L9B83
+
+; --- PROTO_RECV_PACKET ---
+; Initialize protocol receive state
 PROTO_RECV_PACKET:
     LDA #$20
     STA $C20E
@@ -2500,7 +2686,7 @@ PROTO_RECV_PACKET:
     STA $C204
     STA $C205
     LDA #$06
-    STA $C203
+    STA $C203                           ; workspace
     STA $C220
     STA $8038
     RTS
@@ -2633,17 +2819,20 @@ L9E3C:
     RTS
     .byte $2C, $11, $80, $10, $03, $8D, $E7, $07, $60, $C3, $4F, $4E, $4E, $45, $43, $54  ; $9E50 ,.......`.ONNECT
     .byte $49, $4E, $47, $2E, $2E, $2E, $0D, $11, $00  ; $9E60 ING......
+
+; --- PROTO_CONNECT ---
+; Connection handshake — wait for *CON from server
 PROTO_CONNECT:
     LDX #$00
     JSR MODEM_REG_READ
-    AND #$20
+    AND #$20                            ; MODEM_SEND_CMD
     BNE L9E89
     LDX #$08
     JSR MODEM_REG_READ
     AND #$40
     BNE L9E80
     LDX #$02
-    JMP MODEM_SEND_CMD
+    JMP MODEM_SEND_CMD                  ; VIC_BORDER
 L9E80:
     JSR $FFE4
     CMP #$03
@@ -2665,7 +2854,7 @@ L9E89:
 L9EA6:
     LDX #$59
     LDY #$9E
-    JSR PRINT_STRING
+    JSR PRINT_STRING                    ; workspace
     LDA #$00
     STA $C200
     STA $C202
@@ -2689,7 +2878,7 @@ L9ED6:
     JSR L9F90
     BNE L9ED6
 L9EE1:
-    SEC
+    SEC                                 ; MODEM_REG_READ
     RTS
 L9EE3:
     JSR L9F90
@@ -2742,7 +2931,7 @@ L9F3B:
     CMP #$20
     BCC L9EE3
 L9F43:
-    LDX $C201
+    LDX $C201                           ; workspace
     BNE L9F4C
     CMP #$3F
     BEQ L9F55
@@ -2766,7 +2955,7 @@ L9F66:
     STA $0200,X
     CPX #$4F
     BEQ L9F72
-    INC $C201
+    INC $C201                           ; workspace
 L9F72:
     CMP #$0D
     BEQ L9F79
@@ -2792,7 +2981,7 @@ L9F90:
     JSR MODEM_REG_READ
     AND #$40
     BNE L9FA3
-    LDX #$02
+    LDX #$02                            ; MODEM_REG_WRITE
     JMP MODEM_SEND_CMD
 L9FA3:
     JSR $FFE4
@@ -2814,7 +3003,7 @@ L9FBC:
     LDA $8044
 L9FC3:
     CMP $A2
-    BCS L9FC3
+    BCS L9FC3                           ; MODEM_REG_READ
     RTS
     .byte $A2, $00, $20, $FA, $94, $A8, $29, $40, $F0, $0F, $A2, $04, $20, $FA, $94, $A6  ; $9FC8 .. ...)@.... ...
     .byte $20, $9D, $34, $C2, $E6, $20, $4C, $31, $EA, $98, $29, $20, $D0, $F8, $A2, $02  ; $9FD8  .4.. L1..) ....

@@ -194,6 +194,124 @@ print(f"Code instructions: {len(code_start)}")
 print(f"Branch targets: {len(branch_targets)}")
 
 # ============================================================
+# Extract comments from annotated disassembly
+# ============================================================
+
+disasm_path = os.path.join(script_dir, '..', '..', '..', 'modem_bootstrap.asm')
+addr_comments = {}  # addr -> inline comment for that instruction
+section_comments = {}  # addr -> section header comment block
+
+if os.path.exists(disasm_path):
+    import re
+    with open(disasm_path, 'r') as f:
+        disasm_lines = f.readlines()
+    
+    current_addr = 0x8000
+    pending_section = []
+    
+    for line in disasm_lines:
+        line = line.rstrip('\n')
+        
+        # Section headers (lines of ===== or starting with ; that describe routines)
+        if line.strip().startswith('; ====') or (line.strip().startswith(';') and 
+            any(kw in line.upper() for kw in ['PROTO_', 'MODEM_', 'COLD_START', 'MAIN_INIT',
+                'EDITOR', 'KEYBOARD', 'SCREEN', 'FRAME', 'DISK', 'FILE', 'INPUT', 'PRINT',
+                'PROTOCOL', 'DISPATCH'])):
+            pending_section.append(line)
+            continue
+        
+        # Label lines — attach pending section comments
+        if line and not line[0].isspace() and ':' in line.split(';')[0]:
+            if pending_section:
+                section_comments[current_addr] = pending_section[:]
+                pending_section = []
+            continue
+        
+        # .byte lines — track address
+        m = re.match(r'\s+\.byte\s+([0-9A-Fa-f][0-9A-Fa-f ]+)\s*;?(.*)', line)
+        if m:
+            hex_bytes = m.group(1).strip().split()
+            current_addr += len(hex_bytes)
+            pending_section = []
+            continue
+        
+        # Instruction lines — extract comment
+        m = re.match(r'\s+([0-9A-Fa-f]{2}(?:\s+[0-9A-Fa-f]{2}){0,2})\s{2,}(\w{3})\s*(.*)', line)
+        if m:
+            hex_part = m.group(1).strip()
+            size = len(hex_part.split())
+            rest = m.group(3).strip()
+            
+            # Extract comment
+            if '; ' in rest:
+                _, comment = rest.split('; ', 1)
+                addr_comments[current_addr] = comment.strip()
+            elif rest.startswith(';'):
+                addr_comments[current_addr] = rest[1:].strip()
+            
+            if pending_section:
+                section_comments[current_addr] = pending_section[:]
+                pending_section = []
+            
+            current_addr += size
+            continue
+        
+        # Other lines clear pending section
+        if line.strip() and not line.strip().startswith(';'):
+            pending_section = []
+
+    print(f"Comments extracted: {len(addr_comments)} inline, {len(section_comments)} sections")
+
+# Section descriptions for named labels
+LABEL_DESCRIPTIONS = {
+    'COLD_START': 'Initialize C64 hardware, BASIC, and install command extensions',
+    'MAIN_INIT': 'Print version string, install BASIC command parser, enter READY prompt',
+    'KEYBOARD_SCAN': 'Scan keyboard for input',
+    'KEY_DISPATCH': 'Dispatch key press to handler',
+    'INPUT_HANDLER': 'Handle user input',
+    'COMMAND_EXEC': 'Execute parsed command',
+    'SCREEN_DRAW': 'Render frame/page to screen',
+    'FILE_OPS': 'File operations dispatcher',
+    'FRAME_BUF_READ': 'Read from frame buffer',
+    'FRAME_BUF_WRITE': 'Write to frame buffer',
+    'DISK_LOAD': 'Load file from disk',
+    'DISK_SAVE': 'Save file to disk',
+    'MODEM_CHECK': 'Verify modem present, initialize hardware',
+    'MODEM_INIT_DOWNLOAD': 'Receive terminal software during LINKING phase',
+    'MODEM_SEND_CMD': 'Send command packet, handle disconnect states',
+    'CLEAR_STATUS': 'Clear the status bar',
+    'STATUS_LINE': 'Display status line',
+    'PRINT_STATUS_MSG': 'Print message on status bar',
+    'CURSOR_HOME': 'Move cursor to home position',
+    'PRINT_STRING': 'Print null-terminated string (X=lo, Y=hi)',
+    'SETUP_INPUT_PARAMS': 'Configure input line parameters',
+    'INPUT_LINE': 'Read a line of user input',
+    'FILE_UPLOAD': 'Upload file to server (CNSAVE)',
+    'FILE_DOWNLOAD': 'Download file from server',
+    'FRAME_STORE': 'Store frame data',
+    'PROTOCOL_STATE_INIT': 'Initialize protocol state variables',
+    'PROTOCOL_RESET': 'Reset protocol to idle state',
+    'PROTOCOL_CLEANUP': 'Clean up protocol resources',
+    'MODEM_STATUS_CHECK': 'Check modem status register',
+    'MODEM_REG_WRITE_WAIT': 'Send bytes from $C100 buffer via protocol engine',
+    'MODEM_REG_READ_STATUS': 'Read modem status into $C100 buffer',
+    'MODEM_WAIT_READY': 'Wait for modem TX ready, then send byte',
+    'MODEM_REG_WRITE': 'Write value to modem register (X=reg, A=value)',
+    'MODEM_REG_READ': 'Read modem register (X=reg, returns A=value)',
+    'PROTO_DISPATCH_TABLE': 'Protocol function dispatch (9 x JMP)',
+    'PROTO_INIT_REGS': 'Initialize modem registers for protocol mode',
+    'PROTO_START_SESSION': 'Start protocol session (set connected state)',
+    'PROTO_DISCONNECT': 'Handle disconnect / check connection state',
+    'PROTO_RECV_FRAME': 'Send one byte and process receive (called per byte)',
+    'PROTO_ERROR_RECOVERY': 'Handle protocol errors, check for retransmit',
+    'PROTO_PROCESS_CMD': 'Process received command — delivers one byte to caller',
+    'PROTO_FLOW_CONTROL': 'Wait for response packet, check token',
+    'PROTO_SEND_PACKET': 'Send complete packet with framing ($01...$02)',
+    'PROTO_RECV_PACKET': 'Initialize protocol receive state',
+    'PROTO_CONNECT': 'Connection handshake — wait for *CON from server',
+}
+
+# ============================================================
 # Pass 2: Emit source
 # ============================================================
 
@@ -320,9 +438,21 @@ offset = 0
 while offset < 8192:
     addr = BASE + offset
     
+    # Emit section header if this address has one
+    if addr in section_comments:
+        output.append('')
+        for comment_line in section_comments[addr]:
+            output.append(comment_line)
+    
     # Emit label if needed (branch target OR named label)
     if addr in branch_targets or addr in named_addrs:
-        output.append(f'{make_label(addr)}:')
+        label = make_label(addr)
+        # Add description comment for named labels
+        if label in LABEL_DESCRIPTIONS:
+            output.append('')
+            output.append(f'; --- {label} ---')
+            output.append(f'; {LABEL_DESCRIPTIONS[label]}')
+        output.append(f'{label}:')
     
     if is_code[offset]:
         # Emit instruction
@@ -335,15 +465,23 @@ while offset < 8192:
         else:
             line = f'    {mnemonic}'
         
+        # Add inline comment from disassembly
+        if addr in addr_comments:
+            line = line.ljust(40) + f'; {addr_comments[addr]}'
+        
         output.append(line)
         offset += size
     else:
         # Emit data bytes (group consecutive non-code bytes)
         data_start = offset
-        while offset < 8192 and not is_code[offset] and (BASE + offset) not in branch_targets:
+        while offset < 8192 and not is_code[offset] and (BASE + offset) not in branch_targets and (BASE + offset) not in named_addrs:
             offset += 1
             if (offset - data_start) >= 16:
                 break
+        
+        # Safety: ensure we advance at least 1 byte
+        if offset == data_start:
+            offset += 1
         
         chunk = rom[data_start:offset]
         byte_str = ', '.join(f'${b:02X}' for b in chunk)
