@@ -2733,10 +2733,10 @@ L96C9:
 ; PROTO_INIT_REGS
 ; ============================================================
 L96CC:
-    JMP PROTO_PROCESS_CMD
+    JMP ACIA_PROCESS_CMD
     JMP PROTO_ERROR_RECOVERY
 L96D2:
-    JMP PROTO_FLOW_CONTROL
+    JMP ACIA_FLOW_CONTROL
 L96D5:
     JMP PROTO_CONNECT
 L96D8:
@@ -7142,4 +7142,160 @@ ACIA_SEND_PACKET:
 @crc_no_xor:
     DEX
     BNE @crc_loop
+    RTS
+
+; =================================================================
+; ACIA_FLOW_CONTROL — Polling-based packet receive (replaces PROTO_FLOW_CONTROL)
+; =================================================================
+; Waits for a complete X.25 packet from server.
+; Stores token in $8034.
+; Returns: C=0 success (non-error token), C=1 error/timeout
+; Packet payload stored in recv buffer for ACIA_PROCESS_CMD to deliver.
+; =================================================================
+
+; Receive buffer (uses $C300-$C3FF — free workspace RAM)
+RECV_BUF        = $C300   ; Received packet payload
+RECV_LEN        = $C3FE   ; Payload length
+RECV_POS        = $C3FF   ; Current read position for PROCESS_CMD
+
+ACIA_FLOW_CONTROL:
+    ; Wait for start marker $01
+    LDX #$00                            ; Timeout hi
+@wait_start:
+    JSR @get_byte
+    BCS @timeout_check
+    CMP #$01
+    BEQ @got_start
+@timeout_check:
+    INX
+    CPX #$00                            ; Full 256 iterations = ~1 second
+    BNE @wait_start
+    ; Outer timeout
+    LDY #$00
+    INY
+    CPY #$30                            ; ~48 seconds total timeout
+    BNE @wait_start
+    SEC                                 ; Timeout
+    RTS
+
+@got_start:
+    ; Read packet bytes until $02 (end marker), de-stuffing as we go
+    LDY #$00                            ; Packet buffer index
+@read_pkt:
+    JSR @get_byte_blocking
+    CMP #$02                            ; End marker?
+    BEQ @pkt_complete
+    CMP #$03                            ; Escape prefix?
+    BNE @store_pkt
+    ; De-stuff: read next byte, subtract $20
+    JSR @get_byte_blocking
+    SEC
+    SBC #$20
+@store_pkt:
+    STA RECV_BUF,Y
+    INY
+    CPY #$FE                            ; Max packet size safety
+    BCC @read_pkt
+    SEC                                 ; Overflow
+    RTS
+
+@pkt_complete:
+    ; Packet in RECV_BUF: [len] [token] [seq] [payload...] [CRC_hi] [CRC_lo]
+    ; Extract token
+    LDA RECV_BUF+1                      ; Token byte
+    STA $8034                           ; Store for caller
+    ; Calculate payload length (total - 5: len, token, seq, CRC_hi, CRC_lo)
+    TYA                                 ; Y = total bytes received
+    SEC
+    SBC #$05
+    STA RECV_LEN                        ; Payload length
+    ; Set read position to start of payload (offset 3)
+    LDA #$03
+    STA RECV_POS
+    ; Check for error tokens
+    LDA $8034
+    CMP #$41                            ; 'A' = error
+    BEQ @error
+    CMP #$42                            ; 'B' = error
+    BEQ @error
+    CMP #$40                            ; '@' = error
+    BEQ @error
+    CLC                                 ; Success
+    RTS
+@error:
+    SEC
+    RTS
+
+; --- Get one byte (non-blocking, C=1 if empty) ---
+@get_byte:
+    LDA ACIA_STATUS                     ; Poke VICE
+    AND #$08
+    BNE @gb_acia
+    LDA NMI_BUF_HEAD
+    CMP NMI_BUF_TAIL
+    BEQ @gb_empty
+    TAX
+    LDA NMI_BUF,X
+    INC NMI_BUF_HEAD
+    CLC
+    RTS
+@gb_acia:
+    LDA ACIA_DATA
+    CLC
+    RTS
+@gb_empty:
+    SEC
+    RTS
+
+; --- Get one byte (blocking — spins until available) ---
+@get_byte_blocking:
+    JSR @get_byte
+    BCS @get_byte_blocking
+    RTS
+
+; =================================================================
+; ACIA_PROCESS_CMD — Deliver one payload byte (replaces PROTO_PROCESS_CMD)
+; =================================================================
+; Returns: A = next payload byte, C=0 if more bytes, C=1 if last byte
+; Called repeatedly by MODEM_INIT_DOWNLOAD and other routines.
+; If no packet buffered, receives a new one first.
+; =================================================================
+ACIA_PROCESS_CMD:
+    ; Check if we have buffered payload
+    LDA RECV_POS
+    SEC
+    SBC #$03                            ; Convert position to payload index
+    CMP RECV_LEN
+    BCS @need_new_packet               ; Past end — need new packet
+    ; Deliver next byte
+    LDX RECV_POS
+    LDA RECV_BUF,X
+    INC RECV_POS
+    ; Check if this was the last byte
+    PHA
+    LDA RECV_POS
+    SEC
+    SBC #$03
+    CMP RECV_LEN
+    PLA
+    BCS @last_byte
+    CLC                                 ; More bytes available
+    RTS
+@last_byte:
+    CLC                                 ; Last byte but still valid (C=0)
+    RTS
+
+@need_new_packet:
+    ; Receive a new packet
+    JSR ACIA_FLOW_CONTROL
+    BCS @recv_error
+    ; Now deliver first byte from new packet
+    LDX RECV_POS
+    LDA RECV_BUF,X
+    INC RECV_POS
+    CLC
+    RTS
+@recv_error:
+    LDA #$00
+    SEC                                 ; Error
     RTS
