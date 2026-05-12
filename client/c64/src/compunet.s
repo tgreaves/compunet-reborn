@@ -1734,10 +1734,8 @@ L8E1F:
     JSR PRINT_STATUS_MSG
     CLC
     ROR $C155
-    JSR L96D2
-    BCC L8E35
-    JSR PROTO_DISPATCH_TABLE
-    JMP L9062
+    ; ;--- MODIFIED: Skip PROTO_FLOW_CONTROL — server has nothing to send yet ---
+    JMP L8E35
 L8E35:
     JSR L9050
 L8E38:
@@ -7011,7 +7009,8 @@ ACIA_PROTO_CONNECT:
     ; Success! Flush buffer and return
     LDA NMI_BUF_TAIL
     STA NMI_BUF_HEAD
-    ; Initialize protocol state (replaces what original PROTO_CONNECT did)
-    JSR PROTO_START_SESSION
+    ; Set protocol connected flag (without installing IRQ handler)
+    LDA #$80
+    STA $8038                           ; Protocol state = connected
     CLC                                 ; C=0 = success
     RTS
