@@ -2774,8 +2774,8 @@ L96F3:
     LDA #$80
     STA $8038
     LDX $8043
-    LDA #$63
-    LDY #$9C
+    LDA #.lobyte(L9C63)
+    LDY #.hibyte(L9C63)
     BNE L971F
 
 ; --- PROTO_DISCONNECT ---
@@ -2789,8 +2789,8 @@ L9714:
     LDA #$40
     STA $8038
     LDX #$03
-    LDA #$5A
-    LDY #$9C
+    LDA #.lobyte(L9C5A)
+    LDY #.hibyte(L9C5A)
 L971F:
     STX $C20A
     PHA
@@ -3489,8 +3489,8 @@ L9C29:
     RTS
 L9C2D:
     JSR L9C20
-    LDA #$46
-    LDY #$9C
+    LDA #.lobyte(L9C46)
+    LDY #.hibyte(L9C46)
     BNE L9C3D
 L9C36:
     JSR L9C20
@@ -3502,6 +3502,7 @@ L9C3D:
     STY $0315
     CLI
     RTS
+L9C46:
     JSR L9C7D
     LDX #$00
     JSR MODEM_REG_READ
@@ -3511,9 +3512,11 @@ L9C3D:
 L9C55:
     LDX #$02
     JMP MODEM_SEND_CMD                  ; workspace
+L9C5A:
     JSR L9C7D
     JSR L9C8F
     JMP L9C71
+L9C63:
     JSR L9D00
     INC $C221
     BNE L9C6E
@@ -3824,8 +3827,8 @@ L9EA6:
     STA $1F
     STA $20
     STA $C201
-    LDA #$C8
-    LDY #$9F
+    LDA #.lobyte(L9FC8)
+    LDY #.hibyte(L9FC8)
     JSR L9C3D
     LDA $8046
     STA CIA1_TAHI
@@ -3849,6 +3852,7 @@ L9EE3:
     LDX $1F
     CPX $20
     BNE L9F14
+L9FC8:
     LDX #$00
     JSR MODEM_REG_READ
     TAX
@@ -6767,15 +6771,23 @@ ACIA_REG_READ:
     RTS
 
 @rxbyte:
-    ; Non-blocking read from NMI ring buffer
+    ; Poll ACIA directly — don't rely on NMI for receive
+    LDA ACIA_STATUS                     ; Triggers VICE socket check
+    AND #$08                            ; RDRF?
+    BEQ @empty
+    LDA ACIA_DATA                       ; Read byte directly from ACIA
+    LDX #$04
+    RTS
+@empty:
+    ; Also check NMI buffer as fallback
     LDX NMI_BUF_HEAD
     CPX NMI_BUF_TAIL
-    BEQ @empty
+    BEQ @really_empty
     LDA NMI_BUF,X
     INC NMI_BUF_HEAD
     LDX #$04
     RTS
-@empty:
+@really_empty:
     LDA #$00
     LDX #$04
     RTS
@@ -6794,6 +6806,11 @@ ACIA_WAIT_READY:
 @wdly:
     DEY
     BNE @wdly
+    ; Re-arm NMI edge detection (VICE quirk: TX kills NMI)
+    LDA #$01
+    STA ACIA_CMD                        ; Disable RX IRQ
+    LDA #$09
+    STA ACIA_CMD                        ; Re-enable (re-arms edge)
     PLA
     TAY                                 ; Restore Y
     PLA                                 ; Restore A

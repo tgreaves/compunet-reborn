@@ -641,9 +641,8 @@ async def tcp_handler(reader, writer):
         # ============================================================
         log.info('TCP: connected, waiting for break delay...')
         
-        # Handshake: wait for break delay to expire, then send bytes
-        # one at a time with small delays (mimics real modem behaviour).
-        await asyncio.sleep(3.0)
+        # Handshake: minimal delay then send bytes immediately
+        await asyncio.sleep(0.05)
         log.info('X25: sending handshake bytes one at a time')
         for i in range(12):
             writer.write(bytes([0x20]))
