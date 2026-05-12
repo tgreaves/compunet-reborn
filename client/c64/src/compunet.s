@@ -6667,11 +6667,20 @@ ACIA_INIT:
     LDA #$00
     STA NMI_BUF_TAIL
     STA NMI_BUF_HEAD
-    ; Install NMI handler
+    ; Copy NMI handler to $CF00 (always-visible RAM)
+    ; NMI can fire when $01=$37 (BASIC ROM at $A000-$BFFF)
+    ; so the handler MUST be below $A000 or in I/O-visible RAM
+    LDX #(NMI_HANDLER_END - NMI_HANDLER - 1)
+@copy_nmi:
+    LDA NMI_HANDLER,X
+    STA $CF00,X
+    DEX
+    BPL @copy_nmi
+    ; Install NMI vector pointing to $CF00
     SEI
-    LDA #.lobyte(NMI_HANDLER)
+    LDA #$00
     STA NMI_VECTOR
-    LDA #.hibyte(NMI_HANDLER)
+    LDA #$CF
     STA NMI_VECTOR+1
     CLI
     RTS
@@ -6700,6 +6709,7 @@ NMI_HANDLER:
     TAX
     PLA
     RTI
+NMI_HANDLER_END:
 
 ; =================================================================
 ; ACIA_REG_WRITE — Replacement for MODEM_REG_WRITE
