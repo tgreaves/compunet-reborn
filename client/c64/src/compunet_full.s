@@ -8,6 +8,65 @@
 ; This file assembles to a byte-identical copy of the original ROM.
 ; =================================================================
 
+; --- KERNAL Routines ---
+KERNAL_IOINIT   = $FF84
+KERNAL_RAMTAS   = $FF87
+KERNAL_RESTOR   = $FF8A
+KERNAL_CINT     = $FF81
+KERNAL_CHROUT   = $FFD2
+KERNAL_CHRIN    = $FFCF
+KERNAL_GETIN    = $FFE4
+KERNAL_CLRCHN   = $FFCC
+KERNAL_SETLFS   = $FFBA
+KERNAL_SETNAM   = $FFBD
+KERNAL_LOAD     = $FFD5
+KERNAL_SAVE     = $FFD8
+KERNAL_UDTIM    = $FFEA
+KERNAL_STOP     = $FFE1
+
+; --- BASIC ROM ---
+BASIC_RUNC      = $E453
+BASIC_MAIN      = $E3BF
+BASIC_LINKPRG   = $E422
+BASIC_READY     = $A474
+
+; --- VIC-II Registers ---
+VIC_BORDER      = $D020
+VIC_BGCOL0      = $D021
+
+; --- CIA Registers ---
+CIA1_PRA        = $DC00
+CIA1_PRB        = $DC01
+CIA1_TALO       = $DC04
+CIA1_TAHI       = $DC05
+CIA1_ICR        = $DC0D
+
+; --- ACIA (SwiftLink) Registers ---
+ACIA_DATA       = $DE00
+ACIA_STATUS     = $DE01
+ACIA_CMD        = $DE02
+ACIA_CTRL       = $DE03
+
+; --- System Vectors ---
+IRQ_VECTOR      = $0314
+NMI_VECTOR      = $0318
+
+; --- Compunet Workspace ($C100-$C2FF) ---
+CMD_BUFFER      = $C100   ; Command/login buffer
+PROTO_STATE     = $C200   ; Protocol connection state
+PROTO_SEQ_TX    = $C20E   ; Transmit sequence number
+PROTO_SEQ_RX    = $C20F   ; Expected receive sequence
+PROTO_SLOT_SEQ  = $C228   ; Slot sequence numbers (4 slots)
+PROTO_SLOT_FLAG = $C22C   ; Slot status flags (4 slots)
+PROTO_SLOT_IDX  = $C209   ; Current slot index
+PROTO_PKT_HDR   = $C203   ; Packet header buffer (6 bytes)
+PROTO_FLAGS     = $8038   ; Protocol state flags
+
+; --- NMI Ring Buffer ---
+NMI_BUF         = $CE00   ; 256-byte ring buffer
+NMI_BUF_TAIL    = $029B   ; Write pointer (NMI handler advances)
+NMI_BUF_HEAD    = $029C   ; Read pointer (main code advances)
+
 .segment "HEADER"
 
     .byte $60, $81, $5E, $FE, $C3, $C2, $CD, $38, $30, $7C, $80, $A4, $80, $00, $00, $00  ; $8000 `.^....80|......
@@ -41,11 +100,38 @@
 ; --- COLD_START ---
 ; Initialize C64 hardware, BASIC, and install command extensions
 COLD_START:
-    .byte $20  ; $8160  
-    .byte $84, $FF, $20, $87, $FF, $20, $8A, $FF, $20, $81, $FF, $58, $A9, $01, $8D, $21  ; $8161 .. .. .. ..X...!
-    .byte $D0, $20, $53, $E4, $20, $BF, $E3, $20, $22, $E4, $A2, $04, $BD, $B7, $81, $9D  ; $8171 . S. .. ".......
-    .byte $00, $E0, $CA, $10, $F7, $A0, $00, $84, $1D, $A9, $80, $85, $1E, $B1, $1D, $91  ; $8181 ................
-    .byte $1D, $C8, $D0, $F9, $E6, $1E, $A5, $1E, $C9, $A0, $D0, $F1, $20, $35, $83  ; $8191 ............ 5.
+    JSR KERNAL_IOINIT                   ; KERNAL_IOINIT
+    JSR KERNAL_RAMTAS                   ; KERNAL_RAMTAS
+    JSR KERNAL_RESTOR                   ; KERNAL_RESTOR
+    JSR KERNAL_CINT                     ; KERNAL_CINT
+    CLI
+    LDA #$01
+    STA VIC_BGCOL0                      ; VIC_BGCOL0 = white
+    JSR BASIC_RUNC                      ; BASIC_RUNC
+    JSR BASIC_MAIN                      ; BASIC_MAIN
+    JSR BASIC_LINKPRG                   ; BASIC_LINKPRG
+
+; This redirects BASIC's command input to our parser at $81BC
+    LDX #$04
+L817D:
+    LDA $81B7,X
+    STA $E000,X
+    DEX
+    BPL L817D
+    LDY #$00
+    STY $1D
+    LDA #$80
+    STA $1E
+L818E:
+    LDA ($1D),Y
+    STA ($1D),Y
+    INY
+    BNE L818E
+    INC $1E
+    LDA $1E
+    CMP #$A0
+    BNE L818E
+    JSR L8335
 
 ; Print " COMPUNET TERMINAL 1.22" version string
 
@@ -61,7 +147,7 @@ MAIN_INIT:
     STY $0303
     LDX #$FB
     TXS
-    JMP $A474                           ; BASIC_READY
+    JMP BASIC_READY                     ; BASIC_READY
     .byte $00, $F6, $F1, $0E, $00, $20, $60, $A5, $86, $7A, $84, $7B, $20, $73, $00, $AA  ; $81B7 ..... `..z.{ s..
     .byte $F0, $F3, $A2, $FF, $86, $3A, $B0, $03, $4C, $9C, $A4, $A6, $7A, $A0, $00, $84  ; $81C7 .....:..L...z...
     .byte $1A, $BD, $00, $02, $38, $F9, $49, $82, $D0, $04, $E8, $C8, $D0, $F3, $C9, $80  ; $81D7 ....8.I.........
@@ -85,8 +171,10 @@ MAIN_INIT:
     .byte $A9, $00, $20, $D5, $FF, $90, $06, $20, $5F, $93, $4C, $0F, $83, $8E, $36, $80  ; $82F7 .. .... _.L...6.
     .byte $8C, $37, $80, $20, $5F, $93, $F0, $1C, $20, $35, $83, $2C, $56, $C1, $30, $14  ; $8307 .7. _... 5.,V.0.
     .byte $20, $6E, $90, $A2, $53, $A0, $93, $20, $B7, $90, $A2, $00, $A0, $02, $20, $B7  ; $8317  n..S.. ...... .
-    .byte $90, $20, $6E, $90, $4C, $E0, $92, $40, $30, $3A, $43, $4E, $45, $54, $A9, $00  ; $8327 . n.L..@0:CNET..
-    .byte $8D, $F0, $9F  ; $8337 ...
+    .byte $90, $20, $6E, $90, $4C, $E0, $92, $40, $30, $3A, $43, $4E, $45, $54  ; $8327 . n.L..@0:CNET
+L8335:
+    LDA #$00
+    STA $9FF0
 L833A:
     LDA #$30
     STA $A000
@@ -131,7 +219,7 @@ L8382:
     STA $8033
 L8396:
     LDA #$08
-    JSR $FFD2                           ; KERNAL_CHROUT
+    JSR KERNAL_CHROUT                   ; KERNAL_CHROUT
     LDX #$65
     LDY #$C1
     JSR PROTOCOL_CLEANUP                ; PROTOCOL_CLEANUP
@@ -266,7 +354,7 @@ L8510:
     BCS L8537
     JSR L89F0
     BCS L8537                           ; KERNAL_CLRCHN
-    JSR $FFCC
+    JSR KERNAL_CLRCHN
     JSR DISK_LOAD
     LDA $C15D
     BEQ L8510                           ; FRAME_STORE
@@ -308,15 +396,15 @@ SCREEN_DRAW:
     LDA #$04
     TAX                                 ; KERNAL_SETLFS
     LDY #$00
-    JSR $FFBA
+    JSR KERNAL_SETLFS
     LDA #$00
-    JSR $FFBD                           ; KERNAL_OPEN
+    JSR KERNAL_SETNAM                   ; KERNAL_OPEN
     JSR $FFC0
     LDX #$04
     JSR $FFC9
     BCS L8677
 L861D:
-    JSR $FFE4
+    JSR KERNAL_GETIN
     CMP #$03
     BEQ L8674
     JSR L8A4B
@@ -324,7 +412,7 @@ L861D:
     BEQ L8674
     CMP #$0D
     BNE L8637
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     BCS L8677
     JMP L861D
 L8637:
@@ -338,7 +426,7 @@ L863A:
     BIT $C15E
     BMI L864E
     LDA #$11
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     BCS L8677
 L864E:
     PLA
@@ -349,7 +437,7 @@ L8651:
     BEQ L8674
     CMP #$0D
     BNE L8663
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     BCS L8677
     BCC L861D
 L8663:
@@ -359,14 +447,14 @@ L8665:
     BEQ L8651
     DEX                                 ; KERNAL_CHROUT
     BPL L8665
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     BCS L8677
     BCC L8651
 L8674:
     JSR L906E
 L8677:
     PHP
-    JSR $FFCC
+    JSR KERNAL_CLRCHN
     LDA #$04
     JSR $FFC3
     PLP
@@ -387,7 +475,7 @@ L86A3:
     RTS                                 ; VIC_BGCOL0
 L86A4:
     LDA $8013
-    STA $D021
+    STA VIC_BGCOL0
     LDA $8014
     STA $0286
     LDX #$2A                            ; PRINT_STRING
@@ -399,7 +487,7 @@ L86A4:
     STY $C162
 L86C1:
     LDA #$40
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     LDX #$26
     LDA #$00                            ; SETUP_INPUT_PARAMS
     TAY
@@ -422,14 +510,14 @@ L86EA:
     LDA #$00
     LDY $1A
     STA $0201,Y
-    LDX $0314
+    LDX IRQ_VECTOR
     LDY $0315
     STX $C163
     STY $C164
     LDX #$31
     LDY #$EA
     SEI
-    STX $0314
+    STX IRQ_VECTOR
     STY $0315
     CLI
     LDX #$37
@@ -441,7 +529,7 @@ L86EA:
     LDX $C163
     LDY $C164
     SEI
-    STX $0314
+    STX IRQ_VECTOR
     STY $0315
     CLI
     JMP L86C1
@@ -531,11 +619,11 @@ L89F0:
     JSR L9050
     JSR L8A7E
     BCS L8A3B
-    STA $D020
+    STA VIC_BORDER
     JSR PROTOCOL_STATE_INIT
     JSR L8A7E
     BCS L8A3B
-    STA $D021
+    STA VIC_BGCOL0
     LDA #$00
     STA $C15F
 L8A18:
@@ -548,11 +636,11 @@ L8A18:
     JSR L8C26
     BCC L8A2F                           ; KERNAL_CHROUT
     LDA #$91
-    JSR $FFD2
+    JSR KERNAL_CHROUT
 L8A2F:
     LDA #$0D
 L8A31:
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     JMP L8A18
 L8A37:
     JSR L8C26
@@ -791,10 +879,10 @@ L8BE1:
 L8C05:
     LDA #$00
     JSR L8BC0
-    LDA $D020
+    LDA VIC_BORDER
     ORA #$F0
     JSR L8BC0
-    LDA $D021
+    LDA VIC_BGCOL0
     ORA #$F0
     JSR L8BC0
     LDX #$0E
@@ -942,7 +1030,7 @@ L8D4B:
 L8D52:
     JSR L9050
     LDA $8013
-    STA $D021
+    STA VIC_BGCOL0
     LDA $8014
     STA $0286
     LDX #$EA
@@ -993,7 +1081,7 @@ L8DBA:
     JSR MODEM_REG_READ                  ; PROTO_DISPATCH_TABLE
     AND #$10
     BEQ L8DCB
-    JSR $FFE4
+    JSR KERNAL_GETIN
     CMP #$03
     BNE L8DBA
     JMP PROTO_DISPATCH_TABLE
@@ -1003,7 +1091,7 @@ L8DCB:
     LDY #$00
 L8DD0:
     LDA $9FF1,Y                         ; MODEM_REG_WRITE
-    JSR $FFD2                           ; MODEM_REG_READ
+    JSR KERNAL_CHROUT                   ; MODEM_REG_READ
     CMP #$2D
     BNE L8DEA
     LDX #$08
@@ -1026,7 +1114,7 @@ L8DF5:
     AND #$20
     BNE L8DF5
 L8DFC:
-    JSR $FFE4
+    JSR KERNAL_GETIN
     CMP #$03                            ; MODEM_REG_WRITE
     BEQ L8E1C
     INY
@@ -1089,9 +1177,9 @@ L8E68:
     LDX #$00
 L8E7A:
     LDA #$5F
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     LDA #$9D
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     JSR CLEAR_STATUS
     CMP #$0D
     BEQ L8EA3
@@ -1104,7 +1192,7 @@ L8E7A:
     BCS L8E7A
     INX
     LDA #$2A
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     JMP L8E7A
 L8EA3:
     JSR L906A
@@ -1198,10 +1286,10 @@ MODEM_SEND_CMD:
     LDX $C154
     TXS
     JSR PROTO_DISPATCH_TABLE
-    JSR $FFCC
+    JSR KERNAL_CLRCHN
     JSR L8FF2
     LDA $C151
-    STA $D020
+    STA VIC_BORDER
     LDY $C150
     LDX $8FAF,Y
     LDA $8FB4,Y
@@ -1216,15 +1304,15 @@ MODEM_SEND_CMD:
 L8F7E:
     LDX $C154
     TXS                                 ; PRINT_STRING
-    JSR $FFCC
+    JSR KERNAL_CLRCHN
     LDA $8014
     STA $0286
     LDX #$F4
     LDY #$9C
     JSR PRINT_STRING
 L8F92:
-    LDA $DC01
-    CMP $DC01
+    LDA CIA1_PRB
+    CMP CIA1_PRB
     BNE L8F92
     CMP #$FF
     BNE L8F92
@@ -1258,7 +1346,7 @@ CLEAR_STATUS:
     STA $C6
     STX $19
 L9008:
-    JSR $FFE4
+    JSR KERNAL_GETIN
     BEQ L9008
     LDX $19
     RTS
@@ -1287,10 +1375,10 @@ STATUS_LINE:
     BEQ L904D                           ; STATUS_LINE
 L903E:
     LDA #$9D
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     CPY #$00
     BEQ STATUS_LINE                     ; PROTOCOL_STATE_INIT
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     JMP STATUS_LINE
 L904D:
     CMP #$59
@@ -1321,7 +1409,7 @@ L9072:
 L9076:
     LDA #$92
 L9078:
-    JMP $FFD2
+    JMP KERNAL_CHROUT
 
 ; --- PRINT_STATUS_MSG ---
 ; Print message on status bar
@@ -1349,7 +1437,7 @@ L9097:
     JSR PROTOCOL_STATE_INIT
     JSR L90AF
     JSR L9072
-    LDA $D021
+    LDA VIC_BGCOL0
     AND #$0F
     TAX
     LDA $93A4,X
@@ -1375,7 +1463,7 @@ L90BB:
 L90BD:
     LDA ($1B),Y                         ; workspace
     BEQ L90C7
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     INY
     BNE L90BD
 L90C7:
@@ -1413,11 +1501,11 @@ L90E9:
     LDA #$00                            ; KERNAL_GETIN
     STA $D4
     LDA #$5F
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     LDA #$9D
-    JSR $FFD2
+    JSR KERNAL_CHROUT
 L90F7:
-    JSR $FFE4
+    JSR KERNAL_GETIN
     BEQ L90F7
     LDY $1A
     CMP #$03
@@ -1437,8 +1525,8 @@ L9110:
     BNE L9128
     JSR L906A
     LDA #$9D
-    JSR $FFD2
-    JSR $FFD2
+    JSR KERNAL_CHROUT
+    JSR KERNAL_CHROUT
     DEC $1A
     JMP L90E9
 L9128:
@@ -1474,7 +1562,7 @@ L9145:
     CMP #$E0
     BCS L90F7
 L9162:
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     STA ($1D),Y
     INC $1A
     JMP L90E9
@@ -1510,7 +1598,7 @@ L9186:
     STA $D018
     PHP
     LDA #$08
-    JSR $FFD2
+    JSR KERNAL_CHROUT
     PLP
     BCC L91AB
     JMP L924C
@@ -1531,7 +1619,7 @@ L91BF:
     LDA $19
     LDX #$1E
     LDY #$80                            ; workspace
-    JSR $FFBD
+    JSR KERNAL_SETNAM
     LDA $8032
     CMP #$50
     BEQ L91F7
@@ -1543,7 +1631,7 @@ L91BF:
 L91D9:
     LDX #$01
     LDA #$08
-    JSR $FFBA
+    JSR KERNAL_SETLFS
     LDX #$6D
     LDY #$92
     JSR CURSOR_HOME
@@ -1572,11 +1660,11 @@ L91FA:
     LDX #$1C                            ; KERNAL_OPEN
     LDY #$80
 L921B:
-    JSR $FFBD
+    JSR KERNAL_SETNAM
     LDA #$08
     TAX
     TAY
-    JSR $FFBA
+    JSR KERNAL_SETLFS
     JSR $FFC0                           ; CURSOR_HOME
     JSR L92E8                           ; STATUS_LINE
     BCC L9250
@@ -1622,11 +1710,11 @@ L92A2:
     RTS                                 ; KERNAL_OPEN
 L92AD:
     LDA #$00
-    JSR $FFBD
+    JSR KERNAL_SETNAM
     LDA #$0F
     TAY
     LDX #$08                            ; workspace
-    JSR $FFBA
+    JSR KERNAL_SETLFS
     JSR $FFC0
     LDX #$0F
 
@@ -1636,7 +1724,7 @@ L92AD:
     JSR $FFC9
     PHP
     ROR $C156
-    JSR $FFCC
+    JSR KERNAL_CLRCHN
     PLP
     BCS L92E0
     RTS
@@ -1726,7 +1814,7 @@ L9367:
     JSR $FFC6
     LDX #$00
 L936E:
-    JSR $FFE4
+    JSR KERNAL_GETIN
     CMP #$0D
     BEQ L937B                           ; KERNAL_CLRCHN
     STA $0200,X
@@ -1736,7 +1824,7 @@ L937B:
     LDA #$00
     STA $0200,X
     STA $90
-    JSR $FFCC
+    JSR KERNAL_CLRCHN
     LDA $0200
     CMP #$30
     RTS
@@ -1744,7 +1832,7 @@ L937B:
 ; --- PROTOCOL_STATE_INIT ---
 ; Initialize protocol state variables
 PROTOCOL_STATE_INIT:
-    LDA $D021
+    LDA VIC_BGCOL0
     AND #$0F
     TAX
     LDA $93A4,X
@@ -1840,7 +1928,7 @@ L9436:
     TXA
     PHA
     STX $1A
-    LDA $D021
+    LDA VIC_BGCOL0
     AND #$0F
     TAX
     LDA $93A4,X
@@ -1990,8 +2078,8 @@ L94E7:
 MODEM_REG_WRITE:
     PHP                                 ; MODEM_DATA
     SEI
-    STX $DE00
-    STA $DE01
+    STX ACIA_DATA
+    STA ACIA_STATUS
     PLP
     RTS
 
@@ -2000,9 +2088,9 @@ MODEM_REG_WRITE:
 MODEM_REG_READ:
     PHP
     SEI
-    STX $DE00
-    LDA $DE01
-    LDA $DE01
+    STX ACIA_DATA
+    LDA ACIA_STATUS
+    LDA ACIA_STATUS
     PLP
     RTS
     .byte $00, $F4, $FF, $8E, $07, $0D, $0C, $20, $20, $90, $B0, $07, $C0, $21, $AE, $9B  ; $9507 .......  ....!..
@@ -2108,7 +2196,7 @@ L971F:
     PLA                                 ; workspace
     JSR L9C3D
     LDX $8046
-    STX $DC05                           ; workspace
+    STX CIA1_TAHI                       ; workspace
     JSR L9E3C                           ; workspace
     LDA #$00                            ; workspace
     STA $C209
@@ -2759,7 +2847,7 @@ L9C20:
     BNE L9C29
     LDY #$42
 L9C29:
-    STY $DC05
+    STY CIA1_TAHI
     RTS
 L9C2D:
     JSR L9C20
@@ -2772,7 +2860,7 @@ L9C36:
     LDY #$EA
 L9C3D:
     SEI
-    STA $0314
+    STA IRQ_VECTOR
     STY $0315
     CLI
     RTS
@@ -2834,13 +2922,13 @@ PROTO_CONNECT:
     LDX #$02
     JMP MODEM_SEND_CMD                  ; VIC_BORDER
 L9E80:
-    JSR $FFE4
+    JSR KERNAL_GETIN
     CMP #$03
     BNE PROTO_CONNECT
     BEQ L9EE1
 L9E89:
     LDA $8012
-    STA $D020
+    STA VIC_BORDER
     LDX #$03
     LDA #$D0
     JSR MODEM_REG_WRITE
@@ -2865,7 +2953,7 @@ L9EA6:
     LDY #$9F
     JSR L9C3D
     LDA $8046
-    STA $DC05
+    STA CIA1_TAHI
     JSR L9FA9
     JSR L9FA9
     LDA #$40
@@ -2949,7 +3037,7 @@ L9F59:
     BIT $C200
     BPL L9F66
 L9F63:
-    JSR $FFD2
+    JSR KERNAL_CHROUT
 L9F66:
     AND #$7F
     STA $0200,X
@@ -2984,7 +3072,7 @@ L9F90:
     LDX #$02                            ; MODEM_REG_WRITE
     JMP MODEM_SEND_CMD
 L9FA3:
-    JSR $FFE4
+    JSR KERNAL_GETIN
     CMP #$03
     RTS
 L9FA9:
