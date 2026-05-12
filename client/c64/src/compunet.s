@@ -1724,7 +1724,7 @@ L8DA4:
     ; Hayes AT dial via ACIA driver
     JSR ACIA_DIAL
     BCS L8E1C                           ; C=1 = failed
-    JSR L96D5                           ; PROTO_CONNECT
+    JSR ACIA_PROTO_CONNECT              ; Polling-based handshake (replaces L96D5)
     BCC L8E1F                           ; C=0 = success
 L8E1C:
     JMP PROTO_DISPATCH_TABLE
@@ -3965,12 +3965,7 @@ L9FB0:
     LDA #$20                            ; ;--- MODIFIED: space not CR
     JMP MODEM_WAIT_READY
 L9FBC:
-    LDA #$00
-    STA $A2
-    LDA $8044
-L9FC3:
-    CMP $A2
-    BCS L9FC3                           ; MODEM_REG_READ
+    ; ;--- MODIFIED: no-op delay (original waited for CIA timer, deadlocks with ACIA) ---
     RTS
     LDX #$00
     JSR MODEM_REG_READ
@@ -6892,4 +6887,129 @@ BASIC_MEM_FIX:
     LDA $2E
     STA $30
     STA $32
+    RTS
+
+; =================================================================
+; ACIA_PROTO_CONNECT — Polling-based connection handshake
+; =================================================================
+; Replaces the original IRQ-driven PROTO_CONNECT.
+; Pure polling like CCGMS — no IRQ, no CIA timer, no deadlocks.
+;
+; Flow:
+;   1. Print "CONNECTING..."
+;   2. Poll for 12 handshake bytes ($20) from server
+;   3. Send CNET identification (29 bytes from $8052)
+;   4. Poll for "*CON\r" response
+;   5. Return C=0 success, C=1 failure
+; =================================================================
+ACIA_PROTO_CONNECT:
+    ; Set purple border (visual indicator)
+    LDA $8012
+    STA $D020
+    ; Print "CONNECTING..."
+    LDX #.lobyte(L9E59)
+    LDY #.hibyte(L9E59)
+    JSR PRINT_STRING
+
+    ; --- Step 1: Wait for handshake bytes from server ---
+    ; Server sends 12 x $20 after connection. Poll until we get at least one.
+    LDX #$00                            ; Timeout counter hi
+    LDY #$00                            ; Timeout counter lo
+@wait_handshake:
+    LDA ACIA_STATUS                     ; Poke VICE to check socket
+    AND #$08                            ; RDRF?
+    BNE @got_handshake
+    ; Check NMI buffer too
+    LDA NMI_BUF_HEAD
+    CMP NMI_BUF_TAIL
+    BNE @got_handshake_buf
+    ; Timeout check
+    INY
+    BNE @wait_handshake
+    INX
+    CPX #$FF                            ; ~16 seconds timeout
+    BCC @wait_handshake
+    SEC                                 ; Timeout — failure
+    RTS
+
+@got_handshake:
+    LDA ACIA_DATA                       ; Read and discard handshake byte
+    JMP @drain_handshake
+@got_handshake_buf:
+    INC NMI_BUF_HEAD                    ; Discard from buffer
+@drain_handshake:
+    ; Drain remaining handshake bytes (brief pause then flush)
+    LDY #$00
+@drain_loop:
+    LDA ACIA_STATUS
+    AND #$08
+    BEQ @check_buf_drain
+    LDA ACIA_DATA                       ; Discard
+    JMP @drain_loop
+@check_buf_drain:
+    LDA NMI_BUF_HEAD
+    CMP NMI_BUF_TAIL
+    BEQ @drain_pause
+    INC NMI_BUF_HEAD
+    JMP @drain_loop
+@drain_pause:
+    ; Brief delay to let remaining bytes arrive
+    INY
+    BNE @drain_loop
+    ; Final flush
+    LDA NMI_BUF_TAIL
+    STA NMI_BUF_HEAD
+
+    ; --- Step 2: Send CNET identification ---
+    LDY #$00
+@send_ident:
+    CPY $8051                           ; Length of identification
+    BEQ @ident_done
+    LDA $8052,Y                         ; Load identification byte
+    JSR ACIA_WAIT_READY                 ; Transmit
+    INY
+    BNE @send_ident
+@ident_done:
+
+    ; --- Step 3: Wait for *CON response ---
+    ; Server sends "*CON\r" — we look for the CR after receiving "*CON"
+    LDX #$00                            ; Match index
+    LDY #$00                            ; Timeout hi
+@wait_con:
+    LDA ACIA_STATUS                     ; Poke VICE
+    AND #$08
+    BNE @got_con_byte
+    LDA NMI_BUF_HEAD
+    CMP NMI_BUF_TAIL
+    BNE @got_con_buf
+    ; Timeout
+    INY
+    BNE @wait_con
+    INX
+    CPX #$FF
+    BCC @wait_con
+    SEC                                 ; Timeout — failure
+    RTS
+
+@got_con_byte:
+    LDA ACIA_DATA
+    JMP @check_con
+@got_con_buf:
+    LDX NMI_BUF_HEAD
+    LDA NMI_BUF,X
+    INC NMI_BUF_HEAD
+@check_con:
+    ; Check for CR (end of *CON\r response)
+    CMP #$0D
+    BEQ @con_received
+    ; Reset timeout
+    LDY #$00
+    LDX #$00
+    JMP @wait_con
+
+@con_received:
+    ; Success! Flush buffer and return
+    LDA NMI_BUF_TAIL
+    STA NMI_BUF_HEAD
+    CLC                                 ; C=0 = success
     RTS
