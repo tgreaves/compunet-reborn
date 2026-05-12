@@ -175,11 +175,12 @@ L818E:
 ; --- MAIN_INIT ---
 ; Print version string, install BASIC command parser, enter READY prompt
 MAIN_INIT:
-    LDX #<L807A
-    LDY #>L807A
+    ; --- Original MAIN_INIT code ---
+    LDX #.lobyte(L807A)
+    LDY #.hibyte(L807A)
     JSR PRINT_STRING                    ; PRINT_STRING
-    LDX #<L81BC
-    LDY #>L81BC
+    LDX #.lobyte(L81BC)
+    LDY #.hibyte(L81BC)
     STX $0302
     STY $0303
     LDX #$FB
@@ -276,18 +277,18 @@ L823E:
     .byte $45, $44, $49, $54, $4F, $D2, $43, $4F, $4E, $4E, $45, $43, $D4, $43, $4E, $4C  ; $8249 EDITO.CONNEC.CNL
     .byte $4F, $41, $C4, $43, $4E, $53, $41, $56, $C5, $48, $45, $4C, $D0, $4F, $46, $C6  ; $8259 OA.CNSAV.HEL.OF.
     ; Command dispatch table (RTS-trick: address-1)
-    .byte <(L834D-1), >(L834D-1)
-    .byte <(MODEM_CHECK-1), >(MODEM_CHECK-1)
-    .byte <(L82AC-1), >(L82AC-1)
-    .byte <(L82A9-1), >(L82A9-1)
-    .byte <(L8275-1), >(L8275-1)
-    .byte <(L829E-1), >(L829E-1)
+    .byte .lobyte(L834D-1), .hibyte(L834D-1)
+    .byte .lobyte(MODEM_CHECK-1), .hibyte(MODEM_CHECK-1)
+    .byte .lobyte(L82AC-1), .hibyte(L82AC-1)
+    .byte .lobyte(L82A9-1), .hibyte(L82A9-1)
+    .byte .lobyte(L8275-1), .hibyte(L8275-1)
+    .byte .lobyte(L829E-1), .hibyte(L829E-1)
 L8275:
-    LDX #<L807A
-    LDY #>L807A
+    LDX #.lobyte(L807A)
+    LDY #.hibyte(L807A)
     JSR PRINT_STRING                    ; PRINT_STRING
-    LDX #<L8094
-    LDY #>L8094
+    LDX #.lobyte(L8094)
+    LDY #.hibyte(L8094)
     JSR PRINT_STRING                    ; PRINT_STRING
     LDX #$06
     LDY #$00
@@ -325,24 +326,24 @@ L82AD:
     BIT $19
     BPL L82C6
     LDA #$07
-    LDX #<L832E
-    LDY #>L832E
+    LDX #.lobyte(L832E)
+    LDY #.hibyte(L832E)
     BNE L82CC
 L82C3:
     LDA #$01
     PHA
 L82C6:
     LDA #$04
-    LDX #<L8331
-    LDY #>L8331
+    LDX #.lobyte(L8331)
+    LDY #.hibyte(L8331)
 L82CC:
     JSR KERNAL_SETNAM                   ; KERNAL_SETNAM
     PLA
     TAX
     LDY #$01
     JSR KERNAL_SETLFS                   ; KERNAL_SETLFS
-    LDX #<L9FF0
-    LDY #>L9FF0
+    LDX #.lobyte(L9FF0)
+    LDY #.hibyte(L9FF0)
     STX $1D
     STY $1E
     BIT $19
@@ -372,8 +373,8 @@ L830F:
     BMI L832B
 L8317:
     JSR L906E
-    LDX #<L9353
-    LDY #>L9353
+    LDX #.lobyte(L9353)
+    LDY #.hibyte(L9353)
     JSR PRINT_STRING                    ; PRINT_STRING
     LDX #$00
     LDY #$02
@@ -431,8 +432,8 @@ L8382:
     CPX #$0F
     BNE L8366
     STY $C165                           ; workspace
-    LDX #<L83AA
-    LDY #>L83AA
+    LDX #.lobyte(L83AA)
+    LDY #.hibyte(L83AA)
     JSR PROTOCOL_RESET                  ; PROTOCOL_RESET
     LDA #$01
     STA $8033
@@ -465,23 +466,23 @@ L840C:
     PHA
     RTS
     ; Editor function dispatch table (RTS-trick: address-1)
-    .byte <(L8439-1), >(L8439-1)
-    .byte <(L8760-1), >(L8760-1)
-    .byte <(L8446-1), >(L8446-1)
-    .byte <(L8477-1), >(L8477-1)
-    .byte <(L8495-1), >(L8495-1)
-    .byte <(L84CB-1), >(L84CB-1)
-    .byte <(L84D4-1), >(L84D4-1)
-    .byte <(L8500-1), >(L8500-1)
-    .byte <(L8541-1), >(L8541-1)
-    .byte <(L8580-1), >(L8580-1)
-    .byte <(L85DE-1), >(L85DE-1)
-    .byte <(L899C-1), >(L899C-1)
-    .byte <(L875B-1), >(L875B-1)
-    .byte <(FILE_OPS-1), >(FILE_OPS-1)
+    .byte .lobyte(L8439-1), .hibyte(L8439-1)
+    .byte .lobyte(L8760-1), .hibyte(L8760-1)
+    .byte .lobyte(L8446-1), .hibyte(L8446-1)
+    .byte .lobyte(L8477-1), .hibyte(L8477-1)
+    .byte .lobyte(L8495-1), .hibyte(L8495-1)
+    .byte .lobyte(L84CB-1), .hibyte(L84CB-1)
+    .byte .lobyte(L84D4-1), .hibyte(L84D4-1)
+    .byte .lobyte(L8500-1), .hibyte(L8500-1)
+    .byte .lobyte(L8541-1), .hibyte(L8541-1)
+    .byte .lobyte(L8580-1), .hibyte(L8580-1)
+    .byte .lobyte(L85DE-1), .hibyte(L85DE-1)
+    .byte .lobyte(L899C-1), .hibyte(L899C-1)
+    .byte .lobyte(L875B-1), .hibyte(L875B-1)
+    .byte .lobyte(FILE_OPS-1), .hibyte(FILE_OPS-1)
 L8439:
-    LDX #<L9589
-    LDY #>L9589                            ; FRAME_BUF_WRITE
+    LDX #.lobyte(L9589)
+    LDY #.hibyte(L9589)                            ; FRAME_BUF_WRITE
     JSR L89E2
     JSR L8FFB
     JMP L89DC
@@ -575,8 +576,8 @@ L84FA:
 L84FD:
     JMP L8495
 L8500:
-    LDX #<L853D
-    LDY #>L853D                            ; CURSOR_HOME
+    LDX #.lobyte(L853D)
+    LDY #.hibyte(L853D)                            ; CURSOR_HOME
     JSR CURSOR_HOME
     LDA #$52
     LDX #$53                            ; FILE_UPLOAD
@@ -584,9 +585,9 @@ L8500:
     BCS L8576
 L8510:
     JSR L8495
-    LDA #<L8A8C                         ; workspace
+    LDA #.lobyte(L8A8C)                         ; workspace
     STA $C140
-    LDA #>L8A8C                         ; workspace
+    LDA #.hibyte(L8A8C)                         ; workspace
     STA $C141
     LDX #$08                            ; KERNAL_CHKIN
     JSR $FFC6
@@ -606,8 +607,8 @@ L853D:
     .byte $45, $54  ; $853E ET
     BRK
 L8541:
-    LDX #<L857C
-    LDY #>L857C                            ; CURSOR_HOME
+    LDX #.lobyte(L857C)
+    LDY #.hibyte(L857C)                            ; CURSOR_HOME
     JSR CURSOR_HOME
     LDA #$57
     LDX #$53                            ; FILE_UPLOAD
@@ -639,8 +640,8 @@ L857C:
     .byte $55, $54  ; $857D UT
     BRK
 L8580:
-    LDX #<L85CE
-    LDY #>L85CE                            ; CURSOR_HOME
+    LDX #.lobyte(L85CE)
+    LDY #.hibyte(L85CE)                            ; CURSOR_HOME
     JSR CURSOR_HOME
     LDA #$57
     LDX #$53                            ; FILE_UPLOAD
@@ -698,9 +699,9 @@ L85DE:
 SCREEN_DRAW:
     STX $1D
     STY $1E
-    LDA #<L8A81
+    LDA #.lobyte(L8A81)
     STA $C140
-    LDA #>L8A81
+    LDA #.hibyte(L8A81)
     STA $C141
     JSR L8A7E
     JSR L8A7E
@@ -775,8 +776,8 @@ L8677:
     JSR $FFC3
     PLP
     BCC L86A3
-    LDX #<L8690
-    LDY #>L8690
+    LDX #.lobyte(L8690)
+    LDY #.hibyte(L8690)
     JSR PRINT_STATUS_MSG                ; CLEAR_STATUS
     JSR CLEAR_STATUS                    ; PROTOCOL_STATE_INIT
     JMP PROTOCOL_STATE_INIT
@@ -888,8 +889,8 @@ L876C:
     CLC
     ROR $C15B                           ; PRINT_STATUS_MSG
 L8779:
-    LDX #<L889B
-    LDY #>L889B
+    LDX #.lobyte(L889B)
+    LDY #.hibyte(L889B)
     JSR PRINT_STATUS_MSG
     JSR L9066
 L8783:
@@ -1050,13 +1051,13 @@ L88B3:
 L88BB:
     RTS
     ; Editor mode dispatch table (RTS-trick: address-1)
-    .byte <(L88BB-1), >(L88BB-1)
-    .byte <(L88F1-1), >(L88F1-1)
-    .byte <(L88DF-1), >(L88DF-1)
-    .byte <(L88CC-1), >(L88CC-1)
-    .byte <(L88BB-1), >(L88BB-1)
-    .byte <(L893E-1), >(L893E-1)
-    .byte <(L88E8-1), >(L88E8-1)
+    .byte .lobyte(L88BB-1), .hibyte(L88BB-1)
+    .byte .lobyte(L88F1-1), .hibyte(L88F1-1)
+    .byte .lobyte(L88DF-1), .hibyte(L88DF-1)
+    .byte .lobyte(L88CC-1), .hibyte(L88CC-1)
+    .byte .lobyte(L88BB-1), .hibyte(L88BB-1)
+    .byte .lobyte(L893E-1), .hibyte(L893E-1)
+    .byte .lobyte(L88E8-1), .hibyte(L88E8-1)
     .byte $D1  ; $88CA .
     DEY
 L88CC:
@@ -1065,8 +1066,8 @@ L88CC:
     .byte $EE, $20, $D0  ; $88D2 . .
 L88D5:
     JSR PROTOCOL_STATE_INIT
-    LDX #<L889B
-    LDY #>L889B
+    LDX #.lobyte(L889B)
+    LDY #.hibyte(L889B)
     JMP PRINT_STATUS_MSG
 L88DF:
     LDA $028A
@@ -1181,8 +1182,8 @@ L8983:
     STA $24
     RTS
 L899C:
-    LDX #<FRAME_BUF_READ
-    LDY #>FRAME_BUF_READ
+    LDX #.lobyte(FRAME_BUF_READ)
+    LDY #.hibyte(FRAME_BUF_READ)
     JSR CURSOR_HOME
     SEC
     LDA #$00
@@ -1195,8 +1196,8 @@ L899C:
     JSR $BDCD
     LDY #$36                            ; PRINT_STRING
     STY $01
-    LDX #<L89C4
-    LDY #>L89C4
+    LDX #.lobyte(L89C4)
+    LDY #.hibyte(L89C4)
     JSR PRINT_STRING
     JMP CLEAR_STATUS
 L89C4:
@@ -1208,9 +1209,9 @@ L89C4:
 FRAME_BUF_READ:
     .byte $00  ; $89CF .
 L89D0:
-    LDA #<L8AAD
+    LDA #.lobyte(L8AAD)
     STA $C140
-    LDA #>L8AAD
+    LDA #.hibyte(L8AAD)
     STA $C141
     BNE L89F0
 L89DC:
@@ -1219,9 +1220,9 @@ L89DC:
 L89E2:
     STX $1D
     STY $1E                             ; workspace
-    LDA #<L8A81
+    LDA #.lobyte(L8A81)
     STA $C140
-    LDA #>L8A81
+    LDA #.hibyte(L8A81)
     STA $C141
 L89F0:
     LDA #$00
@@ -1686,8 +1687,8 @@ L8D42:
     CMP #$20
     BEQ L8D42
 L8D4B:
-    LDX #<L8CDC
-    LDY #>L8CDC
+    LDX #.lobyte(L8CDC)
+    LDY #.hibyte(L8CDC)
     JMP PRINT_STRING
 L8D52:
     JSR L9050
@@ -1695,8 +1696,8 @@ L8D52:
     STA VIC_BGCOL0
     LDA $8014
     STA $0286
-    LDX #<L8CEA
-    LDY #>L8CEA
+    LDX #.lobyte(L8CEA)
+    LDY #.hibyte(L8CEA)
     JSR PRINT_STRING                    ; PRINT_STRING
     LDY #$01
     LDA L9FF0
@@ -1710,8 +1711,8 @@ L8D78:
     LDA #$2D
     SEC
     JSR SETUP_INPUT_PARAMS              ; INPUT_LINE
-    LDX #<L8D0D
-    LDY #>L8D0D
+    LDX #.lobyte(L8D0D)
+    LDY #.hibyte(L8D0D)
     JSR PRINT_STRING
     LDX #$00
     LDY #$02
@@ -1729,8 +1730,8 @@ L8D9B:
     DEX
     BNE L8D9B
 L8DA4:
-    LDX #<L8D19
-    LDY #>L8D19
+    LDX #.lobyte(L8D19)
+    LDY #.hibyte(L8D19)
     JSR PRINT_STRING
     JSR PROTO_DISPATCH_TABLE
     JSR L96C6
@@ -1793,8 +1794,8 @@ L8DFC:
 L8E1C:
     JMP PROTO_DISPATCH_TABLE
 L8E1F:
-    LDX #<L8D24
-    LDY #>L8D24                            ; PROTO_DISPATCH_TABLE
+    LDX #.lobyte(L8D24)
+    LDY #.hibyte(L8D24)                            ; PROTO_DISPATCH_TABLE
     JSR PRINT_STATUS_MSG
     CLC
     ROR $C155
@@ -1903,8 +1904,8 @@ MODEM_INIT_DOWNLOAD:
     JSR L96CC
     STA $20
     BCS L8F38
-    LDX #<L8F3F
-    LDY #>L8F3F
+    LDX #.lobyte(L8F3F)
+    LDY #.hibyte(L8F3F)
     JSR PRINT_STATUS_MSG
     JSR L96CC
     STA $1D
@@ -1961,8 +1962,8 @@ MODEM_SEND_CMD:
     JSR CLEAR_STATUS
     LDA $C153
     STA $0286                           ; KERNAL_CLRCHN
-    LDX #<L8FDA
-    LDY #>L8FDA
+    LDX #.lobyte(L8FDA)
+    LDY #.hibyte(L8FDA)
     JMP PRINT_STRING
 L8F7E:
     LDX $C154
@@ -1970,8 +1971,8 @@ L8F7E:
     JSR KERNAL_CLRCHN
     LDA $8014
     STA $0286
-    LDX #<L9CF4
-    LDY #>L9CF4
+    LDX #.lobyte(L9CF4)
+    LDY #.hibyte(L9CF4)
     JSR PRINT_STRING
 L8F92:
     LDA CIA1_PRB
@@ -2001,8 +2002,8 @@ L8FF2:
 L8FFA:
     RTS                                 ; KERNAL_GETIN
 L8FFB:
-    LDX #<L9010
-    LDY #>L9010
+    LDX #.lobyte(L9010)
+    LDY #.hibyte(L9010)
     JSR PRINT_STATUS_MSG
 
 ; --- CLEAR_STATUS ---
@@ -2244,8 +2245,8 @@ L916C:
 FILE_UPLOAD:
     STA $C147
     STX $8032
-    LDX #<L9256
-    LDY #>L9256
+    LDX #.lobyte(L9256)
+    LDY #.hibyte(L9256)
     JSR PRINT_STRING
     JSR L92AD
     LDY #$00
@@ -2258,8 +2259,8 @@ L9186:
     JSR SETUP_INPUT_PARAMS
     LDA $D018                           ; VIC_MEMSETUP
     PHA
-    LDX #<L801E
-    LDY #>L801E                            ; KERNAL_CHROUT
+    LDX #.lobyte(L801E)
+    LDY #.hibyte(L801E)                            ; KERNAL_CHROUT
     JSR INPUT_LINE
     STY $19
     PLA
@@ -2285,8 +2286,8 @@ FILE_DOWNLOAD:
     BCC L91FA
 L91BF:
     LDA $19
-    LDX #<L801E
-    LDY #>L801E                            ; workspace
+    LDX #.lobyte(L801E)
+    LDY #.hibyte(L801E)                            ; workspace
     JSR KERNAL_SETNAM
     LDA $8032
     CMP #$50
@@ -2300,8 +2301,8 @@ L91D9:
     LDX #$01
     LDA #$08
     JSR KERNAL_SETLFS
-    LDX #<L926D
-    LDY #>L926D
+    LDX #.lobyte(L926D)
+    LDY #.hibyte(L926D)
     JSR CURSOR_HOME
     JSR L9290
     JSR $FFC0
@@ -2337,15 +2338,15 @@ L921B:
     JSR L92E8                           ; STATUS_LINE
     BCC L9250
     BPL L9250
-    LDX #<L9264
-    LDY #>L9264
+    LDX #.lobyte(L9264)
+    LDY #.hibyte(L9264)
     JSR CURSOR_HOME
     JSR STATUS_LINE                     ; workspace
     BNE L924C                           ; workspace
     JSR L92AD
     BCS L9250
-    LDX #<L801B
-    LDY #>L801B
+    LDX #.lobyte(L801B)
+    LDY #.hibyte(L801B)
     INC $C148
     LDA $C148
     BNE L921B
@@ -2378,8 +2379,8 @@ L926E:
     PLA
     JMP $F1CA
 L9290:
-    LDX #<L926E
-    LDY #>L926E
+    LDX #.lobyte(L926E)
+    LDY #.hibyte(L926E)
     STX $0326
     STY $0327
     CLC
@@ -3895,8 +3896,8 @@ L9E89:
     CLC
     RTS
 L9EA6:
-    LDX #<L9E59
-    LDY #>L9E59
+    LDX #.lobyte(L9E59)
+    LDY #.hibyte(L9E59)
     JSR PRINT_STRING                    ; workspace
     LDA #$00
     STA $C200
@@ -6750,9 +6751,9 @@ ACIA_INIT:
     STA NMI_BUF_HEAD
     ; Install NMI handler
     SEI
-    LDA #<NMI_HANDLER
+    LDA #.lobyte(NMI_HANDLER)
     STA NMI_VECTOR
-    LDA #>NMI_HANDLER
+    LDA #.hibyte(NMI_HANDLER)
     STA NMI_VECTOR+1
     CLI
     RTS
@@ -6915,3 +6916,21 @@ ACIA_DIAL:
 ; =================================================================
 ; End of ACIA driver
 ; =================================================================
+
+; --- BASIC_MEM_FIX ---
+; Set BASIC memory pointers so variables work below $8000
+BASIC_MEM_FIX:
+    LDA #$00
+    STA $37                             ; Top of memory lo = $8000
+    STA $33                             ; Top of strings lo = $8000
+    LDA #$80
+    STA $38                             ; Top of memory hi
+    STA $34                             ; Top of strings hi
+    ; Reset string/array pointers to match
+    LDA $2D
+    STA $2F                             ; Start of arrays = end of variables
+    STA $31                             ; End of arrays
+    LDA $2E
+    STA $30
+    STA $32
+    RTS
