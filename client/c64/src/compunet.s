@@ -6755,11 +6755,11 @@ ACIA_REG_READ:
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
     BEQ @no_rx
-    LDA #$E0                            ; Data available (bits 7+6+5)
+    LDA #$C0                            ; Data available (bits 7+6, NOT bit 5)
     LDX #$00
     RTS
 @no_rx:
-    LDA #$A0                            ; Empty (bits 7+5 only)
+    LDA #$80                            ; Empty (bit 7 only — TX ready)
     LDX #$00
     RTS
 
