@@ -302,6 +302,26 @@ dispatch_targets = [
 for t in dispatch_targets:
     branch_targets.add(t)
 
+# Hardcoded address-in-immediate patterns:
+# These are LDA #lo / LDA #hi pairs that form ROM addresses.
+# We emit them as LDA #<label / LDA #>label so they relocate.
+# Format: {address_of_LDA_lo: target_address, address_of_LDA_hi: target_address}
+ADDR_IMM_LO = {
+    0x8513: 0x8A8C,  # LDA #<$8A8C
+    0x85E8: 0x8A81,  # LDA #<$8A81
+    0x89D0: 0x8AAD,  # LDA #<$8AAD
+    0x89E6: 0x8A81,  # LDA #<$8A81
+}
+ADDR_IMM_HI = {
+    0x8518: 0x8A8C,  # LDA #>$8A8C
+    0x85ED: 0x8A81,  # LDA #>$8A81
+    0x89D5: 0x8AAD,  # LDA #>$8AAD
+    0x89EB: 0x8A81,  # LDA #>$8A81
+}
+# Also ensure these targets have labels
+for t in set(ADDR_IMM_LO.values()) | set(ADDR_IMM_HI.values()):
+    branch_targets.add(t)
+
 # ============================================================
 # Extract comments from annotated disassembly
 # ============================================================
@@ -445,6 +465,13 @@ def format_operand(mnemonic, mode, rom, offset, addr):
     if mode == 'IMP':
         return ''
     elif mode == 'IMM':
+        # Check if this is a hardcoded address-in-immediate
+        if addr in ADDR_IMM_LO:
+            target = ADDR_IMM_LO[addr]
+            return f'#<{make_label(target)}'
+        elif addr in ADDR_IMM_HI:
+            target = ADDR_IMM_HI[addr]
+            return f'#>{make_label(target)}'
         return f'#${rom[offset+1]:02X}'
     elif mode == 'ZP':
         return f'${rom[offset+1]:02X}'

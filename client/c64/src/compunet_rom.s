@@ -565,9 +565,9 @@ L8500:
     BCS L8576
 L8510:
     JSR L8495
-    LDA #$8C                            ; workspace
+    LDA #<L8A8C                         ; workspace
     STA $C140
-    LDA #$8A                            ; workspace
+    LDA #>L8A8C                         ; workspace
     STA $C141
     LDX #$08                            ; KERNAL_CHKIN
     JSR $FFC6
@@ -673,9 +673,9 @@ L85DE:
 SCREEN_DRAW:
     STX $1D
     STY $1E
-    LDA #$81
+    LDA #<L8A81
     STA $C140
-    LDA #$8A
+    LDA #>L8A81
     STA $C141
     JSR L8A7E
     JSR L8A7E
@@ -1176,9 +1176,9 @@ L899C:
 FRAME_BUF_READ:
     .byte $00  ; $89CF .
 L89D0:
-    LDA #$AD
+    LDA #<L8AAD
     STA $C140
-    LDA #$8A
+    LDA #>L8AAD
     STA $C141
     BNE L89F0
 L89DC:
@@ -1187,9 +1187,9 @@ L89DC:
 L89E2:
     STX $1D
     STY $1E                             ; workspace
-    LDA #$81
+    LDA #<L8A81
     STA $C140
-    LDA #$8A
+    LDA #>L8A81
     STA $C141
 L89F0:
     LDA #$00
@@ -1268,6 +1268,7 @@ L8A7D:
     RTS
 L8A7E:
     JMP ($C140)
+L8A81:
     JSR L8CB6
     INC $1D
     BNE L8A8A
@@ -1275,6 +1276,7 @@ L8A7E:
 L8A8A:
     CLC
     RTS
+L8A8C:
     .byte $AE  ; $8A8C .
     EOR $F0C1,X                         ; KERNAL_CHKIN
     .byte $03, $A9, $00, $60  ; $8A90 ...`
@@ -1292,6 +1294,7 @@ L8AA6:
     CLC
 L8AAC:
     RTS
+L8AAD:
     BIT $C15D
     BPL L8AB6                           ; workspace
     LDA #$00
@@ -1627,7 +1630,7 @@ MODEM_CHECK:
     TSX
     STX $C154
     JSR $BE03                           ; ACIA_INIT
-    JMP L8D52                           ; Skip to phone number input
+    JMP L8D52
 L8D52:
     JSR L9050
     LDA $8013
