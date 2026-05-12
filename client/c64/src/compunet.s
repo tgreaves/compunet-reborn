@@ -7160,21 +7160,22 @@ RECV_POS        = $C3FF   ; Current read position for PROCESS_CMD
 
 ACIA_FLOW_CONTROL:
     ; Wait for start marker $01
-    LDX #$00                            ; Timeout hi
+    LDA #$00
+    STA $A1                             ; Timeout counter lo
+    STA $A2                             ; Timeout counter hi
 @wait_start:
     JSR @get_byte
     BCS @timeout_check
     CMP #$01
     BEQ @got_start
+    JMP @wait_start
 @timeout_check:
-    INX
-    CPX #$00                            ; Full 256 iterations = ~1 second
+    INC $A1
     BNE @wait_start
-    ; Outer timeout
-    LDY #$00
-    INY
-    CPY #$30                            ; ~48 seconds total timeout
-    BNE @wait_start
+    INC $A2
+    LDA $A2
+    CMP #$40                            ; ~16K iterations ≈ 10 seconds
+    BCC @wait_start
     SEC                                 ; Timeout
     RTS
 
