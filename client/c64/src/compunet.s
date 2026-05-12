@@ -2644,22 +2644,13 @@ L94C0:
 
 ; --- MODEM_REG_WRITE_WAIT ---
 ; Send bytes from $C100 buffer via protocol engine
+; --- MODEM_REG_WRITE_WAIT ---
+; ;--- MODIFIED: Direct ACIA packet send (replaces half-duplex interleave) ---
+; Input: Y = payload length, $8034 = token, $C100 = payload buffer
+; Sends complete X.25 packet: $01 [len] [token] [seq] [payload] [CRC] $02
 MODEM_REG_WRITE_WAIT:
-    STY $C14D
-    LDY #$00
-
-; ============================================================
-; MODEM_REG_READ_STATUS
-; ============================================================
-L94C6:
-    LDA $C100,Y
-    INY
-    CPY $C14D
-    PHP
-    JSR L96C9
-    PLP
-    BCC L94C6
-    RTS
+    STY $C14D                           ; Save payload length
+    JMP ACIA_SEND_PACKET                ; Use polling-based send
 
 ; ============================================================
 ; MODEM_WAIT_READY
@@ -7013,4 +7004,139 @@ ACIA_PROTO_CONNECT:
     LDA #$80
     STA $8038                           ; Protocol state = connected
     CLC                                 ; C=0 = success
+    RTS
+
+; =================================================================
+; ACIA_SEND_PACKET — Direct X.25 packet send via ACIA
+; =================================================================
+; Input: $C14D = payload length, $8034 = token, $C100 = payload
+; Sends: $01 [total_len] [token] [seq] [payload...] [CRC_hi] [CRC_lo] $02
+; Applies byte stuffing for $01/$02/$03 in data.
+; Uses standard CRC-CCITT (poly $1021, init $0000).
+; =================================================================
+ACIA_SEND_PACKET:
+    ; --- Send start marker ---
+    LDA #$01
+    JSR ACIA_WAIT_READY
+
+    ; --- Calculate total length (payload + 4 header/CRC bytes) ---
+    LDA $C14D
+    CLC
+    ADC #$04                            ; +4 for length, token, seq, (CRC counted separately? No - length = total between markers)
+    ; Actually: length byte = total bytes between $01 and $02 (inclusive of length itself)
+    ; Format: $01 [len] [token] [seq] [payload...] [CRC_hi] [CRC_lo] $02
+    ; len = 2 (token+seq) + payload_len + 2 (CRC) + 1 (len itself)... 
+    ; From PROTOCOL.md: length = total bytes between markers
+    ; So len = 1(len) + 1(token) + 1(seq) + payload + 2(CRC) = payload + 5
+    LDA $C14D
+    CLC
+    ADC #$05
+    STA $C14E                           ; Total length byte
+
+    ; --- Init CRC ---
+    LDA #$00
+    STA $C21D                           ; CRC hi
+    STA $C21E                           ; CRC lo
+
+    ; --- Send length (with stuffing + CRC) ---
+    LDA $C14E
+    JSR @send_stuffed_crc
+
+    ; --- Send token (with stuffing + CRC) ---
+    LDA $8034
+    JSR @send_stuffed_crc
+
+    ; --- Send sequence (with stuffing + CRC) ---
+    LDA $C20E                           ; TX sequence number
+    JSR @send_stuffed_crc
+
+    ; --- Send payload bytes (with stuffing + CRC) ---
+    LDY #$00
+@send_payload:
+    CPY $C14D
+    BEQ @send_crc
+    LDA $C100,Y
+    JSR @send_stuffed_crc
+    INY
+    BNE @send_payload
+
+@send_crc:
+    ; --- Send CRC hi (with stuffing) ---
+    LDA $C21D
+    JSR @send_stuffed
+    ; --- Send CRC lo (with stuffing) ---
+    LDA $C21E
+    JSR @send_stuffed
+
+    ; --- Send end marker ---
+    LDA #$02
+    JSR ACIA_WAIT_READY
+
+    ; --- Advance sequence number ---
+    LDX $C20E
+    INX
+    CPX #$60
+    BNE @seq_ok
+    LDX #$20
+@seq_ok:
+    STX $C20E
+
+    RTS
+
+; --- Send byte with stuffing + update CRC ---
+@send_stuffed_crc:
+    PHA
+    JSR @update_crc                     ; Update CRC with byte in A (on stack)
+    PLA
+    ; Fall through to send_stuffed
+
+; --- Send byte with byte stuffing ---
+@send_stuffed:
+    CMP #$01
+    BEQ @stuff_01
+    CMP #$02
+    BEQ @stuff_02
+    CMP #$03
+    BEQ @stuff_03
+    JMP ACIA_WAIT_READY                 ; Normal byte — just send
+
+@stuff_01:
+    LDA #$03
+    JSR ACIA_WAIT_READY
+    LDA #$21
+    JMP ACIA_WAIT_READY
+@stuff_02:
+    LDA #$03
+    JSR ACIA_WAIT_READY
+    LDA #$22
+    JMP ACIA_WAIT_READY
+@stuff_03:
+    LDA #$03
+    JSR ACIA_WAIT_READY
+    LDA #$23
+    JMP ACIA_WAIT_READY
+
+; --- Update CRC-CCITT with byte (byte on stack, accessed via TSX) ---
+@update_crc:
+    ; Standard CRC-CCITT: poly $1021, MSB-first
+    ; CRC state in $C21D (hi) / $C21E (lo)
+    ; Input byte from stack (caller pushed it)
+    TSX
+    LDA $0102,X                         ; Get the byte from stack (under return addr)
+    EOR $C21D                           ; XOR with CRC hi
+    STA $C21D
+    LDX #$08                            ; 8 bits
+@crc_loop:
+    ASL $C21E
+    ROL $C21D
+    BCC @crc_no_xor
+    LDA $C21D
+    EOR #$10
+    STA $C21D
+    LDA $C21E
+    EOR #$21
+    STA $C21E
+@crc_no_xor:
+    DEX
+    BNE @crc_loop
     RTS
