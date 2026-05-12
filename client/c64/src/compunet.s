@@ -7011,5 +7011,7 @@ ACIA_PROTO_CONNECT:
     ; Success! Flush buffer and return
     LDA NMI_BUF_TAIL
     STA NMI_BUF_HEAD
+    ; Initialize protocol state (replaces what original PROTO_CONNECT did)
+    JSR PROTO_START_SESSION
     CLC                                 ; C=0 = success
     RTS
