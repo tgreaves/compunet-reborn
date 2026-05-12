@@ -333,14 +333,25 @@ class CompunetSession:
         return self._make_dir_response()
     
     def _cmd_show(self, params):
-        """SHOW command - display frames of selected entry."""
+        """SHOW command - display frames of selected entry.
+        
+        Response format: raw frame data terminated by $00.
+        The client reads bytes via $96CC and stores them at $D000+
+        until it sees $00 (end of data).
+        
+        Frame data format:
+          byte 0: border colour
+          byte 1: background colour  
+          byte 2+: PETSCII characters ($0D = newline, $00 = end)
+        """
         if self.selected_entry < len(self.current_page.children):
             child = self.current_page.children[self.selected_entry]
             if child.frames:
                 self.show_page = child
                 self.show_frame_index = 0
                 return self._send_current_frame()
-        return self._make_error(ascii_to_petscii('NO TEXT'))
+        # No text — send just the terminator
+        return b'\x00'
     
     def _cmd_more(self, params):
         """MORE command - show next frame of current page."""
@@ -351,15 +362,22 @@ class CompunetSession:
         return bytes([RESP_ACK])
     
     def _send_current_frame(self):
-        """Send the current frame being viewed."""
+        """Send the current frame being viewed.
+        
+        Format: raw frame data + $00 terminator.
+        No prefix bytes — client reads directly into screen buffer.
+        """
         if self.show_page and self.show_frame_index < len(self.show_page.frames):
             frame_data = self.show_page.frames[self.show_frame_index]
             has_more = self.show_frame_index < len(self.show_page.frames) - 1
-            response = bytearray([RESP_FRAME])
-            response.append(0x01 if has_more else 0x00)  # more-pages flag
+            response = bytearray()
             response.extend(frame_data)
+            response.append(0x00)  # End-of-data marker
+            # Store has_more flag in $8035 bit 7 via the response
+            # Actually the client checks $8035 after the frame is rendered
+            # For now just send the frame data
             return bytes(response)
-        return bytes([RESP_ACK])
+        return b'\x00'
     
     def _cmd_accnt(self):
         """ACCNT command - return account info frame."""
@@ -798,9 +816,16 @@ async def tcp_handler(reader, writer):
                         log.info('TCP: dispatching command (authenticated=True)')
                         cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
-                            pkt = x25.make_data_packet(cmd_response, TOKEN_DAT)
-                            writer.write(pkt)
-                            await writer.drain()
+                            # Split large responses into multiple packets
+                            # Max payload per X.25 packet: 250 bytes (length byte is 1 byte, max 255, minus 5 overhead)
+                            MAX_PAYLOAD = 250
+                            offset = 0
+                            while offset < len(cmd_response):
+                                chunk = cmd_response[offset:offset + MAX_PAYLOAD]
+                                pkt = x25.make_data_packet(chunk, TOKEN_DAT)
+                                writer.write(pkt)
+                                await writer.drain()
+                                offset += MAX_PAYLOAD
                 
                 elif token == TOKEN_ACK:
                     log.debug('TCP: received ACK seq=$%02X', seq)

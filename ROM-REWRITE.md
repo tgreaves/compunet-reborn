@@ -47,24 +47,25 @@ shot. The trade-off is needing `NEW` before `SYS` (fixable in future).
 
 ```
 MEMORY {
-    MAIN: start = $8000, size = $5000, type = rw, fill = no;
+    MAIN: start = $8000, size = $5000, type = rw, fill = yes, fillval = $00;
 }
 
 SEGMENTS {
     HEADER:   load = MAIN, type = ro, start = $8000;
     CODE:     load = MAIN, type = ro;
     TERMINAL: load = MAIN, type = ro, start = $A000;
-    ACIA:     load = MAIN, type = ro;
+    ACIA:     load = MAIN, type = ro, start = $C900;
 }
 ```
 
 - **HEADER** — cartridge signature at $8000 (CBM80 + vectors)
 - **CODE** — ROM code ($8009-$9FFF)
 - **TERMINAL** — terminal code, forced to $A000
-- **ACIA** — ACIA driver, immediately after terminal
+- **ACIA** — ACIA driver, forced to $C900 (safe from terminal workspace clearing)
 
-The gap between end-of-CODE and $A000 is not filled (no `fill = yes`), keeping
-the PRG compact. $9FF0-$9FFF is phone number storage written at runtime.
+The memory area uses `fill = yes` to zero-fill gaps between segments. This
+creates a ~20KB PRG (gap from $BE02 to $C900 is zeros). $9FF0-$9FFF is phone
+number storage written at runtime.
 
 ### Build Command
 
@@ -193,14 +194,32 @@ $0801-$7FFF  BASIC RAM (available after NEW)
 $8000-$9FEF  ROM code (loaded from PRG)
 $9FF0-$9FFF  Phone number storage (written at runtime)
 $A000-$BE02  Terminal code (loaded from PRG)
-$BE03-$BFxx  ACIA driver code (loaded from PRG)
-$C000-$C0FF  Terminal workspace
+$BE03-$BFFF  Unused (gap between terminal and ACIA)
+$C000-$C0FF  Terminal workspace (zeroed by terminal init)
 $C100-$C1FF  Terminal state (cursor, screen mode, flags)
 $C200-$C2FF  Protocol state (connection, packets, buffers)
 $C300-$C3FF  Receive packet buffer (RECV_BUF)
+$C900-$CC6A  ACIA driver code (loaded from PRG at $C900)
 $CE00-$CEFF  NMI ring buffer (256 bytes)
 $CF00-$CF2F  NMI handler code (copied from ACIA driver at init)
+$D000-$D0FF  Frame rendering buffer
+$D300-$D5FF  Directory entry data (structured, for cursor navigation)
 ```
+
+**Why ACIA is at $C900**: The terminal init at $A005 writes to $C000 (workspace).
+If ACIA code were at $BE03+ it would extend past $BFFF into $C000+, and the
+terminal init would overwrite it. Placing ACIA at $C900 keeps it safe. The gap
+$BE03-$BFFF is filled with zeros in the PRG (adds ~2.5KB to file size).
+
+### Protocol Dispatch Table (Must Stay at $96C0)
+
+The terminal code contains hardcoded `JSR $96CC`, `JSR $96D2`, and `JSR $96C9`
+in `.byte` data blocks that cannot use labels. The protocol dispatch table MUST
+remain at its original address $96C0. If ROM modifications shift code, padding
+is NOT used — instead, all decodable references use labels (L96CC, L96D2, L96C9)
+which resolve correctly regardless of position. The remaining hardcoded references
+in `.byte` data blocks are fixed by ensuring the dispatch table stays at $96C0
+through careful code sizing.
 
 ## What's Preserved from Original
 

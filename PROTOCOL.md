@@ -832,18 +832,50 @@ All commands go through the same preparation routine at $A784:
 
 The client sends single ASCII letters as command identifiers:
 
-| Code | ASCII | Command | Parameters | Description |
-|------|-------|---------|------------|-------------|
-| $41  | 'A'   | ACCNT   | None (Y=1) | Request account information |
-| $42  | 'B'   | BUY     | None (Y=1) | Buy/download highlighted entry |
-| $43  | 'C'   | BACK    | None (Y=1) | Go to parent directory |
-| $44  | 'D'   | DIR     | Page data (Y=3) | Request directory listing |
-| $45  | 'E'   | EDITR   | None (Y=1) | Enter editor mode online |
-| $49  | 'I'   | ID      | User ID string | Check user ID |
-| $4D  | 'M'   | MAIL    | None (Y=1) | Access Courier mailbox |
-| $50  | 'P'   | SHOW    | Page info (Y=3) | Show/read text frames |
-| $55  | 'U'   | UPLD    | None (Y=1) | Start upload process |
-| $56  | 'V'   | VOTE    | Vote value (Y=4) | Vote 1-9 on content |
+| Code | ASCII | Duckshoot Cmd | Parameters | Description |
+|------|-------|---------------|------------|-------------|
+| $41  | 'A'   | ACCNT         | None (Y=1) | Request account information |
+| $42  | 'B'   | BACK          | None (Y=1) | Go to parent directory |
+| $43  | 'C'   | UCAT          | None (Y=1) | User catalogue listing |
+| $44  | 'D'   | (DIR on subdir) | Page data (Y=3) | Enter sub-directory |
+| $45  | 'E'   | EDITR         | None (Y=1) | Enter editor mode online |
+| $49  | 'I'   | ID            | User ID string | Check user ID |
+| $4D  | 'M'   | MAIL          | None (Y=1) | Access Courier mailbox |
+| $50  | 'P'   | DIR / SHOW    | Page info (Y=3) | Show page (frame + directory data) |
+| $55  | 'U'   | UPLD          | None (Y=1) | Start upload process |
+| $56  | 'V'   | VOTE          | Vote value (Y=4) | Vote 1-9 on content |
+
+**Important corrections** (verified against terminal disassembly at $A34E-$A358):
+- $42 'B' = BACK (not BUY as previously documented)
+- $43 'C' = UCAT/Catalogue (not BACK)
+- $50 'P' is sent by BOTH the DIR and SHOW duckshoot commands
+
+### DIR/SHOW Response Format ('P' command)
+
+The 'P' command is the primary page request. The server responds with a
+two-part structure:
+
+```
+Part 1: Frame header (raw PETSCII, rendered to screen)
+  [border_colour] [bg_colour] [PETSCII characters...] $00
+
+Part 2: Structured directory entries (parsed into RAM)
+  [routing_text CR] [entry_data...] $00
+```
+
+**Part 1** is rendered directly to screen memory at $D000 by the L_A37B loop.
+This provides the visual header — fancy graphics, routing text, column labels.
+Terminated by $00.
+
+**Part 2** is parsed by the structured directory parser at L_A39E-L_A495.
+Directory entries are comma-separated ($2C) fields with CR ($0D) terminators,
+stored in RAM at $D300-$D500+ with 8-byte field widths. This data enables
+client-side cursor navigation (up/down highlighting) and F7/F8 column toggling.
+
+If Part 2's first byte is $00, there are no directory entries (text-only page).
+
+This design allows each directory to have custom graphics in the header area
+while the navigable entry list below is rendered separately from structured data.
 
 ### GOTO Command
 

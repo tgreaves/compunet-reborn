@@ -2721,6 +2721,7 @@ L9589:
 ; --- PROTO_DISPATCH_TABLE ---
 ; Protocol function dispatch (9 x JMP)
 PROTO_DISPATCH_TABLE:
+L96C0 = PROTO_DISPATCH_TABLE
     JMP PROTO_SEND_PACKET               ; PROTO_ERROR_RECOVERY
     JMP PROTO_RECV_PACKET               ; PROTO_FLOW_CONTROL
 L96C6:
@@ -4265,8 +4266,8 @@ L_A279:
     LDA $C00A
     STA $0286
     JMP L_A7A6
-    .byte $A9, $45, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, $D2, $96, $B0, $CA, $20; $A2C3 .E..... .. .... 
-    .byte $21, $81, $20, $C0, $96, $A9, $0E, $8D, $20, $D0, $20, $86, $AC, $68, $68, $20; $A2D3 !. ..... . ..hh 
+    .byte $A9, $45, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, .lobyte(L96D2), .hibyte(L96D2), $B0, $CA, $20; $A2C3 .E..... .. .... 
+    .byte $21, $81, $20, .lobyte(L96C0), .hibyte(L96C0), $A9, $0E, $8D, $20, $D0, $20, $86, $AC, $68, $68, $20; $A2D3 !. ..... . ..hh 
     .byte $48, $81, $A9, $93, $4C, $D2, $FF, $20, $9B, $A7, $AD, $86, $02, $8D, $0A, $C0; $A2E3 H...L.. ........
     .byte $A2, $23, $A0, $A3, $20, $42, $81, $A2, $06, $A0, $01, $A9, $00, $18, $20, $1B; $A2F3 .#.. B........ .
     .byte $81, $A2, $01, $A0, $C1, $20, $1E, $81, $08, $20, $91, $A7, $AD, $0A, $C0, $8D; $A303 ..... ... ......
@@ -4284,7 +4285,7 @@ L_A358:
     LDY #$03
     STA $C100
     JSR L_A784
-    JSR $96D2
+    JSR L96D2
     BCC L_A36B
     RTS
 L_A36B:
@@ -4296,7 +4297,7 @@ L_A36B:
     STY $1E
     JSR L_A595
 L_A37B:
-    JSR $96CC
+    JSR L96CC
     JSR L_A595
     CMP #$00
     BNE L_A37B
@@ -4330,7 +4331,7 @@ L_A3A9:
     LDX #$02
     BNE L_A3C0
 L_A3BD:
-    JSR $96CC
+    JSR L96CC
 L_A3C0:
     JSR L_A595
     CMP #$00
@@ -4353,18 +4354,18 @@ L_A3D3:
     STA $1D
     LDA #$D5
     STA $1E
-    JSR $96CC
+    JSR L96CC
     CMP #$3D
     BEQ L_A3FE
 L_A3F1:
-    JSR $96CC
+    JSR L96CC
     CMP #$00
     BEQ L_A40D
     CMP #$0D
     BNE L_A3F1
     BEQ L_A3D3
 L_A3FE:
-    JSR $96CC
+    JSR L96CC
     CMP #$0D
     BNE L_A40D
     LDA #$00
@@ -4373,9 +4374,9 @@ L_A3FE:
 L_A40D:
     CMP #$07
     BNE L_A420
-    JSR $96CC
+    JSR L96CC
     PHA
-    JSR $96CC
+    JSR L96CC
     TAX
     PLA
 L_A41A:
@@ -4402,7 +4403,7 @@ L_A427:
     STY $1E
     JSR L_A595
 L_A446:
-    JSR $96CC
+    JSR L96CC
     JSR L_A595
     CMP #$00
     BNE L_A446
@@ -4421,7 +4422,7 @@ L_A450:
 L_A469:
     LDX #$08
 L_A46B:
-    JSR $96CC
+    JSR L96CC
     CMP #$0D
     BEQ L_A47D
 L_A472:
@@ -4444,7 +4445,7 @@ L_A48D:
     PLA
     CMP #$0D
     BNE L_A469
-    JSR $96CC
+    JSR L96CC
 L_A495:
     LDA #$01
     STA $C002
@@ -4467,7 +4468,7 @@ L_A495:
     JSR L_A5EA
     BCS L_A4CA
 L_A4C2:
-    JSR $96CC
+    JSR L96CC
     JSR L_A5EA
     BCC L_A4C2
 L_A4CA:
@@ -4498,7 +4499,7 @@ L_A4F7:
     RTS
     .byte $80, $A0, $88, $A8, $90, $B0                           ; $A4F8 ......
 L_A4FE:
-    JSR $96CC
+    JSR L96CC
     CMP #$00
     RTS
 L_A504:
@@ -4645,7 +4646,7 @@ L_A5F3:
     JSR L_A595
     LDX #$01
 L_A5F8:
-    JSR $96CC
+    JSR L96CC
     PHP
     CMP #$2C
     BEQ L_A608
@@ -4665,7 +4666,7 @@ L_A614:
     LDX #$08
 L_A616:
     PLP
-    JSR $96CC
+    JSR L96CC
     PHP
     CMP #$0D
     BEQ L_A62A
@@ -4933,7 +4934,7 @@ L_A897:
     CMP ($A0,X)
     ORA ($20,X)
     STY $A7
-    JSR $96D2
+    JSR L96D2
     BCC L_A8AC
     RTS
 L_A8AC:
@@ -4995,7 +4996,7 @@ L_A8EC:
     EOR $81
     LDY #$04
     JSR L_A784
-    JSR $96D2
+    JSR L96D2
     JMP L_A7A6
     .byte $56, $4F, $54, $45, $20, $28, $31, $2D, $39, $29, $3F, $20, $00, $56, $4F, $54; $A96D VOTE (1-9)? .VOT
     .byte $49, $4E, $47, $20                                     ; $A97D ING 
@@ -5147,7 +5148,7 @@ L_AA9E:
     LDY #$03
 L_AAA0:
     JSR L_A784
-    JSR $96D2
+    JSR L96D2
     BCS L_AAE4
     LDA $C019
     CMP #$4C
@@ -5215,7 +5216,7 @@ L_AB27:
     RTS
     .byte $43, $AB, $2D, $AB, $36, $AB, $20, $44, $AB, $AD, $35, $80, $30, $F8, $60, $AE; $AB28 C.-.6. D..5.0.`.
     .byte $15, $C0, $9A, $AD, $1A, $C0, $8D, $33, $80, $4C, $2D, $A7, $20, $51, $81, $AD; $AB38 .......3.L-. Q..
-    .byte $16, $C0, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, $D2, $96, $B0, $E0; $AB48 ....... .. ....
+    .byte $16, $C0, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, .lobyte(L96D2), .hibyte(L96D2), $B0, $E0; $AB48 ....... .. ....
 L_AB57:
     JSR ROMCALL_16
     LDX #$3A
@@ -5226,20 +5227,20 @@ L_AB57:
 L_AB67:
     LDX #$03
 L_AB69:
-    JSR $96CC
+    JSR L96CC
     DEX
     BPL L_AB69
-    JSR $96CC
+    JSR L96CC
     STA $C00D
-    JSR $96CC
+    JSR L96CC
     STA $C00E
-    JSR $96CC
+    JSR L96CC
     STA $1F
     CLC
     ADC $C00D
     STA $C00F
     PHP
-    JSR $96CC
+    JSR L96CC
     STA $20
     PLP
     ADC $C00E
@@ -5276,7 +5277,7 @@ L_ABC3:
     LDY #$01
     JSR ROMCALL_03
 L_ABD4:
-    JSR $96CC
+    JSR L96CC
     PHP
     LDY #$00
     STA ($1D),Y
@@ -5550,21 +5551,21 @@ L_AE29:
     .byte $B9, $00, $02, $C9, $2C, $D0, $02, $A9, $20, $9D, $12, $C1, $20, $D2, $FF, $E8; $AF0A ....,... ... ...
     .byte $C8, $C0, $08, $D0, $EB, $EE, $21, $C0, $AD, $21, $C0, $C9, $05, $90, $98, $A2; $AF1A ......!..!......
     .byte $FE, $A0, $AF, $20, $45, $81, $AD, $21, $C0, $F0, $A6, $0A, $0A, $0A, $18, $69; $AF2A ... E..!.......i
-    .byte $12, $A8, $20, $84, $A7, $20, $D2, $96, $B0, $97, $A2, $10, $20, $EA, $B0, $10; $AF3A .. .. ...... ...
+    .byte $12, $A8, $20, $84, $A7, $20, .lobyte(L96D2), .hibyte(L96D2), $B0, $97, $A2, $10, $20, $EA, $B0, $10; $AF3A .. .. ...... ...
     .byte $06, $20, $48, $81, $4C, $2D, $A7, $A2, $F7, $A0, $AF, $20, $42, $81, $20, $4E; $AF4A . H.L-..... B. N
     .byte $81, $F0, $03, $4C, $CC, $AF, $20, $79, $A2, $A9, $01, $8D, $33, $80, $A2, $77; $AF5A ...L.. y....3..w
     .byte $A0, $AF, $20, $18, $81, $B0, $F7, $20, $7D, $AF, $4C, $68, $AF, $05, $66, $6C; $AF6A .. .... }.Lh..fl
     .byte $84, $8A, $30, $AD, $33, $80, $0A, $AA, $BD, $8A, $AF, $48, $BD, $89, $AF, $48; $AF7A ..0.3......H...H
     .byte $60, $94, $AF, $C4, $AF, $32, $81, $35, $81, $75, $A2, $A2, $FE, $A0, $AF, $20; $AF8A `....2.5.u..... 
-    .byte $45, $81, $A9, $55, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, $D2, $96, $B0; $AF9A E..U..... .. ...
-    .byte $10, $A2, $03, $A0, $B0, $20, $45, $81, $20, $75, $B1, $20, $D2, $96, $B0, $01; $AFAA ..... E. u. ....
+    .byte $45, $81, $A9, $55, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, .lobyte(L96D2), .hibyte(L96D2), $B0; $AF9A E..U..... .. ...
+    .byte $10, $A2, $03, $A0, $B0, $20, $45, $81, $20, $75, $B1, $20, .lobyte(L96D2), .hibyte(L96D2), $B0, $01; $AFAA ..... E. u. ....
     .byte $60, $68, $68, $A9, $01, $8D, $33, $80, $4C, $2D, $A7, $68, $68, $A9, $01, $8D; $AFBA `hh...3.L-.hh...
     .byte $33, $80, $20, $51, $81, $A9, $4E, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $4C; $AFCA 3. Q..N..... ..L
     .byte $2D, $A7, $53, $55, $42, $4A, $45, $43, $54, $3F, $20, $00, $44, $45, $53, $54; $AFDA -.SUBJECT? .DEST
     .byte $49, $4E, $41, $54, $49, $4F, $4E, $20, $49, $44, $3F, $20, $00, $4F, $4B, $41; $AFEA INATION ID? .OKA
     .byte $59, $3F, $20, $00, $53, $45, $4E, $44, $00, $53, $45, $4E, $44, $49, $4E, $47; $AFFA Y? .SEND.SENDING
     .byte $00, $A9, $44, $8D, $00, $C1, $8D, $16, $C0, $20, $13, $A7, $A0, $03, $20, $84; $B00A ..D...... .... .
-    .byte $A7, $20, $D2, $96, $90, $01, $60, $BA, $8E, $15, $C0, $20, $57, $AB, $AD, $35; $B01A . ....`.... W..5
+    .byte $A7, $20, .lobyte(L96D2), .hibyte(L96D2), $90, $01, $60, $BA, $8E, $15, $C0, $20, $57, $AB, $AD, $35; $B01A . ....`.... W..5
     .byte $80, $10, $06, $20, $44, $AB, $4C, $28, $B0, $20, $48, $81, $4C, $2D, $A7, $A9; $B02A ... D.L(. H.L-..
     .byte $4D, $A0, $01, $4C, $5F, $A3, $A9, $49, $8D, $00, $C1, $A2, $D6, $A0, $BD, $20; $B03A M..L_..I....... 
     .byte $24, $81, $A2, $00, $8E, $21, $C0                      ; $B04A $....!.
@@ -5633,7 +5634,7 @@ L_B0B3:
     ADC #$01
     TAY
     JSR L_A784
-    JSR $96D2
+    JSR L96D2
     BCS L_B06B
     LDX #$06
     JSR L_B0EA
@@ -5656,7 +5657,7 @@ L_B0FB:
     JSR $FFD2
     LDX #$08
 L_B108:
-    JSR $96CC
+    JSR L96CC
     JSR $FFD2
     DEX
     BNE L_B108
@@ -5666,14 +5667,14 @@ L_B108:
     JSR $FFD2
     LDA #$20
     JSR $FFD2
-    JSR $96CC
+    JSR L96CC
     PHP
     CMP #$1E
     BEQ L_B136
 L_B128:
     PLP
     JSR $FFD2
-    JSR $96CC
+    JSR L96CC
     PHP
     CMP #$1E
     BNE L_B128
@@ -5696,7 +5697,7 @@ L_B141:
     .byte $68, $68, $A9, $07, $8D, $33, $80, $60, $A9, $22, $8D, $34, $80, $AD, $19, $80; $B16D hh...3.`.".4....
     .byte $85, $1D, $AD, $1A, $80, $85, $1E, $A9, $00, $48, $E6, $1D, $D0, $02, $E6, $1E; $B17D .........H......
     .byte $A2, $34, $A0, $00, $78, $86, $01, $B1, $1D, $A2, $36, $86, $01, $58, $C9, $00; $B18D .4..x.....6..X..
-    .byte $F0, $09, $AA, $68, $18, $20, $C9, $96, $8A, $D0, $DE, $68, $38, $4C, $C9, $96; $B19D ...h. .....h8L..
+    .byte $F0, $09, $AA, $68, $18, $20, .lobyte(L96C9), .hibyte(L96C9), $8A, $D0, $DE, $68, $38, $4C, .lobyte(L96C9), .hibyte(L96C9); $B19D ...h. .....h8L..
 L_B1AD:
     LDX #$02
 L_B1AF:
@@ -5717,7 +5718,7 @@ L_B1BB:
     .byte $20, $1E, $81, $08, $20, $91, $A7, $20, $A6, $A7, $AD, $0A, $C0, $8D, $86, $02; $B1FD  ... .. ........
     .byte $28, $90, $01, $60, $A6, $1A, $A9, $20, $9D, $00, $02, $E8, $E0, $04, $90, $F8; $B20D (..`... ........
     .byte $AD, $00, $02, $8D, $03, $C1, $A2, $03, $BD, $00, $02, $C9, $2D, $F0, $AB, $9D; $B21D ............-...
-    .byte $03, $C1, $CA, $D0, $F3, $A0, $07, $20, $84, $A7, $20, $D2, $96, $B0, $D4; $B22D ....... .. ....
+    .byte $03, $C1, $CA, $D0, $F3, $A0, $07, $20, $84, $A7, $20, .lobyte(L96D2), .hibyte(L96D2), $B0, $D4; $B22D ....... .. ....
 L_B23C:
     LDX #$6C
     LDY #$B2
@@ -6182,7 +6183,7 @@ L_B605:
     JSR ROMCALL_23
     LDY #$1B
     JSR L_A784
-    JSR $96D2
+    JSR L96D2
     BCC L_B621
     JMP L_B6C6
 L_B621:
@@ -6193,14 +6194,14 @@ L_B621:
     STA $8034
     LDA #$00
     CLC
-    JSR $96C9
+    JSR L96C9
     LDX $C019
     CPX #$26
     BNE L_B63C
     LDA #$01
 L_B63C:
     CLC
-    JSR $96C9
+    JSR L96C9
     LDX #$00
     LDY #$00
     LDA $C019
@@ -6239,13 +6240,13 @@ L_B685:
     JSR L_B6D0
     LDA $1F
     CLC
-    JSR $96C9
+    JSR L96C9
     LDA $20
     PHA
 L_B691:
     PLA
     CLC
-    JSR $96C9
+    JSR L96C9
     LDY #$00
     LDA ($1D),Y
     PHA
@@ -6261,8 +6262,8 @@ L_B6A1:
     BNE L_B691
     PLA
     SEC
-    JSR $96C9
-    JSR $96D2
+    JSR L96C9
+    JSR L96D2
     PHP
     JSR L_B916
     PLP
@@ -6281,10 +6282,10 @@ L_B6C6:
 L_B6D0:
     TXA
     CLC
-    JSR $96C9
+    JSR L96C9
     TYA
     CLC
-    JMP $96C9
+    JMP L96C9
 L_B6DA:
     JSR L_ADB6
     ROR $C01B
@@ -6449,8 +6450,8 @@ L_B845:
     RTS
     .byte $4F, $B8, $7F, $B8, $32, $81, $35, $81, $75, $A2, $A2, $7B, $A0, $B9, $20, $45; $B846 O...2.5.u..{.. E
     .byte $81, $A9, $55, $A0, $1B, $8D, $00, $C1, $2C, $14, $C0, $30, $02, $A0, $01, $20; $B856 ..U.....,..0... 
-    .byte $84, $A7, $20, $D2, $96, $B0, $13, $A2, $82, $A0, $B9, $20, $45, $81, $20, $75; $B866 .. ........ E. u
-    .byte $B1, $20, $D2, $96, $B0, $04, $6E, $14, $C0, $60, $68, $68, $A9, $10, $8D, $33; $B876 . ....n..`hh...3
+    .byte $84, $A7, $20, .lobyte(L96D2), .hibyte(L96D2), $B0, $13, $A2, $82, $A0, $B9, $20, $45, $81, $20, $75; $B866 .. ........ E. u
+    .byte $B1, $20, .lobyte(L96D2), .hibyte(L96D2), $B0, $04, $6E, $14, $C0, $60, $68, $68, $A9, $10, $8D, $33; $B876 . ....n..`hh...3
     .byte $80, $2C, $14, $C0, $10, $03, $4C, $2D, $A7, $4C, $3C, $B2; $B886 .,....L-.L<.
 L_B892:
     JSR L_A79B
