@@ -1565,25 +1565,12 @@ L8CD2:
     .byte $41, $49, $54, $00  ; $8D2C AIT.
 
 ; --- MODEM_CHECK ---
-; Verify modem present, initialize hardware
+; ;--- MODIFIED: Initialize ACIA via driver at $C800, skip brick modem check ---
 MODEM_CHECK:
     TSX
     STX $C154
-    LDX #$03                            ; MODEM_REG_READ
-    LDA #$20
-    JSR MODEM_REG_WRITE
-    JSR MODEM_REG_READ
-    CMP #$20
-    BNE L8D4B
-L8D42:
-    JSR MODEM_REG_READ
-    BEQ L8D52
-    CMP #$20
-    BEQ L8D42
-L8D4B:
-    LDX #$DC
-    LDY #$8C
-    JMP PRINT_STRING
+    JSR $C800                           ; ACIA_INIT in RAM
+    JMP L8D52                           ; Skip modem check, go to phone input
 L8D52:
     JSR L9050
     LDA $8013
@@ -1626,67 +1613,15 @@ L8D9B:
 L8DA4:
     LDX #$19
     LDY #$8D
-    JSR PRINT_STRING
-    JSR PROTO_DISPATCH_TABLE
-    JSR L96C6
-    LDY #$03
-    LDX #$08                            ; KERNAL_GETIN
-L8DB5:
-    LDA #$10
-    JSR MODEM_REG_WRITE
-L8DBA:
-    JSR MODEM_REG_READ                  ; PROTO_DISPATCH_TABLE
-    AND #$10
-    BEQ L8DCB
-    JSR KERNAL_GETIN
-    CMP #$03
-    BNE L8DBA
-    JMP PROTO_DISPATCH_TABLE
-L8DCB:
-    DEY
-    BNE L8DB5
-    LDY #$00
-L8DD0:
-    LDA $9FF1,Y                         ; MODEM_REG_WRITE
-    JSR KERNAL_CHROUT                   ; MODEM_REG_READ
-    CMP #$2D
-    BNE L8DEA
-    LDX #$08
-    LDA #$10
-    JSR MODEM_REG_WRITE
-L8DE1:
-    JSR MODEM_REG_READ
-    AND #$10                            ; MODEM_REG_WRITE
-    BNE L8DE1
-    BEQ L8DFC
-L8DEA:
-    AND #$0F
-    BNE L8DF0
-    LDA #$0A                            ; KERNAL_GETIN
-L8DF0:
-    ORA #$A0
-    JSR MODEM_REG_WRITE
-L8DF5:
-    JSR MODEM_REG_READ
-    AND #$20
-    BNE L8DF5
-L8DFC:
-    JSR KERNAL_GETIN
-    CMP #$03                            ; MODEM_REG_WRITE
-    BEQ L8E1C
-    INY
-    CPY $9FF0
-    BNE L8DD0
-    LDX #$03
-    LDA #$90
-    JSR MODEM_REG_WRITE
-    LDX #$08
-    LDA #$40
-    JSR MODEM_REG_WRITE
-    JSR L96D5
-    BCC L8E1F
+    JSR PRINT_STRING                    ; Print "DIALLING"
+    ; ;--- MODIFIED: Hayes AT dial via ACIA driver ---
+    JSR $C896                           ; ACIA_DIAL in RAM
+    BCS L8E1C                           ; C=1 = dial failed
+    ; Dial succeeded — start protocol handshake
+    JSR L96D5                           ; PROTO_CONNECT
+    BCC L8E1F                           ; C=0 = connected OK
 L8E1C:
-    JMP PROTO_DISPATCH_TABLE
+    JMP PROTO_DISPATCH_TABLE            ; Failed — disconnect/cleanup
 L8E1F:
     LDX #$24
     LDY #$8D                            ; PROTO_DISPATCH_TABLE
@@ -2098,9 +2033,9 @@ L9128:
 L9139:
     BPL L9145
 L913B:
-    CMP #$30
+    CMP #$2E                            ; ;--- MODIFIED: allow '.' for IP addresses
     BCC L90F7
-    CMP #$3A
+    CMP #$3B                            ; ;--- MODIFIED: allow ':' for port numbers
     BCS L90F7
     BCC L9162
 L9145:
@@ -2623,41 +2558,43 @@ L94D7:
     RTS                                 ; MODEM_REG_SELECT
 
 ; --- MODEM_WAIT_READY ---
-; Wait for modem TX ready, then send byte
+; ;--- MODIFIED: trampoline to ACIA driver at $C88D ---
 MODEM_WAIT_READY:
-    PHA
-    LDX #$00
-L94E7:
-    JSR MODEM_REG_READ
-    TAX
-
-; ============================================================
-; MODEM_REG_READ
-; ============================================================
-    BPL L94E7
-    PLA                                 ; MODEM_REG_SELECT
-    LDX #$04
+    JMP $C88D                           ; ACIA_WAIT_READY in RAM
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
 
 ; --- MODEM_REG_WRITE ---
-; Write value to modem register (X=reg, A=value)
+; ;--- MODIFIED: trampoline to ACIA driver at $C84A ---
 MODEM_REG_WRITE:
-    PHP                                 ; MODEM_DATA
-    SEI
-    STX ACIA_DATA
-    STA ACIA_STATUS
-    PLP
-    RTS
+    JMP $C84A                           ; ACIA_REG_WRITE in RAM
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
 
 ; --- MODEM_REG_READ ---
-; Read modem register (X=reg, returns A=value)
+; ;--- MODIFIED: trampoline to ACIA driver at $C857 ---
 MODEM_REG_READ:
-    PHP
-    SEI
-    STX ACIA_DATA
-    LDA ACIA_STATUS
-    LDA ACIA_STATUS
-    PLP
-    RTS
+    JMP $C857                           ; ACIA_REG_READ in RAM
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
     .byte $00, $F4, $FF, $8E, $07, $0D, $0C, $20, $20, $90, $B0, $07, $C0, $21, $AE, $9B  ; $9507 .......  ....!..
     .byte $0D, $20, $20, $90, $DD, $43, $4F, $4D, $50, $55, $4E, $45, $54, $20, $53, $59  ; $9517 .  ..COMPUNET SY
     .byte $53, $54, $45, $4D, $20, $4C, $4F, $47, $4F, $4E, $2E, $06, $0B, $DD, $9B, $0D  ; $9527 STEM LOGON......
@@ -3910,7 +3847,7 @@ L9FB0:
     JSR MODEM_REG_READ
     AND #$10
     BNE L9FB0
-    LDA #$0D
+    LDA #$20                            ; ;--- MODIFIED: send space (not CR) to avoid tcpser break delay
     JMP MODEM_WAIT_READY
 L9FBC:
     LDA #$00
