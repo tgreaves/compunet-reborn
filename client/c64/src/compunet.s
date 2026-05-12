@@ -7287,16 +7287,24 @@ ACIA_PROCESS_CMD:
     RTS
 
 @need_new_packet:
-    ; Receive a new packet
+    ; Try to receive a new packet (non-blocking)
+    ; Check if there's any data available first
+    LDA ACIA_STATUS
+    AND #$08
+    BNE @try_recv
+    LDA NMI_BUF_HEAD
+    CMP NMI_BUF_TAIL
+    BEQ @no_data
+@try_recv:
     JSR ACIA_FLOW_CONTROL
-    BCS @recv_error
-    ; Now deliver first byte from new packet
+    BCS @no_data
+    ; Got a packet — deliver first byte
     LDX RECV_POS
     LDA RECV_BUF,X
     INC RECV_POS
     CLC
     RTS
-@recv_error:
+@no_data:
     LDA #$00
-    SEC                                 ; Error
+    SEC                                 ; No data available (non-blocking)
     RTS
