@@ -1823,10 +1823,9 @@ L8EB6:
     ; Server sends ACK but we skip waiting for it (terminal pre-loaded, no LINKING needed)
     JMP L8EE8
 L8EE8:
-    JSR L89D0
+    ; ;--- MODIFIED: Skip L89D0 (tries to read frame from server) ---
     SEC
     ROR $C155
-    ; ;--- MODIFIED: Skip LINKING — terminal code already in RAM ---
     ; Jump directly to terminal entry point
     JMP $A005
 
