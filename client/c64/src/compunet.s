@@ -7003,9 +7003,9 @@ ACIA_PROTO_CONNECT:
     ; Success! Flush buffer and return
     LDA NMI_BUF_TAIL
     STA NMI_BUF_HEAD
-    ; Set protocol connected flag (without installing IRQ handler)
-    LDA #$80
-    STA $8038                           ; Protocol state = connected
+    ; Set protocol connected flag
+    LDA #$C0                            ; Bits 7+6 = connected + session active
+    STA $8038
     CLC                                 ; C=0 = success
     RTS
 
