@@ -1741,8 +1741,8 @@ L8E1F:
 L8E35:
     JSR L9050
 L8E38:
-    LDX #$07                            ; workspace
-    LDY #$95
+    LDX #.lobyte(L9507)
+    LDY #.hibyte(L9507)
     JSR L89E2
     LDA #$02
     STA $0286
