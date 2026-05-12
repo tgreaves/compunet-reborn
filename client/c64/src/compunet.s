@@ -3998,5 +3998,2646 @@ L9FE1:
     BNE L9FDE
     LDX #$02
     JMP MODEM_SEND_CMD
-    .byte $00, $00, $00, $00, $00, $00, $AA, $AA, $AA, $AA, $AA, $AA, $AA, $AA, $AA, $AA  ; $9FEB ................
-    .byte $AA, $AA, $AA, $AA, $AA  ; $9FFB .....
+
+; =================================================================
+; TERMINAL CODE — Downloaded during LINKING, loaded at $9FF0
+; =================================================================
+
+; --- ROM Jump Table Equates (for terminal code) ---
+L_A983 = $A983
+ROMCALL_00      = $8100   ; MAIN_INIT
+ROMCALL_01      = $8103   ; SCREEN_DRAW_INIT
+ROMCALL_02      = $8106   ; MODEM_CHECK
+ROMCALL_03      = $8109   ; MODEM_REG_WRITE_WAIT
+ROMCALL_04      = $810C   ; MODEM_REG_READ_STATUS
+ROMCALL_05      = $810F   ; MODEM_INIT_DOWNLOAD
+ROMCALL_06      = $8112   ; MODEM_SEND_CMD
+ROMCALL_07      = $8115   ; PROTOCOL_RESET
+ROMCALL_08      = $8118   ; PROTOCOL_CLEANUP
+ROMCALL_09      = $811B   ; SETUP_INPUT_PARAMS
+ROMCALL_10      = $811E   ; INPUT_LINE
+ROMCALL_11      = $8121   ; FRAME_BUF_READ_INIT
+ROMCALL_12      = $8124   ; FRAME_BUF_READ
+ROMCALL_13      = $8127   ; DISK_LOAD
+ROMCALL_14      = $812A   ; DISK_SAVE
+ROMCALL_15      = $812D   ; SCREEN_DRAW
+ROMCALL_16      = $8130   ; INPUT_HANDLER
+ROMCALL_17      = $8133   ; KEYBOARD_SCAN
+ROMCALL_18      = $8136   ; KEY_DISPATCH
+ROMCALL_19      = $8139   ; COMMAND_EXEC
+ROMCALL_20      = $813C   ; FILE_OPS
+ROMCALL_21      = $813F   ; PRINT_STRING
+ROMCALL_22      = $8142   ; CURSOR_HOME
+ROMCALL_23      = $8145   ; PRINT_STATUS_MSG
+ROMCALL_24      = $8148   ; STATUS_CLEAR_1
+ROMCALL_25      = $814B   ; STATUS_CLEAR_2
+ROMCALL_26      = $814E   ; STATUS_LINE
+ROMCALL_27      = $8151   ; PROTOCOL_STATE_INIT
+ROMCALL_28      = $8154   ; MODEM_STATUS_CHECK
+ROMCALL_29      = $8157   ; FILE_UPLOAD
+ROMCALL_30      = $815A   ; FILE_DOWNLOAD
+ROMCALL_31      = $815D   ; FRAME_STORE
+
+.segment "TERMINAL"
+
+    .byte $18, $08, $35, $32, $39, $38, $39, $38, $38, $38, $38, $38, $38, $38, $38, $38; $9FF0 ..52989888888888
+    .byte $31, $45, $20, $F0, $B9                                ; $A000 1E ..
+    LDA #$00
+    STA $C000
+    STA $C004
+    STA $C027
+    STA $C029
+    STA $C04C
+    LDX $2B
+    LDY $2C
+    STX $C00D
+    STY $C00E
+    LDX #$86
+    LDY #$AC
+    STX $80FE
+    STY $80FF
+    LDX #$76
+    LDY #$A1
+    JSR ROMCALL_07
+    LDA #$0B
+    STA L_A21E
+    LDA #$01
+    STA $8033
+L_A03B:
+    LDX #$1E
+    LDY #$A2
+    STX $C01F
+    STY $C020
+    JSR L_A066
+    LDY L_A21E,X
+    LDX #$00
+L_A04D:
+    LDA L_A176,Y
+    AND #$3F
+    ORA #$80
+    STA $07C0,X
+    INY
+    INX
+    CPX #$06
+    BNE L_A04D
+    JSR L_A231
+    JSR L_A791
+    JMP L_A03B
+L_A066:
+    LDA #$08
+    JSR $FFD2
+    LDX $C01F
+    LDY $C020
+    JSR ROMCALL_08
+    BCS L_A08A
+    BIT $C000
+    BPL L_A083
+L_A07B:
+    LDA $D6
+    SEC
+    SBC #$0A
+    STA $C004
+L_A083:
+    JSR ROMCALL_27
+    LDX $8033
+    RTS
+L_A08A:
+    BIT $C000
+    BPL L_A066
+    CMP #$13
+    BNE L_A097
+    LDX #$00
+    BEQ L_A0B0
+L_A097:
+    CMP #$11
+    BNE L_A0A6
+    LDX $C004
+    INX
+    CPX $C003
+    BEQ L_A066
+    BNE L_A0B0
+L_A0A6:
+    CMP #$91
+    BNE L_A0C9
+    LDX $C004
+    BEQ L_A066
+    DEX
+L_A0B0:
+    TXA
+    PHA
+    JSR L_A6F8
+    PLA
+    STA $C004
+    CLC
+    ADC #$0A
+    TAX
+    LDY #$00
+    CLC
+    JSR $FFF0
+    JSR L_A6D9
+    JMP L_A066
+L_A0C9:
+    CMP #$88
+    BNE L_A0D3
+    JSR L_A103
+    JMP L_A066
+L_A0D3:
+    CMP #$8C
+    BNE L_A0DD
+    JSR L_A110
+L_A0DA:
+    JMP L_A066
+L_A0DD:
+    BCS L_A0DA
+    SBC #$84
+    BCC L_A0DA
+    ASL
+    ASL
+    ASL
+    ADC #$80
+    STA $1D
+    LDA #$D5
+    STA $1E
+    JSR L_A5D5
+    CMP #$00
+    BEQ L_A0DA
+    LDX $8033
+    STX $C007
+    LDX #$12
+    STX $8033
+    JMP L_A07B
+L_A103:
+    LDX $C002
+    CPX $C001
+    BNE L_A10D
+    LDX #$00
+L_A10D:
+    INX
+    BNE L_A119
+L_A110:
+    LDX $C002
+    DEX
+    BNE L_A119
+    LDX $C001
+L_A119:
+    STX $C002
+L_A11C:
+    JSR L_A79B
+    JSR L_A56E
+    LDX $C002
+    DEX
+    TXA
+    ASL
+    ASL
+    ASL
+    CLC
+    ADC #$1E
+    STA $1D
+    LDA #$D6
+    STA $1E
+    LDX #$00
+    STX $C009
+    LDA #$02
+    STA $0286
+L_A13D:
+    CLC
+    LDA $C009
+    ADC #$0A
+    TAX
+    LDY #$1F
+    CLC
+    JSR $FFF0
+    LDX #$08
+L_A14C:
+    JSR L_A5D5
+    JSR $FFD2
+    DEX
+    BNE L_A14C
+    CLC
+    LDA $1D
+    ADC #$56
+    STA $1D
+    BCC L_A160
+    INC $1E
+L_A160:
+    LDA #$06
+    STA $0286
+    INC $C009
+    LDX $C009
+    CPX $C003
+    BNE L_A13D
+    JSR L_A7A6
+    JMP L_A6D9
+L_A176:
+    .byte $20, $48, $45, $4C, $50, $20, $20, $44, $49, $52, $20, $20, $20, $53, $48, $4F; $A176  HELP  DIR   SHO
+    .byte $57, $20, $20, $42, $41, $43, $4B, $20, $20, $47, $4F, $54, $4F, $20, $20, $55; $A186 W  BACK  GOTO  U
+    .byte $43, $41, $54, $20, $20, $4D, $41, $49, $4C, $20, $41, $43, $43, $4E, $54, $20; $A196 CAT  MAIL ACCNT 
+    .byte $45, $44, $49, $54, $52, $20, $4C, $45, $41, $56, $45, $20, $50, $52, $49, $4E; $A1A6 EDITR LEAVE PRIN
+    .byte $54, $20, $20, $4C, $49, $46, $45, $20, $20, $42, $55, $59, $20, $20, $20, $55; $A1B6 T  LIFE  BUY   U
+    .byte $50, $4C, $44, $20, $20, $56, $4F, $54, $45, $20, $20, $4D, $4F, $52, $45, $20; $A1C6 PLD  VOTE  MORE 
+    .byte $20, $41, $4C, $4C, $20, $20, $20, $53, $45, $4E, $44, $20, $46, $49, $4E, $49; $A1D6  ALL   SEND FINI
+    .byte $53, $48, $41, $42, $4F, $52, $54, $20, $20, $4C, $4F, $41, $44, $20, $20, $53; $A1E6 SHABORT  LOAD  S
+    .byte $41, $56, $45, $20, $20, $4C, $41, $53, $54, $20, $20, $4E, $45, $58, $54, $20; $A1F6 AVE  LAST  NEXT 
+    .byte $20, $47, $45, $54, $20, $20, $20, $44, $4F, $53, $20, $20, $20, $20, $49, $44; $A206  GET   DOS    ID
+    .byte $20, $20, $20, $44, $4F, $4E, $45, $20                 ; $A216    DONE 
+L_A21E:
+    .byte $11, $00, $06, $0C, $12, $18, $1E, $24, $2A, $7E, $30, $36, $3C, $42, $48, $78; $A21E .......$*~06<BHx
+    .byte $4E, $54, $18                                          ; $A22E NT.
+L_A231:
+    LDA $8033
+    ASL
+    TAX
+    LDA L_A23E,X
+    PHA
+    LDA L_A23D,X
+L_A23D:
+    PHA
+L_A23E:
+    RTS
+    .byte $62, $A2, $57, $A3, $8B, $A9, $51, $A3, $E9, $A2, $4D, $A3, $DA, $AD, $9B, $A8; $A23F b.W...Q...M.....
+    .byte $93, $AC, $6F, $A2, $C2, $A2, $C4, $A7, $BC, $B1, $C4, $A9, $9C, $A2, $80, $B2; $A24F ..o.............
+    .byte $1D, $A9, $29, $A3, $A2, $0C, $A0, $BB, $20, $24, $81, $20, $48, $81, $4C, $2D; $A25F ..)..... $. H.L-
+    .byte $A7, $20, $82, $A2, $4C, $2D, $A7, $20, $82, $A2       ; $A26F . ..L-. ..
+L_A279:
+    LDX $8019
+    LDY $801A
+    JMP ROMCALL_12
+    LDA #$FF
+    STA $804B
+    STA $804C
+    LDA $8033
+    PHA
+    JSR ROMCALL_01
+    LDX #$76
+    LDY #$A1
+    JSR ROMCALL_07
+    PLA
+    STA $8033
+    RTS
+    .byte $20, $9B, $A7, $AD, $86, $02, $8D, $0A, $C0, $4E       ; $A29D  ........N
+    PLP
+    CPY #$A2
+    ORA ($A0,X)
+    PHP
+    STX $2B
+    STX $C00D
+    STY $2C
+    STY $C00E
+    JSR L_B6DA
+    LDA $C00A
+    STA $0286
+    JMP L_A7A6
+    .byte $A9, $45, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, $D2, $96, $B0, $CA, $20; $A2C3 .E..... .. .... 
+    .byte $21, $81, $20, $C0, $96, $A9, $0E, $8D, $20, $D0, $20, $86, $AC, $68, $68, $20; $A2D3 !. ..... . ..hh 
+    .byte $48, $81, $A9, $93, $4C, $D2, $FF, $20, $9B, $A7, $AD, $86, $02, $8D, $0A, $C0; $A2E3 H...L.. ........
+    .byte $A2, $23, $A0, $A3, $20, $42, $81, $A2, $06, $A0, $01, $A9, $00, $18, $20, $1B; $A2F3 .#.. B........ .
+    .byte $81, $A2, $01, $A0, $C1, $20, $1E, $81, $08, $20, $91, $A7, $AD, $0A, $C0, $8D; $A303 ..... ... ......
+    .byte $86, $02, $20, $A6, $A7, $28, $90, $01, $60, $A9, $4C, $A4, $1A, $C8, $D0, $3C; $A313 .. ..(..`.L....<
+    .byte $47, $4F, $54, $4F, $3F, $20                           ; $A323 GOTO? 
+    BRK
+    .byte $AD, $07, $C0, $8D, $33, $80, $C6, $1D, $A2, $01, $20, $D5, $A5, $C9, $00, $F0; $A32A ....3..... .....
+    .byte $0D, $9D, $00, $C1, $29, $3F, $09, $80, $9D, $C5, $07, $E8, $D0, $EC, $8A, $A8; $A33A ....)?..........
+    .byte $A9, $4C, $D0                                          ; $A34A .L.
+    ORA ($A9),Y
+    .byte $43, $D0, $02, $A9, $42, $A0, $01, $D0, $07            ; $A34F C...B....
+L_A358:
+    JSR L_A713
+    LDA #$50
+    LDY #$03
+    STA $C100
+    JSR L_A784
+    JSR $96D2
+    BCC L_A36B
+    RTS
+L_A36B:
+    JSR L_A4FE
+    BEQ L_A385
+    LDX #$00
+    LDY #$D0
+    STX $1D
+    STY $1E
+    JSR L_A595
+L_A37B:
+    JSR $96CC
+    JSR L_A595
+    CMP #$00
+    BNE L_A37B
+L_A385:
+    LDX #$E1
+    LDY #$BC
+    JSR ROMCALL_12
+    JSR L_A78C
+    LDX #$00
+    LDY #$D0
+    JSR L_A504
+    JSR L_A4FE
+    BNE L_A39E
+    JMP L_A427
+L_A39E:
+    PHA
+    LDX #$80
+    LDY #$D5
+    STX $1D
+    STY $1E
+    LDA #$00
+L_A3A9:
+    JSR L_A595
+    LDX $1D
+    BNE L_A3A9
+    PLA
+    LDX #$00
+    LDY #$D3
+    STX $1D
+    STY $1E
+    LDX #$02
+    BNE L_A3C0
+L_A3BD:
+    JSR $96CC
+L_A3C0:
+    JSR L_A595
+    CMP #$00
+    BEQ L_A427
+    CMP #$0D
+    BNE L_A3BD
+    DEX
+    BNE L_A3BD
+    LDA #$00
+    JSR L_A595
+L_A3D3:
+    JSR L_A4FE
+    BEQ L_A427
+    AND #$0F
+    TAX
+    BEQ L_A3F1
+    CPX #$07
+    BCS L_A3F1
+    LDA L_A4F7,X
+    STA $1D
+    LDA #$D5
+    STA $1E
+    JSR $96CC
+    CMP #$3D
+    BEQ L_A3FE
+L_A3F1:
+    JSR $96CC
+    CMP #$00
+    BEQ L_A40D
+    CMP #$0D
+    BNE L_A3F1
+    BEQ L_A3D3
+L_A3FE:
+    JSR $96CC
+    CMP #$0D
+    BNE L_A40D
+    LDA #$00
+    JSR L_A595
+    JMP L_A3D3
+L_A40D:
+    CMP #$07
+    BNE L_A420
+    JSR $96CC
+    PHA
+    JSR $96CC
+    TAX
+    PLA
+L_A41A:
+    JSR L_A595
+    DEX
+    BNE L_A41A
+L_A420:
+    JSR L_A595
+    CMP #$00
+    BNE L_A3FE
+L_A427:
+    LDX #$16
+    LDY #$00
+    CLC
+    JSR $FFF0
+    LDX #$00
+    LDY #$D3
+    JSR L_A504
+    JSR L_A4FE
+    BEQ L_A450
+    LDX #$00
+    LDY #$D4
+    STX $1D
+    STY $1E
+    JSR L_A595
+L_A446:
+    JSR $96CC
+    JSR L_A595
+    CMP #$00
+    BNE L_A446
+L_A450:
+    JSR L_A544
+    JSR L_A4FE
+    BEQ L_A495
+    LDX #$00
+    LDY #$D5
+    STX $1D
+    STY $1E
+    LDX #$08
+    LDY #$00
+    STY $C001
+    BEQ L_A472
+L_A469:
+    LDX #$08
+L_A46B:
+    JSR $96CC
+    CMP #$0D
+    BEQ L_A47D
+L_A472:
+    CMP #$2C
+    BEQ L_A47D
+    JSR L_A595
+    DEX
+    JMP L_A46B
+L_A47D:
+    PHA
+    INC $C001
+    LDA #$20
+    CPX #$00
+    BEQ L_A48D
+L_A487:
+    JSR L_A595
+    DEX
+    BNE L_A487
+L_A48D:
+    PLA
+    CMP #$0D
+    BNE L_A469
+    JSR $96CC
+L_A495:
+    LDA #$01
+    STA $C002
+    JSR L_A56E
+    JSR L_A4FE
+    BEQ L_A4D2
+    LDX #$00
+    LDY #$D6
+    STX $1D
+    STY $1E
+    STX $C005
+    STY $C006
+    PHA
+    LDX #$0A
+    LDY #$00
+    STY $C009
+    CLC
+    JSR $FFF0
+    PLA
+    JSR L_A5EA
+    BCS L_A4CA
+L_A4C2:
+    JSR $96CC
+    JSR L_A5EA
+    BCC L_A4C2
+L_A4CA:
+    LDX $C009
+    STX $C003
+    BPL L_A4D5
+L_A4D2:
+    JSR L_A63E
+L_A4D5:
+    SEC
+    ROR $C000
+    LDX #$0A
+    LDY #$00
+    STY $C004
+    CLC
+    JSR $FFF0
+    LDX #$11
+    LDY #$19
+    LDA ($D1),Y
+    CMP #$15
+    BNE L_A4F0
+    LDX #$0F
+L_A4F0:
+    STX L_A21E
+    JSR L_A6D9
+    CLC
+L_A4F7:
+    RTS
+    .byte $80, $A0, $88, $A8, $90, $B0                           ; $A4F8 ......
+L_A4FE:
+    JSR $96CC
+    CMP #$00
+    RTS
+L_A504:
+    STX $1D
+    STY $1E
+    LDA #$00
+    STA $C007
+L_A50D:
+    JSR L_A5AA
+    CMP #$00
+    BEQ L_A52A
+    CMP #$0D
+    BNE L_A524
+    JSR L_A52A
+    BCC L_A522
+    LDA #$91
+    JSR $FFD2
+L_A522:
+    LDA #$0D
+L_A524:
+    JSR $FFD2
+    JMP L_A50D
+L_A52A:
+    LDA $D3
+    CMP #$28
+    BEQ L_A532
+    CLC
+    RTS
+L_A532:
+    SEC
+    JSR $FFF0
+    LDY #$00
+    LDA $D9,X
+    ORA #$80
+    STA $D9,X
+    CLC
+    JSR $FFF0
+    SEC
+    RTS
+L_A544:
+    LDX #$00
+    LDY #$D4
+    STX $1D
+    STY $1E
+    LDX #$07
+    LDY #$01
+    CLC
+    JSR $FFF0
+    LDA #$06
+    STA $0286
+L_A559:
+    JSR L_A5D5
+    CMP #$00
+    BEQ L_A56D
+    JSR $FFD2
+    CMP #$0D
+    BNE L_A559
+    LDA #$01
+    STA $D3
+    BNE L_A559
+L_A56D:
+    RTS
+L_A56E:
+    LDX #$08
+    LDY #$1F
+    CLC
+    JSR $FFF0
+    LDA #$06
+    STA $0286
+    LDX $C002
+    DEX
+    TXA
+    ASL
+    ASL
+    ASL
+    STA $1D
+    LDA #$D5
+    STA $1E
+    LDX #$07
+L_A58B:
+    JSR L_A5D5
+    JSR $FFD2
+    DEX
+    BPL L_A58B
+    RTS
+L_A595:
+    LDY #$34
+    SEI
+    STY $01
+    LDY #$00
+    STA ($1D),Y
+    LDY #$36
+    STY $01
+    CLI
+    INC $1D
+    BNE L_A5A9
+    INC $1E
+L_A5A9:
+    RTS
+L_A5AA:
+    LDA $C007
+    BEQ L_A5B6
+    DEC $C007
+    LDA $C008
+    RTS
+L_A5B6:
+    JSR L_A5D5
+    CMP #$06
+    BNE L_A5C1
+    LDA #$20
+    BNE L_A5C8
+L_A5C1:
+    CMP #$07
+    BNE L_A5D4
+    JSR L_A5D5
+L_A5C8:
+    STA $C008
+    JSR L_A5D5
+    STA $C007
+    LDA $C008
+L_A5D4:
+    RTS
+L_A5D5:
+    LDY #$34
+    SEI
+    STY $01
+    LDY #$00
+    LDA ($1D),Y
+    LDY #$36
+    STY $01
+    CLI
+    INC $1D
+    BNE L_A5E9
+    INC $1E
+L_A5E9:
+    RTS
+L_A5EA:
+    JSR L_A5F3
+    PHP
+    JSR L_A661
+    PLP
+    RTS
+L_A5F3:
+    JSR L_A595
+    LDX #$01
+L_A5F8:
+    JSR $96CC
+    PHP
+    CMP #$2C
+    BEQ L_A608
+    JSR L_A595
+    INX
+    PLP
+    JMP L_A5F8
+L_A608:
+    LDA #$20
+L_A60A:
+    CPX #$1E
+    BEQ L_A614
+    JSR L_A595
+    INX
+    BNE L_A60A
+L_A614:
+    LDX #$08
+L_A616:
+    PLP
+    JSR $96CC
+    PHP
+    CMP #$0D
+    BEQ L_A62A
+    CMP #$2C
+    BEQ L_A62A
+    JSR L_A595
+    DEX
+    JMP L_A616
+L_A62A:
+    PHA
+    LDA #$20
+    CPX #$00
+    BEQ L_A637
+L_A631:
+    JSR L_A595
+    DEX
+    BNE L_A631
+L_A637:
+    PLA
+    CMP #$2C
+    BEQ L_A614
+    PLP
+    RTS
+L_A63E:
+    LDX #$0A
+    LDY #$00
+    CLC
+    JSR $FFF0
+    LDX #$00
+    LDY #$D6
+    STX $C005
+    STY $C006
+    LDX #$00
+    STX $C009
+L_A655:
+    JSR L_A661
+    LDX $C009
+    CPX $C003
+    BNE L_A655
+    RTS
+L_A661:
+    LDX $C005
+    LDY $C006
+    STX $1D
+    STY $1E
+    LDA $D021
+    AND #$0F
+    STA $0286
+    LDY #$01
+    STY $D3
+    LDX #$06
+L_A679:
+    JSR L_A5D5
+    JSR $FFD2
+    DEX
+    BNE L_A679
+    LDA #$06
+    LDX $C009
+    BNE L_A68B
+    LDA #$02
+L_A68B:
+    STA $0286
+    LDX #$17
+L_A690:
+    JSR L_A5D5
+    JSR $FFD2
+    DEX
+    BNE L_A690
+    JSR L_A5D5
+    LDY #$1F
+    STY $D3
+    LDX $C002
+    DEX
+    TXA
+    ASL
+    ASL
+    ASL
+    CLC
+    ADC $1D
+    STA $1D
+    BCC L_A6B1
+    INC $1E
+L_A6B1:
+    LDX #$08
+L_A6B3:
+    JSR L_A5D5
+    JSR $FFD2
+    DEX
+    BNE L_A6B3
+    INC $C009
+    CLC
+    LDA $C005
+    ADC #$5E
+    STA $C005
+    STA $1D
+    LDA $C006
+    ADC #$00
+    STA $C006
+    STA $1E
+    LDA #$0D
+    JMP $FFD2
+L_A6D9:
+    JSR $EA24
+    LDX #$06
+    LDA $C004
+    BNE L_A6E5
+    LDX #$02
+L_A6E5:
+    LDY #$26
+L_A6E7:
+    CPY #$1E
+    BEQ L_A6F4
+    LDA ($D1),Y
+    ORA #$80
+    STA ($D1),Y
+    TXA
+    STA ($F3),Y
+L_A6F4:
+    DEY
+    BNE L_A6E7
+    RTS
+L_A6F8:
+    LDY #$27
+L_A6FA:
+    LDA ($D1),Y
+    AND #$7F
+    STA ($D1),Y
+    DEY
+    BPL L_A6FA
+    JSR $EA24
+    LDA $D021
+    AND #$0F
+    LDY #$06
+L_A70D:
+    STA ($F3),Y
+    DEY
+    BNE L_A70D
+    RTS
+L_A713:
+    LDA #$30
+    STA $C101
+    LDA $C004
+L_A71B:
+    CMP #$0A
+    BCC L_A727
+    INC $C101
+    SBC #$0A
+    JMP L_A71B
+L_A727:
+    ADC #$30
+    STA $C102
+    RTS
+L_A72D:
+    BIT $C000
+    BMI L_A74B
+    LDA #$00
+    STA $C004
+    JSR L_A7B0
+    LDA #$8E
+    JSR $FFD2
+    LDA $8012
+    STA $D020
+    LDA #$0F
+    STA $D021
+    RTS
+L_A74B:
+    LDX #$E1
+    LDY #$BC
+    JSR ROMCALL_12
+    JSR L_A78C
+    LDX #$00
+    LDY #$D0
+    JSR L_A504
+    LDX #$16
+    LDY #$00
+    CLC
+    JSR $FFF0
+    LDX #$00
+    LDY #$D3
+    JSR L_A504
+    JSR L_A544
+    JSR L_A56E
+    JSR L_A63E
+    LDA $C004
+    CLC
+    ADC #$0A
+    TAX
+    LDY #$00
+    CLC
+    JSR $FFF0
+    JMP L_A6D9
+L_A784:
+    LDA #$43
+    STA $8034
+    JMP ROMCALL_03
+L_A78C:
+    LDA #$13
+    JMP $FFD2
+L_A791:
+    LDA #$92
+    JMP $FFD2
+L_A796:
+    LDA #$12
+    JMP $FFD2
+L_A79B:
+    SEC
+    JSR $FFF0
+    STX $C00B
+    STY $C00C
+    RTS
+L_A7A6:
+    CLC
+    LDX $C00B
+    LDY $C00C
+    JMP $FFF0
+L_A7B0:
+    LDA #$93
+    JSR $FFD2
+    JSR ROMCALL_27
+    JSR L_A791
+    LDA #$00
+    STA $D015
+    LDA #$0E
+    JMP $FFD2
+    .byte $AD, $FA, $80, $0D, $FB, $80, $F0, $03, $6C, $FA, $80, $2C, $00, $C0, $30, $01; $A7C5 ........l..,..0.
+    .byte $60, $A9, $04, $AE, $F9, $80, $D0, $01, $AA, $A0, $00, $20, $BA, $FF, $A9, $00; $A7D5 `.......... ....
+    .byte $20, $BD, $FF, $20, $C0, $FF, $A2, $04, $20, $C9, $FF, $90, $23, $20, $CC, $FF; $A7E5  .. .... ...# ..
+    .byte $A9, $04, $20, $C3, $FF, $A2, $07, $A0, $A8, $20, $45, $81, $20, $4B, $81, $4C; $A7F5 .. ...... E. K.L
+    .byte $51, $81, $50, $52, $49, $4E, $54, $45, $52, $20, $45, $52, $52, $4F, $52, $00; $A805 Q.PRINTER ERROR.
+    .byte $A2, $1E, $A9, $20, $20, $D2, $FF, $CA, $D0, $FA, $A2, $00, $A0, $D5, $86, $1D; $A815 ...  ...........
+    .byte $84, $1E, $20, $64, $A8, $A9, $0D, $20, $D2, $FF, $A2, $00, $A0, $D6, $86, $1D; $A825 .. d... ........
+    .byte $84, $1E, $A2, $00, $8E, $09, $C0, $20, $E4, $FF, $C9, $03, $F0, $19, $A2, $1E; $A835 ....... ........
+    .byte $20, $D5, $A5, $20, $D2, $FF, $CA, $D0, $F7, $20, $64, $A8, $EE, $09, $C0, $AE; $A845  .. ..... d.....
+    .byte $09, $C0, $EC, $03, $C0, $D0, $E0, $20, $CC, $FF, $A9, $04, $4C, $C3, $FF; $A855 ....... ....L..
+    CLC
+    ROR $C017
+    LDX #$01
+    STX $C018
+L_A86D:
+    LDA #$20
+    JSR $FFD2
+    LDX #$08
+L_A874:
+    JSR L_A5D5
+    BIT $C017
+    BMI L_A87F
+    JSR $FFD2
+L_A87F:
+    DEX
+    BNE L_A874
+    LDX $C018
+    CPX #$08
+    BEQ L_A897
+    CPX $C001
+    BNE L_A892
+    SEC
+    ROR $C017
+L_A892:
+    INC $C018
+    BNE L_A86D
+L_A897:
+    LDA #$0D
+    JMP $FFD2
+    .byte $A9, $41, $8D, $00                                     ; $A89C .A..
+    CMP ($A0,X)
+    ORA ($20,X)
+    STY $A7
+    JSR $96D2
+    BCC L_A8AC
+    RTS
+L_A8AC:
+    JSR ROMCALL_04
+    JSR L_A79B
+    LDA $0286
+    STA $C00A
+    LDX #$FE
+    LDY #$A8
+    JSR ROMCALL_22
+    LDX #$00
+L_A8C1:
+    LDA $C100,X
+    CMP #$20
+    BNE L_A8CB
+    INX
+    BPL L_A8C1
+L_A8CB:
+    CMP #$2D
+    PHP
+    BEQ L_A8D3
+    JSR $FFD2
+L_A8D3:
+    INX
+L_A8D4:
+    LDA $C100,X
+    JSR $FFD2
+    INX
+    CPX #$0A
+    BCC L_A8D4
+    PLP
+    BEQ L_A8E8
+    LDX #$07
+    LDY #$A9
+    BNE L_A8EC
+L_A8E8:
+    LDX #$13
+    LDY #$A9
+L_A8EC:
+    JSR ROMCALL_21
+    JSR L_A791
+    JSR ROMCALL_25
+    LDA $C00A
+    STA $0286
+    JMP L_A7A6
+    .byte $59, $4F                                               ; $A8FE YO
+    EOR $20,X
+    EOR ($52,X)
+    EOR $20
+    BRK
+    .byte $20, $49, $4E, $20, $43, $52, $45, $44, $49, $54, $2E, $00, $20, $49, $4E, $20; $A907  IN CREDIT.. IN 
+    .byte $44, $45, $42, $49, $54, $2E                           ; $A917 DEBIT.
+    BRK
+    .byte $A9, $56, $8D, $00, $C1, $20, $13, $A7, $20, $9B, $A7, $A2, $6D, $A0, $A9, $20; $A91E .V... .. ...m.. 
+    .byte $42, $81, $A2, $01, $A0, $01, $A9, $00, $38, $20, $1B, $81, $A2, $00, $A0, $02; $A92E B.......8 ......
+    .byte $20, $1E, $81, $B0, $27, $AD, $00, $02, $C9, $30, $D0, $0B, $A9, $9D, $20, $D2; $A93E  ...'....0.... .
+    .byte $FF, $20, $D2, $FF, $4C, $30, $A9, $8D, $03, $C1, $8D, $81, $A9, $A2, $7A, $A0; $A94E . ..L0........z.
+    .byte $A9, $20                                               ; $A95E . 
+    EOR $81
+    LDY #$04
+    JSR L_A784
+    JSR $96D2
+    JMP L_A7A6
+    .byte $56, $4F, $54, $45, $20, $28, $31, $2D, $39, $29, $3F, $20, $00, $56, $4F, $54; $A96D VOTE (1-9)? .VOT
+    .byte $49, $4E, $47, $20                                     ; $A97D ING 
+    JSR $5400
+    .byte $43, $41, $4C, $50, $53                                ; $A984 CALPS
+L_A989:
+    .byte $4C, $09                                               ; $A989 L.
+    PHP
+    BIT $C000
+    BPL L_A9A2
+    LDY #$19
+    LDA ($D1),Y
+    JSR ROMCALL_28
+    LDX #$05
+L_A99A:
+    CMP L_A983,X
+    BEQ L_A9A3
+    DEX
+    BPL L_A99A
+L_A9A2:
+    RTS
+L_A9A3:
+    CPX #$03
+    BCS L_A9AC
+    JSR L_AC46
+    BEQ L_A9C5
+L_A9AC:
+    LDX #$B6
+    LDY #$A9
+    JSR ROMCALL_23
+    JMP ROMCALL_25
+    .byte $50, $4C, $45, $41, $53, $45, $20, $55, $53, $45, $20, $42, $55, $59; $A9B6 PLEASE USE BUY
+    BRK
+L_A9C5:
+    LDA $8033
+    STA $C01A
+    LDA #$44
+    STA $C100
+    JSR L_A713
+    LDY #$17
+L_A9D5:
+    LDA ($D1),Y
+    CMP #$A0
+    BNE L_A9E0
+    DEY
+    CPY #$08
+    BCS L_A9D5
+L_A9E0:
+    TAX
+    TYA
+    SEC
+    SBC #$07
+    STA $C03B
+    TXA
+L_A9E9:
+    JSR ROMCALL_28
+    STA $C023,Y
+    DEY
+    LDA ($D1),Y
+    CPY #$08
+    BCS L_A9E9
+    LDY #$19
+    LDA ($D1),Y
+    AND #$7F
+    JSR ROMCALL_28
+    LDX #$05
+L_AA01:
+    CMP L_A983,X
+    BEQ L_AA0A
+    DEX
+    BPL L_AA01
+    RTS
+L_AA0A:
+    STA $C019
+    CPX #$05
+    ROR $C028
+    JSR L_AC46
+    STA $C012
+    BEQ L_AA6D
+    JSR L_A79B
+    LDX #$16
+    LDY #$AC
+    JSR ROMCALL_22
+    JSR L_A7A6
+    LDX $C004
+    LDY L_AC7B,X
+    LDA L_AC70,X
+    CLC
+    ADC #$1E
+    BCC L_AA36
+    INY
+L_AA36:
+    STA $1D
+    STY $1E
+    LDX #$09
+L_AA3C:
+    JSR L_A5D5
+    CMP #$20
+    BEQ L_AA3C
+L_AA43:
+    ORA #$80
+    STA $07C0,X
+    INX
+    JSR L_A5D5
+    CMP #$20
+    BNE L_AA43
+    TXA
+    TAY
+    LDX #$18
+    CLC
+    JSR $FFF0
+    LDX #$20
+    LDY #$AC
+    JSR ROMCALL_21
+    JSR ROMCALL_26
+    PHP
+    JSR L_A7A6
+    JSR L_A791
+    PLP
+    BEQ L_AA6D
+    RTS
+L_AA6D:
+    LDA $C019
+    CMP #$54
+    BEQ L_AA7B
+    CMP #$43
+    BEQ L_AA7B
+    JSR L_AC86
+L_AA7B:
+    LDA $C019
+    CMP #$4C
+    BNE L_AA9E
+    LDX #$02
+L_AA84:
+    LDA $0801,X
+    CMP L_A989,X
+    BNE L_AA9E
+    DEX
+    BPL L_AA84
+    LDX #$04
+L_AA91:
+    LDA $0804,X
+    STA $C103,X
+    DEX
+    BPL L_AA91
+    LDY #$08
+    BNE L_AAA0
+L_AA9E:
+    LDY #$03
+L_AAA0:
+    JSR L_A784
+    JSR $96D2
+    BCS L_AAE4
+    LDA $C019
+    CMP #$4C
+    BEQ L_AABE
+    CMP #$41
+    BNE L_AAD9
+    LDA #$00
+    STA $0801
+    STA $0802
+    STA $0803
+L_AABE:
+    LDA #$00
+    STA $C04C
+    STA $C027
+    JSR ROMCALL_05
+    LDX #$76
+    LDY #$A1
+    JSR ROMCALL_07
+    LDA $C01A
+    STA $8033
+    JMP L_A72D
+L_AAD9:
+    CMP #$53
+    BEQ L_AAE1
+    CMP #$50
+    BNE L_AAE5
+L_AAE1:
+    JMP L_AB67
+L_AAE4:
+    RTS
+L_AAE5:
+    TSX
+    STX $C015
+    LDA #$44
+    STA $C016
+    JSR L_AB57
+L_AAF1:
+    LDA $8035
+    BPL L_AB0A
+    LDA #$01
+    STA $8033
+L_AAFB:
+    LDX #$16
+    LDY #$AB
+    JSR ROMCALL_08
+    BCS L_AAFB
+    JSR L_AB1A
+    JMP L_AAF1
+L_AB0A:
+    JSR ROMCALL_24
+    LDA $C01A
+    STA $8033
+    JMP L_A72D
+    .byte $03, $5A, $60, $6C                                     ; $AB16 .Z`l
+L_AB1A:
+    LDA $8033
+    ASL
+    TAX
+    LDA L_AB27,X
+    PHA
+    LDA L_AB26,X
+L_AB26:
+    PHA
+L_AB27:
+    RTS
+    .byte $43, $AB, $2D, $AB, $36, $AB, $20, $44, $AB, $AD, $35, $80, $30, $F8, $60, $AE; $AB28 C.-.6. D..5.0.`.
+    .byte $15, $C0, $9A, $AD, $1A, $C0, $8D, $33, $80, $4C, $2D, $A7, $20, $51, $81, $AD; $AB38 .......3.L-. Q..
+    .byte $16, $C0, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, $D2, $96, $B0, $E0; $AB48 ....... .. ....
+L_AB57:
+    JSR ROMCALL_16
+    LDX #$3A
+    LDY #$AC
+    JSR ROMCALL_23
+    JSR ROMCALL_11
+    JMP ROMCALL_13
+L_AB67:
+    LDX #$03
+L_AB69:
+    JSR $96CC
+    DEX
+    BPL L_AB69
+    JSR $96CC
+    STA $C00D
+    JSR $96CC
+    STA $C00E
+    JSR $96CC
+    STA $1F
+    CLC
+    ADC $C00D
+    STA $C00F
+    PHP
+    JSR $96CC
+    STA $20
+    PLP
+    ADC $C00E
+    STA $C010
+    CLC
+    LDA $2B
+    STA $1D
+    ADC $1F
+    STA $1F
+    LDA $2C
+    STA $1E
+    ADC $20
+    CMP $38
+    BCC L_ABC3
+    BNE L_ABAF
+    LDA $1F
+    CMP $37
+    BCC L_ABC3
+L_ABAF:
+    LDX #$2B
+    LDY #$AC
+    JSR ROMCALL_23
+    LDA #$41
+    STA $8034
+    LDY #$01
+    JSR ROMCALL_03
+    JMP ROMCALL_25
+L_ABC3:
+    LDX #$3A
+    LDY #$AC
+    JSR ROMCALL_23
+    LDA #$40
+    STA $8034
+    LDY #$01
+    JSR ROMCALL_03
+L_ABD4:
+    JSR $96CC
+    PHP
+    LDY #$00
+    STA ($1D),Y
+    INC $1D
+    BNE L_ABE2
+    INC $1E
+L_ABE2:
+    PLP
+    BCC L_ABD4
+    LDA $1D
+    STA $2D
+    LDA $1E
+    STA $2E
+    LDA $C028
+    STA $C029
+    SEC
+    ROR $C027
+    LDX $C03B
+    STX $C04C
+L_ABFD:
+    DEX
+    BMI L_AC08
+    LDA $C02B,X
+    STA $C03C,X
+    BNE L_ABFD
+L_AC08:
+    JSR L_AC94
+    JMP L_A72D
+    .byte $4C, $49, $4E, $4B, $49, $4E, $47, $00, $42, $55, $59, $20, $46, $4F, $52, $20; $AC0E LINKING.BUY FOR 
+    .byte $5C, $00, $12, $20, $2D, $20, $53, $55, $52, $45, $3F, $20, $00, $4E, $4F, $20; $AC1E \.. - SURE? .NO 
+    .byte $52, $4F, $4F, $4D, $20, $49, $4E, $20, $52, $41, $4D, $00, $44, $4F, $57, $4E; $AC2E ROOM IN RAM.DOWN
+    .byte $4C, $4F, $41, $44, $49, $4E, $47, $00                 ; $AC3E LOADING.
+L_AC46:
+    LDX $C004
+    LDY L_AC7B,X
+    LDA L_AC70,X
+    CLC
+    ADC #$1E
+    BCC L_AC55
+    INY
+L_AC55:
+    STA $1D
+    STY $1E
+    LDX #$08
+L_AC5B:
+    JSR L_A5D5
+    CMP #$20
+    BEQ L_AC6A
+    CMP #$30
+    BEQ L_AC6A
+    CMP #$2E
+    BNE L_AC6F
+L_AC6A:
+    DEX
+    BNE L_AC5B
+    LDA #$00
+L_AC6F:
+    RTS
+L_AC70:
+    .byte $00, $5E, $BC, $1A, $78, $D6, $34, $92, $F0, $4E, $AC  ; $AC70 .^..x.4..N.
+L_AC7B:
+    .byte $D6, $D6, $D6, $D7, $D7, $D7, $D8, $D8, $D8, $D9, $D9  ; $AC7B ...........
+L_AC86:
+    BIT $C027
+    BPL L_AC6F
+    JSR L_A79B
+    LDX #$65
+    LDY #$AD
+    BNE L_ACA0
+L_AC94:
+    LDA $C04C
+    BEQ L_AC6F
+    JSR L_A79B
+L_AC9C:
+    LDX #$60
+    LDY #$AD
+L_ACA0:
+    JSR L_AD71
+    BCC L_ACA8
+    JMP L_A7A6
+L_ACA8:
+    STY $19
+    BIT $C029
+    BMI L_AD06
+    JSR L_ADB6
+    BCC L_AD06
+    LDA $19
+    LDX #$1E
+    LDY #$80
+    JSR $FFBD
+    LDX #$01
+    LDY #$00
+    JSR $FFBA
+    LDX $C00D
+    LDY $C00E
+    STX $C1
+    STY $C2
+    LDX $C00F
+    LDY $C010
+    STX $AE
+    STY $AF
+    LDX #$45
+    LDY #$AC
+    JSR ROMCALL_22
+    JSR $F838
+    BCS L_AD03
+    LDA #$01
+    JSR $F76A
+    BCS L_AD03
+    LDX $2B
+    LDY $2C
+    STX $C1
+    STY $C2
+    LDX $2D
+    LDY $2E
+    STX $AE
+    STY $AF
+    JSR $F67C
+    BCS L_AD03
+    LSR $C027
+L_AD03:
+    JMP L_A72D
+L_AD06:
+    LDA #$57
+    LDX #$50
+    BIT $C029
+    BPL L_AD11
+    LDX #$53
+L_AD11:
+    LDY $19
+    JSR ROMCALL_30
+    BCC L_AD1B
+    JMP L_AC9C
+L_AD1B:
+    LDX #$08
+    JSR $FFC9
+    BIT $C029
+    BMI L_AD31
+    LDA $C00D
+    JSR $FFD2
+    LDA $C00E
+    JSR $FFD2
+L_AD31:
+    LDA $2B
+    STA $1D
+    LDA $2C
+    STA $1E
+    LDY #$00
+L_AD3B:
+    LDA ($1D),Y
+    JSR $FFD2
+    INC $1D
+    BNE L_AD46
+    INC $1E
+L_AD46:
+    LDA $1D
+    CMP $2D
+    BNE L_AD3B
+    LDA $1E
+    CMP $2E
+    BNE L_AD3B
+    JSR $FFCC
+    JSR ROMCALL_31
+    BCS L_AD5D
+    LSR $C027
+L_AD5D:
+    JMP L_A7A6
+    .byte $53, $41, $56, $45, $00, $4E, $4F, $54, $20, $53, $41, $56, $45, $44, $20, $2D; $AD60 SAVE.NOT SAVED -
+    .byte $00                                                    ; $AD70 .
+L_AD71:
+    JSR ROMCALL_22
+    LDX #$AA
+    LDY #$AD
+    JSR ROMCALL_21
+    LDX #$10
+    LDY #$00
+    LDA #$00
+    CLC
+    JSR ROMCALL_09
+    LDX #$1E
+    LDY #$80
+    JSR ROMCALL_10
+    BCS L_ADA9
+    CPY #$00
+    BNE L_ADA8
+    LDA $C04C
+    BEQ L_ADA9
+    DEC $D3
+L_AD99:
+    LDA $C03C,Y
+    STA $801E,Y
+    JSR $FFD2
+    INY
+    CPY $C04C
+    BCC L_AD99
+L_ADA8:
+    CLC
+L_ADA9:
+    RTS
+    .byte $20, $46, $49, $4C, $45, $4E, $41, $4D, $45, $3F, $20, $00; $ADAA  FILENAME? .
+L_ADB6:
+    LDA #$00
+    JSR $FFBD
+    LDA #$0F
+    TAY
+    LDX $80F8
+    BNE L_ADC5
+    LDX #$08
+L_ADC5:
+    JSR $FFBA
+    JSR $FFC0
+    LDX #$0F
+    JSR $FFC9
+    PHP
+    JSR $FFCC
+    LDA #$0F
+    JSR $FFC3
+    PLP
+    RTS
+    .byte $A9, $4D, $A0, $01, $20, $5F, $A3, $90, $01, $60, $A9, $01, $8D, $33, $80; $ADDB .M.. _...`...3.
+L_ADEA:
+    LDX #$15
+    LDY #$AE
+    STX $C01F
+    STY $C020
+    JSR L_A066
+    STX $C01A
+    LDY L_AE15,X
+    LDX #$00
+L_ADFF:
+    LDA L_A176,Y
+    AND #$3F
+    ORA #$80
+    STA $07C0,X
+    INY
+    INX
+    CPX #$06
+    BNE L_ADFF
+    JSR L_AE1C
+    JMP L_ADEA
+L_AE15:
+    .byte $06, $66, $0C, $5A, $9C, $30, $A2                      ; $AE15 .f.Z.0.
+L_AE1C:
+    LDA $8033
+    ASL
+    TAX
+    LDA L_AE29,X
+    PHA
+    LDA L_AE28,X
+L_AE28:
+    PHA
+L_AE29:
+    RTS
+    .byte $35, $AE, $0A, $B0, $38, $B0, $3F, $B0, $6F, $A2, $63  ; $AE2A 5...8.?.o.c
+    LDA ($A9),Y
+    EOR $8D,X
+    BRK
+    .byte $C1, $A2, $77, $A0, $BD, $20, $24, $81, $A2, $0B, $A0, $D4, $86, $1D, $84, $1E; $AE3A ..w.. $.........
+    .byte $A2, $06, $A0, $0A, $18, $20, $F0, $FF, $A9, $06, $8D, $86, $02, $20, $D5, $A5; $AE4A ..... ....... ..
+    .byte $C9, $00, $F0, $0D, $20, $D2, $FF, $C9, $0D, $D0, $F2, $A9, $0A, $85, $D3, $D0; $AE5A .... ...........
+    .byte $EC, $A2, $DC, $A0, $AF, $20, $42, $81, $A2, $10, $A0, $01, $A9, $00, $18, $20; $AE6A ..... B........ 
+    .byte $1B, $81, $A2, $01, $A0, $C1, $20, $1E, $81, $B0, $56, $A6, $1A, $A9, $20, $9D; $AE7A ...... ...V... .
+    .byte $01, $C1, $E8, $E0, $10, $90, $F8, $A2, $0C, $A0, $0D, $18, $20, $F0, $FF, $20; $AE8A ............ .. 
+    .byte $91, $A7, $A9, $06, $8D, $86, $02, $A2, $00, $BD, $01, $C1, $C9, $2C, $D0, $05; $AE9A .............,..
+    .byte $A9, $20, $9D, $01, $C1, $20, $D2, $FF, $E8, $E0, $10, $90, $EC, $A9, $54, $8D; $AEAA . ... ........T.
+    .byte $11, $C1, $A2, $00, $8E, $21, $C0, $A2, $E6, $A0, $AF, $20, $42, $81, $A2, $08; $AEBA .....!..... B...
+    .byte $A0, $00, $A9, $00, $18, $20, $1B, $81, $A2, $00, $A0, $02, $20, $1E, $81, $90; $AECA ..... ...... ...
+    .byte $03, $4C, $2D, $A7, $A6, $1A, $F0, $47, $A9, $20, $9D, $00, $02, $E8, $E0, $08; $AEDA .L-....G. ......
+    .byte $90, $F8, $AD, $21, $C0, $18, $69, $10, $AA, $A0, $03, $18, $20, $F0, $FF, $20; $AEEA ...!..i..... .. 
+    .byte $91, $A7, $A9, $06, $8D, $86, $02, $AD, $21, $C0, $0A, $0A, $0A, $AA, $A0, $00; $AEFA ........!.......
+    .byte $B9, $00, $02, $C9, $2C, $D0, $02, $A9, $20, $9D, $12, $C1, $20, $D2, $FF, $E8; $AF0A ....,... ... ...
+    .byte $C8, $C0, $08, $D0, $EB, $EE, $21, $C0, $AD, $21, $C0, $C9, $05, $90, $98, $A2; $AF1A ......!..!......
+    .byte $FE, $A0, $AF, $20, $45, $81, $AD, $21, $C0, $F0, $A6, $0A, $0A, $0A, $18, $69; $AF2A ... E..!.......i
+    .byte $12, $A8, $20, $84, $A7, $20, $D2, $96, $B0, $97, $A2, $10, $20, $EA, $B0, $10; $AF3A .. .. ...... ...
+    .byte $06, $20, $48, $81, $4C, $2D, $A7, $A2, $F7, $A0, $AF, $20, $42, $81, $20, $4E; $AF4A . H.L-..... B. N
+    .byte $81, $F0, $03, $4C, $CC, $AF, $20, $79, $A2, $A9, $01, $8D, $33, $80, $A2, $77; $AF5A ...L.. y....3..w
+    .byte $A0, $AF, $20, $18, $81, $B0, $F7, $20, $7D, $AF, $4C, $68, $AF, $05, $66, $6C; $AF6A .. .... }.Lh..fl
+    .byte $84, $8A, $30, $AD, $33, $80, $0A, $AA, $BD, $8A, $AF, $48, $BD, $89, $AF, $48; $AF7A ..0.3......H...H
+    .byte $60, $94, $AF, $C4, $AF, $32, $81, $35, $81, $75, $A2, $A2, $FE, $A0, $AF, $20; $AF8A `....2.5.u..... 
+    .byte $45, $81, $A9, $55, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, $D2, $96, $B0; $AF9A E..U..... .. ...
+    .byte $10, $A2, $03, $A0, $B0, $20, $45, $81, $20, $75, $B1, $20, $D2, $96, $B0, $01; $AFAA ..... E. u. ....
+    .byte $60, $68, $68, $A9, $01, $8D, $33, $80, $4C, $2D, $A7, $68, $68, $A9, $01, $8D; $AFBA `hh...3.L-.hh...
+    .byte $33, $80, $20, $51, $81, $A9, $4E, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $4C; $AFCA 3. Q..N..... ..L
+    .byte $2D, $A7, $53, $55, $42, $4A, $45, $43, $54, $3F, $20, $00, $44, $45, $53, $54; $AFDA -.SUBJECT? .DEST
+    .byte $49, $4E, $41, $54, $49, $4F, $4E, $20, $49, $44, $3F, $20, $00, $4F, $4B, $41; $AFEA INATION ID? .OKA
+    .byte $59, $3F, $20, $00, $53, $45, $4E, $44, $00, $53, $45, $4E, $44, $49, $4E, $47; $AFFA Y? .SEND.SENDING
+    .byte $00, $A9, $44, $8D, $00, $C1, $8D, $16, $C0, $20, $13, $A7, $A0, $03, $20, $84; $B00A ..D...... .... .
+    .byte $A7, $20, $D2, $96, $90, $01, $60, $BA, $8E, $15, $C0, $20, $57, $AB, $AD, $35; $B01A . ....`.... W..5
+    .byte $80, $10, $06, $20, $44, $AB, $4C, $28, $B0, $20, $48, $81, $4C, $2D, $A7, $A9; $B02A ... D.L(. H.L-..
+    .byte $4D, $A0, $01, $4C, $5F, $A3, $A9, $49, $8D, $00, $C1, $A2, $D6, $A0, $BD, $20; $B03A M..L_..I....... 
+    .byte $24, $81, $A2, $00, $8E, $21, $C0                      ; $B04A $....!.
+L_B051:
+    LDX #$D9
+    LDY #$B0
+    JSR ROMCALL_22
+    LDX #$08
+    LDY #$00
+    LDA #$00
+    CLC
+    JSR ROMCALL_09
+    LDX #$00
+    LDY #$02
+    JSR ROMCALL_10
+    BCC L_B06E
+L_B06B:
+    JMP L_A72D
+L_B06E:
+    LDX $1A
+    BEQ L_B0B3
+    LDA #$20
+L_B074:
+    STA $0200,X
+    INX
+    CPX #$08
+    BCC L_B074
+    LDA $C021
+    CLC
+    ADC #$06
+    TAX
+    LDY #$03
+    CLC
+    JSR $FFF0
+    JSR L_A791
+    LDA #$06
+    STA $0286
+    LDA $C021
+    ASL
+    ASL
+    ASL
+    TAX
+    LDY #$00
+L_B09A:
+    LDA $0200,Y
+    STA $C101,X
+    JSR $FFD2
+    INX
+    INY
+    CPY #$08
+    BNE L_B09A
+    INC $C021
+    LDA $C021
+    CMP #$05
+    BCC L_B051
+L_B0B3:
+    LDX #$E7
+    LDY #$B0
+    JSR ROMCALL_23
+    LDA $C021
+    BEQ L_B06B
+    ASL
+    ASL
+    ASL
+    CLC
+    ADC #$01
+    TAY
+    JSR L_A784
+    JSR $96D2
+    BCS L_B06B
+    LDX #$06
+    JSR L_B0EA
+    JSR ROMCALL_24
+    JMP L_A72D
+    .byte $49, $44, $20, $54, $4F, $20, $43, $48, $45, $43, $4B, $3F, $20, $00, $49, $44; $B0D9 ID TO CHECK? .ID
+    .byte $00                                                    ; $B0E9 .
+L_B0EA:
+    LDY #$00
+    CLC
+    JSR $FFF0
+    JSR L_A791
+    LDA #$06
+    STA $0286
+    LSR $C023
+L_B0FB:
+    LDA #$20
+    JSR $FFD2
+    JSR $FFD2
+    JSR $FFD2
+    LDX #$08
+L_B108:
+    JSR $96CC
+    JSR $FFD2
+    DEX
+    BNE L_B108
+    LDA #$20
+    JSR $FFD2
+    LDA #$3A
+    JSR $FFD2
+    LDA #$20
+    JSR $FFD2
+    JSR $96CC
+    PHP
+    CMP #$1E
+    BEQ L_B136
+L_B128:
+    PLP
+    JSR $FFD2
+    JSR $96CC
+    PHP
+    CMP #$1E
+    BNE L_B128
+    BEQ L_B141
+L_B136:
+    LDX #$4D
+    LDY #$B1
+    JSR ROMCALL_21
+    SEC
+    ROR $C023
+L_B141:
+    LDA #$0D
+    JSR $FFD2
+    PLP
+    BCC L_B0FB
+    LDA $C023
+    RTS
+    .byte $90, $2A, $2A, $2A, $20, $4E, $4F, $20, $53, $55, $43, $48, $20, $55, $53, $45; $B14D .*** NO SUCH USE
+    .byte $52, $20, $2A, $2A, $2A, $1F, $00, $A9, $4E, $A0, $01, $20, $5F, $A3, $B0, $07; $B15D R ***...N.. _...
+    .byte $68, $68, $A9, $07, $8D, $33, $80, $60, $A9, $22, $8D, $34, $80, $AD, $19, $80; $B16D hh...3.`.".4....
+    .byte $85, $1D, $AD, $1A, $80, $85, $1E, $A9, $00, $48, $E6, $1D, $D0, $02, $E6, $1E; $B17D .........H......
+    .byte $A2, $34, $A0, $00, $78, $86, $01, $B1, $1D, $A2, $36, $86, $01, $58, $C9, $00; $B18D .4..x.....6..X..
+    .byte $F0, $09, $AA, $68, $18, $20, $C9, $96, $8A, $D0, $DE, $68, $38, $4C, $C9, $96; $B19D ...h. .....h8L..
+L_B1AD:
+    LDX #$02
+L_B1AF:
+    LDA $7C,X
+    CMP $CCDE,X
+    BNE L_B1BB
+    DEX
+    BPL L_B1AF
+    CLC
+    RTS
+L_B1BB:
+    SEC
+    RTS
+    .byte $A0, $19, $B1, $D1, $C9, $84, $F0, $08, $C9, $85, $F0, $04, $C9, $95, $D0, $0A; $B1BD ................
+    .byte $A2, $53, $A0, $B2, $20, $45, $81, $4C, $4B, $81, $A9, $58, $8D, $00, $C1, $20; $B1CD .S.. E.LK..X... 
+    .byte $13, $A7, $AD, $86, $02, $8D, $0A, $C0, $20, $9B, $A7, $A2, $60, $A0, $B2, $20; $B1DD ........ ...`.. 
+    .byte $42, $81, $A2, $04, $A0, $01, $A9, $2D, $38, $20, $1B, $81, $A2, $00, $A0, $02; $B1ED B......-8 ......
+    .byte $20, $1E, $81, $08, $20, $91, $A7, $20, $A6, $A7, $AD, $0A, $C0, $8D, $86, $02; $B1FD  ... .. ........
+    .byte $28, $90, $01, $60, $A6, $1A, $A9, $20, $9D, $00, $02, $E8, $E0, $04, $90, $F8; $B20D (..`... ........
+    .byte $AD, $00, $02, $8D, $03, $C1, $A2, $03, $BD, $00, $02, $C9, $2D, $F0, $AB, $9D; $B21D ............-...
+    .byte $03, $C1, $CA, $D0, $F3, $A0, $07, $20, $84, $A7, $20, $D2, $96, $B0, $D4; $B22D ....... .. ....
+L_B23C:
+    LDX #$6C
+    LDY #$B2
+    JSR ROMCALL_23
+    LDA #$0B
+    STA L_A21E
+    LDA #$00
+    STA $C000
+    STA $C004
+    JMP L_A358
+    .byte $43, $41, $4E, $27, $54, $20, $45, $58, $54, $45, $4E, $44, $00, $45, $58, $54; $B253 CAN'T EXTEND.EXT
+    .byte $45, $4E, $44, $20, $42, $59, $3F, $20, $00, $4F, $4B, $20, $2D, $20, $47, $45; $B263 END BY? .OK - GE
+    .byte $54, $54, $49, $4E, $47, $20, $4E, $45, $57, $20, $44, $49, $52; $B273 TTING NEW DIR
+    BRK
+    .byte $AD, $03, $C0, $C9, $0B, $D0, $0A, $A2, $66, $A0, $B9, $20, $45, $81, $4C, $4B; $B281 ........f.. E.LK
+    .byte $81, $20, $F8, $A6, $AD, $03, $C0, $18, $69, $0A, $AA, $A0, $00, $18; $B291 . ......i.....
+    JSR $FFF0
+    LDA $C004
+    PHA
+    LDA $C003
+    STA $C004
+    JSR L_A6D9
+    PLA
+    STA $C004
+    LDA #$55
+    STA $C100
+    LDX #$9C
+    LDY #$B9
+    JSR ROMCALL_22
+    LDX #$10
+    LDY #$01
+    LDA #$00
+    CLC
+    JSR ROMCALL_09
+    LDX #$01
+    LDY #$C1
+    JSR ROMCALL_10
+    BCS L_B32D
+    STY $C03B
+    LDX $C03B
+L_B2D8:
+    LDA $C100,X
+    STA $C02A,X
+    DEX
+    BNE L_B2D8
+    LDA #$20
+L_B2E3:
+    STA $C101,Y
+    INY
+    CPY #$10
+    BCC L_B2E3
+    LDA $C003
+    CLC
+    ADC #$0A
+    TAX
+    LDY #$08
+    CLC
+    JSR $FFF0
+    LDA #$06
+    STA $0286
+    LDX #$00
+L_B2FF:
+    LDA $C101,X
+    CMP #$2C
+    BNE L_B30B
+    LDA #$20
+    STA $C101,X
+L_B30B:
+    JSR $FFD2
+    INX
+    CPX #$10
+    BNE L_B2FF
+L_B313:
+    LDX #$B0
+    LDY #$B9
+    JSR ROMCALL_22
+    LDX #$01
+    LDY #$01
+    LDA #$00
+    CLC
+    JSR ROMCALL_09
+    LDX #$11
+    LDY #$C1
+    JSR ROMCALL_10
+    BCC L_B330
+L_B32D:
+    JMP L_A72D
+L_B330:
+    LDY $C111
+    LSR $C028
+    CPY #$54
+    BEQ L_B361
+    CPY #$43
+    BEQ L_B361
+    CPY #$26
+    BEQ L_B352
+    CPY #$50
+    BEQ L_B352
+    CPY #$41
+    BEQ L_B352
+    CPY #$53
+    BNE L_B313
+    SEC
+    ROR $C028
+L_B352:
+    LDX $C03B
+    STX $C04C
+L_B358:
+    LDA $C02A,X
+    STA $C03B,X
+    DEX
+    BNE L_B358
+L_B361:
+    STY $C019
+    LDA $C003
+    CLC
+    ADC #$0A
+    TAX
+    LDY #$19
+    CLC
+    JSR $FFF0
+    LDA #$06
+    STA $0286
+    LDA $C019
+    CMP #$26
+    BNE L_B382
+    LDA #$50
+    JSR $FFD2
+L_B382:
+    JSR $FFD2
+    LDX #$05
+L_B387:
+    LDA L_B960,X
+    STA $C112,X
+    DEX
+    BPL L_B387
+L_B390:
+    LDX #$C3
+    LDY #$B9
+    JSR ROMCALL_22
+    LDX #$06
+    LDY #$01
+    LDA #$2E
+    SEC
+    JSR ROMCALL_09
+    LDX #$00
+    LDY #$02
+    JSR ROMCALL_10
+    BCC L_B3AD
+    JMP L_A72D
+L_B3AD:
+    LDA #$00
+    LDX $1A
+    STA $0200,X
+    TAX
+L_B3B5:
+    LDA $0200,X
+    BEQ L_B3E5
+    CMP #$2E
+    BEQ L_B3C5
+    INX
+    CPX #$04
+    BNE L_B3B5
+    BEQ L_B390
+L_B3C5:
+    LDA $0201,X
+    BEQ L_B390
+    CMP #$2E
+    BEQ L_B390
+    LDA $0202,X
+    BEQ L_B390
+    CMP #$2E
+    BEQ L_B390
+    LDY $0203,X
+    BNE L_B390
+    STA $C117
+    LDA $0201,X
+    STA $C116
+L_B3E5:
+    LDY #$02
+    DEX
+    BMI L_B3F4
+L_B3EA:
+    LDA $0200,X
+    STA $C112,Y
+    DEY
+    DEX
+    BPL L_B3EA
+L_B3F4:
+    LDX $C003
+    LDA L_AC70,X
+    STA $1D
+    LDA L_AC7B,X
+    STA $1E
+    CLC
+    LDA $1D
+    ADC #$1E
+    STA $1D
+    BCC L_B40C
+    INC $1E
+L_B40C:
+    LDY #$34
+    SEI
+    STY $01
+    LDA #$20
+    LDY #$3F
+L_B415:
+    STA ($1D),Y
+    DEY
+    BPL L_B415
+    LDY #$00
+L_B41C:
+    LDA $C112,Y
+    STA ($1D),Y
+    INY
+    CPY #$06
+    BNE L_B41C
+    LDY #$36
+    STY $01
+    CLI
+    JSR L_B892
+    LDA $C019
+    CMP #$43
+    BNE L_B438
+    JMP L_B4A8
+L_B438:
+    LDA #$30
+    STA $C118
+    STA $C119
+    STA $C11A
+    LDX #$CB
+    LDY #$B9
+    JSR ROMCALL_22
+    LDX #$03
+    LDY #$01
+    LDA #$00
+    SEC
+    JSR ROMCALL_09
+    LDX #$00
+    LDY #$02
+    JSR ROMCALL_10
+    BCC L_B460
+    JMP L_A72D
+L_B460:
+    LDY #$02
+    LDX $1A
+    DEX
+L_B465:
+    LDA $0200,X
+    STA $C118,Y
+    DEY
+    DEX
+    BPL L_B465
+    LDX $C003
+    LDA L_AC70,X
+    STA $1D
+    LDA L_AC7B,X
+    STA $1E
+    LDY $C001
+    DEY
+    TYA
+    ASL
+    ASL
+    ASL
+    CLC
+    ADC #$20
+    ADC $1D
+    STA $1D
+    BCC L_B48F
+    INC $1E
+L_B48F:
+    LDY #$34
+    SEI
+    STY $01
+    LDY #$00
+L_B496:
+    LDA $C118,Y
+    STA ($1D),Y
+    INY
+    CPY #$03
+    BNE L_B496
+    LDY #$36
+    STY $01
+    CLI
+    JSR L_B8CF
+L_B4A8:
+    LDX #$D6
+    LDY #$B9
+    JSR ROMCALL_22
+    LDA #$00
+    STA $C6
+    STA $D4
+L_B4B5:
+    LDA #$5F
+    JSR $FFD2
+    LDA #$9D
+    JSR $FFD2
+L_B4BF:
+    JSR $FFE4
+    BEQ L_B4BF
+    CMP #$03
+    BEQ L_B52E
+    CMP #$59
+    BEQ L_B4E4
+    CMP #$4E
+    BEQ L_B4E4
+    CMP #$88
+    BNE L_B4DA
+    JSR L_B54A
+    JMP L_B4BF
+L_B4DA:
+    CMP #$8C
+    BNE L_B4BF
+    JSR L_B553
+    JMP L_B4BF
+L_B4E4:
+    JSR $FFD2
+    STA $19
+    LDA #$5F
+    JSR $FFD2
+    LDA #$9D
+    JSR $FFD2
+L_B4F3:
+    JSR $FFE4
+    BEQ L_B4F3
+    CMP #$03
+    BEQ L_B52E
+    CMP #$14
+    BNE L_B510
+    LDA #$20
+    JSR $FFD2
+    LDA #$9D
+    JSR $FFD2
+    JSR $FFD2
+    JMP L_B4B5
+L_B510:
+    CMP #$88
+    BNE L_B51A
+    JSR L_B54A
+    JMP L_B4F3
+L_B51A:
+    CMP #$8C
+    BNE L_B524
+    JSR L_B553
+    JMP L_B4F3
+L_B524:
+    CMP #$0D
+    BNE L_B4F3
+    LDA $19
+    CMP #$59
+    BEQ L_B531
+L_B52E:
+    JMP L_A72D
+L_B531:
+    JSR L_A791
+    LDA $C019
+    CMP #$50
+    BEQ L_B5A2
+    CMP #$26
+    BEQ L_B5A2
+    CMP #$53
+    BEQ L_B5A2
+    CMP #$41
+    BEQ L_B5A2
+    JMP L_B81D
+L_B54A:
+    JSR L_B55C
+    JSR L_A103
+    JMP L_B587
+L_B553:
+    JSR L_B55C
+    JSR L_A110
+    JMP L_B587
+L_B55C:
+    JSR L_A791
+    LDA $0286
+    STA $C01E
+    LDA $D3
+    STA $C01D
+    CLC
+    LDA $C003
+    ADC #$0A
+    TAX
+    LDY #$00
+    CLC
+    JSR $FFF0
+    LDA $C004
+    STA $C01C
+    LDA $C003
+    STA $C004
+    INC $C003
+    RTS
+L_B587:
+    DEC $C003
+    LDA $C01E
+    STA $0286
+    LDA $C01C
+    STA $C004
+    LDX #$18
+    LDY $C01D
+    CLC
+    JSR $FFF0
+    JMP L_A796
+L_B5A2:
+    LDA #$01
+    STA $8033
+    LDY #$04
+    JSR L_B1AD
+    BCC L_B5AF
+    DEY
+L_B5AF:
+    STY L_B5C1
+L_B5B2:
+    LDX #$C1
+    LDY #$B5
+    JSR ROMCALL_08
+    BCS L_B5B2
+    JSR L_B5C6
+    JMP L_B5B2
+L_B5C1:
+    .byte $00, $78, $66, $72, $96                                ; $B5C1 .xfr.
+L_B5C6:
+    LDA $8033
+    ASL
+    TAX
+    LDA L_B5D3,X
+    PHA
+    LDA L_B5D2,X
+L_B5D2:
+    PHA
+L_B5D3:
+    RTS
+    .byte $D9, $B6, $DB, $B5, $C5, $B6, $0F                      ; $B5D4 .......
+    CLV
+    LDA $C028
+    EOR $C029
+    BMI L_B5FB
+    SEC
+    LDA $2D
+    SBC $2B
+    STA $1F
+    LDA $2E
+    SBC $2C
+    STA $20
+    BCC L_B5FB
+    BNE L_B605
+    LDA $1F
+    CMP #$03
+    BCS L_B605
+L_B5FB:
+    LDX #$8C
+    LDY #$B9
+    JSR ROMCALL_23
+    JMP ROMCALL_25
+L_B605:
+    LDA $2B
+    STA $1D
+    LDA $2C
+    STA $1E
+    LDX #$7B
+    LDY #$B9
+    JSR ROMCALL_23
+    LDY #$1B
+    JSR L_A784
+    JSR $96D2
+    BCC L_B621
+    JMP L_B6C6
+L_B621:
+    LDX #$82
+    LDY #$B9
+    JSR ROMCALL_23
+    LDA #$22
+    STA $8034
+    LDA #$00
+    CLC
+    JSR $96C9
+    LDX $C019
+    CPX #$26
+    BNE L_B63C
+    LDA #$01
+L_B63C:
+    CLC
+    JSR $96C9
+    LDX #$00
+    LDY #$00
+    LDA $C019
+    CMP #$41
+    BNE L_B673
+    LDY $2E
+    CPY #$08
+    BCC L_B66D
+    BNE L_B659
+    LDX $2D
+    CPX #$1A
+    BCC L_B66D
+L_B659:
+    LDX #$05
+L_B65B:
+    LDA $0814,X
+    CMP L_B9E5,X
+    BNE L_B66D
+    DEX
+    BPL L_B65B
+    LDX #$1B
+    LDY #$08
+    JMP L_B673
+L_B66D:
+    LDX $C00D
+    LDY $C00E
+L_B673:
+    JSR L_B6D0
+    LDX #$00
+    LDY #$00
+    BIT $C028
+    BMI L_B685
+    LDX $C00D
+    LDY $C00E
+L_B685:
+    JSR L_B6D0
+    LDA $1F
+    CLC
+    JSR $96C9
+    LDA $20
+    PHA
+L_B691:
+    PLA
+    CLC
+    JSR $96C9
+    LDY #$00
+    LDA ($1D),Y
+    PHA
+    INC $1D
+    BNE L_B6A1
+    INC $1E
+L_B6A1:
+    LDA $1D
+    CMP $2D
+    BNE L_B691
+    LDA $1E
+    CMP $2E
+    BNE L_B691
+    PLA
+    SEC
+    JSR $96C9
+    JSR $96D2
+    PHP
+    JSR L_B916
+    PLP
+    BCS L_B6C6
+    PLA
+    PLA
+    LDA #$10
+    STA $8033
+    JMP L_B23C
+L_B6C6:
+    PLA
+    PLA
+    LDA #$10
+    STA $8033
+    JMP L_A72D
+L_B6D0:
+    TXA
+    CLC
+    JSR $96C9
+    TYA
+    CLC
+    JMP $96C9
+L_B6DA:
+    JSR L_ADB6
+    ROR $C01B
+    JSR L_AC86
+    LDX #$C7
+    LDY #$B7
+    JSR L_AD71
+    BCC L_B6ED
+    RTS
+L_B6ED:
+    STY $19
+    BIT $C028
+    BMI L_B76E
+    BIT $C01B
+    BPL L_B76E
+    LDA $19
+    LDX #$1E
+    LDY #$80
+    JSR $FFBD
+    LDX #$01
+    LDY #$00
+    JSR $FFBA
+    LDX $2B
+    LDY $2C
+    STX $C3
+    STY $C4
+    LDA #$00
+    STA $93
+    STA $90
+    JSR L_B7F3
+    JSR $F817
+    BCS L_B764
+    JSR $F5AF
+L_B722:
+    LDA $B7
+    BEQ L_B730
+    JSR $F7EA
+    BCC L_B737
+    BEQ L_B764
+L_B72D:
+    JMP $F704
+L_B730:
+    JSR $F72C
+    BEQ L_B764
+    BCS L_B72D
+L_B737:
+    LDA $90
+    AND #$10
+    SEC
+    BNE L_B764
+    CPX #$01
+    BEQ L_B74C
+    CPX #$03
+    BNE L_B722
+    LDY #$00
+    LDA #$01
+    STA ($B2),Y
+L_B74C:
+    LDY #$01
+    LDA ($B2),Y
+    STA $C00D
+    INY
+    LDA ($B2),Y
+    STA $C00E
+    LSR $C027
+    JSR $F579
+    JSR L_B805
+    BCC L_B767
+L_B764:
+    JMP L_B805
+L_B767:
+    STX $2D
+    STY $2E
+    JMP L_B7C0
+L_B76E:
+    LDA #$52
+    LDX #$50
+    BIT $C028
+    BPL L_B779
+    LDX #$53
+L_B779:
+    LDY $19
+    JSR ROMCALL_30
+    BCS L_B7C6
+    LSR $C027
+    LDA $2B
+    STA $1D
+    LDA $2C
+    STA $1E
+    LDX #$08
+    JSR $FFC6
+    BIT $C028
+    BMI L_B7A1
+    JSR $FFCF
+    STA $C00D
+    JSR $FFCF
+    STA $C00E
+L_B7A1:
+    LDY #$00
+L_B7A3:
+    JSR $FFCF
+    STA ($1D),Y
+    INC $1D
+    BNE L_B7AE
+    INC $1E
+L_B7AE:
+    LDA $90
+    BEQ L_B7A3
+    LDA $1D
+    STA $2D
+    LDA $1E
+    STA $2E
+    JSR $FFCC
+    JSR ROMCALL_31
+L_B7C0:
+    LDA $C028
+    STA $C029
+L_B7C6:
+    RTS
+    .byte $4C, $4F, $41, $44, $00, $C9, $0D, $D0, $04, $38, $66, $19, $60, $24, $19, $10; $B7C7 LOAD.....8f.`$..
+    .byte $18, $18, $66, $19, $48, $8A, $48, $98, $48, $20, $51, $81, $A2, $18, $A0, $00; $B7D7 ..f.H.H.H Q.....
+    .byte $18, $20, $F0, $FF, $68, $A8, $68, $AA, $68, $4C, $CA, $F1; $B7E7 . ..h.h.hL..
+L_B7F3:
+    LDX #$CC
+    LDY #$B7
+    STX $0326
+    STY $0327
+    CLC
+    ROR $19
+    LDA #$80
+    JMP $FF90
+L_B805:
+    LDX #$CA
+    LDY #$F1
+    STX $0326
+    STY $0327
+    RTS
+    .byte $20, $3C, $81, $2C, $2A, $C0, $10, $F7, $A9, $93, $4C, $D2, $FF; $B810  <.,*.....L..
+L_B81D:
+    SEC
+    ROR $C014
+    JSR L_A279
+    LDA #$01
+    STA $8033
+L_B829:
+    LDX #$77
+    LDY #$AF
+    JSR ROMCALL_08
+    BCS L_B829
+    JSR L_B838
+    JMP L_B829
+L_B838:
+    LDA $8033
+    ASL
+    TAX
+    LDA L_B845,X
+    PHA
+    LDA L_B844,X
+L_B844:
+    PHA
+L_B845:
+    RTS
+    .byte $4F, $B8, $7F, $B8, $32, $81, $35, $81, $75, $A2, $A2, $7B, $A0, $B9, $20, $45; $B846 O...2.5.u..{.. E
+    .byte $81, $A9, $55, $A0, $1B, $8D, $00, $C1, $2C, $14, $C0, $30, $02, $A0, $01, $20; $B856 ..U.....,..0... 
+    .byte $84, $A7, $20, $D2, $96, $B0, $13, $A2, $82, $A0, $B9, $20, $45, $81, $20, $75; $B866 .. ........ E. u
+    .byte $B1, $20, $D2, $96, $B0, $04, $6E, $14, $C0, $60, $68, $68, $A9, $10, $8D, $33; $B876 . ....n..`hh...3
+    .byte $80, $2C, $14, $C0, $10, $03, $4C, $2D, $A7, $4C, $3C, $B2; $B886 .,....L-.L<.
+L_B892:
+    JSR L_A79B
+    JSR L_A791
+    LDX #$01
+    STX $C002
+    JSR L_A11C
+    JSR L_A796
+    LDA $C003
+    CLC
+    ADC #$0A
+    TAX
+    LDY #$1F
+    CLC
+    JSR $FFF0
+    LDA #$06
+    STA $0286
+    LDA #$20
+    JSR $FFD2
+    LDX #$00
+L_B8BC:
+    LDA $C112,X
+    JSR $FFD2
+    INX
+    CPX #$06
+    BNE L_B8BC
+    LDA #$20
+    JSR $FFD2
+    JMP L_A7A6
+L_B8CF:
+    JSR L_A79B
+    JSR L_A791
+    LDX $C001
+    STX $C002
+    JSR L_A11C
+    JSR L_A796
+    LDA $C003
+    CLC
+    ADC #$0A
+    TAX
+    LDY #$1F
+    CLC
+    JSR $FFF0
+    LDA #$06
+    STA $0286
+    LDA #$20
+    JSR $FFD2
+    JSR $FFD2
+    LDX #$00
+L_B8FD:
+    LDA $C118,X
+    JSR $FFD2
+    INX
+    CPX #$03
+    BNE L_B8FD
+    LDA #$20
+    JSR $FFD2
+    JSR $FFD2
+    JSR $FFD2
+    JMP L_A7A6
+L_B916:
+    LDX #$18
+L_B918:
+    LDA L_B944,X
+    STA $D400,X
+    DEX
+    BPL L_B918
+    LDA #$21
+    JSR L_B93A
+    LDA #$0C
+    STA $1A
+L_B92A:
+    LDX #$07
+    LDY #$FF
+L_B92E:
+    DEY
+    BNE L_B92E
+    DEX
+    BNE L_B92E
+    DEC $1A
+    BNE L_B92A
+    LDA #$20
+L_B93A:
+    STA $D404
+    STA $D40B
+    STA $D412
+    RTS
+L_B944:
+    .byte $C7, $70, $00, $00, $20, $01, $E0, $31, $1C, $00, $00, $20, $01, $E0, $63, $38; $B944 .p.. ..1... ..c8
+    .byte $00, $00, $20, $01, $E0, $63, $38, $F0, $0F, $12, $44, $00; $B954 .. ..c8...D.
+L_B960:
+    .byte $30, $30, $30, $2E, $30, $30, $4E, $4F, $20, $52, $4F, $4F, $4D, $20, $4F, $4E; $B960 000.00NO ROOM ON
+    .byte $20, $54, $48, $49, $53, $20, $50, $41, $47, $45, $00, $55, $50, $4C, $4F, $41; $B970  THIS PAGE.UPLOA
+    .byte $44, $00, $55, $50, $4C, $4F, $41, $44, $49, $4E, $47, $00, $4E, $4F, $54, $48; $B980 D.UPLOADING.NOTH
+    .byte $49, $4E, $47, $20, $54, $4F, $20, $53, $45, $4E, $44, $00, $55, $50, $4C, $4F; $B990 ING TO SEND.UPLO
+    .byte $41, $44, $20, $50, $41, $47, $45, $20, $54, $49, $54, $4C, $45, $3F, $20, $00; $B9A0 AD PAGE TITLE? .
+    .byte $55, $50, $4C, $4F, $41, $44, $20, $50, $41, $47, $45, $20, $54, $59, $50, $45; $B9B0 UPLOAD PAGE TYPE
+    .byte $3F, $20, $00, $50, $52, $49, $43, $45, $3F, $20, $00, $4C, $49, $46, $45, $54; $B9C0 ? .PRICE? .LIFET
+    .byte $49, $4D, $45, $3F, $20, $00, $4E, $45, $57, $20, $45, $4E, $54, $52, $59, $20; $B9D0 IME? .NEW ENTRY 
+    .byte $4F, $4B, $3F, $20, $00                                ; $B9E0 OK? .
+L_B9E5:
+    .byte $57, $4F, $4D, $42, $41, $54, $31, $2E, $32, $32, $60, $4E, $2A, $C0, $AE, $09; $B9E5 WOMBAT1.22`N*...
+    .byte $80, $AC, $0A, $80, $86, $1D, $84, $1E, $A0, $12, $B1, $1D, $D9, $D9, $B9, $D0; $B9F5 ................
+    .byte $E9, $C8, $C0, $16, $D0, $F4, $38, $6E, $2A, $C0, $A9, $72, $8D, $02, $80, $A9; $BA05 ......8n*..r....
+    .byte $12, $8D, $48, $80, $A9, $B4, $8D, $49, $80, $A9, $03, $8D, $4A, $80, $A9, $4C; $BA15 ..H....I....J..L
+    .byte $A2, $52, $A0, $8D, $8D, $34, $8D, $8E, $35, $8D, $8C, $36, $8D, $A2, $F5, $A0; $BA25 .R...4..5..6....
+    .byte $BA, $8E, $B1, $8F, $8C, $B6, $8F, $A2, $02, $A0, $BB, $8E, $B2, $8F, $8C, $B7; $BA35 ................
+    .byte $8F, $A9, $F8, $8D, $EC, $94, $AD, $BF, $96, $D0, $9F, $AE, $D9, $96, $D0, $9A; $BA45 ................
+    .byte $AC, $DA, $96, $C0, $C8, $D0, $93, $A9, $4C, $8D, $26, $99, $A2, $E2, $A0, $BA; $BA55 ........L.&.....
+    .byte $8E, $27, $99, $8C, $28, $99, $A2, $9A, $A0, $BA, $8E, $31, $9C, $8C, $33, $9C; $BA65 .'..(......1..3.
+    .byte $A9, $20, $8D, $63, $9D, $A2, $BD, $A0, $BA, $8E, $64, $9D, $8C, $65, $9D, $8D; $BA75 . .c......d..e..
+    .byte $E1, $9F, $A2, $BB, $A0, $BA, $8E, $E2, $9F, $8C, $E3, $9F, $A2, $03, $8E, $7C; $BA85 ...............|
+    .byte $9E, $8E, $9F, $9F, $60, $A2, $00, $20, $FA, $94, $20, $BE, $BA, $D0, $11, $A2; $BA95 ....`.. .. .....
+    .byte $B5, $A0, $BA, $8E, $14, $03, $8C, $15, $03, $A2, $03, $A9, $20, $20, $F0, $94; $BAA5 ............  ..
+    .byte $20, $7D, $9C, $4C, $31, $EA, $98, $24, $8A, $29, $20, $F0, $0B, $A9, $00, $8D; $BAB5  }.L1..$.) .....
+    .byte $25, $C0, $8D, $26, $C0, $A9, $01, $60, $A9, $A1, $20, $50, $9E, $AD, $26, $C0; $BAC5 %..&...`.. P..&.
+    .byte $C9, $12, $F0, $08, $EE, $25, $C0, $D0, $03, $EE, $26, $C0, $60, $C9, $18, $F0; $BAD5 .....%....&.`...
+    .byte $08, $C9, $00, $F0, $08, $C9, $04, $B0, $04, $18, $4C, $2E, $99, $4C, $E4, $94; $BAE5 ..........L..L..
+    .byte $43, $41, $52, $52, $49, $45, $52, $20, $4C, $4F, $53, $54, $00, $54, $49, $4D; $BAF5 CARRIER LOST.TIM
+    .byte $45, $44, $20, $4F, $55, $54, $00, $00, $F3, $F3, $0E, $1F, $C1, $54, $20, $C3; $BB05 ED OUT.......T .
+    .byte $4F, $4E, $4E, $45, $43, $54, $06, $0B, $C1, $54, $20, $C1, $4E, $59, $20, $D4; $BB15 ONNECT...T .NY .
+    .byte $49, $4D, $45, $0D, $95, $54, $4F, $20, $41, $43, $43, $45, $53, $53, $20, $54; $BB25 IME..TO ACCESS T
+    .byte $48, $45, $06, $08, $54, $4F, $20, $41, $43, $43, $45, $53, $53, $20, $54, $48; $BB35 HE..TO ACCESS TH
+    .byte $45, $20, $46, $55, $4C, $4C, $0D, $4D, $41, $49, $4E, $20, $C4, $49, $52, $45; $BB45 E FULL.MAIN .IRE
+    .byte $43, $54, $4F, $52, $59, $06, $07, $D5, $53, $45, $52, $20, $C7, $55, $49, $44; $BB55 CTORY...SER .UID
+    .byte $45, $0D, $0D, $20, $2A, $20, $53, $45, $4C, $45, $43, $54, $20, $C4, $C9, $D2; $BB65 E.. * SELECT ...
+    .byte $06, $08, $2A, $20, $53, $45, $4C, $45, $43, $54, $20, $C7, $CF, $D4, $CF, $2C; $BB75 ..* SELECT ....,
+    .byte $0D, $06, $02, $28, $55, $53, $49, $4E, $47, $20, $43, $55, $52, $53, $4F, $52; $BB85 ...(USING CURSOR
+    .byte $06, $08, $4B, $45, $59, $20, $D2, $45, $54, $55, $52  ; $BB95 ..KEY .ETUR
+    LSR $060D
+    .byte $04, $3C, $3D, $3E, $20, $4B, $45, $59, $29, $06, $08, $2A, $20, $45, $4E, $54; $BBA3 .<=> KEY)..* ENT
+    .byte $45, $52, $20, $31, $32, $30, $2C, $0D, $20, $2A, $20, $4B, $45, $59, $20, $D2; $BBB3 ER 120,. * KEY .
+    .byte $45, $54, $55, $52, $4E, $06, $0B, $4B, $45, $59, $20, $D2, $45, $54, $55, $52; $BBC3 ETURN..KEY .ETUR
+    .byte $4E, $07, $0D, $04, $1F, $C4, $C9, $D2, $C5, $C3, $D4, $CF, $D2, $C9, $C5, $D3; $BBD3 N...............
+    .byte $0D, $0D, $D2, $45, $41, $44, $49, $4E, $47, $20, $95, $3A, $20, $4B, $45, $59; $BBE3 ...EADING .: KEY
+    .byte $20, $46, $37, $20, $4F, $52, $20, $46, $38, $20, $54, $4F, $20, $52, $4F, $54; $BBF3  F7 OR F8 TO ROT
+    .byte $41, $54, $45, $20, $54, $48, $45, $0D, $06, $09, $57, $49, $4E, $44, $4F, $57; $BC03 ATE THE...WINDOW
+    .byte $20, $46, $4F, $52, $20, $D0, $52, $49, $43, $45, $2C, $C1, $55, $54, $48, $4F; $BC13  FOR .RICE,.UTHO
+    .byte $52, $2C, $45, $54, $43, $2E, $0D, $0D, $1F, $D3, $45, $4C, $45, $43, $54, $49; $BC23 R,ETC.....ELECTI
+    .byte $4E, $47, $20, $95, $3A, $0D, $20, $C1, $29, $20, $55, $53, $45, $20, $43, $55; $BC33 NG .:. .) USE CU
+    .byte $52, $53, $4F, $52, $20, $55, $50, $2F, $44, $4F, $57, $4E, $20, $54, $4F, $20; $BC43 RSOR UP/DOWN TO 
+    .byte $48, $49, $47, $48, $4C, $49, $47, $48, $54, $20, $49, $54, $45, $4D, $0D, $20; $BC53 HIGHLIGHT ITEM. 
+    .byte $C2, $29, $20, $55, $53, $45, $20, $43, $55, $52, $53, $4F, $52, $20, $4C, $45; $BC63 .) USE CURSOR LE
+    .byte $46, $54, $2F, $52, $49, $47, $48, $54, $20, $3C, $3D, $3E, $20, $54, $4F, $20; $BC73 FT/RIGHT <=> TO 
+    .byte $53, $45, $4C, $45, $43, $54, $0D, $06, $04, $43, $4F, $4D, $4D, $41, $4E, $44; $BC83 SELECT...COMMAND
+    .byte $20, $20, $28, $45, $47, $20, $C4, $C9, $D2, $3D, $47, $45, $54, $20, $C4, $49; $BC93   (EG ...=GET .I
+    .byte $52, $45, $43, $54, $4F, $52, $59, $20, $46, $4F, $52, $0D, $06, $04, $54, $48; $BCA3 RECTORY FOR...TH
+    .byte $45, $20, $49, $54, $45, $4D, $2C, $20, $D3, $C8, $CF, $D7, $3D, $44, $4F, $57; $BCB3 E ITEM, ....=DOW
+    .byte $4E, $4C, $4F, $41, $44, $20, $54, $48, $45, $20, $49, $54, $45, $4D, $29, $0D; $BCC3 NLOAD THE ITEM).
+    .byte $20, $C3, $29, $20, $4B, $45, $59, $20, $D2, $45, $54, $55, $52, $4E, $00, $F4; $BCD3  .) KEY .ETURN..
+    .byte $FF, $8E, $07, $0D, $05, $05, $D5, $07, $C3, $1B, $C0, $B2, $07, $C0, $07, $C9; $BCE3 ................
+    .byte $0D, $DD, $06, $1C, $DD, $06, $07, $DD, $0D, $DD, $06, $1C, $C2, $06, $07, $C2; $BCF3 ................
+    .byte $0D, $AB, $07, $C3, $15, $07, $C0, $06, $DB, $07, $C3, $07, $B3, $0D, $DD, $06; $BD03 ................
+    .byte $1C, $C2, $06, $07, $C2, $0D, $DD, $06, $1C, $C2, $06, $07, $DD, $0D, $DD, $06; $BD13 ................
+    .byte $1C, $C2, $06, $07, $C2, $0D, $DD, $06, $1C, $DD, $06, $07, $C2, $0D, $DD, $06; $BD23 ................
+    .byte $1C, $C2, $06, $07, $C2, $0D, $DD, $06, $1C, $C2, $06, $07, $C2, $0D, $DD, $06; $BD33 ................
+    .byte $1C, $C2, $06, $07, $C2, $0D, $DD, $06, $1C, $C2, $06, $07, $C2, $0D, $DD, $06; $BD43 ................
+    .byte $1C, $C2, $06, $07, $C2, $0D, $DD, $06, $1C, $C2, $06, $07, $C2, $0D, $DD, $06; $BD53 ................
+    .byte $1C, $C2, $06, $07, $C2, $0D, $CA, $07, $C0, $1C, $B1, $3C, $46, $37, $29, $28; $BD63 ...........<F7)(
+    .byte $46, $38, $3E, $CB, $00, $F4, $F1, $8E, $07, $0D, $02, $06, $02, $1C, $43, $4F; $BD73 F8>...........CO
+    .byte $55, $52, $49, $45, $52, $0D, $06, $02, $07, $A3, $06, $0D, $0D, $06, $02, $46; $BD83 URIER..........F
+    .byte $52, $4F, $4D, $20, $3A, $07, $0D, $02, $06, $02, $44, $41, $54, $45, $20, $3A; $BD93 ROM :.....DATE :
+    .byte $0D, $06, $02, $54, $49, $4D, $45, $20, $3A, $0D, $0D, $06, $02, $53, $55, $42; $BDA3 ...TIME :....SUB
+    .byte $4A, $45, $43, $54, $20, $3A, $0D, $0D, $06, $02, $54, $4F, $20, $3A, $0D, $0D; $BDB3 JECT :....TO :..
+    .byte $06, $0B, $3A, $0D, $06, $0B, $3A, $0D, $06, $0B, $3A, $0D, $06, $0B, $3A, $0D; $BDC3 ..:...:...:...:.
+    .byte $06, $0B, $3A, $00, $F4, $F1, $8E, $07, $0D, $02, $06, $02, $1C, $43, $4F, $55; $BDD3 ..:..........COU
+    .byte $52, $49, $45, $52, $0D, $06, $02, $07, $A3, $06, $0D, $0D, $06, $0B, $3A, $0D; $BDE3 RIER..........:.
+    .byte $06, $0B, $3A, $0D, $06, $0B, $3A, $0D, $06, $0B, $3A, $0D, $06, $0B, $3A, $00; $BDF3 ..:...:...:...:.
