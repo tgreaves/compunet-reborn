@@ -58,8 +58,8 @@ RESP_FRAME = 0x46     # 'F' - frame data
 RESP_ERROR = 0x45     # 'E' - error
 
 CMD_ACCNT = 0x41      # 'A'
-CMD_BUY = 0x42        # 'B'
-CMD_BACK = 0x43       # 'C'
+CMD_BACK = 0x42       # 'B' (was incorrectly 'C' — verified from terminal disassembly)
+CMD_UCAT = 0x43       # 'C' (user catalogue)
 CMD_DIR = 0x44        # 'D'
 CMD_EDITR = 0x45      # 'E'
 CMD_ID = 0x49         # 'I'
@@ -273,12 +273,12 @@ class CompunetSession:
             return self._cmd_accnt()
         elif cmd == CMD_BACK:
             return self._cmd_back()
+        elif cmd == CMD_UCAT:
+            return self._cmd_ucat()
         elif cmd == CMD_VOTE:
             return self._cmd_vote(params)
         elif cmd == CMD_MAIL:
             return self._cmd_mail()
-        elif cmd == CMD_BUY:
-            return self._cmd_buy(params)
         elif cmd == ord('N'):
             return self._cmd_more(params)
         else:
@@ -333,25 +333,18 @@ class CompunetSession:
         return self._make_dir_response()
     
     def _cmd_show(self, params):
-        """SHOW command - display frames of selected entry.
+        """SHOW/DIR command ('P') - show current page.
         
-        Response format: raw frame data terminated by $00.
-        The client reads bytes via $96CC and stores them at $D000+
-        until it sees $00 (end of data).
-        
-        Frame data format:
-          byte 0: border colour
-          byte 1: background colour  
-          byte 2+: PETSCII characters ($0D = newline, $00 = end)
+        The 'P' command is sent by both DIR and SHOW duckshoot commands.
+        Response is a 6-part structure:
+          Part 1: Frame header (PETSCII + $00) — visual header/graphics
+          Part 2: Routing text (2 lines + $0D each, or $00 if none)
+          Part 3: Field definitions ($00 if none)
+          Part 4: Column header ($00 if none)
+          Part 5: Directory entries (comma-sep fields, $0D per entry, or $00)
+          Part 6: Extended entry data (title,type per entry, or $00)
         """
-        if self.selected_entry < len(self.current_page.children):
-            child = self.current_page.children[self.selected_entry]
-            if child.frames:
-                self.show_page = child
-                self.show_frame_index = 0
-                return self._send_current_frame()
-        # No text — send just the terminator
-        return b'\x00'
+        return self._make_page_response()
     
     def _cmd_more(self, params):
         """MORE command - show next frame of current page."""
@@ -446,85 +439,39 @@ class CompunetSession:
         
         return bytes([RESP_FRAME, 0x00]) + bytes(frame)
     
-    def _cmd_buy(self, params):
-        """BUY command."""
-        return self._make_error(ascii_to_petscii('NOTHING TO BUY'))
+    def _cmd_ucat(self):
+        """UCAT command - user catalogue listing."""
+        return self._make_error(ascii_to_petscii('NO UPLOADS'))
     
     def _make_dir_response(self):
-        """Build a directory listing response.
+        """Build directory response in the 6-part format for 'P' command."""
+        return self._make_page_response()
+    
+    def _make_page_response(self):
+        """Build the 6-part page response that the terminal client expects.
         
-        From the disassembly: the server sends structured data with
-        fields separated by $2C (comma), entries by $0D, terminated by $00.
-        The client parses this, stores in RAM, and renders locally.
-        
-        Entry format (comma-separated fields):
-          page_number,title,type_string,price,life,author,vote
+        Sending minimal/empty response for debugging.
         """
-        page = self.current_page
-        
         data = bytearray()
-        data.append(RESP_DIR)
         
-        # Number of entries (max 11 per page + ***MORE*** if more exist, fitting 12 rows)
-        offset = getattr(self, 'dir_page_offset', 0)
-        page_children = page.children[offset:]
-        has_more = len(page_children) > 11
-        visible = page_children[:11] if has_more else page_children
-        entry_count = len(visible) + (1 if has_more else 0)
-        data.append(entry_count)
+        # Part 1: Frame header — $00 = empty (client uses built-in template)
+        data.append(0x00)
         
-        # Routing/title of current directory
-        data.extend(ascii_to_petscii(page.title))
-        data.append(PETSCII_RETURN)
+        # Part 2: Routing text — $00 = none
+        data.append(0x00)
         
-        # Directory entries (comma-separated fields, CR-terminated)
-        for child in visible:
-            # Page number
-            data.extend(ascii_to_petscii(str(child.page_num)))
-            data.append(0x2C)  # comma
-            
-            # Title
-            data.extend(ascii_to_petscii(child.title))
-            data.append(0x2C)
-            
-            # Type string
-            data.extend(ascii_to_petscii(child.type_string()))
-            data.append(0x2C)
-            
-            # Price
-            if child.price > 0:
-                data.extend(ascii_to_petscii('{:.2f}'.format(child.price)))
-            data.append(0x2C)
-            
-            # Life (days)
-            if child.life > 0:
-                data.extend(ascii_to_petscii(str(child.life)))
-            data.append(0x2C)
-            
-            # Author
-            data.extend(ascii_to_petscii(child.author))
-            data.append(0x2C)
-            
-            # Vote
-            if child.vote > 0:
-                data.extend(ascii_to_petscii(str(child.vote)))
-            
-            data.append(PETSCII_RETURN)  # end of entry
+        # Part 3: Field definitions — $00 = none
+        data.append(0x00)
         
-        # Add ***MORE*** entry if there are more pages
-        if has_more:
-            data.extend(ascii_to_petscii('0'))       # page number (dummy)
-            data.append(0x2C)
-            data.extend(ascii_to_petscii('***MORE***'))
-            data.append(0x2C)
-            data.extend(ascii_to_petscii('D+'))
-            data.append(0x2C)  # price
-            data.append(0x2C)  # life
-            data.append(0x2C)  # author
-            data.append(0x2C)  # vote
-            data.append(PETSCII_RETURN)
+        # Part 4: Column header — $00 = none
+        data.append(0x00)
         
-        data.append(0x00)  # end of listing
+        # Part 5: Directory entries — $00 = none
+        data.append(0x00)
+        
+        # Part 6: Extended entry data — $00 = none
+        data.append(0x00)
+        
         return bytes(data)
     
     def _make_frame_response(self, frame_data):
