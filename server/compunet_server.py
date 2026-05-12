@@ -736,7 +736,7 @@ async def tcp_handler(reader, writer):
                 log.info('TCP: connection closed by client')
                 break
             
-            log.debug('TCP RX: %d bytes: %s', len(data), data.hex())
+            log.info('TCP RX: %d bytes: %s', len(data), data.hex())
             packets = x25.feed_data(data)
             
             for token, seq, payload in packets:

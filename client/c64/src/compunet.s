@@ -7120,9 +7120,9 @@ ACIA_SEND_PACKET:
 @update_crc:
     ; Standard CRC-CCITT: poly $1021, MSB-first
     ; CRC state in $C21D (hi) / $C21E (lo)
-    ; Input byte from stack (caller pushed it)
+    ; Input byte from stack (caller did PHA before JSR)
     TSX
-    LDA $0102,X                         ; Get the byte from stack (under return addr)
+    LDA $0103,X                         ; Get the byte from stack (PHA byte is 3 above SP)
     EOR $C21D                           ; XOR with CRC hi
     STA $C21D
     LDX #$08                            ; 8 bits
