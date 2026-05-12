@@ -13,7 +13,7 @@ import struct
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 rom_path = os.path.join(script_dir, 'original_rom.bin')
-output_path = os.path.join(script_dir, 'compunet_full.s')
+output_path = os.path.join(script_dir, 'compunet_rom.s')
 
 with open(rom_path, 'rb') as f:
     rom = f.read()

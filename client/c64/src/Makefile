@@ -9,7 +9,7 @@ PYTHON = python3
 TARGET = ../compunet-reborn.crt
 BIN = build/compunet_reborn.bin
 OBJ = build/compunet_reborn.o
-SRC = compunet_full.s
+SRC = compunet_rom.s
 CFG = cartridge.cfg
 
 .PHONY: all clean
