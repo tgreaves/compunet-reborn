@@ -1,0 +1,33 @@
+{
+  "root": {
+    "page_num": 1,
+    "title": "COMPUNET",
+    "type": "D",
+    "children": [
+      {
+        "page_num": 100,
+        "title": "NEWS",
+        "type": "T",
+        "size": 2,
+        "author": "EDITOR",
+        "price": 0,
+        "life": 7,
+        "vote": 6,
+        "frames": [],
+        "children": []
+      },
+      {
+        "page_num": 200,
+        "title": "HELP",
+        "type": "T",
+        "size": 4,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 0,
+        "vote": 8,
+        "frames": [],
+        "children": []
+      }
+    ]
+  }
+}

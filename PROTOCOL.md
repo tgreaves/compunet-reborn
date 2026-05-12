@@ -853,26 +853,63 @@ The client sends single ASCII letters as command identifiers:
 ### DIR/SHOW Response Format ('P' command)
 
 The 'P' command is the primary page request. The server responds with a
-two-part structure:
+multi-part structure delivered as a continuous byte stream via `$96CC`:
 
 ```
 Part 1: Frame header (raw PETSCII, rendered to screen)
-  [border_colour] [bg_colour] [PETSCII characters...] $00
+  [PETSCII bytes...] $00
+  Stored at $D000, displayed via CHROUT.
+  If first byte is $00, client uses built-in directory template ($BCE1).
 
-Part 2: Structured directory entries (parsed into RAM)
-  [routing_text CR] [entry_data...] $00
+Part 2: Routing text (2 CR-terminated lines, stored at $D300)
+  [line1...] $0D [line2...] $0D
+  First byte $00 = no routing text (skip to Part 3).
+  Displayed at row 22 — shows current directory path.
+
+Part 3: Field definitions (stored at $D580-$D5B0)
+  Repeating: [field_id_byte] '=' [value...] $0D
+  Terminated by $00.
+  field_id low nibble (1-6) selects destination offset in $D5xx.
+  These define F7/F8 column labels (PRICE, LIFE, AUTHOR, VOTE).
+
+Part 4: Column header (stored at $D400)
+  [header bytes...] $00
+  First byte $00 = no column header.
+  Displayed at row 7 col 1 above the entry list.
+
+Part 5: Short entry list (stored at $D500, 8 bytes per field)
+  Repeating: [field1] ',' [field2] ',' ... $0D
+  Each field max 8 chars, space-padded to 8 by client.
+  First byte $00 = no entries (but see note below).
+  Displayed in the left column of the directory area.
+
+Part 6: Extended entry data (stored at $D600+)
+  Repeating: [title (up to 30 chars)] ',' [type (8 chars)] ',' ... $0D
+  Title padded to 30 chars with spaces by client.
+  Type fields padded to 8 chars each.
+  Stream ends when $96CC returns C=1 (no more data in buffer).
+  Entry count stored in $C009 → $C003 for rendering.
+  Displayed in the right column and used for entry type detection.
 ```
 
-**Part 1** is rendered directly to screen memory at $D000 by the L_A37B loop.
-This provides the visual header — fancy graphics, routing text, column labels.
-Terminated by $00.
+**Critical implementation notes:**
 
-**Part 2** is parsed by the structured directory parser at L_A39E-L_A495.
-Directory entries are comma-separated ($2C) fields with CR ($0D) terminators,
-stored in RAM at $D300-$D500+ with 8-byte field widths. This data enables
-client-side cursor navigation (up/down highlighting) and F7/F8 column toggling.
+1. The client's Part 6 parser (L_A5F3) reads bytes until it finds a comma
+   ($2C) for the title field. It does NOT check carry from `$96CC`. If the
+   stream ends mid-entry, L_A5F3 loops forever storing $00 bytes. The stream
+   MUST end cleanly after a complete entry's $0D terminator.
 
-If Part 2's first byte is $00, there are no directory entries (text-only page).
+2. The original PROTO_PROCESS_CMD was blocking — it would wait indefinitely
+   for data. Our ACIA_PROCESS_CMD is non-blocking (returns C=1 when empty).
+   This mismatch means the Part 6 loop needs the stream to end at an entry
+   boundary, not mid-field.
+
+3. tcpser echoes transmitted packets back. Echo packets have token $43 (COM)
+   and must be discarded. Server response packets have token $22 (DAT).
+
+4. After Part 6 entries are consumed, `$C003` (entry count) is set from
+   `$C009`. If Part 6 has no entries, `$C003` is never set and the rendering
+   loop at L_A63E reads garbage from uninitialised RAM.
 
 This design allows each directory to have custom graphics in the header area
 while the navigable entry list below is rendered separately from structured data.

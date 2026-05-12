@@ -163,7 +163,7 @@ class CompunetDirectory:
     
     def _load_tree(self):
         """Load directory structure from JSON."""
-        json_path = os.path.join(CONTENT_DIR, 'directory.json')
+        json_path = os.path.join(CONTENT_DIR, 'root.json')
         if os.path.exists(json_path):
             with open(json_path, 'r') as f:
                 data = json.load(f)
@@ -450,27 +450,77 @@ class CompunetSession:
     def _make_page_response(self):
         """Build the 6-part page response that the terminal client expects.
         
-        Sending minimal/empty response for debugging.
+        Format verified from terminal disassembly:
+          Part 1: Frame header [PETSCII...] $00 — stored at $D000, displayed
+          Part 2: Routing text [line1 $0D line2 $0D] or $00 — stored at $D300
+          Part 3: Field definitions [id '=' value $0D]... $00 — stored at $D580+
+          Part 4: Column header [text...] $00 — stored at $D400, displayed at row 7
+          Part 5: Short entries [f1 ',' f2 $0D]... — stored at $D500 (8 bytes/field)
+          Part 6: Extended entries [title ',' type ',' ... $0D]... — stored at $D600+
+                  (title padded to 30, type fields 8 each, CR-terminated)
+                  Stream ends when ACIA_PROCESS_CMD returns C=1 (no more data)
         """
+        page = self.current_page
         data = bytearray()
         
-        # Part 1: Frame header — $00 = empty (client uses built-in template)
+        # --- Part 1: Frame header ---
+        # $00 = empty (client loads built-in directory template from $BCE1)
         data.append(0x00)
         
-        # Part 2: Routing text — $00 = none
+        # --- Part 2: Routing text (2 CR-terminated lines) ---
+        # Line 1: directory path
+        title = page.title if page.title else 'COMPUNET'
+        data.extend(ascii_to_petscii(title[:38]))
+        data.append(0x0D)
+        # Line 2: empty
+        data.append(0x0D)
+        
+        # --- Part 3: Field definitions ---
+        # $00 = none
         data.append(0x00)
         
-        # Part 3: Field definitions — $00 = none
+        # --- Part 4: Column header ---
+        # $00 = none  
         data.append(0x00)
         
-        # Part 4: Column header — $00 = none
-        data.append(0x00)
+        # --- Part 5: Short entry list (at $D500, 8 bytes per field) ---
+        # Format: [page_num],[title] $0D per entry
+        # Each field padded to 8 chars by client
+        offset = getattr(self, 'dir_page_offset', 0)
+        children = page.children[offset:]
+        has_more = len(children) > 11
+        visible = children[:11] if has_more else children
         
-        # Part 5: Directory entries — $00 = none
-        data.append(0x00)
+        if not visible:
+            # Must have at least a dummy entry or the client renders garbage
+            # Send a single empty-ish entry
+            data.extend(ascii_to_petscii('0'))
+            data.append(0x2C)
+            data.extend(ascii_to_petscii('EMPTY'))
+            data.append(0x0D)
+        else:
+            for child in visible:
+                data.extend(ascii_to_petscii(str(child.page_num)[:8]))
+                data.append(0x2C)
+                data.extend(ascii_to_petscii(child.title[:8]))
+                data.append(0x0D)
         
-        # Part 6: Extended entry data — $00 = none
-        data.append(0x00)
+        # --- Part 6: Extended entry data (at $D600+) ---
+        # Format per entry: [title (read until comma, padded to 30)] ',' 
+        #                    [type (8 chars)] ',' [more 8-char fields]... $0D
+        # Loop continues until ACIA_PROCESS_CMD returns C=1 (stream exhausted)
+        # $C009 counts entries, then $C003 = $C009
+        if not visible:
+            data.extend(ascii_to_petscii('EMPTY'))
+            data.append(0x2C)
+            data.extend(ascii_to_petscii('T'))
+            data.append(0x0D)
+        else:
+            for child in visible:
+                data.extend(ascii_to_petscii(child.title[:29]))
+                data.append(0x2C)
+                data.extend(ascii_to_petscii(child.type_string()[:8]))
+                data.append(0x0D)
         
         return bytes(data)
     

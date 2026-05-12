@@ -7205,6 +7205,10 @@ ACIA_FLOW_CONTROL:
     ; Extract token
     LDA RECV_BUF+1                      ; Token byte
     STA $8034                           ; Store for caller
+    ; Discard echo packets (tcpser echoes our TX back)
+    ; Our commands have token $43 (COM) — server responses have $22 (DAT)
+    CMP #$43                            ; Is it a COM packet (echo)?
+    BEQ @wait_start                     ; Yes — discard, wait for real packet
     ; Calculate payload length (total - 5: len, token, seq, CRC_hi, CRC_lo)
     TYA                                 ; Y = total bytes received
     SEC
@@ -7287,24 +7291,54 @@ ACIA_PROCESS_CMD:
     RTS
 
 @need_new_packet:
-    ; Try to receive a new packet (non-blocking)
-    ; Check if there's any data available first
-    LDA ACIA_STATUS
-    AND #$08
-    BNE @try_recv
+    ; Check if there's a start marker in the buffer.
+    ; If yes, receive the packet. If no, wait briefly then return C=1.
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
-    BEQ @no_data
-@try_recv:
+    BEQ @wait_briefly
+    ; There's data — peek to see if it's a start marker
+    TAX
+    LDA NMI_BUF,X
+    CMP #$01                            ; Start marker?
+    BEQ @recv_packet
+    ; Not a start marker — discard and check again
+    INC NMI_BUF_HEAD
+    JMP @need_new_packet
+@recv_packet:
     JSR ACIA_FLOW_CONTROL
     BCS @no_data
-    ; Got a packet — deliver first byte
+    ; Check if this was an echo packet (token $43 = COM)
+    LDA $8034
+    CMP #$43
+    BEQ @no_data                        ; Echo — discard, return no data
+    ; Got a real packet — deliver first byte
     LDX RECV_POS
     LDA RECV_BUF,X
     INC RECV_POS
     CLC
     RTS
+@wait_briefly:
+    ; Poke ACIA to trigger VICE socket poll
+    LDA ACIA_STATUS
+    AND #$08
+    BNE @got_acia_byte
+    ; Brief wait — check buffer a few more times
+    LDX #$00
+@wait_loop:
+    LDA NMI_BUF_HEAD
+    CMP NMI_BUF_TAIL
+    BNE @need_new_packet                ; Data arrived — try again
+    INX
+    BNE @wait_loop                      ; ~256 iterations
 @no_data:
-    LDA #$00
-    SEC                                 ; No data available (non-blocking)
+    ; Return CR ($0D) with C=1 — acts as stream terminator
+    ; L_A5F3 checks for $0D and exits cleanly
+    LDA #$0D
+    SEC
     RTS
+@got_acia_byte:
+    LDA ACIA_DATA
+    LDX NMI_BUF_TAIL
+    STA NMI_BUF,X
+    INC NMI_BUF_TAIL
+    JMP @need_new_packet
