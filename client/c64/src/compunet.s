@@ -1671,11 +1671,10 @@ L8D24:
     .byte $4C, $45, $41, $53, $45, $20, $57, $41, $49, $54, $00  ; $8D25 LEASE WAIT.
 
 ; --- MODEM_CHECK ---
-; ;--- MODIFIED: ACIA init, skip brick modem check ---
+; ;--- MODIFIED: skip brick modem check, go straight to phone input ---
 MODEM_CHECK:
     TSX
     STX $C154
-    JSR ACIA_INIT
     JMP L8D52
 L8D52:
     JSR L9050
@@ -1720,7 +1719,9 @@ L8DA4:
     LDX #.lobyte(L8D19)
     LDY #.hibyte(L8D19)
     JSR PRINT_STRING                    ; Print "DIALLING"
-    ; ;--- MODIFIED: Hayes AT dial via ACIA driver ---
+    ; ;--- MODIFIED: Init ACIA here (after phone input, before dial) ---
+    JSR ACIA_INIT
+    ; Hayes AT dial via ACIA driver
     JSR ACIA_DIAL
     BCS L8E1C                           ; C=1 = failed
     JSR L96D5                           ; PROTO_CONNECT
