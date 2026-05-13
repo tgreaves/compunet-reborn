@@ -188,6 +188,9 @@ class CompunetDirectory:
         page.parent = parent
         self.pages[page.page_num] = page
         
+        # Load header file (directory frame header)
+        page.header = node.get('header', None)
+        
         # Load frame files
         for frame_file in node.get('frames', []):
             frame_path = os.path.join(CONTENT_DIR, 'pages', frame_file)
@@ -461,11 +464,26 @@ class CompunetSession:
                   Stream ends when ACIA_PROCESS_CMD returns C=1 (no more data)
         """
         page = self.current_page
+        log.info('DIR: source=root.json page="%s" (page_num=%d, children=%d)', 
+                 page.title, page.page_num, len(page.children))
         data = bytearray()
         
         # --- Part 1: Frame header ---
-        # $00 = empty (client loads built-in directory template from $BCE1)
-        data.append(0x00)
+        # PETSCII frame data stored at $D000, displayed via CHROUT after template.
+        # Loaded from the page's "header" SEQ file if defined.
+        header_file = getattr(page, 'header', None)
+        if header_file:
+            header_path = os.path.join(CONTENT_DIR, 'pages', header_file)
+            log.info('DIR: header=%s (exists=%s)', header_path, os.path.exists(header_path))
+            if os.path.exists(header_path):
+                with open(header_path, 'rb') as f:
+                    data.extend(f.read())
+                data.append(0x00)  # End of Part 1
+            else:
+                data.append(0x00)  # File not found, empty
+        else:
+            log.info('DIR: no header defined for page %s', page.title)
+            data.append(0x00)  # No header defined
         
         # --- Part 2: Routing text (2 CR-terminated lines) ---
         # Line 1: directory path
@@ -497,14 +515,19 @@ class CompunetSession:
         visible = children[:11] if has_more else children
         
         if not visible:
-            data.extend(ascii_to_petscii('(EMPTY)'))
+            data.extend(ascii_to_petscii('0     (EMPTY)'))
             data.append(0x2C)
             data.extend(ascii_to_petscii('T'))
             data.append(0x0D)
         else:
             for child in visible:
-                data.extend(ascii_to_petscii(child.title[:29]))
+                # Combined field: [page_num padded to 6] + [title]
+                # First 6 chars = page number (rendered in bg colour = hidden)
+                # Chars 7+ = title (rendered in blue/red = visible)
+                page_str = str(child.page_num).ljust(6)[:6]
+                data.extend(ascii_to_petscii(page_str + child.title[:23]))
                 data.append(0x2C)
+                # Type string (8 chars, right column)
                 data.extend(ascii_to_petscii(child.type_string()[:8]))
                 data.append(0x0D)
         
