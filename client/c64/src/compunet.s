@@ -7238,19 +7238,13 @@ ACIA_FLOW_CONTROL:
 
 ; --- Get one byte (non-blocking, C=1 if empty) ---
 @get_byte:
-    LDA ACIA_STATUS                     ; Poke VICE
-    AND #$08
-    BNE @gb_acia
+    LDA ACIA_STATUS                     ; Poke VICE to trigger socket poll
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
     BEQ @gb_empty
     TAX
     LDA NMI_BUF,X
     INC NMI_BUF_HEAD
-    CLC
-    RTS
-@gb_acia:
-    LDA ACIA_DATA
     CLC
     RTS
 @gb_empty:
@@ -7271,6 +7265,7 @@ ACIA_FLOW_CONTROL:
 ; If no packet buffered, receives a new one first.
 ; =================================================================
 ACIA_PROCESS_CMD:
+    STX @save_x+1                       ; Preserve caller's X
     ; Check if we have buffered payload
     LDA RECV_POS
     SEC
@@ -7289,10 +7284,13 @@ ACIA_PROCESS_CMD:
     CMP RECV_LEN
     PLA
     BCS @last_byte
+@save_x:
+    LDX #$00                            ; Restore caller's X (self-modified)
     CLC                                 ; More bytes available
     RTS
 @last_byte:
-    CLC                                 ; Last byte but still valid (C=0)
+    LDX @save_x+1                       ; Restore caller's X
+    SEC                                 ; Last byte — signal end of stream
     RTS
 
 @need_new_packet:
@@ -7320,25 +7318,26 @@ ACIA_PROCESS_CMD:
     LDX RECV_POS
     LDA RECV_BUF,X
     INC RECV_POS
+    LDX @save_x+1                       ; Restore caller's X
     CLC
     RTS
 @wait_briefly:
     ; Poke ACIA to trigger VICE socket poll
     LDA ACIA_STATUS
-    AND #$08
-    BNE @got_acia_byte
     ; Brief wait — check buffer a few more times
     LDX #$00
 @wait_loop:
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
     BNE @need_new_packet                ; Data arrived — try again
+    LDA ACIA_STATUS                     ; Poke VICE again each iteration
     INX
     BNE @wait_loop                      ; ~256 iterations
 @no_data:
     ; Stream exhausted. Return fake terminators to exit L_A5F3:
     ; Calls 1-2: return $2C (comma) — one consumed by L_A4C2, one exits title loop
     ; Calls 3+: return $0D (CR) — exits field loop + propagates C=1
+    LDX @save_x+1                       ; Restore caller's X
     LDA NODATA_FLAG
     CMP #$02
     BCS @ret_cr
@@ -7350,9 +7349,3 @@ ACIA_PROCESS_CMD:
     LDA #$0D                            ; CR — exits field reading
     SEC
     RTS
-@got_acia_byte:
-    LDA ACIA_DATA
-    LDX NMI_BUF_TAIL
-    STA NMI_BUF,X
-    INC NMI_BUF_TAIL
-    JMP @need_new_packet

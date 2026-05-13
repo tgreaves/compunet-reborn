@@ -870,26 +870,28 @@ Part 3: Field definitions (stored at $D580-$D5B0)
   Repeating: [field_id_byte] '=' [value...] $0D
   Terminated by $00.
   field_id low nibble (1-6) selects destination offset in $D5xx.
-  These define F7/F8 column labels (PRICE, LIFE, AUTHOR, VOTE).
 
-Part 4: Column header (stored at $D400)
-  [header bytes...] $00
-  First byte $00 = no column header.
-  Displayed at row 7 col 1 above the entry list.
+Part 4: Page content (stored at $D400, displayed at row 7)
+  [content bytes...] $00
+  First byte $00 = no page content.
+  L_A427 reads this byte; if non-zero it stores until $00 terminator.
 
-Part 5: Short entry list (stored at $D500, 8 bytes per field)
-  Repeating: [field1] ',' [field2] ',' ... $0D
+Part 5: Column headers (stored at $D500, 8 bytes per field)
+  [field1] ',' [field2] ',' ... $0D $00
   Each field max 8 chars, space-padded to 8 by client.
-  First byte $00 = no entries (but see note below).
-  Displayed in the left column of the directory area.
+  First byte $00 = no column headers (skip to Part 6).
+  $C001 counts number of fields. F7/F8 cycles through them.
+  The trailing $00 after the CR is a separator byte consumed by L_A448
+  (value unused — required for stream alignment with Part 6).
 
-Part 6: Extended entry data (stored at $D600+)
-  Repeating: [title (up to 30 chars)] ',' [type (8 chars)] ',' ... $0D
-  Title padded to 30 chars with spaces by client.
-  Type fields padded to 8 chars each.
-  Stream ends when $96CC returns C=1 (no more data in buffer).
+Part 6: Directory entries (stored at $D600+, 94 bytes per slot)
+  Repeating: [title (up to 30 chars)] ',' [col1 (8)] ',' [col2] ... $0D
+  Title: 6 chars page number + up to 21 chars name/type = max 27 before comma.
+  Client pads title to 30 chars with spaces.
+  Column fields: up to 8 chars each, space-padded to 8 by client.
+  Fields correspond to Part 5 headers (PRICE, LIFE, AUTHOR, VOTE).
+  Stream ends when $96CC returns C=1 (last byte of final packet delivered).
   Entry count stored in $C009 → $C003 for rendering.
-  Displayed in the right column and used for entry type detection.
 ```
 
 **Critical implementation notes:**
@@ -899,15 +901,19 @@ Part 6: Extended entry data (stored at $D600+)
    stream ends mid-entry, L_A5F3 loops forever storing $00 bytes. The stream
    MUST end cleanly after a complete entry's $0D terminator.
 
-2. The original PROTO_PROCESS_CMD was blocking — it would wait indefinitely
-   for data. Our ACIA_PROCESS_CMD is non-blocking (returns C=1 when empty).
-   This mismatch means the Part 6 loop needs the stream to end at an entry
-   boundary, not mid-field.
+2. `ACIA_PROCESS_CMD` returns C=1 on the last byte of the packet payload,
+   signalling end-of-stream. This propagates through L_A5F3's PHP/PLP chain
+   to exit the entry loop at L_A4C2.
 
-3. tcpser echoes transmitted packets back. Echo packets have token $43 (COM)
-   and must be discarded. Server response packets have token $22 (DAT).
+3. `ACIA_PROCESS_CMD` must preserve the caller's X register. The field parser
+   at L_A616 uses X as an 8-byte width counter; if X is clobbered, entries
+   overflow their 94-byte slot and corrupt subsequent buffer memory.
 
-4. After Part 6 entries are consumed, `$C003` (entry count) is set from
+4. The server must NOT send unsolicited packets (e.g., login ACKs) that could
+   be consumed as a command response. The client's L96D2 (ACIA_FLOW_CONTROL)
+   picks up the next available packet regardless of type.
+
+5. After Part 6 entries are consumed, `$C003` (entry count) is set from
    `$C009`. If Part 6 has no entries, `$C003` is never set and the rendering
    loop at L_A63E reads garbage from uninitialised RAM.
 

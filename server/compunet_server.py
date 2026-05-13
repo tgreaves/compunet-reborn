@@ -496,10 +496,11 @@ class CompunetSession:
         # --- Part 3: Field definitions ---
         # $00 = none
         data.append(0x00)
-        
-        # NOTE: No Part 4 byte! L_A3D3's BEQ jumps past the Part 4 read.
-        # The next byte consumed is by L_A450's JSR L_A4FE (Part 5 check).
-        
+
+        # --- Part 4: Page content ($D400) ---
+        # $00 = none. L_A427 reads this byte; if non-zero it stores until $00.
+        data.append(0x00)
+
         # --- Part 5: Column headers (at $D500, 8 bytes per field) ---
         # Single line: all column headers comma-separated, CR-terminated.
         # F7/F8 cycles through them. $C002 selects which to display.
@@ -511,7 +512,10 @@ class CompunetSession:
         data.append(0x2C)
         data.extend(ascii_to_petscii('VOTE'))
         data.append(0x0D)
-        
+
+        # Separator byte consumed by L_A448's JSR L96CC (value unused)
+        data.append(0x00)
+
         # --- Part 6: ALL directory entries (at $D600+) ---
         # Format per entry: [title (up to 30 chars)] ',' [type (8 chars)] $0D
         # Title padded to 30 chars, type fields padded to 8 each by client.
@@ -781,9 +785,9 @@ async def tcp_handler(reader, writer):
         
         while True:
             try:
-                data = await asyncio.wait_for(reader.read(256), timeout=120.0)
+                data = await asyncio.wait_for(reader.read(256), timeout=600.0)
             except asyncio.TimeoutError:
-                log.info('TCP: idle timeout (2 minutes)')
+                log.info('TCP: idle timeout (10 minutes)')
                 break
             if not data:
                 log.info('TCP: connection closed by client')
@@ -830,13 +834,6 @@ async def tcp_handler(reader, writer):
                         
                         authenticated = True
                         log.info('TCP: login OK! Skipping LINKING (terminal pre-loaded)')
-                        
-                        # Send ACK for the login packet
-                        login_seq = seq
-                        ack_pkt = x25.make_ack(login_seq)
-                        writer.write(ack_pkt)
-                        await writer.drain()
-                        log.info('TCP: sent ACK for login packet seq=$%02X', login_seq)
                         
                         # No LINKING needed — terminal code is pre-loaded in the PRG.
                         # The C64 will skip MODEM_INIT_DOWNLOAD and enter terminal directly.

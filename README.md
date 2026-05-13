@@ -22,7 +22,8 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Directory entries display with titles, type suffixes, page numbers
 - ✅ Correct colours (blue unselected, red selected/highlighted)
 - ✅ Cursor up/down navigation of directory entries
-- ✅ F7/F8 column switching (PRICE column header visible)
+- ✅ F7/F8 column switching (PRICE, LIFE, AUTHOR, VOTE all display correctly)
+- ✅ Column data renders correctly for all entries
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture
@@ -32,7 +33,7 @@ The C64 client is a single combined PRG (~16KB) containing:
 - **Terminal code** ($A000-$BE02) — duckshoot, directory navigation, frame display
 - **ACIA driver** ($BE03+) — polling-based SwiftLink communication
 
-All communication uses **polling** (like CCGMS), not the original IRQ-driven approach which deadlocks with ACIA hardware. The NMI handler stores incoming bytes in a ring buffer at $CE00; the ACIA driver routines poll this buffer to assemble and deliver X.25 packets.
+All communication uses **NMI-driven receive** with a ring buffer at $CE00. The NMI handler stores incoming ACIA bytes; driver routines poll the ring buffer exclusively (never reading ACIA_DATA directly from mainline code, which would race with the NMI handler and cause byte duplication). X.25 packets are assembled from the ring buffer by ACIA_FLOW_CONTROL and delivered byte-by-byte via ACIA_PROCESS_CMD.
 
 ### Connection Flow
 
@@ -131,7 +132,7 @@ The original ROM used IRQ-driven packet assembly — a CIA timer fired at ~60Hz,
 - TCP delivers data in bursts (not one byte per 833μs)
 - The IRQ handler would consume all buffered bytes in one tick, racing with the main code
 
-Our approach (like CCGMS): NMI stores bytes in a ring buffer. The main code polls the buffer directly, assembling packets inline. No IRQ involvement in receive.
+Our approach: NMI stores incoming bytes in a ring buffer ($CE00). All mainline code reads exclusively from the ring buffer — never directly from ACIA_DATA — to avoid race conditions where the NMI handler and mainline code both read the same byte, causing duplication. ACIA_STATUS reads are used solely to trigger VICE's socket polling.
 
 ### ROM Modifications
 
@@ -147,9 +148,6 @@ The original ROM code is preserved with targeted patches:
 
 ## Next Steps
 
-- Fix entry alignment (1-char offset between entries)
-- Fix field storage for PRICE/LIFE/AUTHOR/VOTE columns
-- Fix frame header display position
 - Implement SHOW command (display text frames)
 - Handle the `NEW` requirement automatically (BASIC memory pointers)
 - Fix CRC calculation in ACIA_SEND_PACKET
