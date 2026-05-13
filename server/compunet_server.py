@@ -426,34 +426,39 @@ class CompunetSession:
         return ascii_to_petscii(credit_str.ljust(10))
     
     def _cmd_buy(self, params):
-        """BUY command ('X') — purchase a page, deducting credit.
+        """LIFE/EXTEND command ('X') — extend life of owned content.
 
-        Client sends the selected entry's price in params.
-        Server validates, deducts credit, marks page as purchased,
-        and returns a simple ACK. Client then sends 'P' to reload directory.
+        Params: entry_index (2 ASCII digits) + extension (up to 4 ASCII digits).
+        Server validates ownership and adds extension to page life.
+        Returns success byte or error token ($41) for failure.
         """
+        if len(params) < 2:
+            return bytes([0x00])
+
+        try:
+            entry_idx = int(params[0:2].decode('ascii'))
+            extend_by = int(params[2:].decode('ascii').strip()) if len(params) > 2 else 0
+        except (ValueError, UnicodeDecodeError):
+            return bytes([0x00])
+
+        # Find the page from current directory
         offset = getattr(self, 'dir_page_offset', 0)
         visible_children = self.current_page.children[offset:offset+11]
+        if entry_idx >= len(visible_children):
+            return bytes([0x00])
 
-        if self.selected_entry >= len(visible_children):
-            return self._make_error(ascii_to_petscii('INVALID ENTRY'))
+        child = visible_children[entry_idx]
 
-        child = visible_children[self.selected_entry]
+        # Check ownership
+        if child.author != self.user_id:
+            log.info('EXTEND DENIED: user=%s is not author of page %d (author=%s)',
+                     self.user_id, child.page_num, child.author)
+            return bytes([0x00])
 
-        if child.page_num in self.purchased:
-            return self._make_error(ascii_to_petscii('ALREADY PURCHASED'))
-
-        if child.price <= 0:
-            return self._make_error(ascii_to_petscii('PAGE IS FREE'))
-
-        if self.credit < child.price:
-            return self._make_error(ascii_to_petscii('NOT ENOUGH CREDIT'))
-
-        self.credit -= child.price
-        self.purchased.add(child.page_num)
-        self._save_user()
-        log.info('BUY: user=%s page=%d ("%s") price=%.2f credit_remaining=%.2f',
-                 self.user_id, child.page_num, child.title, child.price, self.credit)
+        # Extend life
+        child.life += extend_by
+        log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
+                 self.user_id, child.page_num, child.title, extend_by, child.life)
         return bytes([0x00])
 
     def _save_user(self):
