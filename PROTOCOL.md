@@ -1030,22 +1030,49 @@ Screen layout (from disassembly):
 - Row 10+: Directory entries
 - F7/F8 toggles which extra column is displayed (client-side re-render)
 
-### BUY/Download Sequence
+### BUY Sequence (confirmed from disassembly)
 
-1. Client sends 'B' ($42) command with Y=1
-2. Server responds with account/price info (received at $C100+, displayed)
-3. If item has a price, client displays "BUY FOR [price] - SURE?"
-4. On confirmation, server sends program data via MODEM_INIT_DOWNLOAD ($810F)
-5. Client displays "DOWNLOADING" during transfer
-6. On completion, prompts "SAVE FILENAME?"
+BUY shares the same code path as SHOW ($A9C5). The only difference is
+the confirmation prompt for priced items.
 
-### SHOW Sequence
+1. Client checks PRICE field in directory buffer (L_AC46)
+2. If price > 0: displays "BUY FOR [price] - SURE?" and waits for Y/N
+3. If user confirms (or price = 0): sends 'D' ($44) with entry index
+4. Server deducts credit (allows overdraft), marks page as purchased,
+   and responds with frame data
+5. Client renders the frame (same as SHOW)
+6. No automatic directory reload — price remains cached until next 'P'
 
-1. Client sends 'P' ($50) with page info (Y=3)
-2. Server responds with frame data (received byte-by-byte via RECV_BYTE)
-3. Client renders each byte to screen via CHROUT
-4. `$00` marks end of frame
-5. If more pages: duckshoot shows MORE/FINISH/ALL options
+The client does NOT check credit locally. The server allows overdraft
+(credit goes negative). ACCNT then shows "IN DEBIT" for negative balances.
+
+### SHOW Sequence (confirmed from disassembly)
+
+SHOW and BUY use the same entry point ($A9C5) and send the same 'D'
+command. SHOW checks price first: if non-zero, displays "PLEASE USE BUY"
+and returns without sending anything.
+
+1. Client checks PRICE field (L_AC46): if non-zero → "PLEASE USE BUY", return
+2. Sends 'D' ($44) with entry index as params (2 ASCII digits)
+3. Server responds with frame data
+4. Client renders frame via L89D0 (FRAME_BUF_READ)
+5. `$00` marks end of frame
+6. If $8035 bit 7 set: duckshoot shows MORE/ALL/FINISH options
+7. MORE sends another 'D' (no params) to advance; server tracks frame index
+
+### LIFE/EXTEND Sequence (confirmed from disassembly)
+
+LIFE extends the expiry of content owned by the user. Uses command 'X' ($58).
+
+1. Client checks type suffix at screen col 25: D/E/U → "CAN'T EXTEND", return
+2. Prompts "EXTEND BY?" — user enters 1-4 digit number
+3. Builds packet: 'X' ($58) + page number (2 ASCII digits) + extension (4 digits)
+4. Sends 'X' command (Y=7 bytes) via L_A784
+5. Receives response via L96D2: if error (SEC) → silent return
+6. On success: prints "OK - GETTING NEW DIR", sends 'P' to reload directory
+
+Server should validate that the requesting user is the page author before
+allowing the extension.
 
 ### Upload Sequence
 
