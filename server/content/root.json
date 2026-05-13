@@ -24,9 +24,21 @@
         "size": 2,
         "author": "SYSTEM",
         "price": 1.50,
-        "life": 0,
+        "life": 30,
         "vote": 8,
         "frames": ["paid-1.seq", "paid-2.seq"],
+        "children": []
+      },
+      {
+        "page_num": 300,
+        "title": "VIP",
+        "type": "T",
+        "size": 1,
+        "author": "SYS",
+        "price": 50.00,
+        "life": 99,
+        "vote": 9,
+        "frames": ["paid-1.seq"],
         "children": []
       }
     ]

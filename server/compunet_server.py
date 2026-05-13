@@ -67,6 +67,7 @@ CMD_MAIL = 0x4D       # 'M'
 CMD_SHOW = 0x50       # 'P'
 CMD_UPLD = 0x55       # 'U'
 CMD_VOTE = 0x56       # 'V'
+CMD_BUY = 0x58        # 'X'
 
 # PETSCII helpers
 PETSCII_RETURN = 0x0D
@@ -216,6 +217,7 @@ class CompunetSession:
         self.current_page = directory.root
         self.selected_entry = 0
         self.credit = 0.0
+        self.purchased = set()
         self.show_page = None
         self.show_frame_index = 0
         self.dir_page_offset = 0
@@ -250,7 +252,8 @@ class CompunetSession:
         self.user_id = user_id
         self.authenticated = True
         self.credit = user.get('credit', 0.0)
-        log.info('Login OK: %s', user_id)
+        self.purchased = set(user.get('purchased', []))
+        log.info('Login OK: %s (credit=%.2f, purchased=%s)', user_id, self.credit, self.purchased)
         return self._make_welcome_frame(user)
     
     def handle_command(self, data):
@@ -282,6 +285,8 @@ class CompunetSession:
             return self._cmd_vote(params)
         elif cmd == CMD_MAIL:
             return self._cmd_mail()
+        elif cmd == CMD_BUY:
+            return self._cmd_buy(params)
         elif cmd == ord('N'):
             return self._cmd_more(params)
         else:
@@ -349,6 +354,14 @@ class CompunetSession:
                 self.dir_page_offset = 0
                 return self._make_dir_response()
             elif child.frames:
+                # Deduct credit for paid, unpurchased pages (allows overdraft)
+                if child.price > 0 and child.page_num not in self.purchased:
+                    self.credit -= child.price
+                    self.purchased.add(child.page_num)
+                    self._save_user()
+                    log.info('BUY: user=%s page=%d ("%s") price=%.2f credit=%.2f',
+                             self.user_id, child.page_num, child.title,
+                             child.price, self.credit)
                 self.show_page = child
                 self.show_frame_index = 0
                 return self._send_current_frame()
@@ -412,6 +425,47 @@ class CompunetSession:
             credit_str = '-' + credit_str
         return ascii_to_petscii(credit_str.ljust(10))
     
+    def _cmd_buy(self, params):
+        """BUY command ('X') — purchase a page, deducting credit.
+
+        Client sends the selected entry's price in params.
+        Server validates, deducts credit, marks page as purchased,
+        and returns a simple ACK. Client then sends 'P' to reload directory.
+        """
+        offset = getattr(self, 'dir_page_offset', 0)
+        visible_children = self.current_page.children[offset:offset+11]
+
+        if self.selected_entry >= len(visible_children):
+            return self._make_error(ascii_to_petscii('INVALID ENTRY'))
+
+        child = visible_children[self.selected_entry]
+
+        if child.page_num in self.purchased:
+            return self._make_error(ascii_to_petscii('ALREADY PURCHASED'))
+
+        if child.price <= 0:
+            return self._make_error(ascii_to_petscii('PAGE IS FREE'))
+
+        if self.credit < child.price:
+            return self._make_error(ascii_to_petscii('NOT ENOUGH CREDIT'))
+
+        self.credit -= child.price
+        self.purchased.add(child.page_num)
+        self._save_user()
+        log.info('BUY: user=%s page=%d ("%s") price=%.2f credit_remaining=%.2f',
+                 self.user_id, child.page_num, child.title, child.price, self.credit)
+        return bytes([0x00])
+
+    def _save_user(self):
+        """Persist user credit and purchases to users.json."""
+        users_file = os.path.join(os.path.dirname(__file__), 'users.json')
+        users = self._load_users()
+        if self.user_id in users:
+            users[self.user_id]['credit'] = self.credit
+            users[self.user_id]['purchased'] = sorted(self.purchased)
+            with open(users_file, 'w') as f:
+                json.dump(users, f, indent=2)
+
     def _cmd_back(self):
         """BACK command - go to previous page, or parent directory if on first page."""
         if self.dir_page_offset > 0:
@@ -556,9 +610,10 @@ class CompunetSession:
                 title_field = title.ljust(20 - len(type_str)) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field[:20]))
                 data.append(0x2C)
-                # Column 1: PRICE
-                if child.price > 0:
-                    data.extend(ascii_to_petscii('{:.2f}'.format(child.price)[:8]))
+                # Column 1: PRICE (0 if already purchased)
+                effective_price = 0 if child.page_num in self.purchased else child.price
+                if effective_price > 0:
+                    data.extend(ascii_to_petscii('{:.2f}'.format(effective_price)[:8]))
                 data.append(0x2C)
                 # Column 2: LIFE
                 if child.life > 0:
@@ -579,6 +634,21 @@ class CompunetSession:
         """Wrap frame data in a response packet."""
         return bytes([RESP_FRAME]) + frame_data
     
+    def _make_info_frame(self, message):
+        """Build a simple info frame displaying a message."""
+        frame = bytearray()
+        frame.append(0x00)  # flags (no more pages)
+        frame.append(0x02)  # border = red
+        frame.append(0x00)  # bg = black
+        frame.append(0x8E)  # uppercase
+        frame.append(0x05)  # white text
+        frame.append(0x0D)
+        frame.append(0x0D)
+        frame.extend(ascii_to_petscii('  ' + message))
+        frame.append(0x0D)
+        frame.append(0x00)  # end
+        return bytes(frame)
+
     def _make_welcome_frame(self, user):
         """Build the personal information welcome screen.
 

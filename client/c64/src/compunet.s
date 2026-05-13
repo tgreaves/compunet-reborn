@@ -7297,23 +7297,40 @@ ACIA_PROCESS_CMD:
 @last_byte:
     ; Last byte of current packet. Check if more data is coming.
     ; Peek NMI buffer: if a $01 start marker is waiting, another packet
-    ; follows (CLC). Otherwise this is the end of the stream (SEC).
-    ; Must preserve A (the byte being delivered) and Y (caller's index).
+    ; follows (CLC). Otherwise wait briefly then declare end-of-stream (SEC).
+    ; Must preserve A and Y (caller uses both).
     PHA
+    TYA
+    PHA                                 ; Save caller's Y
+    LDY #$10                            ; Outer loop: 16 rounds
+@last_outer:
+    LDX #$00
+@last_wait:
+    LDA ACIA_STATUS                     ; Poke VICE to trigger socket poll
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
-    BEQ @last_no_more                   ; Buffer empty → end of stream
+    BNE @last_check                     ; Data in buffer — check it
+    INX
+    BNE @last_wait                      ; Inner: 256 iterations
+    DEY
+    BNE @last_outer                     ; ~4K total iterations
+    BEQ @last_no_more                   ; Timeout — no more data
+@last_check:
     TAY
     LDA NMI_BUF,Y
     CMP #$01                            ; Start marker?
     BEQ @last_more
 @last_no_more:
     PLA
+    TAY                                 ; Restore caller's Y
+    PLA                                 ; Restore A
     LDX @save_x+1
     SEC                                 ; End of stream
     RTS
 @last_more:
     PLA
+    TAY                                 ; Restore caller's Y
+    PLA                                 ; Restore A
     LDX @save_x+1
     CLC                                 ; More packets coming
     RTS
