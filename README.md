@@ -78,9 +78,9 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
 
 ### Documentation
 
-- **[PROTOCOL.md](PROTOCOL.md)** — Full X.25-derived protocol specification
-- **[MODEM.md](MODEM.md)** — Original modem vs ACIA hardware comparison and polling approach
-- **[ROM-REWRITE.md](ROM-REWRITE.md)** — PRG-based architecture and build system
+- **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — Full X.25-derived protocol specification
+- **[docs/MODEM.md](docs/MODEM.md)** — Original modem vs ACIA hardware comparison and polling approach
+- **[docs/ROM-REWRITE.md](docs/ROM-REWRITE.md)** — PRG-based architecture and build system
 
 ### Historical Sources
 

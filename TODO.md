@@ -2,4 +2,9 @@
 
 ## Bugs
 
-- **@last_byte timing issue with multi-packet DIR responses**: When a directory response is split across two packets (>200 bytes), the `@last_byte` NMI buffer peek may not find the second packet's `$01` start marker in time. The 4K-iteration wait helps but is not a guaranteed fix. The root cause is that VICE's socket polling introduces variable latency between packets. Current workaround: keep directory responses under 200 bytes. Proper fix: either increase the wait further (adds latency to single-packet responses) or redesign `@last_byte` to always return CLC and handle end-of-stream purely in `@need_new_packet`.
+- **200-byte crash (CPU JAM)**: NMI ring buffer overflow + `@last_byte` peek race condition. See `docs/crash-investigation-200-byte.md` for full analysis and fix plan (Options A+C+D).
+
+## Features
+
+- **MAIL command**: Implement the Courier mail system (store/forward messages between users). Currently returns "NO MAIL WAITING" stub.
+- **Web client update**: Bring the web client (`client/web/`) up to date with current server architecture, protocol changes, and all features implemented in the C64 TCP path.

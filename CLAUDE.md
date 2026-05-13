@@ -6,7 +6,7 @@ The original X.25-derived packet protocol is preserved on the wire. The ROM's pr
 
 Only the hardware layer ($94E4/$94F0/$94FA) is replaced: the original Compunet modem registers are swapped for 6551 ACIA (SwiftLink) equivalents with NMI-driven receive.
 
-The application-layer protocol (command bytes, response types, directory format, frame format, linking sequence) must be preserved exactly as documented in [PROTOCOL.md](PROTOCOL.md). Do not invent new application-layer commands or alter existing response formats.
+The application-layer protocol (command bytes, response types, directory format, frame format, linking sequence) must be preserved exactly as documented in [docs/PROTOCOL.md](docs/PROTOCOL.md). Do not invent new application-layer commands or alter existing response formats.
 
 ## Behaviour Rules
 
@@ -19,4 +19,4 @@ The client and server must always behave like the original Compunet system. All 
 ## Git Rules
 
 1. Only ever commit when instructed to do so by a human.
-2. On any commit, ensure [README.md](README.md) and [PROTOCOL.md](PROTOCOL.md) are fully up to date and reflect any changes made.
+2. On any commit, ensure [README.md](README.md) and [docs/PROTOCOL.md](docs/PROTOCOL.md) are fully up to date and reflect any changes made.

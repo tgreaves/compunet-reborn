@@ -155,7 +155,7 @@ class CompunetPage:
 
 
 class CompunetDirectory:
-    """The content tree, loaded from directory.json."""
+    """The content tree, loaded from root.json."""
     
     def __init__(self):
         self.pages = {}

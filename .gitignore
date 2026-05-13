@@ -13,6 +13,12 @@ Thumbs.db
 # Generated intermediates
 client/chargen
 
+# Build output
+client/c64/src/build/
+
+# Connection artifacts
+client/c64/127.0.0.1:*
+
 # Logs
 server/logs/
 client/c64/logs/
