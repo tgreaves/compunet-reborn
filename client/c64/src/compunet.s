@@ -7034,7 +7034,7 @@ ACIA_SEND_PACKET:
     LDA $C14D
     CLC
     ADC #$05
-    STA $C14E                           ; Total length byte
+    STA SEND_PKT_LEN                    ; Total length byte (NOT $C14E — that's duckshoot ptr!)
 
     ; --- Init CRC ---
     LDA #$00
@@ -7042,7 +7042,7 @@ ACIA_SEND_PACKET:
     STA $C21E                           ; CRC lo
 
     ; --- Send length (with stuffing + CRC) ---
-    LDA $C14E
+    LDA SEND_PKT_LEN
     JSR @send_stuffed_crc
 
     ; --- Send token (with stuffing + CRC) ---
@@ -7158,6 +7158,7 @@ RECV_BUF        = $C300   ; Received packet payload
 RECV_LEN        = $C3FE   ; Payload length
 RECV_POS        = $C3FF   ; Current read position for PROCESS_CMD
 NODATA_FLAG     = $C3FD   ; End-of-stream flag (reset by FLOW_CONTROL)
+SEND_PKT_LEN    = $C3FC   ; Temp: packet length during ACIA_SEND_PACKET
 
 ACIA_FLOW_CONTROL:
     ; Wait for start marker $01
