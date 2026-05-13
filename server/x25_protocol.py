@@ -280,8 +280,10 @@ class X25Connection:
             crc_lo_rx = raw_pkt[-1]
 
             # Verify CRC (init $00/$00 over all bytes except CRC)
+            # Note: VICE SwiftLink strips bit 7 from transmitted bytes, so CRC
+            # bytes arrive with bit 7 cleared. Accept if masking bit 7 matches.
             crc_hi, crc_lo = crc_ccitt(raw_pkt[:-2], crc_hi=0x00, crc_lo=0x00)
-            if crc_hi != crc_hi_rx or crc_lo != crc_lo_rx:
+            if (crc_hi & 0x7F) != (crc_hi_rx & 0x7F) or (crc_lo & 0x7F) != (crc_lo_rx & 0x7F):
                 log.warning('X25 RX: CRC mismatch! expected=%02X%02X got=%02X%02X pkt=%s',
                             crc_hi, crc_lo, crc_hi_rx, crc_lo_rx, raw_pkt.hex())
 
