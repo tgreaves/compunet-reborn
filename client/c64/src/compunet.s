@@ -7296,30 +7296,18 @@ ACIA_PROCESS_CMD:
     RTS
 @last_byte:
     LDX @save_x+1                       ; Restore caller's X
-    CLC                                 ; Byte is valid — next call will hit @need_new_packet
+    CLC                                 ; Byte valid — next call tries @need_new_packet
     RTS
 
 @need_new_packet:
-    ; Check if there's a start marker in the buffer.
-    ; If yes, receive the packet. If no, wait briefly then return C=1.
-    LDA NMI_BUF_HEAD
-    CMP NMI_BUF_TAIL
-    BEQ @wait_briefly
-    ; There's data — peek to see if it's a start marker
-    TAX
-    LDA NMI_BUF,X
-    CMP #$01                            ; Start marker?
-    BEQ @recv_packet
-    ; Not a start marker — discard and check again
-    INC NMI_BUF_HEAD
-    JMP @need_new_packet
-@recv_packet:
+    ; Try to receive the next packet via ACIA_FLOW_CONTROL.
+    ; It has its own ~16K iteration timeout for genuine end-of-stream.
     JSR ACIA_FLOW_CONTROL
     BCS @no_data
     ; Check if this was an echo packet (token $43 = COM)
     LDA $8034
     CMP #$43
-    BEQ @no_data                        ; Echo — discard, return no data
+    BEQ @need_new_packet                ; Echo — discard, try again
     ; Got a real packet — deliver first byte
     LDX RECV_POS
     LDA RECV_BUF,X
@@ -7327,22 +7315,6 @@ ACIA_PROCESS_CMD:
     LDX @save_x+1                       ; Restore caller's X
     CLC
     RTS
-@wait_briefly:
-    ; Poke ACIA to trigger VICE socket poll
-    LDA ACIA_STATUS
-    ; Wait for data — 8 rounds of 256 = ~2K iterations
-    LDY #$08
-@wait_outer:
-    LDX #$00
-@wait_loop:
-    LDA NMI_BUF_HEAD
-    CMP NMI_BUF_TAIL
-    BNE @need_new_packet                ; Data arrived — try again
-    LDA ACIA_STATUS                     ; Poke VICE again each iteration
-    INX
-    BNE @wait_loop
-    DEY
-    BNE @wait_outer
 @no_data:
     ; Stream exhausted. Return fake terminators to exit L_A5F3:
     ; Calls 1-2: return $2C (comma) — one consumed by L_A4C2, one exits title loop

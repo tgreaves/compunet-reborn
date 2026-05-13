@@ -392,32 +392,18 @@ class CompunetSession:
         return b'\x00'
     
     def _cmd_accnt(self):
-        """ACCNT command - return account info frame."""
-        # Build a simple account info frame
-        frame = bytearray()
-        frame.append(0x00)  # frame start
-        frame.append(0xF6)  # border = blue
-        frame.append(0xF1)  # bg = white
-        frame.append(PETSCII_UPPER)
-        frame.append(PETSCII_RETURN)
-        frame.append(PETSCII_RETURN)
-        frame.extend(b'\x06\x03')  # 3 spaces
-        frame.append(PETSCII_RED)
-        frame.extend(ascii_to_petscii('ACCOUNT INFORMATION'))
-        frame.append(PETSCII_RETURN)
-        frame.append(PETSCII_RETURN)
-        frame.extend(b'\x06\x03')
-        frame.append(PETSCII_BLUE)
-        frame.extend(ascii_to_petscii('USER ID : '))
-        frame.extend(ascii_to_petscii(self.user_id or 'GUEST'))
-        frame.append(PETSCII_RETURN)
-        frame.extend(b'\x06\x03')
-        frame.extend(ascii_to_petscii('CREDIT  : '))
-        frame.extend(ascii_to_petscii('{:.2f}'.format(self.credit)))
-        frame.append(PETSCII_RETURN)
-        frame.append(0x00)  # end of frame
-        
-        return bytes([RESP_FRAME, 0x00]) + bytes(frame)
+        """ACCNT command - return credit balance as ASCII text.
+
+        Client prints "YOU ARE [value] IN CREDIT/DEBIT" itself.
+        Client reads response into $C100 until carry set, then prints
+        chars from first non-space until X reaches 10 (CPX #$0A).
+        Payload must be exactly 10 bytes to prevent fake terminator
+        garbage from appearing (ACIA_PROCESS_CMD returns $2C after stream ends).
+        """
+        credit_str = '{:.2f}'.format(abs(self.credit))
+        if self.credit < 0:
+            credit_str = '-' + credit_str
+        return ascii_to_petscii(credit_str.ljust(10))
     
     def _cmd_back(self):
         """BACK command - go to previous page, or parent directory if on first page."""
