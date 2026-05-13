@@ -12,3 +12,7 @@ Thumbs.db
 
 # Generated intermediates
 client/chargen
+
+# Logs
+server/logs/
+client/c64/logs/
