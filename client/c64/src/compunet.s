@@ -7295,8 +7295,27 @@ ACIA_PROCESS_CMD:
     CLC                                 ; More bytes available
     RTS
 @last_byte:
-    LDX @save_x+1                       ; Restore caller's X
-    CLC                                 ; Byte valid — next call tries @need_new_packet
+    ; Last byte of current packet. Check if more data is coming.
+    ; Peek NMI buffer: if a $01 start marker is waiting, another packet
+    ; follows (CLC). Otherwise this is the end of the stream (SEC).
+    ; Must preserve A (the byte being delivered) and Y (caller's index).
+    PHA
+    LDA NMI_BUF_HEAD
+    CMP NMI_BUF_TAIL
+    BEQ @last_no_more                   ; Buffer empty → end of stream
+    TAY
+    LDA NMI_BUF,Y
+    CMP #$01                            ; Start marker?
+    BEQ @last_more
+@last_no_more:
+    PLA
+    LDX @save_x+1
+    SEC                                 ; End of stream
+    RTS
+@last_more:
+    PLA
+    LDX @save_x+1
+    CLC                                 ; More packets coming
     RTS
 
 @need_new_packet:
@@ -7317,14 +7336,13 @@ ACIA_PROCESS_CMD:
     RTS
 @no_data:
     ; Stream exhausted. Return fake terminators to exit L_A5F3:
-    ; Calls 1-2: return $2C (comma) — one consumed by L_A4C2, one exits title loop
-    ; Calls 3+: return $0D (CR) — exits field loop + propagates C=1
+    ; Call 1: return $2C (comma) — exits title loop in L_A5F3
+    ; Calls 2+: return $0D (CR) — exits field loop + propagates C=1
     LDX @save_x+1                       ; Restore caller's X
     LDA NODATA_FLAG
-    CMP #$02
-    BCS @ret_cr
+    BNE @ret_cr
     INC NODATA_FLAG
-    LDA #$2C                            ; comma
+    LDA #$2C                            ; comma — terminates title
     SEC
     RTS
 @ret_cr:
