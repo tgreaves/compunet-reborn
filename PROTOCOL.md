@@ -837,7 +837,7 @@ The client sends single ASCII letters as command identifiers:
 | $41  | 'A'   | ACCNT         | None (Y=1) | Request account information |
 | $42  | 'B'   | BACK          | None (Y=1) | Go to parent directory |
 | $43  | 'C'   | UCAT          | None (Y=1) | User catalogue listing |
-| $44  | 'D'   | (DIR on subdir) | Page data (Y=3) | Enter sub-directory |
+| $44  | 'D'   | SHOW / MORE   | Entry index (Y=3 or Y=1) | Show frame or next page |
 | $45  | 'E'   | EDITR         | None (Y=1) | Enter editor mode online |
 | $49  | 'I'   | ID            | User ID string | Check user ID |
 | $4D  | 'M'   | MAIL          | None (Y=1) | Access Courier mailbox |
@@ -848,7 +848,9 @@ The client sends single ASCII letters as command identifiers:
 **Important corrections** (verified against terminal disassembly at $A34E-$A358):
 - $42 'B' = BACK (not BUY as previously documented)
 - $43 'C' = UCAT/Catalogue (not BACK)
-- $50 'P' is sent by BOTH the DIR and SHOW duckshoot commands
+- $44 'D' is sent by SHOW (first frame, Y=3, params=entry index as 2 ASCII digits)
+  and MORE (next frame, Y=1, no params). Server tracks frame-viewing state.
+- $50 'P' is the page/directory request (sent by DIR duckshoot and on terminal entry)
 
 ### DIR/SHOW Response Format ('P' command)
 
@@ -919,6 +921,31 @@ Part 6: Directory entries (stored at $D600+, 94 bytes per slot)
 
 This design allows each directory to have custom graphics in the header area
 while the navigable entry list below is rendered separately from structured data.
+
+### Frame Display ('D' command) Response Format
+
+The 'D' command response is raw frame data read by L89D0 (FRAME_BUF_READ):
+
+```
+Byte 0: Frame flags → $8035
+  Bit 7: more pages follow (client shows MORE/FINISH duckshoot)
+  Bit 7 clear: last page (client shows "press any key")
+
+Byte 1: Border colour → $D020 (VIC uses low nibble)
+
+Byte 2: Background colour → $D021 (VIC uses low nibble)
+  Also drives PROTOCOL_STATE_INIT which sets duckshoot row contrast.
+
+Bytes 3+: PETSCII content output via CHROUT
+  $00 = end of frame
+  $0D = carriage return
+  $06 nn = repeat space (custom RLE: space repeated nn times)
+  All other bytes output directly via KERNAL CHROUT
+```
+
+The client sends 'D' for both initial frame display (with 2-byte ASCII entry
+index as params) and for advancing to the next page (no params, Y=1). The
+server uses session state to distinguish the two cases.
 
 ### GOTO Command
 

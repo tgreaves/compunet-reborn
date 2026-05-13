@@ -313,27 +313,47 @@ class CompunetSession:
         return b''  # No response needed for selection change
     
     def _cmd_dir(self, params):
-        """DIR command - enter sub-directory of selected entry, or go up if not a directory."""
+        """'D' command — show frame or advance to next page.
+
+        The client sends 'D' for both SHOW (first frame) and MORE (next frame).
+        If already viewing frames (show_page set), advance to next frame.
+        Otherwise, show the selected entry's first frame or enter sub-directory.
+        Params: 2 ASCII digits = selected entry index (from $C004).
+        """
+        # If already viewing a frame, advance to next page
+        if hasattr(self, 'show_page') and self.show_page:
+            if self.show_frame_index < len(self.show_page.frames) - 1:
+                self.show_frame_index += 1
+                return self._send_current_frame()
+            else:
+                self.show_page = None
+                return self._make_dir_response()
+
+        if params:
+            try:
+                self.selected_entry = int(params.decode('ascii'))
+            except (ValueError, UnicodeDecodeError):
+                pass
         offset = getattr(self, 'dir_page_offset', 0)
         visible_children = self.current_page.children[offset:offset+11]
-        
+
         if self.selected_entry < len(visible_children):
-            # Selected a real entry
             child = visible_children[self.selected_entry]
             if child.has_subdir():
                 self.current_page = child
                 self.selected_entry = 0
                 self.dir_page_offset = 0
-            elif self.current_page.parent:
-                # Not a directory entry - go up to parent
-                self.current_page = self.current_page.parent
-                self.selected_entry = 0
-                self.dir_page_offset = 0
+                return self._make_dir_response()
+            elif child.frames:
+                self.show_page = child
+                self.show_frame_index = 0
+                return self._send_current_frame()
+            else:
+                return self._make_error(ascii_to_petscii('NO CONTENT'))
         else:
-            # Selected the ***MORE*** entry - show next page
             self.dir_page_offset = offset + 11
             self.selected_entry = 0
-        return self._make_dir_response()
+            return self._make_dir_response()
     
     def _cmd_show(self, params):
         """SHOW/DIR command ('P') - show current page.
@@ -359,20 +379,16 @@ class CompunetSession:
     
     def _send_current_frame(self):
         """Send the current frame being viewed.
-        
-        Format: raw frame data + $00 terminator.
-        No prefix bytes — client reads directly into screen buffer.
+
+        Frame byte 0 (flags → $8035): bit 7 = more pages follow.
+        Client checks BPL after rendering to decide "press any key" vs "MORE" duckshoot.
         """
         if self.show_page and self.show_frame_index < len(self.show_page.frames):
-            frame_data = self.show_page.frames[self.show_frame_index]
+            frame_data = bytearray(self.show_page.frames[self.show_frame_index])
             has_more = self.show_frame_index < len(self.show_page.frames) - 1
-            response = bytearray()
-            response.extend(frame_data)
-            response.append(0x00)  # End-of-data marker
-            # Store has_more flag in $8035 bit 7 via the response
-            # Actually the client checks $8035 after the frame is rendered
-            # For now just send the frame data
-            return bytes(response)
+            if has_more:
+                frame_data[0] |= 0x80  # Set bit 7 of flags byte
+            return bytes(frame_data)
         return b'\x00'
     
     def _cmd_accnt(self):
@@ -539,13 +555,13 @@ class CompunetSession:
             for child in visible:
                 # Combined field: [page_num padded to 6] + [title...type right-aligned]
                 # First 6 chars = page number (hidden in bg colour)
-                # Chars 7-29 = title left-aligned, type right-aligned (23 chars total)
+                # Chars 7-26 = title left-aligned, type right-aligned (20 chars total)
+                # Type suffix must start at screen column 25 (SHOW reads $19)
                 page_str = str(child.page_num).ljust(6)[:6]
                 type_str = child.type_string()
-                title = child.title[:21 - len(type_str) - 1]  # leave room for type
-                # Build: title + spaces + type = exactly 21 chars (leave 2 for border)
-                title_field = title.ljust(21 - len(type_str)) + type_str
-                data.extend(ascii_to_petscii(page_str + title_field[:21]))
+                title = child.title[:20 - len(type_str) - 1]  # leave room for type
+                title_field = title.ljust(20 - len(type_str)) + type_str
+                data.extend(ascii_to_petscii(page_str + title_field[:20]))
                 data.append(0x2C)
                 # Column 1: PRICE
                 if child.price > 0:
@@ -807,7 +823,7 @@ async def tcp_handler(reader, writer):
                          token, seq, len(payload))
                 
                 # ROM COM packets use token $43 ('C')
-                if token == 0x43 and len(payload) > 1:
+                if token == 0x43 and len(payload) >= 1:
                     # payload[0] = command byte (Z=$5A, etc.)
                     # (flags byte $FF is now parsed as seq by the packet parser)
                     cmd_byte = payload[0]

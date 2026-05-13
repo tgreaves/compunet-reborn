@@ -25,6 +25,8 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Cursor up/down navigation of directory entries
 - ✅ F7/F8 column switching (PRICE, LIFE, AUTHOR, VOTE all display correctly)
 - ✅ Column data renders correctly for all entries
+- ✅ SHOW command displays text frames with correct colours
+- ✅ Multi-page frames supported (MORE advances, FINISH returns to DIR)
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture
@@ -149,10 +151,10 @@ The original ROM code is preserved with targeted patches:
 
 ## Next Steps
 
-- Implement SHOW command (display text frames)
 - Handle the `NEW` requirement automatically (BASIC memory pointers)
 - Fix CRC calculation in ACIA_SEND_PACKET
 - Implement Courier (MAIL) and uploads
+- Implement BUY command (credit deduction for paid content)
 
 ## Acknowledgements
 

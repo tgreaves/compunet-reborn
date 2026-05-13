@@ -11,22 +11,22 @@
         "type": "T",
         "size": 2,
         "author": "EDITOR",
-        "price": 1.50,
+        "price": 0,
         "life": 7,
         "vote": 6,
-        "frames": [],
+        "frames": ["news-1.seq", "news-2.seq"],
         "children": []
       },
       {
         "page_num": 200,
-        "title": "HELP",
+        "title": "PAID TEXT",
         "type": "T",
-        "size": 4,
+        "size": 2,
         "author": "SYSTEM",
-        "price": 0.25,
+        "price": 1.50,
         "life": 0,
         "vote": 8,
-        "frames": [],
+        "frames": ["paid-1.seq", "paid-2.seq"],
         "children": []
       }
     ]
