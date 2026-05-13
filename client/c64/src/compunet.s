@@ -86,8 +86,8 @@ L801E:
     .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00  ; $806F ...........
 L807A:
     .byte $0D  ; $807A .
-    .byte $20, $43, $4F, $4D, $50, $55, $4E, $45, $54, $20, $54, $45, $52, $4D, $49, $4E  ; $807B  COMPUNET TERMIN
-    .byte $41, $4C, $20, $31, $2E, $32, $32, $0D, $00  ; $808B AL 1.22..
+    .byte $20, $43, $4F, $4D, $50, $55, $4E, $45, $54, $20, $52, $45, $42, $4F, $52, $4E  ; $807B  COMPUNET REBORN
+    .byte $20, $20, $30, $2E, $31, $30, $20, $0D, $00  ; $808B   0.10 ..
 L8094:
     .byte $20  ; $8094  
     .byte $53, $45, $50, $54, $45, $4D, $42, $45, $52, $20, $31, $39, $38, $34, $20, $41  ; $8095 SEPTEMBER 1984 A
@@ -6904,6 +6904,9 @@ ACIA_PROTO_CONNECT:
     ; Set purple border (visual indicator)
     LDA $8012
     STA $D020
+    ; Move cursor below "DIALLING" (original ROM does 2x JSR L906E)
+    JSR L906E
+    JSR L906E
     ; Print "CONNECTING..."
     LDX #.lobyte(L9E59)
     LDY #.hibyte(L9E59)
