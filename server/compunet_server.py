@@ -571,18 +571,24 @@ class CompunetSession:
         return bytes([RESP_FRAME]) + frame_data
     
     def _make_welcome_frame(self, user):
-        """Build the personal information welcome screen."""
+        """Build the personal information welcome screen.
+
+        Returns raw frame data for L89D0 (FRAME_BUF_READ) to consume:
+          Byte 0: frame flags → $8035
+          Byte 1: border colour → $D020
+          Byte 2: background colour → $D021
+          Then: PETSCII content output via CHROUT until $00 terminator
+        """
         welcome_path = os.path.join(CONTENT_DIR, 'pages', 'welcome.seq')
         if os.path.exists(welcome_path):
             with open(welcome_path, 'rb') as f:
-                frame_data = f.read()
-            return bytes([RESP_FRAME, 0x00]) + frame_data  # 0x00 = no more pages
-        
+                return f.read()
+
         # Fallback: generate a simple welcome frame
         frame = bytearray()
-        frame.append(0x00)  # frame start
-        frame.append(0xF6)  # border = blue
-        frame.append(0xF1)  # bg = white
+        frame.append(0x00)  # frame flags
+        frame.append(0x00)  # border = black
+        frame.append(0x00)  # bg = black
         frame.append(0x8E)  # uppercase charset
         frame.append(PETSCII_RETURN)
         frame.append(PETSCII_RETURN)
@@ -601,7 +607,7 @@ class CompunetSession:
         frame.extend(ascii_to_petscii('WELCOME TO COMPUNET'))
         frame.append(PETSCII_RETURN)
         frame.append(0x00)  # end
-        return bytes([RESP_FRAME, 0x00]) + bytes(frame)
+        return bytes(frame)
     
     def _make_error(self, message_petscii):
         """Build an error response."""
@@ -834,10 +840,18 @@ async def tcp_handler(reader, writer):
                         
                         authenticated = True
                         log.info('TCP: login OK! Skipping LINKING (terminal pre-loaded)')
-                        
-                        # No LINKING needed — terminal code is pre-loaded in the PRG.
-                        # The C64 will skip MODEM_INIT_DOWNLOAD and enter terminal directly.
-                        # TODO: Send welcome frame after terminal starts
+
+                        # Send welcome frame — L89D0 reads this after login
+                        if response:
+                            MAX_PAYLOAD = 250
+                            offset = 0
+                            while offset < len(response):
+                                chunk = response[offset:offset + MAX_PAYLOAD]
+                                pkt = x25.make_data_packet(chunk, TOKEN_DAT)
+                                writer.write(pkt)
+                                await writer.drain()
+                                offset += MAX_PAYLOAD
+                            log.info('TCP: sent welcome frame (%d bytes)', len(response))
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it

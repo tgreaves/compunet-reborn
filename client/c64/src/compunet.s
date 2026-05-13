@@ -1823,7 +1823,8 @@ L8EB6:
     ; Server sends ACK but we skip waiting for it (terminal pre-loaded, no LINKING needed)
     JMP L8EE8
 L8EE8:
-    ; ;--- MODIFIED: Skip L89D0 (tries to read frame from server) ---
+    ; Read and display welcome frame from server (sets border, background, duckshoot colours)
+    JSR L89D0
     SEC
     ROR $C155
     ; Jump directly to terminal entry point
@@ -2044,7 +2045,7 @@ L9097:
     LDA VIC_BGCOL0
     AND #$0F
     TAX
-    LDA $93A4,X
+    LDA DUCKSHOOT_CONTRAST,X
 
 ; ============================================================
 ; PRINT_STRING
@@ -2457,7 +2458,7 @@ PROTOCOL_STATE_INIT:
     LDA VIC_BGCOL0
     AND #$0F
     TAX
-    LDA $93A4,X
+    LDA DUCKSHOOT_CONTRAST,X
     TAX
     LDY #$27
 L9397:
@@ -2468,6 +2469,7 @@ L9397:
     DEY
     BPL L9397
     RTS
+DUCKSHOOT_CONTRAST:
     .byte $01, $00, $01, $00, $01, $01, $01, $00, $00, $01, $00, $01, $01, $00, $01, $00  ; $93A4 ................
 L93B4:
     SEC                                 ; workspace
@@ -2553,7 +2555,7 @@ L9436:
     LDA VIC_BGCOL0
     AND #$0F
     TAX
-    LDA $93A4,X
+    LDA DUCKSHOOT_CONTRAST,X
     STA $C142
     LDA $8033
     SEC
