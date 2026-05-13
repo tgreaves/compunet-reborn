@@ -479,12 +479,11 @@ class CompunetSession:
         # $00 = none
         data.append(0x00)
         
-        # --- Part 4: Column header ---
-        # $00 = none  
-        data.append(0x00)
+        # NOTE: No Part 4 byte! L_A3D3's BEQ jumps past the Part 4 read.
+        # The next byte consumed is by L_A450's JSR L_A4FE (Part 5 check).
         
-        # --- Part 5: Column data line (at $D500, 8 bytes per field) ---
-        # Send $00 = no column data (skip Part 5 entirely)
+        # --- Part 5: Column data line ---
+        # $00 = no column data (skip Part 5)
         data.append(0x00)
         
         # --- Part 6: ALL directory entries (at $D600+) ---
@@ -509,6 +508,7 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(child.type_string()[:8]))
                 data.append(0x0D)
         
+        log.info('PAGE response: %d bytes hex=%s', len(data), data.hex())
         return bytes(data)
     
     def _make_frame_response(self, frame_data):
