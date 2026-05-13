@@ -2,11 +2,14 @@
   "TEST": {
     "password": "94ee059335e587e501cc4bf90613e0814f00a7b08bc7c648fd865a2af6a22cc2",
     "name": "TEST USER",
-    "credit": 10.00
+    "credit": -40.0,
+    "purchased": [
+      301
+    ]
   },
   "NEW-USER": {
     "password": "7b303c55d8e8c1ba8fbbcfdeb83b1044901f10928590542001fa6546945180f9",
     "name": "NEW USER",
-    "credit": 0.00
+    "credit": 0.0
   }
 }

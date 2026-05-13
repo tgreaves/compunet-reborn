@@ -553,20 +553,21 @@ class CompunetSession:
             log.info('DIR: no header defined for page %s', page.title)
             data.append(0x00)  # No header defined
         
-        # --- Part 2: Routing text (2 CR-terminated lines) ---
-        # Line 1: directory path
-        title = page.title if page.title else 'COMPUNET'
-        data.extend(ascii_to_petscii(title[:38]))
-        data.append(0x0D)
-        # Line 2: empty
-        data.append(0x0D)
-        
+        # --- Part 2: Footer text (2 CR-terminated lines, displayed at row 22) ---
+        # Used for adverts or status text below the directory box.
+        data.append(0x0D)  # Line 1: empty
+        data.append(0x0D)  # Line 2: empty
+
         # --- Part 3: Field definitions ---
         # $00 = none
         data.append(0x00)
 
-        # --- Part 4: Page content ($D400) ---
-        # $00 = none. L_A427 reads this byte; if non-zero it stores until $00.
+        # --- Part 4: Routing/breadcrumb (stored at $D400, displayed at row 7) ---
+        # Shows current directory path inside the box, above entries.
+        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.append(0x0D)
+        path_line2 = '  ' + str(page.page_num) + ' ' + (page.title or '')
+        data.extend(ascii_to_petscii(path_line2[:22]))
         data.append(0x00)
 
         # --- Part 5: Column headers (at $D500, 8 bytes per field) ---
@@ -609,7 +610,7 @@ class CompunetSession:
                 # First 6 chars = page number (hidden in bg colour)
                 # Chars 7-26 = title left-aligned, type right-aligned (20 chars total)
                 # Type suffix must start at screen column 25 (SHOW reads $19)
-                page_str = str(child.page_num).ljust(6)[:6]
+                page_str = ('  ' + str(child.page_num)).ljust(6)[:6]
                 type_str = child.type_string()
                 title = child.title[:20 - len(type_str) - 1]  # leave room for type
                 title_field = title.ljust(20 - len(type_str)) + type_str
