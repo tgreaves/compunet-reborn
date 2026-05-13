@@ -1823,7 +1823,11 @@ L8EB6:
     ; Server sends ACK but we skip waiting for it (terminal pre-loaded, no LINKING needed)
     JMP L8EE8
 L8EE8:
-    ; Read and display welcome frame from server (sets border, background, duckshoot colours)
+    ; Receive welcome frame packet from server (retry until it arrives)
+@wait_welcome:
+    JSR L96D2
+    BCS @wait_welcome
+    ; Read and display welcome frame (sets border, background, duckshoot colours)
     JSR L89D0
     SEC
     ROR $C155
@@ -7292,7 +7296,7 @@ ACIA_PROCESS_CMD:
     RTS
 @last_byte:
     LDX @save_x+1                       ; Restore caller's X
-    SEC                                 ; Last byte — signal end of stream
+    CLC                                 ; Byte is valid — next call will hit @need_new_packet
     RTS
 
 @need_new_packet:
@@ -7326,7 +7330,9 @@ ACIA_PROCESS_CMD:
 @wait_briefly:
     ; Poke ACIA to trigger VICE socket poll
     LDA ACIA_STATUS
-    ; Brief wait — check buffer a few more times
+    ; Wait for data — 8 rounds of 256 = ~2K iterations
+    LDY #$08
+@wait_outer:
     LDX #$00
 @wait_loop:
     LDA NMI_BUF_HEAD
@@ -7334,7 +7340,9 @@ ACIA_PROCESS_CMD:
     BNE @need_new_packet                ; Data arrived — try again
     LDA ACIA_STATUS                     ; Poke VICE again each iteration
     INX
-    BNE @wait_loop                      ; ~256 iterations
+    BNE @wait_loop
+    DEY
+    BNE @wait_outer
 @no_data:
     ; Stream exhausted. Return fake terminators to exit L_A5F3:
     ; Calls 1-2: return $2C (comma) — one consumed by L_A4C2, one exits title loop

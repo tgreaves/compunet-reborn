@@ -843,7 +843,7 @@ async def tcp_handler(reader, writer):
 
                         # Send welcome frame — L89D0 reads this after login
                         if response:
-                            MAX_PAYLOAD = 250
+                            MAX_PAYLOAD = 200
                             offset = 0
                             while offset < len(response):
                                 chunk = response[offset:offset + MAX_PAYLOAD]
@@ -863,8 +863,9 @@ async def tcp_handler(reader, writer):
                         cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
                             # Split large responses into multiple packets
-                            # Max payload per X.25 packet: 250 bytes (length byte is 1 byte, max 255, minus 5 overhead)
-                            MAX_PAYLOAD = 250
+                            # Max payload limited to 200 bytes to keep wire-encoded packets
+                            # (with byte stuffing + framing) under 256 bytes (NMI ring buffer size)
+                            MAX_PAYLOAD = 200
                             offset = 0
                             while offset < len(cmd_response):
                                 chunk = cmd_response[offset:offset + MAX_PAYLOAD]
