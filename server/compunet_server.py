@@ -533,12 +533,15 @@ class CompunetSession:
             data.append(0x0D)
         else:
             for child in visible:
-                # Combined field: [page_num padded to 6] + [title + type]
+                # Combined field: [page_num padded to 6] + [title...type right-aligned]
                 # First 6 chars = page number (hidden in bg colour)
-                # Chars 7+ = title + space + type suffix (visible)
+                # Chars 7-29 = title left-aligned, type right-aligned (23 chars total)
                 page_str = str(child.page_num).ljust(6)[:6]
-                title_with_type = child.title[:16] + ' ' + child.type_string()
-                data.extend(ascii_to_petscii(page_str + title_with_type[:23]))
+                type_str = child.type_string()
+                title = child.title[:21 - len(type_str) - 1]  # leave room for type
+                # Build: title + spaces + type = exactly 21 chars (leave 2 for border)
+                title_field = title.ljust(21 - len(type_str)) + type_str
+                data.extend(ascii_to_petscii(page_str + title_field[:21]))
                 data.append(0x2C)
                 # Column 1: PRICE
                 if child.price > 0:
