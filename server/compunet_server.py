@@ -500,9 +500,17 @@ class CompunetSession:
         # NOTE: No Part 4 byte! L_A3D3's BEQ jumps past the Part 4 read.
         # The next byte consumed is by L_A450's JSR L_A4FE (Part 5 check).
         
-        # --- Part 5: Column data line ---
-        # $00 = no column data (skip Part 5)
-        data.append(0x00)
+        # --- Part 5: Column headers (at $D500, 8 bytes per field) ---
+        # Single line: all column headers comma-separated, CR-terminated.
+        # F7/F8 cycles through them. $C002 selects which to display.
+        data.extend(ascii_to_petscii('PRICE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('LIFE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('AUTHOR'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('VOTE'))
+        data.append(0x0D)
         
         # --- Part 6: ALL directory entries (at $D600+) ---
         # Format per entry: [title (up to 30 chars)] ',' [type (8 chars)] $0D
@@ -518,17 +526,34 @@ class CompunetSession:
             data.extend(ascii_to_petscii('0     (EMPTY)'))
             data.append(0x2C)
             data.extend(ascii_to_petscii('T'))
+            data.append(0x2C)
+            data.append(0x2C)
+            data.append(0x2C)
+            data.append(0x2C)
             data.append(0x0D)
         else:
             for child in visible:
-                # Combined field: [page_num padded to 6] + [title]
-                # First 6 chars = page number (rendered in bg colour = hidden)
-                # Chars 7+ = title (rendered in blue/red = visible)
+                # Combined field: [page_num padded to 6] + [title + type]
+                # First 6 chars = page number (hidden in bg colour)
+                # Chars 7+ = title + space + type suffix (visible)
                 page_str = str(child.page_num).ljust(6)[:6]
-                data.extend(ascii_to_petscii(page_str + child.title[:23]))
+                title_with_type = child.title[:16] + ' ' + child.type_string()
+                data.extend(ascii_to_petscii(page_str + title_with_type[:23]))
                 data.append(0x2C)
-                # Type string (8 chars, right column)
-                data.extend(ascii_to_petscii(child.type_string()[:8]))
+                # Column 1: PRICE
+                if child.price > 0:
+                    data.extend(ascii_to_petscii('{:.2f}'.format(child.price)[:8]))
+                data.append(0x2C)
+                # Column 2: LIFE
+                if child.life > 0:
+                    data.extend(ascii_to_petscii(str(child.life)[:8]))
+                data.append(0x2C)
+                # Column 3: AUTHOR
+                data.extend(ascii_to_petscii(child.author[:8]))
+                data.append(0x2C)
+                # Column 4: VOTE
+                if child.vote > 0:
+                    data.extend(ascii_to_petscii(str(child.vote)[:8]))
                 data.append(0x0D)
         
         log.info('PAGE response: %d bytes hex=%s', len(data), data.hex())
