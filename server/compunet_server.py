@@ -483,35 +483,22 @@ class CompunetSession:
         # $00 = none  
         data.append(0x00)
         
-        # --- Part 5: Short entry list (at $D500, 8 bytes per field) ---
-        # Format: [page_num],[title] $0D per entry
-        # Each field padded to 8 chars by client
+        # --- Part 5: Column data line (at $D500, 8 bytes per field) ---
+        # Send $00 = no column data (skip Part 5 entirely)
+        data.append(0x00)
+        
+        # --- Part 6: ALL directory entries (at $D600+) ---
+        # Format per entry: [title (up to 30 chars)] ',' [type (8 chars)] $0D
+        # Title padded to 30 chars, type fields padded to 8 each by client.
+        # Stream ends when $96CC returns C=1 (no more data).
+        # $C009 counts entries → $C003 for rendering.
         offset = getattr(self, 'dir_page_offset', 0)
         children = page.children[offset:]
         has_more = len(children) > 11
         visible = children[:11] if has_more else children
         
         if not visible:
-            # Must have at least a dummy entry or the client renders garbage
-            # Send a single empty-ish entry
-            data.extend(ascii_to_petscii('0'))
-            data.append(0x2C)
-            data.extend(ascii_to_petscii('EMPTY'))
-            data.append(0x0D)
-        else:
-            for child in visible:
-                data.extend(ascii_to_petscii(str(child.page_num)[:8]))
-                data.append(0x2C)
-                data.extend(ascii_to_petscii(child.title[:8]))
-                data.append(0x0D)
-        
-        # --- Part 6: Extended entry data (at $D600+) ---
-        # Format per entry: [title (read until comma, padded to 30)] ',' 
-        #                    [type (8 chars)] ',' [more 8-char fields]... $0D
-        # Loop continues until ACIA_PROCESS_CMD returns C=1 (stream exhausted)
-        # $C009 counts entries, then $C003 = $C009
-        if not visible:
-            data.extend(ascii_to_petscii('EMPTY'))
+            data.extend(ascii_to_petscii('(EMPTY)'))
             data.append(0x2C)
             data.extend(ascii_to_petscii('T'))
             data.append(0x0D)

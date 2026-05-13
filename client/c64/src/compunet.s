@@ -7157,6 +7157,7 @@ ACIA_SEND_PACKET:
 RECV_BUF        = $C300   ; Received packet payload
 RECV_LEN        = $C3FE   ; Payload length
 RECV_POS        = $C3FF   ; Current read position for PROCESS_CMD
+NODATA_FLAG     = $C3FD   ; End-of-stream flag (reset by FLOW_CONTROL)
 
 ACIA_FLOW_CONTROL:
     ; Wait for start marker $01
@@ -7208,7 +7209,10 @@ ACIA_FLOW_CONTROL:
     ; Discard echo packets (tcpser echoes our TX back)
     ; Our commands have token $43 (COM) — server responses have $22 (DAT)
     CMP #$43                            ; Is it a COM packet (echo)?
-    BEQ @wait_start                     ; Yes — discard, wait for real packet
+    BEQ @error                          ; Yes — return C=1 (discard)
+    ; Valid packet received — reset end-of-stream flag
+    LDA #$00
+    STA NODATA_FLAG
     ; Calculate payload length (total - 5: len, token, seq, CRC_hi, CRC_lo)
     TYA                                 ; Y = total bytes received
     SEC
@@ -7331,9 +7335,18 @@ ACIA_PROCESS_CMD:
     INX
     BNE @wait_loop                      ; ~256 iterations
 @no_data:
-    ; Return CR ($0D) with C=1 — acts as stream terminator
-    ; L_A5F3 checks for $0D and exits cleanly
-    LDA #$0D
+    ; Stream exhausted. Return fake terminators to exit L_A5F3:
+    ; Calls 1-2: return $2C (comma) — one consumed by L_A4C2, one exits title loop
+    ; Calls 3+: return $0D (CR) — exits field loop + propagates C=1
+    LDA NODATA_FLAG
+    CMP #$02
+    BCS @ret_cr
+    INC NODATA_FLAG
+    LDA #$2C                            ; comma
+    SEC
+    RTS
+@ret_cr:
+    LDA #$0D                            ; CR — exits field reading
     SEC
     RTS
 @got_acia_byte:
