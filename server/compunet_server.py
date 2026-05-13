@@ -326,8 +326,12 @@ class CompunetSession:
                 self.show_frame_index += 1
                 return self._send_current_frame()
             else:
+                # On last frame — clear state. If no params (FINISH/MORE after
+                # last page), return directory. If params present (new SHOW from
+                # directory), fall through to handle as fresh entry selection.
                 self.show_page = None
-                return self._make_dir_response()
+                if not params:
+                    return self._make_dir_response()
 
         if params:
             try:
@@ -388,6 +392,9 @@ class CompunetSession:
             has_more = self.show_frame_index < len(self.show_page.frames) - 1
             if has_more:
                 frame_data[0] |= 0x80  # Set bit 7 of flags byte
+            log.info('FRAME: page="%s" frame=%d/%d (%d bytes, more=%s)',
+                     self.show_page.title, self.show_frame_index + 1,
+                     len(self.show_page.frames), len(frame_data), has_more)
             return bytes(frame_data)
         return b'\x00'
     
