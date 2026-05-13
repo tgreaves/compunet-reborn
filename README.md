@@ -8,7 +8,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 ## Current Status
 
-**The full login → duckshoot flow is working!** (Tag: `login-duckshoot-working`)
+**Directory browsing is working!**
 
 - ✅ Single PRG file loads and runs in VICE (`LOAD "COMPUNET",8,1 : NEW : SYS 33184`)
 - ✅ EDITOR, HELP, CONNECT commands functional
@@ -18,7 +18,12 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Login screen displays correctly
 - ✅ Login packet sent, server authenticates
 - ✅ Terminal code enters, duckshoot menu runs
-- ✅ EDITOR and HELP work from within the duckshoot (jump table validated)
+- ✅ DIR command sends request, server responds with directory data
+- ✅ Directory entries display with titles, type suffixes, page numbers
+- ✅ Correct colours (blue unselected, red selected/highlighted)
+- ✅ Cursor up/down navigation of directory entries
+- ✅ F7/F8 column switching (PRICE column header visible)
+- ✅ Duckshoot fully functional throughout
 
 ### Architecture
 
@@ -142,12 +147,13 @@ The original ROM code is preserved with targeted patches:
 
 ## Next Steps
 
-- Fix CRC calculation in ACIA_SEND_PACKET (stack offset bug)
-- Server sends welcome frame after login
-- Implement frame serving (DIR, SHOW commands)
+- Fix entry alignment (1-char offset between entries)
+- Fix field storage for PRICE/LIFE/AUTHOR/VOTE columns
+- Fix frame header display position
+- Implement SHOW command (display text frames)
 - Handle the `NEW` requirement automatically (BASIC memory pointers)
+- Fix CRC calculation in ACIA_SEND_PACKET
 - Implement Courier (MAIL) and uploads
-- Proper TX sequence number initialisation
 
 ## Acknowledgements
 
