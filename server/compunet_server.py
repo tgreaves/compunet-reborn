@@ -427,6 +427,10 @@ class CompunetSession:
         """MORE/DONE command - show next frame, or complete upload."""
         if self.pending_send is not None:
             return self._complete_upload()
+        if self.mail_mode:
+            self.mail_mode = False
+            self.mail_show_msg = None
+            return self._make_dir_response()
         if hasattr(self, 'show_page') and self.show_page:
             if self.show_frame_index < len(self.show_page.frames) - 1:
                 self.show_frame_index += 1
@@ -569,7 +573,21 @@ class CompunetSession:
         data.append(0x0D)
         data.append(0x0D)
 
-        # Part 3: no field definitions
+        # Part 3: field definitions (stored at $D580+)
+        # Format: [field_id_nibble] '=' [value] $0D ... $00
+        # Field 3 ($D588) = DATE, Field 4 ($D5A8) = TIME
+        import datetime
+        now = datetime.datetime.now()
+        date_str = now.strftime('%d-%m-%y')
+        time_str = now.strftime('%H:%M')
+        data.append(0x03)  # field ID 3 = DATE
+        data.append(0x3D)  # '='
+        data.extend(ascii_to_petscii(date_str))
+        data.append(0x0D)
+        data.append(0x04)  # field ID 4 = TIME
+        data.append(0x3D)  # '='
+        data.extend(ascii_to_petscii(time_str))
+        data.append(0x0D)
         data.append(0x00)
 
         # Part 4: breadcrumb

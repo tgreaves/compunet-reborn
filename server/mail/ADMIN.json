@@ -38,6 +38,24 @@
       "frames": [
         "msg004-1.seq"
       ]
+    },
+    {
+      "id": "msg005",
+      "from": "TEST",
+      "subject": "SUBJECT",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": [
+        "msg005-1.seq"
+      ]
+    },
+    {
+      "id": "msg006",
+      "from": "TEST",
+      "subject": "TEST",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": []
     }
   ]
 }

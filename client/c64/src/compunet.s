@@ -7176,6 +7176,7 @@ UPLOAD_BUF      = $C400   ; 100-byte upload buffer
 UPLOAD_POS      = $C464   ; Current buffer position
 
 ACIA_UPLOAD_BYTE:
+    STX @save_x+1                       ; Preserve caller's X
     PHP                                 ; Save carry (last-byte flag)
     LDX UPLOAD_POS
     STA UPLOAD_BUF,X                    ; Store byte in buffer
@@ -7187,10 +7188,13 @@ ACIA_UPLOAD_BYTE:
     BCC @done                           ; No → return
     JSR @send_buffer                    ; Yes → send packet
 @done:
+@save_x:
+    LDX #$00                            ; Restore caller's X (self-modified)
     RTS
 
 @send_final:
     JSR @send_buffer                    ; Send remaining bytes
+    LDX @save_x+1                       ; Restore caller's X
     RTS
 
 @send_buffer:
