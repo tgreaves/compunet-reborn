@@ -30,6 +30,11 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Sub-directories: entries with "+" suffix can be entered via DIR
 - ✅ BACK command navigates to parent directory
 - ✅ Multi-packet responses (>100 bytes) delivered reliably with EOS marker
+- ✅ Courier (MAIL): inbox listing, read messages, mark as read
+- ✅ Courier SEND: compose and deliver messages to other users
+- ✅ Courier SEND: destination user validation with real names
+- ✅ Courier SEND: FROM/DATE/TIME fields on compose screen
+- ✅ Frame upload via ACIA_UPLOAD_BYTE (replaced PROTO_RECV_FRAME)
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture

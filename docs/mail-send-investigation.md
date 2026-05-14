@@ -136,30 +136,58 @@ This means:
 server side for the upload path.** The server must send ACK packets (token $20)
 with the correct sequence numbers as the frame data arrives.
 
-## Full SEND Protocol Flow (Confirmed)
+## Full SEND Protocol Flow (Confirmed Working 2026-05-14)
 
 ```
-1. Client sends 'U' (26 bytes: subject+type+dests) via ACIA_SEND_PACKET [COM]
-2. Server responds: validation stream [8-byte ID + status + $1E per dest] [EOS]
-3. Client displays results, prompts "OKAY?"
-4. Client enters sub-duckshoot (SEND/FINISH/NEXT/LAST/GET)
-5. User selects SEND:
+1. Client sends 'U' (26+ bytes: subject+type+dests) via ACIA_SEND_PACKET [COM]
+2. Server responds: validation stream [8-byte ID + real_name + $1E per dest] [EOS]
+3. Client displays results (ID : REAL NAME), prompts "OKAY?"
+4. If NO: client sends 'N' via L_A784 + JMP $A72D (NO L96D2 wait!)
+   → Server must NOT respond (response would be stale in NMI buffer)
+5. If YES: client enters sub-duckshoot (SEND/FINISH/NEXT/LAST/GET)
+6. User selects SEND:
    a. Client sends 'U' (1 byte, no params) via ACIA_SEND_PACKET [COM]
-   b. Server ACKs (any valid DAT response)
+   b. Server ACKs (any valid DAT response, no EOS)
    c. Client prints "SENDING"
-   d. Client calls $B175: sends frame byte-by-byte via PROTO_RECV_FRAME [L96C9]
-      - Uses original ROM X.25 windowed protocol
-      - Server must ACK with proper X.25 ACK tokens
-   e. Client calls L96D2 waiting for final server response
-6. User selects FINISH:
-   - Client sends 'N' command
-   - Server delivers message to recipients
+   d. Client calls $B175: sends frame via ACIA_UPLOAD_BYTE [DAT token]
+      - Buffers at $C400, sends as 100-byte DAT packets
+      - Server ACKs final chunk (< 100 bytes) only
+   e. Client calls L96D2 waiting for frame ACK
+7. Sub-duckshoot returns. User can SEND more pages or select FINISH.
+8. User selects FINISH:
+   - Client sends 'N' via L_A784 + JMP $A72D (NO L96D2 wait!)
+   - Server delivers message, must NOT respond
+9. Client returns to mail duckshoot loop.
+10. User selects DONE:
+    - Client sends 'N' via $A35F (WITH L96D2 wait!)
+    - Server exits mail mode, responds with main directory [6-part]
+    - Client exits mail loop, displays main directory
 ```
 
-## Test Plan
+### Critical: Two Types of 'N' Command
 
-1. Implement proper X.25 ACK handling for frame upload data
-2. Send MAIL → SEND → enter subject/dest → verify validation
-3. Enter sub-duckshoot → SEND frame → verify delivery
-4. Test FINISH → verify message appears in recipient's mailbox
-5. Verify DIR/SHOW still work (no regression)
+The client sends 'N' ($4E) from two different code paths:
+
+1. **$AFCA path** (cancel/FINISH from sub-duckshoot):
+   `LDA #$4E; STA $C100; LDY #$01; JSR L_A784; JMP $A72D`
+   → Sends 'N' and jumps to main loop. Does NOT call L96D2.
+   → Server must NOT send any response.
+
+2. **$B15E path** (DONE from mail duckshoot):
+   `LDA #$4E; LDY #$01; JSR $A35F`
+   → Sends 'N' via shared send+receive path. DOES call L96D2.
+   → Server must respond with directory listing (exits mail).
+
+The server distinguishes these by state: if `pending_send` is set (cancel or
+after frame delivery), return empty. If `mail_mode` is True (DONE from mail
+listing), exit mail and return main directory.
+
+## ACIA_UPLOAD_BYTE (Replaced PROTO_RECV_FRAME)
+
+L96C9 now points to ACIA_UPLOAD_BYTE which:
+- Buffers bytes at $C400 (100-byte buffer)
+- Preserves caller's X register (critical — $B175 uses X for byte state)
+- Sends complete DAT packets via its own send loop (doesn't use $C100)
+- Sends final partial packet when C=1 (last byte)
+
+The server receives standard DAT packets and ACKs only the final chunk.

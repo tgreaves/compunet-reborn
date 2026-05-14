@@ -56,6 +56,26 @@
       "date": "2026-05-14",
       "read": false,
       "frames": []
+    },
+    {
+      "id": "msg007",
+      "from": "TEST",
+      "subject": "TEST",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": [
+        "msg007-1.seq"
+      ]
+    },
+    {
+      "id": "msg008",
+      "from": "TEST",
+      "subject": "FOO",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": [
+        "msg008-1.seq"
+      ]
     }
   ]
 }

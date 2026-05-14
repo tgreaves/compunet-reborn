@@ -426,7 +426,14 @@ class CompunetSession:
     def _cmd_more(self, params):
         """MORE/DONE command - show next frame, or complete upload."""
         if self.pending_send is not None:
-            return self._complete_upload()
+            if self.pending_send['frames']:
+                return self._complete_upload()
+            else:
+                # Cancelled send (said NO) — clear pending, no response.
+                # Client sent this N via L_A784 + JMP (no L96D2 wait),
+                # so any response would be stale when DONE is pressed.
+                self.pending_send = None
+                return b''
         if self.mail_mode:
             self.mail_mode = False
             self.mail_show_msg = None
@@ -562,6 +569,7 @@ class CompunetSession:
 
     def _make_mail_response(self):
         """Build mailbox listing as 6-part directory response."""
+        self.mail_mode = True
         self.last_response_type = RESP_DIR
         self.dir_displayed = True
         data = bytearray()
@@ -786,10 +794,9 @@ class CompunetSession:
         send = self.pending_send
         self.pending_send = None
 
-        if not send or not send['to']:
-            log.info('UPLOAD: completed with no destination')
-            self.last_response_type = RESP_ACK
-            return bytes([RESP_ACK])
+        if not send or not send['to'] or not send['frames']:
+            log.info('UPLOAD: completed (no frames or no destination)')
+            return self._make_mail_response()
 
         mail_dir = os.path.join(os.path.dirname(__file__), 'mail')
         users = self._load_users()
@@ -837,8 +844,8 @@ class CompunetSession:
         log.info('UPLOAD: delivered mail from %s to %s subject="%s" frames=%d',
                  self.user_id, send['to'], send['subject'], len(send['frames']))
 
-        self.last_response_type = RESP_ACK
-        return bytes([RESP_ACK])
+        # No response — client sent N via L_A784 + JMP (no L96D2 wait)
+        return b''
 
     def _cmd_ucat(self):
         """UCAT command - user catalogue listing."""
