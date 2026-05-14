@@ -97,6 +97,17 @@
         "msg009-0.seq",
         "msg009-1.seq"
       ]
+    },
+    {
+      "id": "msg010",
+      "from": "TEST",
+      "subject": "I LOVE COMPUNET",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": [
+        "msg010-0.seq",
+        "msg010-1.seq"
+      ]
     }
   ]
 }

@@ -302,6 +302,8 @@ class CompunetSession:
             return self._cmd_buy(params)
         elif cmd == CMD_UPLD:
             return self._cmd_upload(params)
+        elif cmd == ord('I'):
+            return self._cmd_id(params)
         elif cmd == ord('E'):
             return self._cmd_leave()
         elif cmd == ord('N'):
@@ -489,6 +491,27 @@ class CompunetSession:
             credit_str = '-' + credit_str
         return ascii_to_petscii(credit_str.ljust(10))
     
+    def _cmd_id(self, params):
+        """ID command ('I') — look up user IDs.
+
+        Params: one or more 8-byte user IDs. Response uses same validation
+        stream format as MAIL: [8-byte ID] [real_name or nothing] $1E per ID.
+        """
+        self.last_response_type = RESP_DIR
+        data = bytearray()
+        users = self._load_users()
+        offset = 0
+        while offset + 8 <= len(params):
+            user_id = params[offset:offset+8].decode('latin-1').strip().upper()
+            log.info('ID: lookup user=%s', user_id)
+            data.extend(ascii_to_petscii(user_id.ljust(8)[:8]))
+            if user_id in users:
+                real_name = users[user_id].get('name', user_id)
+                data.extend(ascii_to_petscii(real_name))
+            data.append(0x1E)
+            offset += 8
+        return bytes(data)
+
     def _cmd_leave(self):
         """LEAVE command ('E') — disconnect from Compunet.
 
