@@ -17,6 +17,17 @@
       "date": "2026-05-14",
       "read": false,
       "frames": []
+    },
+    {
+      "id": "msg003",
+      "from": "TEST",
+      "subject": "HELLO",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": [
+        "msg003-1.seq",
+        "msg003-2.seq"
+      ]
     }
   ]
 }

@@ -341,10 +341,6 @@ class CompunetSession:
         Otherwise, show the selected entry's first frame or enter sub-directory.
         Params: 2 ASCII digits = selected entry index (from $C004).
         """
-        # Upload mode: client is sending frame data
-        if self.pending_send is not None:
-            return self._recv_upload_frame(params)
-
         # Mail mode: show mail message or advance frame
         if self.mail_mode:
             return self._cmd_mail_show(params)
@@ -695,7 +691,7 @@ class CompunetSession:
         # Second 'U' (no params) = ready to send a frame, just ACK it
         if len(params) == 0:
             log.info('UPLOAD: frame-ready signal, sending ACK')
-            self.last_response_type = RESP_DIR
+            self.last_response_type = RESP_ACK
             return bytes([RESP_ACK])
 
         if len(params) < 17:
@@ -1300,30 +1296,32 @@ async def tcp_handler(reader, writer):
                                 log.info('CMD: sent pkt %d (%d payload, %d wire), sleeping 500ms', pkt_num, len(chunk), len(pkt))
                                 await asyncio.sleep(0.5)
                                 offset += MAX_PAYLOAD
-                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
-                            writer.write(eos_pkt)
-                            await writer.drain()
-                            log.info('CMD: sent EOS pkt (%d wire)', len(eos_pkt))
+                            # EOS only for streamed responses (not single-packet ACKs)
+                            if session.last_response_type != RESP_ACK:
+                                eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                                writer.write(eos_pkt)
+                                await writer.drain()
+                                log.info('CMD: sent EOS pkt (%d wire)', len(eos_pkt))
                 
                 elif token == TOKEN_ACK:
                     log.debug('TCP: received ACK seq=$%02X', seq)
 
                 elif session.pending_send is not None and token != 0x43:
-                    # Any non-COM packet during upload = frame data
-                    log.info('TCP: upload frame token=$%02X seq=$%02X payload=%d bytes',
+                    # Any non-COM packet during upload = frame data chunk
+                    log.info('TCP: upload chunk token=$%02X seq=$%02X payload=%d bytes',
                              token, seq, len(payload))
                     session.pending_send['frames'].append(bytes(payload))
-                    log.info('UPLOAD: received frame %d (%d bytes)',
-                             len(session.pending_send['frames']), len(payload))
-                    # ACK — client calls L96D2 after send, needs C=0 response.
-                    # Pad to 11+ bytes (19+ wire) — same size as validation
-                    # response which is known to deliver reliably.
-                    await asyncio.sleep(0.5)
-                    ack_data = bytes([RESP_ACK]) + b'\x00' * 10
-                    ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
-                    writer.write(ack_pkt)
-                    await writer.drain()
-                    log.info('UPLOAD: sent frame ACK (%d wire)', len(ack_pkt))
+                    # ACK only the final chunk (< 100 bytes = partial = last)
+                    # Client calls L96D2 once after all bytes sent
+                    if len(payload) < 100:
+                        log.info('UPLOAD: final chunk received (%d total chunks), sending ACK',
+                                 len(session.pending_send['frames']))
+                        await asyncio.sleep(0.5)
+                        ack_data = bytes([RESP_ACK]) + b'\x00' * 10
+                        ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
+                        writer.write(ack_pkt)
+                        await writer.drain()
+                        log.info('UPLOAD: sent frame ACK (%d wire)', len(ack_pkt))
 
                 else:
                     log.debug('TCP: other token=$%02X seq=$%02X', token, seq)

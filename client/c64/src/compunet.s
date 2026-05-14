@@ -2733,7 +2733,7 @@ L96C0 = PROTO_DISPATCH_TABLE
 L96C6:
     JMP PROTO_INIT_REGS                 ; PROTO_CONNECT
 L96C9:
-    JMP PROTO_RECV_FRAME
+    JMP ACIA_UPLOAD_BYTE
 
 ; ============================================================
 ; PROTO_INIT_REGS
@@ -6660,10 +6660,11 @@ ACIA_INIT:
     ; Enable DTR + RX interrupt (NMI)
     LDA #$09
     STA ACIA_CMD
-    ; Clear ring buffer
+    ; Clear ring buffer and upload buffer
     LDA #$00
     STA NMI_BUF_TAIL
     STA NMI_BUF_HEAD
+    STA UPLOAD_POS
     ; Copy NMI handler to $CF00 (always-visible RAM)
     ; NMI can fire when $01=$37 (BASIC ROM at $A000-$BFFF)
     ; so the handler MUST be below $A000 or in I/O-visible RAM
@@ -7160,6 +7161,61 @@ ACIA_SEND_PACKET:
 @crc_no_xor:
     DEX
     BNE @crc_loop
+    RTS
+
+; =================================================================
+; ACIA_UPLOAD_BYTE — Buffered byte-by-byte upload (replaces PROTO_RECV_FRAME)
+; =================================================================
+; Input: A = byte to send, C = 0 more bytes follow, C = 1 last byte
+; Buffers bytes at UPLOAD_BUF. When buffer is full (100 bytes) or last
+; byte received (C=1), sends the buffer as one X.25 DAT packet via
+; ACIA_SEND_PACKET.
+; =================================================================
+
+UPLOAD_BUF      = $C400   ; 100-byte upload buffer
+UPLOAD_POS      = $C464   ; Current buffer position
+
+ACIA_UPLOAD_BYTE:
+    PHP                                 ; Save carry (last-byte flag)
+    LDX UPLOAD_POS
+    STA UPLOAD_BUF,X                    ; Store byte in buffer
+    INX
+    STX UPLOAD_POS
+    PLP                                 ; Restore carry
+    BCS @send_final                     ; C=1: last byte → send now
+    CPX #100                            ; Buffer full?
+    BCC @done                           ; No → return
+    JSR @send_buffer                    ; Yes → send packet
+@done:
+    RTS
+
+@send_final:
+    JSR @send_buffer                    ; Send remaining bytes
+    RTS
+
+@send_buffer:
+    ; Send buffered bytes as one X.25 DAT packet
+    LDY UPLOAD_POS
+    BEQ @nothing                        ; Empty buffer, skip
+    ; Copy buffer to $C100 (ACIA_SEND_PACKET payload area)
+    LDX #$00
+@copy:
+    LDA UPLOAD_BUF,X
+    STA $C100,X
+    INX
+    CPX UPLOAD_POS
+    BNE @copy
+    ; Set up for ACIA_SEND_PACKET
+    LDY UPLOAD_POS
+    STY $C14D                           ; Payload length
+    LDA #$22
+    STA $8034                           ; Token = DAT
+    ; Reset buffer position
+    LDA #$00
+    STA UPLOAD_POS
+    ; Send the packet
+    JMP ACIA_SEND_PACKET
+@nothing:
     RTS
 
 ; =================================================================
