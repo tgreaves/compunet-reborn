@@ -852,6 +852,21 @@ The client sends single ASCII letters as command identifiers:
   and MORE (next frame, Y=1, no params). Server tracks frame-viewing state.
 - $50 'P' is the page/directory request (sent by DIR duckshoot and on terminal entry)
 
+**Shared handler pattern** (at $A34E-$A358):
+
+UCAT ($43), BACK ($42), and DIR ($50) all share the same response-reading code
+at L_A358. The handlers differ only in the command byte loaded into $C100:
+- UCAT: `LDA #$43; BNE +2` (skip BACK's LDA)
+- BACK: `LDA #$42`
+- Both: `LDY #$01; BNE` → falls into L_A358 (Y=1, no params)
+- DIR: enters L_A358 directly with `LDA #$50; LDY #$03` (Y=3, has params)
+
+All three expect the **same 6-part directory response format**. The server
+distinguishes them by command byte to determine WHICH directory to return:
+- 'P' (DIR): current page's directory listing
+- 'B' (BACK): parent page's directory listing
+- 'C' (UCAT): directory listing filtered to user's own uploaded content
+
 ### DIR/SHOW Response Format ('P' command)
 
 The 'P' command is the primary page request. The server responds with a
@@ -1124,7 +1139,80 @@ Programs are downloaded via the BUY command:
 - Each 1K of program = 4 blocks of disk space
 - Failed saves can be retried with the SAVE directory command
 
-### Courier (Electronic Mail)
+### Courier (Electronic Mail) — Protocol Analysis
+
+#### MAIL Command ('M', $4D)
+
+The MAIL duckshoot command sends 'M' ($4D) with Y=1 (no params). The handler
+at $ADDB calls through the shared send+receive path at $A35F, which:
+1. Stores 'M' at $C100
+2. Sends the packet via L_A784
+3. Receives the response via L96D2 (ACIA_FLOW_CONTROL)
+4. On success (BCC), falls into L_A36B — the **same 6-part directory parser**
+   used by DIR ('P') and BACK ('B')
+
+**The server must respond to 'M' with a 6-part directory response** listing
+the user's mailbox contents. Each mail message appears as a directory entry
+with sender as the title and message metadata in the column fields.
+
+#### Mail Duckshoot Menu
+
+After the mailbox directory is displayed, the client enters a mail-specific
+menu loop at L_ADEA with its own duckshoot. The mail menu commands (from
+the dispatch table at L_AE15, indexing into L_A176) are:
+
+| Index | String Offset | Command | Handler |
+|-------|---------------|---------|---------|
+| 0     | $06           | DIR     | $AE36   |
+| 1     | $66           | GET     | $B00B   |
+| 2     | $0C           | SHOW    | $B039   |
+| 3     | $5A           | LAST    | $B040   |
+| 4     | $9C           | DONE    | $A270   |
+| 5     | $30           | LIFE    | (cont.) |
+| 6     | $A2           | ID      | (cont.) |
+
+The initial $8033 value is set to 1 on mail entry. L_AE1C dispatches based
+on $8033 using the handler address table at $AE2A.
+
+#### Mail Response Format
+
+Since the mail handler uses the standard 6-part directory parser, the server
+response must follow the same format as DIR:
+
+```
+Part 1: Frame header [PETSCII...] $00 (or $00 for default template)
+Part 2: Footer text $0D $0D
+Part 3: Field definitions $00
+Part 4: Breadcrumb [text...] $00
+Part 5: Column headers (e.g. "FROM,DATE,SUBJECT") $0D $00
+Part 6: Mail entries [sender_info...] , [field1] , [field2] ... $0D
+        Stream ends at EOS marker
+```
+
+Each mail entry would be formatted as a directory entry where:
+- Title field: sender ID + message subject
+- Column fields: date, status, etc.
+
+#### Mail Sub-Commands
+
+Within the mail context, commands send different bytes:
+- **DIR** in mail context: likely sends 'U' ($55) to refresh/list
+- **SHOW** in mail context: reads the highlighted message (sends 'D' + index)
+- **GET**: loads message from disk into Editor
+- **DONE**: exits mail, returns to main directory
+- **SEND**: compose and send new message (prompts for SUBJECT, DESTINATION ID)
+
+#### SEND Flow (from strings at $AFDA-$B00A)
+
+1. Prompts "SUBJECT? " — user enters subject line
+2. Prompts "DESTINATION ID? " — user enters recipient(s), up to 5
+3. Prompts "OKAY? " — confirmation
+4. Sends 'D' ($44) command with message metadata
+5. Enters Editor with limited duckshoot for message composition
+6. Each frame sent individually with SEND sub-command
+7. Finishes with 'N' ($4E) command to complete
+
+#### General Information
 
 - Mail indicator: red pillarbox on login screen, "MAIL" text on next directory
 - Messages prepared in the Editor (online or offline)
