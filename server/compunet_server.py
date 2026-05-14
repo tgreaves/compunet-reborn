@@ -225,6 +225,7 @@ class CompunetSession:
         self.show_frame_index = 0
         self.dir_page_offset = 0
         self.dir_displayed = False
+        self.last_response_type = None  # Set by response methods for WS prefix detection
         self._users = self._load_users()
     
     def _load_users(self):
@@ -240,6 +241,7 @@ class CompunetSession:
     
     def handle_login(self, user_id, password):
         """Process login. Returns response bytes or None on failure."""
+        self.last_response_type = None  # Reset per-command for WS prefix detection
         user_id = user_id.upper().strip()
         password = password.upper().strip()
         
@@ -268,6 +270,7 @@ class CompunetSession:
         data[1:] = parameters
         Returns response bytes to send back.
         """
+        self.last_response_type = None  # Reset per-command for WS prefix detection
         if len(data) == 0:
             return self._make_error(b'NO COMMAND')
         
@@ -299,6 +302,7 @@ class CompunetSession:
     
     def handle_goto(self, page_num):
         """Handle GOTO to a specific page number."""
+        self.last_response_type = None  # Reset per-command for WS prefix detection
         page = self.directory.pages.get(page_num)
         if page is None:
             return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
@@ -422,6 +426,7 @@ class CompunetSession:
         Frame byte 0 (flags → $8035): bit 7 = more pages follow.
         Client checks BPL after rendering to decide "press any key" vs "MORE" duckshoot.
         """
+        self.last_response_type = RESP_FRAME
         if self.show_page and self.show_frame_index < len(self.show_page.frames):
             frame_data = bytearray(self.show_page.frames[self.show_frame_index])
             has_more = self.show_frame_index < len(self.show_page.frames) - 1
@@ -446,6 +451,7 @@ class CompunetSession:
         Payload must be exactly 10 bytes to prevent fake terminator
         garbage from appearing (ACIA_PROCESS_CMD returns $2C after stream ends).
         """
+        self.last_response_type = RESP_FRAME
         credit_str = '{:.2f}'.format(abs(self.credit))
         if self.credit < 0:
             credit_str = '-' + credit_str
@@ -456,8 +462,9 @@ class CompunetSession:
 
         Params: entry_index (2 ASCII digits) + extension (up to 4 ASCII digits).
         Server validates ownership and adds extension to page life.
-        Returns success byte or error token ($41) for failure.
+        Returns $00 byte (consumed by C64 client as success indicator).
         """
+        self.last_response_type = RESP_ACK
         if len(params) < 2:
             return bytes([0x00])
 
@@ -512,10 +519,12 @@ class CompunetSession:
     
     def _cmd_vote(self, params):
         """VOTE command."""
+        self.last_response_type = RESP_ACK
         return bytes([RESP_ACK])
     
     def _cmd_mail(self):
         """MAIL command - no mail for now."""
+        self.last_response_type = RESP_FRAME
         frame = bytearray()
         frame.append(0x00)
         frame.append(0xF6)  # border blue
@@ -543,6 +552,7 @@ class CompunetSession:
     def _make_dir_response(self):
         """Build directory response in the 6-part format for 'P' command."""
         self.dir_displayed = True
+        self.last_response_type = RESP_DIR
         return self._make_page_response()
     
     def _make_page_response(self):
@@ -691,6 +701,7 @@ class CompunetSession:
           Byte 2: background colour → $D021
           Then: PETSCII content output via CHROUT until $00 terminator
         """
+        self.last_response_type = RESP_FRAME
         welcome_path = os.path.join(CONTENT_DIR, 'pages', 'welcome.seq')
         if os.path.exists(welcome_path):
             with open(welcome_path, 'rb') as f:
@@ -731,37 +742,64 @@ class CompunetSession:
 # ============================================================
 
 async def ws_handler(websocket):
-    """Handle a WebSocket connection. Same protocol as TCP but over WebSocket binary frames."""
+    """Handle a WebSocket connection. Same protocol as TCP but over WebSocket binary frames.
+
+    Unlike the TCP/C64 path where the client knows what response to expect based
+    on the command it sent, WebSocket responses are prefixed with a type byte so
+    the web client can demultiplex them:
+      $41 = ACK, $44 = Directory, $46 = Frame, $45 = Error
+    """
     directory = CompunetDirectory()
     session = CompunetSession(directory)
-    
+
     log.info('WebSocket client connected: %s', websocket.remote_address)
-    
+
+    def _ws_wrap(response):
+        """Add response type prefix byte for WebSocket clients.
+
+        The session sets last_response_type before building each response.
+        Methods that already embed their own prefix byte (_make_error, _cmd_mail,
+        _cmd_vote) are detected by checking if first byte equals the tracked type.
+        """
+        if not response:
+            return response
+        prefix = session.last_response_type
+        if not prefix:
+            # No type tracked - check if response self-identifies
+            first = response[0]
+            if first in (RESP_ACK, RESP_ERROR, RESP_FRAME, RESP_DIR, RESP_LINKING):
+                return response
+            return bytes([RESP_DIR]) + response
+        # If the response already starts with its own prefix, pass through
+        if response[0] == prefix:
+            return response
+        return bytes([prefix]) + response
+
     try:
         # Login loop - keep prompting until successful
         while True:
             login_data = await websocket.recv()
             if isinstance(login_data, str):
                 login_data = login_data.encode('latin-1')
-            
+
             parts = login_data.split(b'\x00')
             user_id = parts[0].decode('latin-1') if len(parts) > 0 else 'GUEST'
             password = parts[1].decode('latin-1') if len(parts) > 1 else ''
-            
+
             response = session.handle_login(user_id, password)
-            await websocket.send(response)
-            
+            await websocket.send(_ws_wrap(response))
+
             if session.authenticated:
                 break
-        
+
         # Command loop (only reached after successful login)
         async for message in websocket:
             if isinstance(message, str):
                 message = message.encode('latin-1')
-            
+
             if len(message) == 0:
                 continue
-            
+
             # Check for GOTO (special: starts with 'G' + page number as ASCII)
             if message[0] == ord('G') and len(message) > 1:
                 try:
@@ -776,10 +814,10 @@ async def ws_handler(websocket):
             else:
                 # Standard command
                 response = session.handle_command(message)
-            
+
             if response:
-                await websocket.send(response)
-    
+                await websocket.send(_ws_wrap(response))
+
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:

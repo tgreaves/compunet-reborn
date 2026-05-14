@@ -1,18 +1,24 @@
 /**
  * Compunet Protocol Client
- * 
+ *
  * Speaks the same binary protocol as the C64 client over WebSocket.
- * 
+ *
  * Client -> Server:
  *   Command packets: byte 0 = command letter, bytes 1+ = params
- *   GOTO: 'G' + page number as ASCII digits
- *   SELECT: 'S' + index byte
+ *   'P' + 2-digit ASCII index = DIR (show directory / enter sub-dir)
+ *   'D' + 2-digit ASCII index = SHOW (display frame)
+ *   'D' (no params) = MORE (next frame page)
+ *   'B' = BACK (return to parent directory)
+ *   'A' = ACCNT (show account balance)
+ *   'V' + padding + ASCII digit = VOTE
+ *   'G' + page number as ASCII digits = GOTO
+ *   'S' + index byte = SELECT (highlight change, web-only)
  *   Login: user_id + $00 + password + $00
- * 
+ *
  * Server -> Client:
  *   $41 'A' = ACK
- *   $44 'D' = Directory listing (PETSCII stream, $00 terminated)
- *   $46 'F' = Frame data (SEQ format, $00 terminated)
+ *   $44 'D' = Directory listing (6-part PETSCII stream)
+ *   $46 'F' = Frame data (SEQ format)
  *   $45 'E' = Error message (PETSCII, $00 terminated)
  *   $4C 'L' = Linking required
  */
@@ -92,24 +98,39 @@ class CompunetProtocol {
     }
     
     /**
-     * Send DIR command.
+     * Send DIR command (enter sub-directory or refresh directory).
+     * Matches C64: 'P' + 2-digit ASCII entry index.
      */
-    sendDir() {
+    sendDir(entryIndex) {
+        const idx = (entryIndex !== undefined) ? entryIndex : 0;
+        const params = new TextEncoder().encode(idx.toString().padStart(2, '0'));
+        this.sendCommand('P', params);
+    }
+
+    /**
+     * Send SHOW command (display entry's frame).
+     * Matches C64: 'D' + 2-digit ASCII entry index.
+     */
+    sendShow(entryIndex) {
+        const idx = (entryIndex !== undefined) ? entryIndex : 0;
+        const params = new TextEncoder().encode(idx.toString().padStart(2, '0'));
+        this.sendCommand('D', params);
+    }
+
+    /**
+     * Send MORE command (next frame page).
+     * Matches C64: 'D' with no params.
+     */
+    sendMore() {
         this.sendCommand('D');
     }
-    
-    /**
-     * Send SHOW command.
-     */
-    sendShow() {
-        this.sendCommand('P');
-    }
-    
+
     /**
      * Send BACK command.
+     * Matches C64: 'B' ($42).
      */
     sendBack() {
-        this.sendCommand('C');
+        this.sendCommand('B');
     }
     
     /**

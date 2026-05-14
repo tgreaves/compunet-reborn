@@ -286,6 +286,12 @@ class CompunetTerminal {
             this._handleGotoKey(e);
             return;
         }
+
+        // Handle VOTE input mode
+        if (this.voteMode) {
+            this._handleVoteKey(e);
+            return;
+        }
         
         // Handle UP/DOWN for directory navigation (client-side, no server traffic)
         if (this.dirEntries && this.dirEntries.length > 0) {
@@ -324,21 +330,22 @@ class CompunetTerminal {
     _handleOnlineCommand(cmd) {
         switch (cmd) {
             case 'DIR':
-                this.protocol.sendSelect(this.dirHighlight);
-                this.protocol.sendDir();
+                this.protocol.sendDir(this.dirHighlight);
                 break;
             case 'SHOW':
-                this.protocol.sendSelect(this.dirHighlight);
-                this.protocol.sendShow();
+                this.protocol.sendShow(this.dirHighlight);
                 break;
             case 'MORE':
-                this.protocol.sendCommand('N');
+                this.protocol.sendMore();
                 break;
             case 'BACK':
                 this.protocol.sendBack();
                 break;
             case 'GOTO':
                 this._startGoto();
+                break;
+            case 'VOTE':
+                this._startVote();
                 break;
             case 'ACCNT':
                 this.protocol.sendAccnt();
@@ -429,58 +436,168 @@ class CompunetTerminal {
         }
     }
     
+    _startVote() {
+        const r = this.renderer;
+        // Display prompt on row 22 (status area)
+        for (let x = 0; x < 40; x++) {
+            r.setCharASCII(x, 22, 32, 6);
+        }
+        r.printAt(1, 22, 'VOTE (1-5)? ', 6);
+        this.voteMode = true;
+    }
+
+    _handleVoteKey(e) {
+        const r = this.renderer;
+
+        if (e.key >= '1' && e.key <= '5') {
+            const vote = parseInt(e.key);
+            this.voteMode = false;
+            // Clear the prompt
+            for (let x = 0; x < 40; x++) {
+                r.setCharASCII(x, 22, 32, 0);
+            }
+            this.protocol.sendVote(vote);
+        } else if (e.key === 'Escape') {
+            this.voteMode = false;
+            for (let x = 0; x < 40; x++) {
+                r.setCharASCII(x, 22, 32, 0);
+            }
+        }
+    }
+
     _renderDirectoryData(data) {
         const r = this.renderer;
         r.clear();
         r.bgColour = 15;  // light grey (from disassembly: LDA #$0F / STA $D021)
         r.borderColour = 6;  // blue (from disassembly: LDA $8012 = $06 / STA $D020)
         r.setCharset(0);  // uppercase/graphics
-        
-        // Parse structured directory data
-        // Format: entry_count(1 byte), title(CR-terminated), entries(comma-separated, CR-terminated), $00
+
+        // Parse 6-part directory format from server:
+        //   Part 1: Frame header [PETSCII...] $00
+        //   Part 2: Footer text [line1 $0D line2 $0D]
+        //   Part 3: Field definitions $00
+        //   Part 4: Column header/breadcrumb [text...] $00
+        //   Part 5: Column headers: field1,field2,...$0D + separator $00
+        //   Part 6: Directory entries (CR-terminated lines until end of data)
         let pos = 0;
-        const entryCount = data[pos++];
-        
-        // Read directory title (until CR)
-        this.dirTitle = '';
-        while (pos < data.length && data[pos] !== 0x0D) {
-            this.dirTitle += String.fromCharCode(data[pos++]);
+
+        // --- Part 1: Skip frame header (until $00) ---
+        while (pos < data.length && data[pos] !== 0x00) {
+            pos++;
         }
-        pos++; // skip CR
-        
-        // Parse entries
+        pos++; // skip $00
+
+        // --- Part 2: Skip footer (two CR-terminated lines) ---
+        // Line 1: until $0D
+        while (pos < data.length && data[pos] !== 0x0D) {
+            pos++;
+        }
+        pos++; // skip $0D
+        // Line 2: until $0D
+        while (pos < data.length && data[pos] !== 0x0D) {
+            pos++;
+        }
+        pos++; // skip $0D
+
+        // --- Part 3: Skip field definitions (until $00) ---
+        while (pos < data.length && data[pos] !== 0x00) {
+            pos++;
+        }
+        pos++; // skip $00
+
+        // --- Part 4: Extract breadcrumb/routing (until $00) ---
+        // This is displayed at row 7 in the directory box.
+        // Contains two CR-separated lines (e.g. "    1 *** COMPUNET ***" + page path)
+        this.dirTitle = '';
+        while (pos < data.length && data[pos] !== 0x00) {
+            // Convert PETSCII to displayable char for title extraction
+            const b = data[pos];
+            if (b === 0x0D) {
+                // Second line is the page path - use that as title
+                this.dirTitle = '';
+            } else if (b >= 0xC1 && b <= 0xDA) {
+                this.dirTitle += String.fromCharCode(b - 0x80);
+            } else if (b >= 0x41 && b <= 0x5A) {
+                this.dirTitle += String.fromCharCode(b);
+            } else if (b >= 0x20 && b <= 0x3F) {
+                this.dirTitle += String.fromCharCode(b);
+            } else {
+                this.dirTitle += ' ';
+            }
+            pos++;
+        }
+        this.dirTitle = this.dirTitle.trim();
+        pos++; // skip $00
+
+        // --- Part 5: Skip column headers (fields,... $0D + separator $00) ---
+        while (pos < data.length && data[pos] !== 0x0D) {
+            pos++;
+        }
+        pos++; // skip $0D
+        // Skip separator byte + $00
+        while (pos < data.length && data[pos] !== 0x00) {
+            pos++;
+        }
+        pos++; // skip $00
+
+        // --- Part 6: Parse directory entries ---
+        // Each entry: [6-char page_num][title+type padded ~21 chars] , price , life , author , vote $0D
         this.dirEntries = [];
-        for (let i = 0; i < entryCount && pos < data.length; i++) {
-            const fields = [];
-            let field = '';
-            while (pos < data.length && data[pos] !== 0x0D && data[pos] !== 0x00) {
-                if (data[pos] === 0x2C) { // comma separator
-                    fields.push(field);
-                    field = '';
-                } else {
-                    field += String.fromCharCode(data[pos]);
-                }
+        while (pos < data.length) {
+            // Read one entry line until $0D or end of data
+            let lineBytes = [];
+            while (pos < data.length && data[pos] !== 0x0D) {
+                lineBytes.push(data[pos]);
                 pos++;
             }
-            fields.push(field);
-            if (data[pos] === 0x0D) pos++;
-            
-            if (fields.length >= 3) {
-                this.dirEntries.push({
-                    pageNum: fields[0] || '',
-                    title: fields[1] || '',
-                    type: fields[2] || '',
-                    price: fields[3] || '',
-                    life: fields[4] || '',
-                    author: fields[5] || '',
-                    vote: fields[6] || '',
-                });
+            if (data[pos] === 0x0D) pos++; // skip $0D
+
+            if (lineBytes.length === 0) continue;
+
+            // Convert PETSCII bytes to string for parsing
+            let line = '';
+            for (let i = 0; i < lineBytes.length; i++) {
+                const b = lineBytes[i];
+                if (b >= 0xC1 && b <= 0xDA) {
+                    line += String.fromCharCode(b - 0x80);
+                } else if (b >= 0x41 && b <= 0x5A) {
+                    line += String.fromCharCode(b);
+                } else if (b >= 0x20 && b <= 0x3F) {
+                    line += String.fromCharCode(b);
+                } else {
+                    line += ' ';
+                }
             }
+
+            // Split on commas: first field is page_num+title+type, then price, life, author, vote
+            const parts = line.split(',');
+            if (parts.length < 2) continue;
+
+            const titleField = parts[0]; // "  nnnn title........type"
+
+            // First 6 chars = page number
+            const pageNum = titleField.substring(0, 6).trim();
+
+            // Chars 6 onwards = title + type (title is left-aligned, type is at the end)
+            const titleType = titleField.substring(6);
+            // Type is the last 3 chars of the title+type field
+            const type = titleType.substring(titleType.length - 3).trim();
+            const title = titleType.substring(0, titleType.length - 3).trim();
+
+            this.dirEntries.push({
+                pageNum: pageNum,
+                title: title,
+                type: type,
+                price: (parts[1] || '').trim(),
+                life: (parts[2] || '').trim(),
+                author: (parts[3] || '').trim(),
+                vote: (parts[4] || '').trim(),
+            });
         }
-        
+
         this.dirHighlight = 0;
         this.dirColumn = 0; // 0=price, 1=life, 2=author, 3=vote
-        
+
         this._drawDirectory();
         this.duckshoot.setCommands(DUCKSHOOT_DIRECTORY);
         this.duckshoot.show();
