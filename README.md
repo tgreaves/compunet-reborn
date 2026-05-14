@@ -36,6 +36,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Courier SEND: FROM/DATE/TIME fields on compose screen
 - ✅ Courier envelope: server auto-generates header frame (FROM/DATE/TIME/SUBJECT/TO) on delivery
 - ✅ Frame upload via ACIA_UPLOAD_BYTE (replaced PROTO_RECV_FRAME)
+- ✅ LEAVE command: goodbye frame displayed, connection closed gracefully
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture

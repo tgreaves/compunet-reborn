@@ -302,6 +302,8 @@ class CompunetSession:
             return self._cmd_buy(params)
         elif cmd == CMD_UPLD:
             return self._cmd_upload(params)
+        elif cmd == ord('E'):
+            return self._cmd_leave()
         elif cmd == ord('N'):
             return self._cmd_more(params)
         else:
@@ -481,6 +483,26 @@ class CompunetSession:
             credit_str = '-' + credit_str
         return ascii_to_petscii(credit_str.ljust(10))
     
+    def _cmd_leave(self):
+        """LEAVE command ('E') — disconnect from Compunet.
+
+        Client sends 'E', waits for a goodbye frame, displays it,
+        waits for keypress, then clears screen and returns to BASIC.
+        """
+        self.last_response_type = RESP_FRAME
+        self._leaving = True
+        goodbye_path = os.path.join(CONTENT_DIR, 'pages', 'goodbye.seq')
+        if os.path.exists(goodbye_path):
+            with open(goodbye_path, 'rb') as f:
+                return f.read()
+        # Fallback if file missing
+        frame = bytearray(b'\x00\x06\x0F\x8E\x0D\x0D')
+        frame.extend(b'\x06\x06\x1F')
+        frame.extend(b'GOODBYE')
+        frame.append(0x0D)
+        frame.append(0x00)
+        return bytes(frame)
+
     def _cmd_buy(self, params):
         """LIFE/EXTEND command ('X') — extend life of owned content.
 
@@ -1406,7 +1428,15 @@ async def tcp_handler(reader, writer):
                                 writer.write(eos_pkt)
                                 await writer.drain()
                                 log.info('CMD: sent EOS pkt (%d wire)', len(eos_pkt))
-                
+
+                            # Close connection after LEAVE
+                            if getattr(session, '_leaving', False):
+                                log.info('TCP: LEAVE — closing connection')
+                                await asyncio.sleep(2.0)
+                                writer.close()
+                                await writer.wait_closed()
+                                return
+
                 elif token == TOKEN_ACK:
                     log.debug('TCP: received ACK seq=$%02X', seq)
 
