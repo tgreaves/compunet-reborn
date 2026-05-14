@@ -3,6 +3,11 @@
     "page_num": 100,
     "title": "WELCOME",
     "type": "D",
+    "size": 0,
+    "author": "SYSTEM",
+    "price": 0,
+    "life": 0,
+    "vote": 0,
     "header": "root-header.seq",
     "children": [
       {
@@ -14,7 +19,10 @@
         "price": 0,
         "life": 7,
         "vote": 6,
-        "frames": ["news-1.seq", "news-2.seq"],
+        "frames": [
+          "news-1.seq",
+          "news-2.seq"
+        ],
         "children": [
           {
             "page_num": 102,
@@ -25,7 +33,9 @@
             "price": 0,
             "life": 7,
             "vote": 5,
-            "frames": ["latest-1.seq"],
+            "frames": [
+              "latest-1.seq"
+            ],
             "children": []
           },
           {
@@ -37,7 +47,9 @@
             "price": 0,
             "life": 30,
             "vote": 3,
-            "frames": ["archive-1.seq"],
+            "frames": [
+              "archive-1.seq"
+            ],
             "children": []
           }
         ]
@@ -48,10 +60,13 @@
         "type": "T",
         "size": 2,
         "author": "TEST",
-        "price": 1.50,
+        "price": 1.5,
         "life": 30,
         "vote": 8,
-        "frames": ["paid-1.seq", "paid-2.seq"],
+        "frames": [
+          "paid-1.seq",
+          "paid-2.seq"
+        ],
         "children": []
       },
       {
@@ -60,10 +75,12 @@
         "type": "T",
         "size": 1,
         "author": "SYS",
-        "price": 50.00,
+        "price": 50.0,
         "life": 99,
         "vote": 9,
-        "frames": ["vip-1.seq"],
+        "frames": [
+          "vip-1.seq"
+        ],
         "children": []
       },
       {
@@ -75,7 +92,9 @@
         "price": 0,
         "life": 30,
         "vote": 4,
-        "frames": ["chat-1.seq"],
+        "frames": [
+          "chat-1.seq"
+        ],
         "children": [
           {
             "page_num": 402,
@@ -86,7 +105,9 @@
             "price": 0,
             "life": 30,
             "vote": 3,
-            "frames": ["chat-1.seq"],
+            "frames": [
+              "chat-1.seq"
+            ],
             "children": []
           },
           {
@@ -98,7 +119,9 @@
             "price": 0,
             "life": 30,
             "vote": 2,
-            "frames": ["chat-1.seq"],
+            "frames": [
+              "chat-1.seq"
+            ],
             "children": []
           }
         ]
@@ -112,7 +135,38 @@
         "price": 0,
         "life": 14,
         "vote": 7,
-        "frames": ["reviews-1.seq"],
+        "frames": [
+          "reviews-1.seq"
+        ],
+        "children": []
+      },
+      {
+        "page_num": 502,
+        "title": "FOO",
+        "type": "T",
+        "size": 1,
+        "author": "TEST",
+        "price": 5.0,
+        "life": 3,
+        "vote": 0,
+        "frames": [
+          "upload-502-1.seq"
+        ],
+        "children": []
+      },
+      {
+        "page_num": 503,
+        "title": "WANG",
+        "type": "T",
+        "size": 2,
+        "author": "TEST",
+        "price": 0.0001,
+        "life": 0,
+        "vote": 0,
+        "frames": [
+          "upload-503-1.seq",
+          "upload-503-2.seq"
+        ],
         "children": []
       }
     ]

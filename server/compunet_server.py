@@ -401,6 +401,12 @@ class CompunetSession:
         If we're already viewing the directory and the selected entry has a
         sub-directory, enter it. Otherwise show the current page directory.
         """
+        # Complete pending upload if client returned to directory
+        if self.pending_send is not None and self.pending_send.get('mode') == 'upload':
+            if self.pending_send['frames']:
+                self._complete_content_upload(self.pending_send)
+            self.pending_send = None
+            self.dir_displayed = False
         if self.dir_displayed and params:
             try:
                 selected = int(params.decode('ascii'))
@@ -799,9 +805,9 @@ class CompunetSession:
     def _cmd_upload(self, params):
         """Handle 'U' command — mail SEND or content upload.
 
-        Params: subject(16) + type(1) + dest_id(8)
-        Server stores metadata and ACKs. Client then enters Editor.
-        Subsequent 'D' sends frame data, 'N' signals completion.
+        Mail SEND params: subject(16) + type(1) + dest_ids(8 each)
+        Content UPLOAD params: title(16) + type(1) + price(8) + lifetime(1)
+        Distinguish by: price field contains '.' → upload; otherwise → mail.
         """
         # Second 'U' (no params) = ready to send a frame, just ACK it
         if len(params) == 0:
@@ -814,32 +820,37 @@ class CompunetSession:
 
         subject = params[0:16].decode('latin-1').strip()
         msg_type = chr(params[16])
+        rest = params[17:]
 
-        # Parse destination IDs (8 bytes each, starting at offset 17)
+        # Detect UPLOAD vs MAIL: price field contains '.'
+        if b'.' in rest[:8]:
+            return self._cmd_upload_content(subject, msg_type, rest)
+        else:
+            return self._cmd_mail_send(subject, msg_type, rest)
+
+    def _cmd_mail_send(self, subject, msg_type, rest):
+        """Handle MAIL SEND — validate destinations and prepare for frame upload."""
+        # Parse destination IDs (8 bytes each)
         dest_ids = []
-        offset = 17
-        while offset + 8 <= len(params):
-            did = params[offset:offset+8].decode('latin-1').strip()
+        offset = 0
+        while offset + 8 <= len(rest):
+            did = rest[offset:offset+8].decode('latin-1').strip()
             if did:
                 dest_ids.append(did.upper())
             offset += 8
 
-        log.info('UPLOAD/SEND: from=%s to=%s subject="%s" type=%s',
+        log.info('MAIL SEND: from=%s to=%s subject="%s" type=%s',
                  self.user_id, dest_ids, subject, msg_type)
 
-        # Store pending send state
         self.pending_send = {
+            'mode': 'mail',
             'to': dest_ids,
             'subject': subject,
             'type': msg_type,
             'frames': [],
         }
 
-        # Client calls L_B0EA which validates each destination:
-        # For each dest: [8-byte ID] [status text] $1E
-        #   status text present = user exists (text displayed as confirmation)
-        #   $1E immediately after ID = user not found (triggers error)
-        # Stream ends at EOS (C=1 from L96CC).
+        # Validation response: [8-byte ID] [real_name or nothing] $1E per dest
         self.last_response_type = RESP_DIR
         data = bytearray()
         users = self._load_users()
@@ -849,6 +860,43 @@ class CompunetSession:
                 real_name = users[did].get('name', did)
                 data.extend(ascii_to_petscii(real_name))
             data.append(0x1E)
+        log.info('MAIL: validation response %d bytes: %s', len(data), data.hex())
+        return bytes(data)
+
+    def _cmd_upload_content(self, title, page_type, rest):
+        """Handle content UPLOAD — store metadata for frame upload."""
+        price_str = rest[0:8].decode('latin-1').strip()
+        lifetime_str = rest[8:].decode('latin-1').strip() if len(rest) > 8 else '0'
+
+        # Parse price: strip leading zeros, format as X.XX
+        try:
+            price = float(price_str)
+        except ValueError:
+            price = 0.0
+
+        try:
+            lifetime = int(lifetime_str)
+        except ValueError:
+            lifetime = 0
+
+        log.info('CONTENT UPLOAD: user=%s title="%s" type=%s price=%.2f life=%d',
+                 self.user_id, title, page_type, price, lifetime)
+
+        self.pending_send = {
+            'mode': 'upload',
+            'title': title,
+            'type': page_type,
+            'price': price,
+            'lifetime': lifetime,
+            'frames': [],
+        }
+
+        # Validation response — echo back the price field + $1E
+        # No EOS — client proceeds immediately to send frame data after L96D2
+        self.last_response_type = RESP_ACK
+        data = bytearray()
+        data.extend(ascii_to_petscii(price_str.ljust(8)[:8]))
+        data.append(0x1E)
         log.info('UPLOAD: validation response %d bytes: %s', len(data), data.hex())
         return bytes(data)
 
@@ -866,21 +914,29 @@ class CompunetSession:
         return bytes([RESP_ACK])
 
     def _complete_upload(self):
-        """Complete a SEND/upload — deliver mail to recipient."""
+        """Complete a SEND/upload — deliver mail or add page to directory."""
         send = self.pending_send
         self.pending_send = None
 
-        if not send or not send['to'] or not send['frames']:
-            log.info('UPLOAD: completed (no frames or no destination)')
-            return self._make_mail_response()
+        if not send or not send.get('frames'):
+            log.info('UPLOAD: completed (no frames)')
+            if send and send.get('mode') == 'mail':
+                return self._make_mail_response()
+            return b''
 
+        if send.get('mode') == 'upload':
+            return self._complete_content_upload(send)
+        else:
+            return self._complete_mail_send(send)
+
+    def _complete_mail_send(self, send):
+        """Deliver mail to recipients."""
         import datetime
         now = datetime.datetime.now()
         mail_dir = os.path.join(os.path.dirname(__file__), 'mail')
         users = self._load_users()
         msg_seq = self._next_message_number()
 
-        # Deliver to each valid destination
         for dest_id in send['to']:
             if dest_id not in users:
                 continue
@@ -897,7 +953,6 @@ class CompunetSession:
             msg_num = len(dest_inbox['messages']) + 1
             msg_id = f'msg{msg_num:03d}'
 
-            # Generate header frame (page 0)
             header_frame = self._generate_mail_header(
                 msg_seq, self.user_id, send['subject'],
                 send['to'], now, users)
@@ -906,7 +961,6 @@ class CompunetSession:
             with open(header_path, 'wb') as f:
                 f.write(header_frame)
 
-            # Save content frame files
             frame_files = [header_file]
             for i, frame_data in enumerate(send['frames']):
                 frame_file = f'{msg_id}-{i+1}.seq'
@@ -915,7 +969,6 @@ class CompunetSession:
                     f.write(frame_data)
                 frame_files.append(frame_file)
 
-            # Add to recipient's inbox
             today = now.date().isoformat()
             dest_inbox['messages'].append({
                 'id': msg_id,
@@ -928,11 +981,79 @@ class CompunetSession:
             with open(dest_mail_file, 'w') as f:
                 json.dump(dest_inbox, f, indent=2)
 
-        log.info('UPLOAD: delivered mail from %s to %s subject="%s" frames=%d',
+        log.info('MAIL: delivered from %s to %s subject="%s" frames=%d',
                  self.user_id, send['to'], send['subject'], len(send['frames']))
-
-        # No response — client sent N via L_A784 + JMP (no L96D2 wait)
         return b''
+
+    def _complete_content_upload(self, send):
+        """Add uploaded page to the current directory."""
+        # Find next available page number
+        all_pages = list(self.directory.pages.keys())
+        next_page_num = max(all_pages) + 1 if all_pages else 1000
+
+        # Save frame files
+        frame_files = []
+        for i, frame_data in enumerate(send['frames']):
+            frame_file = f'upload-{next_page_num}-{i+1}.seq'
+            frame_path = os.path.join(CONTENT_DIR, 'pages', frame_file)
+            with open(frame_path, 'wb') as f:
+                f.write(frame_data)
+            frame_files.append(frame_file)
+
+        # Create new page in the directory tree
+        new_page = CompunetPage(
+            page_num=next_page_num,
+            title=send['title'],
+            page_type=send['type'],
+            size=len(send['frames']),
+            author=self.user_id,
+            price=send['price'],
+            life=send['lifetime'],
+            vote=0,
+        )
+        new_page.parent = self.current_page
+        new_page._frame_files = frame_files
+        for frame_file in frame_files:
+            frame_path = os.path.join(CONTENT_DIR, 'pages', frame_file)
+            with open(frame_path, 'rb') as f:
+                new_page.frames.append(f.read())
+        self.current_page.children.append(new_page)
+        self.directory.pages[next_page_num] = new_page
+
+        # Persist to root.json
+        self._save_directory()
+
+        log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
+                 next_page_num, send['title'], self.user_id,
+                 len(send['frames']), send['price'], send['lifetime'])
+        return b''
+
+    def _save_directory(self):
+        """Persist the directory tree back to root.json."""
+        def _page_to_dict(page):
+            node = {
+                'page_num': page.page_num,
+                'title': page.title,
+                'type': page.page_type,
+                'size': page.size,
+                'author': page.author,
+                'price': page.price,
+                'life': page.life,
+                'vote': page.vote,
+            }
+            if hasattr(page, 'header') and page.header:
+                node['header'] = page.header
+            frame_files = getattr(page, '_frame_files', [])
+            if frame_files:
+                node['frames'] = frame_files
+            node['children'] = [_page_to_dict(child) for child in page.children]
+            return node
+
+        tree = {'root': _page_to_dict(self.directory.root)}
+        json_path = os.path.join(CONTENT_DIR, 'root.json')
+        with open(json_path, 'w') as f:
+            json.dump(tree, f, indent=2)
+        log.info('DIR: saved directory tree to root.json')
 
     def _cmd_ucat(self):
         """UCAT command - user catalogue listing."""

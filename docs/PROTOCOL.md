@@ -1097,14 +1097,23 @@ The 'U' ($55) command handles both content uploads and mail SEND.
 
 ```
 Command byte: $55 ('U')
-First 'U' params (25+ bytes, up to 5 destinations):
-  [0-15]  Subject/title — 16 chars, space-padded
-  [16]    Type — 'T' (text) or 'P' (program)
+
+MAIL SEND params (25+ bytes, up to 5 destinations):
+  [0-15]  Subject — 16 chars, space-padded
+  [16]    Type — 'T' (text)
   [17-24] Destination ID #1 — 8 chars, space-padded
   [25-32] Destination ID #2 (optional)
   ...up to 5 destinations (8 bytes each)
 
-Second 'U' (no params): "ready to send frame" signal
+CONTENT UPLOAD params (26 bytes):
+  [0-15]  Title — 16 chars, space-padded
+  [16]    Type — 'T' (text) or 'P' (program)
+  [17-24] Price — 8 chars ("005.0000" format)
+  [25]    Lifetime — 1 char ASCII digit (days)
+
+Server distinguishes by: bytes 17-24 contain '.' → upload; otherwise → mail.
+
+Second 'U' (no params): "ready to send frame" signal (MAIL only)
 ```
 
 #### Protocol Flow (confirmed via live testing 2026-05-14)
@@ -1147,6 +1156,30 @@ Example (2 dests, first valid, second invalid):
 ```
   ADMIN    O K $1E  FOOBAR   $1E  [EOS]
 ```
+
+#### Content UPLOAD Flow (confirmed via live testing 2026-05-14)
+
+```
+1. User selects UPLD from directory duckshoot
+2. Client prompts: title, type (T/P), price, lifetime
+3. User confirms "Y"
+4. Client enters UPLOAD sub-duckshoot (SEND/LOAD/GET/FINISH)
+5. User navigates Editor, selects SEND:
+   a. Client sends 'U' + metadata (26 bytes) via ACIA_SEND_PACKET [COM]
+   b. Client calls L96D2 — waits for server validation response
+      (Server responds with price echo + $1E, NO EOS!)
+   c. Client immediately sends frame via L96C9 → ACIA_UPLOAD_BYTE [DAT]
+   d. Client calls L96D2 — waits for frame ACK
+6. Sub-duckshoot returns. User can SEND more or FINISH.
+7. FINISH: client sends 'P' (DIR refresh) which triggers server to
+   complete the upload (save page, update root.json) and return directory.
+```
+
+Key differences from MAIL SEND:
+- No second 'U' (frame-ready) — frame sent immediately after validation
+- No 'N' (FINISH) command — completion triggered by next 'P' command
+- Validation response must NOT have EOS (client proceeds immediately)
+- Metadata sent with EACH frame (not just once at the start)
 
 #### Frame Upload Mechanism ($B175)
 
