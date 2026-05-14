@@ -34,6 +34,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Courier SEND: compose and deliver messages to other users
 - ✅ Courier SEND: destination user validation with real names
 - ✅ Courier SEND: FROM/DATE/TIME fields on compose screen
+- ✅ Courier envelope: server auto-generates header frame (FROM/DATE/TIME/SUBJECT/TO) on delivery
 - ✅ Frame upload via ACIA_UPLOAD_BYTE (replaced PROTO_RECV_FRAME)
 - ✅ Duckshoot fully functional throughout
 

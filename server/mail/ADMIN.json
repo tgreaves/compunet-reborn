@@ -7,6 +7,7 @@
       "date": "2026-05-14",
       "read": false,
       "frames": [
+        "msg001-0.seq",
         "msg001-1.seq"
       ]
     },
@@ -16,7 +17,9 @@
       "subject": "SUBJECT",
       "date": "2026-05-14",
       "read": false,
-      "frames": []
+      "frames": [
+        "msg002-0.seq"
+      ]
     },
     {
       "id": "msg003",
@@ -25,6 +28,7 @@
       "date": "2026-05-14",
       "read": false,
       "frames": [
+        "msg003-0.seq",
         "msg003-1.seq",
         "msg003-2.seq"
       ]
@@ -36,6 +40,7 @@
       "date": "2026-05-14",
       "read": false,
       "frames": [
+        "msg004-0.seq",
         "msg004-1.seq"
       ]
     },
@@ -46,6 +51,7 @@
       "date": "2026-05-14",
       "read": false,
       "frames": [
+        "msg005-0.seq",
         "msg005-1.seq"
       ]
     },
@@ -55,7 +61,9 @@
       "subject": "TEST",
       "date": "2026-05-14",
       "read": false,
-      "frames": []
+      "frames": [
+        "msg006-0.seq"
+      ]
     },
     {
       "id": "msg007",
@@ -64,6 +72,7 @@
       "date": "2026-05-14",
       "read": false,
       "frames": [
+        "msg007-0.seq",
         "msg007-1.seq"
       ]
     },
@@ -74,6 +83,7 @@
       "date": "2026-05-14",
       "read": false,
       "frames": [
+        "msg008-0.seq",
         "msg008-1.seq"
       ]
     }

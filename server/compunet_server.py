@@ -633,12 +633,12 @@ class CompunetSession:
         else:
             for i, msg in enumerate(self.mail_messages):
                 from_str = msg.get('from', '?')[:6]
-                subject = msg.get('subject', '')[:10]
+                subject = msg.get('subject', '')[:9]
                 num_frames = len(msg.get('frames', []))
                 type_str = ('T' + str(num_frames)).ljust(3)
                 title = from_str + ': ' + subject
                 page_str = str(i + 1).rjust(4) + '  '
-                title_field = title[:18].ljust(18) + type_str
+                title_field = title[:17].ljust(18) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
                 # Date as DD-MM-YY (8 chars max)
@@ -720,6 +720,60 @@ class CompunetSession:
         with open(mail_file, 'w') as f:
             json.dump(data, f, indent=2)
 
+    def _next_message_number(self):
+        """Get and increment the global message sequence number."""
+        seq_file = os.path.join(os.path.dirname(__file__), 'mail', 'sequence.json')
+        if os.path.exists(seq_file):
+            with open(seq_file, 'r') as f:
+                seq_data = json.load(f)
+            seq_num = seq_data.get('next', 100000)
+        else:
+            seq_num = 100000
+        with open(seq_file, 'w') as f:
+            json.dump({'next': seq_num + 1}, f)
+        return seq_num
+
+    def _generate_mail_header(self, msg_seq, sender_id, subject, dest_ids, timestamp, users):
+        """Generate COURIER header frame (page 0) from template.
+
+        Loads courier-envelope.seq and replaces placeholders with actual values.
+        """
+        MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN',
+                  'JUL','AUG','SEP','OCT','NOV','DEC']
+        date_str = f'{timestamp.day:02d}-{MONTHS[timestamp.month-1]}-{timestamp.strftime("%y")}'
+        time_str = timestamp.strftime('%H:%M')
+        sender_name = users.get(sender_id, {}).get('name', sender_id)
+
+        # Build destination slot lines
+        dest_lines = []
+        for i in range(5):
+            if i < len(dest_ids):
+                did = dest_ids[i]
+                dest_name = users.get(did, {}).get('name', '')
+                # cyan ID + red colon + cyan name
+                line = b'\x20\x20\x1F' + did.ljust(8)[:8].encode('ascii') + b'\x1C: \x1F' + dest_name.encode('ascii')
+            else:
+                # empty slot: spaces + red colon
+                line = b'\x20\x20\x06\x08\x1C:'
+            dest_lines.append(line)
+
+        # Load template
+        template_path = os.path.join(CONTENT_DIR, 'templates', 'courier-envelope.seq')
+        with open(template_path, 'rb') as f:
+            frame = f.read()
+
+        # Replace placeholders
+        frame = frame.replace(b'{MSG_NO}', str(msg_seq).encode('ascii'))
+        frame = frame.replace(b'{SENDER_ID}', sender_id.encode('ascii'))
+        frame = frame.replace(b'{SENDER_NAME}', sender_name.encode('ascii'))
+        frame = frame.replace(b'{DATE}', date_str.encode('ascii'))
+        frame = frame.replace(b'{TIME}', time_str.encode('ascii'))
+        frame = frame.replace(b'{SUBJECT}', subject[:24].encode('ascii'))
+        for i in range(5):
+            frame = frame.replace(f'{{DEST_{i}}}'.encode('ascii'), dest_lines[i])
+
+        return frame
+
     def _cmd_upload(self, params):
         """Handle 'U' command — mail SEND or content upload.
 
@@ -798,8 +852,11 @@ class CompunetSession:
             log.info('UPLOAD: completed (no frames or no destination)')
             return self._make_mail_response()
 
+        import datetime
+        now = datetime.datetime.now()
         mail_dir = os.path.join(os.path.dirname(__file__), 'mail')
         users = self._load_users()
+        msg_seq = self._next_message_number()
 
         # Deliver to each valid destination
         for dest_id in send['to']:
@@ -818,8 +875,17 @@ class CompunetSession:
             msg_num = len(dest_inbox['messages']) + 1
             msg_id = f'msg{msg_num:03d}'
 
-            # Save frame files
-            frame_files = []
+            # Generate header frame (page 0)
+            header_frame = self._generate_mail_header(
+                msg_seq, self.user_id, send['subject'],
+                send['to'], now, users)
+            header_file = f'{msg_id}-0.seq'
+            header_path = os.path.join(dest_dir, header_file)
+            with open(header_path, 'wb') as f:
+                f.write(header_frame)
+
+            # Save content frame files
+            frame_files = [header_file]
             for i, frame_data in enumerate(send['frames']):
                 frame_file = f'{msg_id}-{i+1}.seq'
                 frame_path = os.path.join(dest_dir, frame_file)
@@ -828,8 +894,7 @@ class CompunetSession:
                 frame_files.append(frame_file)
 
             # Add to recipient's inbox
-            import datetime
-            today = datetime.date.today().isoformat()
+            today = now.date().isoformat()
             dest_inbox['messages'].append({
                 'id': msg_id,
                 'from': self.user_id,

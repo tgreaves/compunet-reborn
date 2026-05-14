@@ -7,6 +7,7 @@
       "date": "2026-05-14",
       "read": true,
       "frames": [
+        "msg001-0.seq",
         "msg001-1.seq",
         "msg001-2.seq"
       ]
@@ -18,7 +19,19 @@
       "date": "2026-05-14",
       "read": true,
       "frames": [
+        "msg002-0.seq",
         "msg002-1.seq"
+      ]
+    },
+    {
+      "id": "msg003",
+      "from": "TEST",
+      "subject": "FOOBAR",
+      "date": "2026-05-14",
+      "read": true,
+      "frames": [
+        "msg003-0.seq",
+        "msg003-1.seq"
       ]
     }
   ]
