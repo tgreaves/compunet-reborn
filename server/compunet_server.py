@@ -590,10 +590,23 @@ class CompunetSession:
         data.append(0x0D)
         data.append(0x00)
 
-        # Part 4: breadcrumb
-        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        # Part 4: breadcrumb + metadata
+        # Stored at $D400. SEND screen reads from $D40B (offset 11).
+        # Prints CR-separated lines at col 10 for FROM/DATE/TIME fields.
+        # First 11 bytes must be padding to align offset correctly.
+        import datetime
+        now = datetime.datetime.now()
+        users = self._load_users()
+        real_name = users.get(self.user_id, {}).get('name', self.user_id)
+        data.extend(ascii_to_petscii('           '))  # 11 bytes padding (offset $0B)
+        data.extend(ascii_to_petscii(self.user_id))
         data.append(0x0D)
-        data.extend(ascii_to_petscii('  COURIER - ' + self.user_id))
+        data.extend(ascii_to_petscii(real_name))
+        data.append(0x0D)
+        data.append(0x0D)
+        data.extend(ascii_to_petscii(now.strftime('%d-%m-%y')))
+        data.append(0x0D)
+        data.extend(ascii_to_petscii(now.strftime('%H:%M')))
         data.append(0x00)
 
         # Part 5: column headers
@@ -749,7 +762,8 @@ class CompunetSession:
         for did in dest_ids:
             data.extend(ascii_to_petscii(did.ljust(8)[:8]))
             if did in users:
-                data.extend(ascii_to_petscii('OK'))
+                real_name = users[did].get('name', did)
+                data.extend(ascii_to_petscii(real_name))
             data.append(0x1E)
         log.info('UPLOAD: validation response %d bytes: %s', len(data), data.hex())
         return bytes(data)
