@@ -28,6 +28,16 @@
         "msg003-1.seq",
         "msg003-2.seq"
       ]
+    },
+    {
+      "id": "msg004",
+      "from": "TEST",
+      "subject": "FOOBAR",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": [
+        "msg004-1.seq"
+      ]
     }
   ]
 }

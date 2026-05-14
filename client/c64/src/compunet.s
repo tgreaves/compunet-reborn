@@ -7194,29 +7194,122 @@ ACIA_UPLOAD_BYTE:
     RTS
 
 @send_buffer:
-    ; Send buffered bytes as one X.25 DAT packet
+    ; Send buffered bytes as one X.25 DAT packet directly from UPLOAD_BUF.
+    ; Does NOT use $C100 (avoids clobbering terminal workspace at $C14E+).
     LDY UPLOAD_POS
     BEQ @nothing                        ; Empty buffer, skip
-    ; Copy buffer to $C100 (ACIA_SEND_PACKET payload area)
-    LDX #$00
-@copy:
-    LDA UPLOAD_BUF,X
-    STA $C100,X
-    INX
-    CPX UPLOAD_POS
-    BNE @copy
-    ; Set up for ACIA_SEND_PACKET
-    LDY UPLOAD_POS
-    STY $C14D                           ; Payload length
-    LDA #$22
-    STA $8034                           ; Token = DAT
-    ; Reset buffer position
+    STY UPLOAD_LEN                      ; Save length for send loop
+    ; Reset buffer position (before send, in case of re-entrancy)
     LDA #$00
     STA UPLOAD_POS
-    ; Send the packet
-    JMP ACIA_SEND_PACKET
+    ; --- Send start marker ---
+    LDA #$01
+    JSR ACIA_WAIT_READY
+    ; --- Length byte: payload + 5 (len + token + seq + CRC×2) ---
+    LDA UPLOAD_LEN
+    CLC
+    ADC #$05
+    STA SEND_PKT_LEN
+    ; --- Init CRC ---
+    LDA #$00
+    STA $C21D
+    STA $C21E
+    ; --- Send length ---
+    LDA SEND_PKT_LEN
+    JSR @upload_stuffed_crc
+    ; --- Send token (DAT = $22) ---
+    LDA #$22
+    JSR @upload_stuffed_crc
+    ; --- Send sequence ---
+    LDA $C20E
+    JSR @upload_stuffed_crc
+    ; --- Send payload from UPLOAD_BUF ---
+    LDY #$00
+@upload_payload:
+    CPY UPLOAD_LEN
+    BEQ @upload_crc
+    LDA UPLOAD_BUF,Y
+    JSR @upload_stuffed_crc
+    INY
+    BNE @upload_payload
+@upload_crc:
+    ; --- Send CRC ---
+    LDA $C21D
+    JSR @upload_stuffed
+    LDA $C21E
+    JSR @upload_stuffed
+    ; --- Send end marker ---
+    LDA #$02
+    JSR ACIA_WAIT_READY
+    ; --- Advance sequence ---
+    LDX $C20E
+    INX
+    CPX #$60
+    BNE @upload_seq_ok
+    LDX #$20
+@upload_seq_ok:
+    STX $C20E
+    ; --- Post-TX re-arm ---
+    LDA ACIA_STATUS
+    LDA #$01
+    STA ACIA_CMD
+    LDA #$09
+    STA ACIA_CMD
 @nothing:
     RTS
+
+; --- Upload: send byte with stuffing + CRC ---
+@upload_stuffed_crc:
+    PHA
+    JSR @upload_crc_update
+    PLA
+@upload_stuffed:
+    CMP #$01
+    BEQ @ustuff_01
+    CMP #$02
+    BEQ @ustuff_02
+    CMP #$03
+    BEQ @ustuff_03
+    JMP ACIA_WAIT_READY
+@ustuff_01:
+    LDA #$03
+    JSR ACIA_WAIT_READY
+    LDA #$21
+    JMP ACIA_WAIT_READY
+@ustuff_02:
+    LDA #$03
+    JSR ACIA_WAIT_READY
+    LDA #$22
+    JMP ACIA_WAIT_READY
+@ustuff_03:
+    LDA #$03
+    JSR ACIA_WAIT_READY
+    LDA #$23
+    JMP ACIA_WAIT_READY
+
+; --- Upload: CRC update (byte on stack) ---
+@upload_crc_update:
+    TSX
+    LDA $0103,X
+    EOR $C21D
+    STA $C21D
+    LDX #$08
+@upload_crc_loop:
+    ASL $C21E
+    ROL $C21D
+    BCC @upload_crc_noxor
+    LDA $C21D
+    EOR #$10
+    STA $C21D
+    LDA $C21E
+    EOR #$21
+    STA $C21E
+@upload_crc_noxor:
+    DEX
+    BNE @upload_crc_loop
+    RTS
+
+UPLOAD_LEN = $C465                      ; Temp: upload packet length
 
 ; =================================================================
 ; ACIA_FLOW_CONTROL — Polling-based packet receive (replaces PROTO_FLOW_CONTROL)
