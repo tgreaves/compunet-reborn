@@ -15,7 +15,32 @@
         "life": 7,
         "vote": 6,
         "frames": ["news-1.seq", "news-2.seq"],
-        "children": []
+        "children": [
+          {
+            "page_num": 102,
+            "title": "LATEST",
+            "type": "T",
+            "size": 1,
+            "author": "EDITOR",
+            "price": 0,
+            "life": 7,
+            "vote": 5,
+            "frames": ["latest-1.seq"],
+            "children": []
+          },
+          {
+            "page_num": 103,
+            "title": "ARCHIVE",
+            "type": "T",
+            "size": 1,
+            "author": "EDITOR",
+            "price": 0,
+            "life": 30,
+            "vote": 3,
+            "frames": ["archive-1.seq"],
+            "children": []
+          }
+        ]
       },
       {
         "page_num": 201,
@@ -38,7 +63,56 @@
         "price": 50.00,
         "life": 99,
         "vote": 9,
-        "frames": ["paid-1.seq"],
+        "frames": ["vip-1.seq"],
+        "children": []
+      },
+      {
+        "page_num": 401,
+        "title": "CHAT",
+        "type": "T",
+        "size": 1,
+        "author": "SYSTEM",
+        "price": 0,
+        "life": 30,
+        "vote": 4,
+        "frames": ["chat-1.seq"],
+        "children": [
+          {
+            "page_num": 402,
+            "title": "GENERAL",
+            "type": "T",
+            "size": 1,
+            "author": "SYSTEM",
+            "price": 0,
+            "life": 30,
+            "vote": 3,
+            "frames": ["chat-1.seq"],
+            "children": []
+          },
+          {
+            "page_num": 403,
+            "title": "HELP DESK",
+            "type": "T",
+            "size": 1,
+            "author": "SYSTEM",
+            "price": 0,
+            "life": 30,
+            "vote": 2,
+            "frames": ["chat-1.seq"],
+            "children": []
+          }
+        ]
+      },
+      {
+        "page_num": 501,
+        "title": "REVIEWS",
+        "type": "T",
+        "size": 1,
+        "author": "ADMIN",
+        "price": 0,
+        "life": 14,
+        "vote": 7,
+        "frames": ["reviews-1.seq"],
         "children": []
       }
     ]

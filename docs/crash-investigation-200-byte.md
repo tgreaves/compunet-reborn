@@ -302,6 +302,229 @@ They are complementary: A+C keep the buffer safe, D keeps the stream intact.
 Neither alone is sufficient — which is why previous attempts that only addressed
 one side introduced the other failure mode.
 
+## Implementation Attempt (2026-05-14)
+
+Applied Options A+C+D:
+- Server: MAX_PAYLOAD reduced to 100, 50ms inter-packet delay
+- Client: `@last_byte` replaced with `JSR ACIA_FLOW_CONTROL`
+
+### Result: Intermittent Success
+
+- 5-entry directory (284 bytes, 3 packets) works sometimes but JAMs intermittently
+- Welcome frame (281 bytes, 3 packets) usually works
+- Increasing delay to 1 second made things WORSE: only half the welcome frame
+  renders, then DIR crashes reliably
+
+### Root Cause: ACIA_FLOW_CONTROL Timeout Is Wrong
+
+The `@wait_start` timeout in `ACIA_FLOW_CONTROL` is much shorter than documented:
+
+```
+Timeout = $A2 reaching $40 (64) × $A1 wrapping (256) = 16,384 empty @get_byte calls
+
+Each @get_byte call when buffer empty:
+  JSR(6) + LDA ACIA_STATUS(4) + LDA NMI_BUF_HEAD(3) + CMP NMI_BUF_TAIL(3)
+  + BEQ(3) + SEC(2) + RTS(6) = ~27 cycles
+Plus @wait_start → @timeout_check overhead: ~15 cycles
+Total per iteration: ~42 cycles
+
+16,384 × 42 = ~688,000 cycles = ~0.69 seconds at 1MHz
+```
+
+**The timeout is ~0.7 seconds, NOT ~10 seconds as commented.**
+
+### Why 1-Second Delay Breaks
+
+At 1200 baud (tcpser -s 1200), one byte takes ~8.33ms to transmit. A 100-byte
+payload packet is ~112 bytes on the wire = ~933ms delivery time through tcpser.
+
+With 1-second server delay between packets:
+1. Server sends packet 1 → tcpser delivers over ~933ms → client processes
+2. Server waits 1 second, sends packet 2 → tcpser starts delivering
+3. Client hits `@last_byte`, calls `ACIA_FLOW_CONTROL`
+4. `ACIA_FLOW_CONTROL` waits for $01 start marker...
+5. Packet 2's $01 won't arrive for up to 1.0s (server delay) + 0.93s (tcpser
+   delivery of remaining packet 1 bytes still in tcpser buffer)
+6. **Timeout fires at 0.7s** → declares end-of-stream prematurely
+7. Client gets truncated data → eventual JAM
+
+### Why 50ms Delay Is Intermittent
+
+With 50ms server delay, total time before packet 2's $01 appears depends on:
+- How much of packet 1 tcpser has already delivered when the server sends packet 2
+- tcpser's internal buffering and scheduling
+
+Sometimes the $01 arrives within 0.7s (works). Sometimes it doesn't (JAM).
+The race window depends on VICE execution speed, host system load, and tcpser
+thread scheduling — all non-deterministic.
+
+### Revised Understanding
+
+The original investigation identified two contradicting problems:
+1. Delay too short → NMI overflow
+2. Delay too long → premature timeout
+
+But the **actual constraint** is tighter than documented:
+- NMI buffer = 256 bytes (sets maximum in-flight data)
+- `ACIA_FLOW_CONTROL` timeout = ~0.7s (NOT 10s)
+- tcpser at 1200 baud = ~8.33ms per byte
+
+For reliable multi-packet delivery, the next packet's $01 marker must appear
+in the NMI buffer within 0.7 seconds of the previous packet's last byte being
+consumed. This means the server delay PLUS remaining tcpser delivery time must
+be under 0.7s.
+
+### Revised Fix Options
+
+#### Option E: Increase ACIA_FLOW_CONTROL Timeout
+
+Increase `$A2` comparison from `$40` to a much larger value, giving genuinely
+long timeout (e.g., `$FF` × 256 = 65,280 iterations ≈ 2.7 seconds). Combined
+with moderate server delay this would be reliable.
+
+However: this also affects the end-of-stream detection. When the server has
+truly finished sending (last packet of a response), the client will spin for
+the full timeout before declaring end-of-stream. This adds perceptible lag
+after every response.
+
+**Mitigation**: Use a two-tier approach — short timeout for "is more data
+coming?" (Option D peek replacement) and long timeout for initial packet
+receipt. Or: have the server send an explicit end-of-stream marker.
+
+#### Option F: Server End-of-Stream Marker
+
+After the final packet of a response, send a special short packet that signals
+"no more data follows." The client's `@last_byte` / `ACIA_FLOW_CONTROL` can
+then distinguish "more packets coming" from "stream complete" without relying
+on timeout.
+
+Possible implementation: send a zero-length DAT packet (just framing + header,
+no payload) as the terminal marker. `ACIA_FLOW_CONTROL` would receive it,
+see RECV_LEN=0, and return C=1.
+
+**Pros:** Eliminates ALL timing dependencies. No timeout needed for stream end.
+Works at any baud rate or delay combination.
+**Cons:** Adds a non-original protocol element (zero-length DAT). Must verify
+the client handles RECV_LEN=0 gracefully.
+
+#### Option G: Remove Server-Side Splitting Entirely
+
+Instead of splitting large responses into multiple packets at the server layer,
+send the entire response as a single large packet. Increase RECV_BUF to handle
+the maximum possible response size (~600 bytes for an 11-entry directory).
+
+**Problem:** RECV_BUF is 254 bytes ($C300-$C3FD). Expanding it requires finding
+free RAM and ensuring no collision with other data structures. The NMI ring
+buffer at $CE00 (256 bytes) also cannot hold a full large packet — this is the
+original overflow problem.
+
+**Verdict:** Not feasible without significant client memory reorganisation.
+
+#### Option H: Baud-Rate-Aware Delay Calculation
+
+Calculate the server-side delay based on the wire size of the packet just sent.
+At 1200 baud: delay = (wire_bytes × 8.33ms) + safety_margin.
+
+For a 112-byte wire packet: 112 × 8.33ms = 933ms + 200ms margin = ~1133ms.
+
+But as shown above, this exceeds the 0.7s ACIA_FLOW_CONTROL timeout. So this
+option REQUIRES Option E (increased timeout) to work.
+
+### Revised Recommended Approach
+
+**Combine Options E + F + A + C + I (TX re-arm):**
+
+1. **Increase ACIA_FLOW_CONTROL timeout** to ~2.7 seconds (CMP #$FF).
+2. **Implement end-of-stream marker** (Option F) — server sends zero-length DAT
+   packet after every response. Client detects RECV_LEN=0 → C=1 immediately.
+3. **Keep MAX_PAYLOAD at 100** — ensures each wire packet fits in NMI buffer.
+4. **50ms inter-packet delay** on the server between data packets.
+5. **250ms pre-response delay** on the server before first data packet.
+6. **Post-TX NMI re-arm** (Option I) on the client after ACIA_SEND_PACKET.
+
+## Implemented Fix (2026-05-14)
+
+### Changes Applied
+
+**Server (`compunet_server.py`):**
+- MAX_PAYLOAD = 100
+- 250ms delay before first response packet (after receiving command)
+- 50ms delay between subsequent packets
+- Zero-length DAT packet (EOS marker) sent after every response stream
+
+**Client (`compunet.s`):**
+- `ACIA_FLOW_CONTROL` timeout increased: CMP #$40 → CMP #$FF (~2.7s)
+- `ACIA_FLOW_CONTROL` `@pkt_complete`: detects RECV_LEN=0 as EOS, returns C=1
+- `@last_byte` in `ACIA_PROCESS_CMD`: replaced peek loop with JSR ACIA_FLOW_CONTROL
+- `ACIA_SEND_PACKET`: post-TX NMI re-arm + 256-iteration settle delay (Option I)
+
+### Third Root Cause: TX Kills NMI Edge Detection (Option I)
+
+In addition to the timeout and overflow issues, a third intermittent cause was
+discovered: **VICE's 6551 emulation loses NMI edge detection during TX**.
+
+The 6551 ACIA fires NMI on a falling edge of its /IRQ output. During byte
+transmission, this edge detection can be disrupted. `ACIA_WAIT_READY` re-arms
+NMI after each TX byte by toggling ACIA_CMD bits 1-0 (RX IRQ enable). However,
+there is a race window between the last TX byte and when the caller enters
+`ACIA_FLOW_CONTROL` to wait for the response.
+
+If the server responds before the NMI edge is properly re-armed, the first
+response byte arrives at the ACIA but does NOT trigger an NMI. The byte sits
+in the ACIA receive buffer unreported. Subsequent bytes may or may not trigger
+NMI depending on whether the edge has re-established. This causes:
+
+1. Lost bytes in the packet stream → framing corruption → JAM
+2. Intermittent behaviour (depends on exact timing of server response vs VICE
+   emulation cycle)
+
+**Evidence:**
+- Adding 100ms server-side pre-response delay helped (gave NMI time to settle)
+  but did not eliminate crashes — VICE timing is non-deterministic
+- Increasing to 250ms improved reliability further but still intermittent
+- The welcome frame (sent with the same delays) worked reliably because the
+  login processing time on the server provides a natural delay
+- The DIR response (near-instant server processing) crashed more often because
+  the response arrives sooner after TX completes
+
+**Fix (Option I):** Add explicit NMI re-arm + settle loop at the end of
+`ACIA_SEND_PACKET`:
+
+```asm
+    ; Re-arm NMI after TX and settle
+    LDA #$01
+    STA ACIA_CMD            ; Disable RX IRQ
+    LDA #$09
+    STA ACIA_CMD            ; Re-enable (re-arms edge)
+    LDY #$00
+@post_tx_settle:
+    LDA ACIA_STATUS         ; Poke VICE to trigger socket poll
+    DEY
+    BNE @post_tx_settle     ; ~256 iterations settle delay
+```
+
+This ensures:
+- NMI edge detection is explicitly re-armed after all TX activity
+- ACIA_STATUS reads trigger VICE's socket poll (ensures pending RX bytes are
+  presented to the emulated ACIA)
+- 256 iterations (~1.3ms) provides settling time before ACIA_FLOW_CONTROL runs
+
+Combined with the 250ms server-side pre-response delay, this provides defence
+in depth: the client-side fix handles the hardware-level edge detection, while
+the server delay provides additional margin for the emulation layer.
+
+### Summary: All Three Root Causes
+
+| # | Problem | Symptom | Fix |
+|---|---------|---------|-----|
+| 1 | NMI buffer overflow | CPU JAM (data corruption) | Small packets (100 bytes) + inter-packet delay |
+| 2 | Premature end-of-stream | Missing characters / truncation | EOS marker packet + increased timeout |
+| 3 | TX kills NMI edge detection | Intermittent JAM on first packet after TX | Post-TX re-arm + settle + server pre-response delay |
+
+All three must be addressed together. Fixes 1 and 2 are complementary (as
+documented earlier). Fix 3 is orthogonal — it explains the intermittent nature
+that persisted even after fixes 1 and 2 were applied.
+
 ## Verification Plan
 
 1. Create a test directory with 11 entries (triggers ~400 byte response)
@@ -309,6 +532,10 @@ one side introduced the other failure mode.
 3. Test with a large frame (full 1000-byte PETSCII screen)
 4. Test welcome frame (currently ~100 bytes, should still work)
 5. Monitor NMI buffer usage with VICE monitor: `m 029b 029c` (HEAD/TAIL)
+6. Measure end-of-stream latency (time between last character rendered and
+   cursor/prompt appearing)
+7. Test at different baud rates if tcpser config changes
+8. Rapid DIR/SHOW cycling to stress-test the TX→RX transition
 
 ## Files Involved
 
@@ -316,5 +543,6 @@ one side introduced the other failure mode.
 |------|------|
 | `client/c64/src/compunet.s` lines 7157-7371 | ACIA_FLOW_CONTROL + ACIA_PROCESS_CMD |
 | `client/c64/src/compunet.s` lines 6690-6708 | NMI_HANDLER (ring buffer write) |
-| `server/compunet_server.py` lines 931-960 | TCP packet sending loop |
+| `client/c64/src/compunet.s` lines 7087-7096 | ACIA_SEND_PACKET post-TX re-arm |
+| `server/compunet_server.py` lines 931-970 | TCP packet sending loop + EOS |
 | `server/x25_protocol.py` lines 171-217 | make_data_packet (framing) |

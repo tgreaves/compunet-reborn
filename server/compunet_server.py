@@ -193,11 +193,13 @@ class CompunetDirectory:
         page.header = node.get('header', None)
         
         # Load frame files
+        page._frame_files = []
         for frame_file in node.get('frames', []):
             frame_path = os.path.join(CONTENT_DIR, 'pages', frame_file)
             if os.path.exists(frame_path):
                 with open(frame_path, 'rb') as f:
                     page.frames.append(f.read())
+                page._frame_files.append(frame_file)
         
         # Build children
         for child_node in node.get('children', []):
@@ -214,6 +216,7 @@ class CompunetSession:
         self.directory = directory
         self.user_id = None
         self.authenticated = False
+        self.is_admin = False
         self.current_page = directory.root
         self.selected_entry = 0
         self.credit = 0.0
@@ -221,6 +224,7 @@ class CompunetSession:
         self.show_page = None
         self.show_frame_index = 0
         self.dir_page_offset = 0
+        self.dir_displayed = False
         self._users = self._load_users()
     
     def _load_users(self):
@@ -253,6 +257,7 @@ class CompunetSession:
         self.authenticated = True
         self.credit = user.get('credit', 0.0)
         self.purchased = set(user.get('purchased', []))
+        self.is_admin = user.get('admin', False)
         log.info('Login OK: %s (credit=%.2f, purchased=%s)', user_id, self.credit, self.purchased)
         return self._make_welcome_frame(user)
     
@@ -348,12 +353,7 @@ class CompunetSession:
 
         if self.selected_entry < len(visible_children):
             child = visible_children[self.selected_entry]
-            if child.has_subdir():
-                self.current_page = child
-                self.selected_entry = 0
-                self.dir_page_offset = 0
-                return self._make_dir_response()
-            elif child.frames:
+            if child.frames:
                 # Deduct credit for paid, unpurchased pages (allows overdraft)
                 if child.price > 0 and child.page_num not in self.purchased:
                     self.credit -= child.price
@@ -365,6 +365,11 @@ class CompunetSession:
                 self.show_page = child
                 self.show_frame_index = 0
                 return self._send_current_frame()
+            elif child.has_subdir():
+                self.current_page = child
+                self.selected_entry = 0
+                self.dir_page_offset = 0
+                return self._make_dir_response()
             else:
                 return self._make_error(ascii_to_petscii('NO CONTENT'))
         else:
@@ -374,17 +379,34 @@ class CompunetSession:
     
     def _cmd_show(self, params):
         """SHOW/DIR command ('P') - show current page.
-        
+
         The 'P' command is sent by both DIR and SHOW duckshoot commands.
-        Response is a 6-part structure:
-          Part 1: Frame header (PETSCII + $00) — visual header/graphics
-          Part 2: Routing text (2 lines + $0D each, or $00 if none)
-          Part 3: Field definitions ($00 if none)
-          Part 4: Column header ($00 if none)
-          Part 5: Directory entries (comma-sep fields, $0D per entry, or $00)
-          Part 6: Extended entry data (title,type per entry, or $00)
+        If we're already viewing the directory and the selected entry has a
+        sub-directory, enter it. Otherwise show the current page directory.
         """
-        return self._make_page_response()
+        if self.dir_displayed and params:
+            try:
+                selected = int(params.decode('ascii'))
+            except (ValueError, UnicodeDecodeError):
+                selected = None
+            if selected is not None:
+                offset = getattr(self, 'dir_page_offset', 0)
+                visible = self.current_page.children[offset:offset+11]
+                log.info('P cmd: dir_displayed=%s selected=%d visible=%d',
+                         self.dir_displayed, selected, len(visible))
+                if selected < len(visible):
+                    child = visible[selected]
+                    log.info('P cmd: child="%s" has_subdir=%s', child.title, child.has_subdir())
+                    if child.has_subdir():
+                        self.current_page = child
+                        self.selected_entry = 0
+                        self.dir_page_offset = 0
+                        self.dir_displayed = False
+                        return self._make_dir_response()
+        else:
+            log.info('P cmd: dir_displayed=%s params=%s (not entering subdir)',
+                     self.dir_displayed, params.hex() if params else 'none')
+        return self._make_dir_response()
     
     def _cmd_more(self, params):
         """MORE command - show next frame of current page."""
@@ -405,9 +427,13 @@ class CompunetSession:
             has_more = self.show_frame_index < len(self.show_page.frames) - 1
             if has_more:
                 frame_data[0] |= 0x80  # Set bit 7 of flags byte
-            log.info('FRAME: page="%s" frame=%d/%d (%d bytes, more=%s)',
-                     self.show_page.title, self.show_frame_index + 1,
-                     len(self.show_page.frames), len(frame_data), has_more)
+            # Find the source filename from root.json frames list
+            frame_files = getattr(self.show_page, '_frame_files', [])
+            frame_file = frame_files[self.show_frame_index] if self.show_frame_index < len(frame_files) else '?'
+            log.info('FRAME: page=%d "%s" frame=%d/%d file=%s (%d bytes, more=%s)',
+                     self.show_page.page_num, self.show_page.title,
+                     self.show_frame_index + 1, len(self.show_page.frames),
+                     frame_file, len(frame_data), has_more)
             return bytes(frame_data)
         return b'\x00'
     
@@ -516,6 +542,7 @@ class CompunetSession:
     
     def _make_dir_response(self):
         """Build directory response in the 6-part format for 'P' command."""
+        self.dir_displayed = True
         return self._make_page_response()
     
     def _make_page_response(self):
@@ -611,10 +638,10 @@ class CompunetSession:
                 # Chars 7-26 = title left-aligned, type right-aligned (20 chars total)
                 # Type suffix must start at screen column 25 (SHOW reads $19)
                 page_str = ('  ' + str(child.page_num)).ljust(6)[:6]
-                type_str = child.type_string()
-                title = child.title[:20 - len(type_str) - 1]  # leave room for type
-                title_field = title.ljust(20 - len(type_str)) + type_str
-                data.extend(ascii_to_petscii(page_str + title_field[:20]))
+                type_str = child.type_string().ljust(3)
+                title = child.title[:18]
+                title_field = title.ljust(18) + type_str
+                data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
                 # Column 1: PRICE (0 if already purchased)
                 effective_price = 0 if child.page_num in self.purchased else child.price
@@ -833,11 +860,7 @@ async def tcp_handler(reader, writer):
             
             rx_buffer.extend(data)
             
-            # Log everything received
-            log.info('TCP RX: %d bytes: %s', len(data), data.hex())
-            printable = ''.join(chr(b) if 32 <= b < 127 else f'[{b:02X}]' for b in data)
-            log.info('TCP RX (decoded): %s', printable)
-            log.info('TCP RX buffer total: %d bytes', len(rx_buffer))
+            log.debug('TCP RX: %d bytes: %s', len(data), data.hex())
             
             # Phase 2a: Look for CNET identification
             if not ident_received and b'CNET' in rx_buffer:
@@ -884,7 +907,7 @@ async def tcp_handler(reader, writer):
                 log.info('TCP: connection closed by client')
                 break
             
-            log.info('TCP RX: %d bytes: %s', len(data), data.hex())
+            log.debug('TCP RX: %d bytes: %s', len(data), data.hex())
             packets = x25.feed_data(data)
             
             for token, seq, payload in packets:
@@ -928,15 +951,19 @@ async def tcp_handler(reader, writer):
 
                         # Send welcome frame — L89D0 reads this after login
                         if response:
-                            MAX_PAYLOAD = 200
+                            MAX_PAYLOAD = 100
                             offset = 0
                             while offset < len(response):
                                 chunk = response[offset:offset + MAX_PAYLOAD]
                                 pkt = x25.make_data_packet(chunk, TOKEN_DAT)
                                 writer.write(pkt)
                                 await writer.drain()
+                                await asyncio.sleep(0.05)
                                 offset += MAX_PAYLOAD
-                            log.info('TCP: sent welcome frame (%d bytes)', len(response))
+                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                            writer.write(eos_pkt)
+                            await writer.drain()
+                            log.info('TCP: sent welcome frame (%d bytes + EOS)', len(response))
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it
@@ -947,17 +974,25 @@ async def tcp_handler(reader, writer):
                         log.info('TCP: dispatching command (authenticated=True)')
                         cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
-                            # Split large responses into multiple packets
-                            # Max payload limited to 200 bytes to keep wire-encoded packets
-                            # (with byte stuffing + framing) under 256 bytes (NMI ring buffer size)
-                            MAX_PAYLOAD = 200
+                            log.info('CMD: pre-response delay 250ms starting')
+                            await asyncio.sleep(0.25)
+                            log.info('CMD: sending %d bytes in %d-byte chunks', len(cmd_response), 100)
+                            MAX_PAYLOAD = 100
                             offset = 0
+                            pkt_num = 0
                             while offset < len(cmd_response):
                                 chunk = cmd_response[offset:offset + MAX_PAYLOAD]
                                 pkt = x25.make_data_packet(chunk, TOKEN_DAT)
                                 writer.write(pkt)
                                 await writer.drain()
+                                pkt_num += 1
+                                log.info('CMD: sent pkt %d (%d payload, %d wire), sleeping 50ms', pkt_num, len(chunk), len(pkt))
+                                await asyncio.sleep(0.05)
                                 offset += MAX_PAYLOAD
+                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                            writer.write(eos_pkt)
+                            await writer.drain()
+                            log.info('CMD: sent EOS pkt (%d wire)', len(eos_pkt))
                 
                 elif token == TOKEN_ACK:
                     log.debug('TCP: received ACK seq=$%02X', seq)

@@ -27,6 +27,9 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Column data renders correctly for all entries
 - ✅ SHOW command displays text frames with correct colours
 - ✅ Multi-page frames supported (MORE advances, FINISH returns to DIR)
+- ✅ Sub-directories: entries with "+" suffix can be entered via DIR
+- ✅ BACK command navigates to parent directory
+- ✅ Multi-packet responses (>100 bytes) delivered reliably with EOS marker
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture
@@ -74,7 +77,7 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
   - TCP interface (port 6400) for C64 clients via tcpser
   - X.25 protocol with CRC-CCITT, byte stuffing, flow control
   - User authentication, directory tree, frame serving
-  - Run with: `./start-server.sh`
+  - Run with: `./server.sh` (supports start/stop/restart/status)
 
 ### Documentation
 
@@ -95,7 +98,7 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
 
 ### Steps
 1. Start tcpser: `tcpser -v 25232 -p 6401 -s 1200 -l 7`
-2. Start server: `./start-server.sh`
+2. Start server: `./server.sh`
 3. In VICE: enable SwiftLink (Settings → Cartridge/IO → SwiftLink, port 25232)
 4. Load: `LOAD "COMPUNET",8,1` then `NEW` then `SYS 33184`
 5. Type `CONNECT`, enter `127.0.0.1:6400`
@@ -154,7 +157,7 @@ The original ROM code is preserved with targeted patches:
 - Handle the `NEW` requirement automatically (BASIC memory pointers)
 - Fix CRC calculation in ACIA_SEND_PACKET
 - Implement Courier (MAIL) and uploads
-- Implement BUY command (credit deduction for paid content)
+- Sub-directory creation by users (DIR on owned non-directory entries)
 
 ## Acknowledgements
 

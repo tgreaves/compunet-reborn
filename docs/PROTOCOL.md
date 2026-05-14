@@ -1259,6 +1259,41 @@ tcpser ←→ Compunet Server (TCP on port 6400)
 9. Server sends ACK packet (X.25 framed)
 10. C64 enters terminal code at $A005
 
+### Multi-Packet Response Delivery
+
+Responses larger than 100 bytes are split into multiple X.25 DAT packets:
+
+- **MAX_PAYLOAD = 100 bytes** — keeps wire-encoded packets (after byte stuffing)
+  within the 256-byte NMI ring buffer
+- **250ms pre-response delay** — allows client to finish TX and re-arm NMI edge
+  detection before first response byte arrives
+- **50ms inter-packet delay** — prevents NMI buffer overflow between packets
+- **End-of-stream (EOS) marker** — a zero-length DAT packet (just framing +
+  header + CRC, no payload) sent after the final data packet
+
+The client detects the EOS marker in `ACIA_FLOW_CONTROL`: when RECV_LEN=0
+after receiving a valid DAT packet, it returns C=1 (end-of-stream) immediately
+without waiting for a timeout.
+
+The `@last_byte` code in `ACIA_PROCESS_CMD` calls `ACIA_FLOW_CONTROL` to
+bridge between packets. On success (more data), it returns CLC so the caller
+continues reading. On EOS or timeout, it returns SEC.
+
+`ACIA_FLOW_CONTROL` timeout is set to ~2.7 seconds (CMP #$FF) as a safety net
+for connection loss. Under normal operation the EOS marker provides immediate
+stream termination without timeout delay.
+
+### Post-TX NMI Re-arm
+
+VICE's 6551 emulation can lose NMI edge detection during byte transmission.
+`ACIA_SEND_PACKET` includes a post-TX sequence that:
+
+1. Reads ACIA_STATUS and drains any stray byte from the RX register
+2. Toggles ACIA_CMD to disable/re-enable RX IRQ (re-arms NMI edge)
+3. Polls ACIA_STATUS 256 times (triggers VICE socket polling, ~1.3ms settle)
+
+This ensures reliable NMI triggering for the first response byte after TX.
+
 ### Known Protocol Deviations
 
 1. **CRC mismatch on login packet** — the ACIA_SEND_PACKET CRC calculation has
@@ -1268,3 +1303,6 @@ tcpser ←→ Compunet Server (TCP on port 6400)
 3. **No flow control ACKs from client** — the polling receive doesn't send ACKs
    back to the server. For single-packet exchanges (login → ACK) this is fine.
    Multi-packet transfers (linking, frame data) will need proper ACK generation.
+4. **EOS marker packet** — a non-original protocol extension. The original system
+   used windowed ACKs for flow control; the EOS marker replaces timeout-based
+   stream termination for reliability over TCP/tcpser.

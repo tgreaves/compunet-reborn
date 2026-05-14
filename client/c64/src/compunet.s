@@ -7093,6 +7093,27 @@ ACIA_SEND_PACKET:
 @seq_ok:
     STX $C20E
 
+    ; --- Re-arm NMI after TX and settle ---
+    ; TX can kill NMI edge detection in VICE. Re-arm explicitly,
+    ; drain any byte stuck in ACIA RX register, and settle.
+    LDA ACIA_STATUS                     ; Read status (clears IRQ state)
+    AND #$08                            ; RDRF — byte waiting?
+    BEQ @no_stray
+    LDA ACIA_DATA                       ; Drain stray byte into NMI buffer
+    LDX NMI_BUF_TAIL
+    STA NMI_BUF,X
+    INC NMI_BUF_TAIL
+@no_stray:
+    LDA #$01
+    STA ACIA_CMD                        ; Disable RX IRQ
+    LDA #$09
+    STA ACIA_CMD                        ; Re-enable (re-arms NMI edge)
+    LDY #$00
+@post_tx_settle:
+    LDA ACIA_STATUS                     ; Poke VICE to trigger socket poll
+    DEY
+    BNE @post_tx_settle                 ; ~256 iterations settle delay
+
     RTS
 
 ; --- Send byte with stuffing + update CRC ---
@@ -7185,7 +7206,7 @@ ACIA_FLOW_CONTROL:
     BNE @wait_start
     INC $A2
     LDA $A2
-    CMP #$40                            ; ~16K iterations ≈ 10 seconds
+    CMP #$FF                            ; ~65K iterations ≈ 2.7 seconds
     BCC @wait_start
     SEC                                 ; Timeout
     RTS
@@ -7228,6 +7249,8 @@ ACIA_FLOW_CONTROL:
     SEC
     SBC #$05
     STA RECV_LEN                        ; Payload length
+    ; Zero-length payload = end-of-stream marker
+    BEQ @error
     ; Set read position to start of payload (offset 3)
     LDA #$03
     STA RECV_POS
@@ -7298,44 +7321,26 @@ ACIA_PROCESS_CMD:
     CLC                                 ; More bytes available
     RTS
 @last_byte:
-    ; Last byte of current packet. Check if more data is coming.
-    ; Peek NMI buffer: if a $01 start marker is waiting, another packet
-    ; follows (CLC). Otherwise wait briefly then declare end-of-stream (SEC).
+    ; Last byte of current packet. Wait for next packet via ACIA_FLOW_CONTROL
+    ; (10-second timeout) instead of the short peek loop.
     ; Must preserve A and Y (caller uses both).
     PHA
     TYA
     PHA                                 ; Save caller's Y
-    LDY #$10                            ; Outer loop: 16 rounds
-@last_outer:
-    LDX #$00
-@last_wait:
-    LDA ACIA_STATUS                     ; Poke VICE to trigger socket poll
-    LDA NMI_BUF_HEAD
-    CMP NMI_BUF_TAIL
-    BNE @last_check                     ; Data in buffer — check it
-    INX
-    BNE @last_wait                      ; Inner: 256 iterations
-    DEY
-    BNE @last_outer                     ; ~4K total iterations
-    BEQ @last_no_more                   ; Timeout — no more data
-@last_check:
-    TAY
-    LDA NMI_BUF,Y
-    CMP #$01                            ; Start marker?
-    BEQ @last_more
-@last_no_more:
+    JSR ACIA_FLOW_CONTROL               ; Wait for next packet (10s timeout)
+    BCS @stream_done                    ; Timeout → genuine end of stream
+    PLA
+    TAY                                 ; Restore caller's Y
+    PLA                                 ; Restore A
+    LDX @save_x+1
+    CLC                                 ; More data follows
+    RTS
+@stream_done:
     PLA
     TAY                                 ; Restore caller's Y
     PLA                                 ; Restore A
     LDX @save_x+1
     SEC                                 ; End of stream
-    RTS
-@last_more:
-    PLA
-    TAY                                 ; Restore caller's Y
-    PLA                                 ; Restore A
-    LDX @save_x+1
-    CLC                                 ; More packets coming
     RTS
 
 @need_new_packet:

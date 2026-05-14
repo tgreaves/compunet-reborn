@@ -11,5 +11,11 @@
     "password": "7b303c55d8e8c1ba8fbbcfdeb83b1044901f10928590542001fa6546945180f9",
     "name": "NEW USER",
     "credit": 0.0
+  },
+  "ADMIN": {
+    "password": "835d6dc88b708bc646d6db82c853ef4182fabbd4a8de59c213f2b5ab3ae7d9be",
+    "name": "ADMIN",
+    "credit": 999.0,
+    "admin": true
   }
 }

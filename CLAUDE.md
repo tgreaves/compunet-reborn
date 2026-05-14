@@ -12,9 +12,13 @@ The application-layer protocol (command bytes, response types, directory format,
 
 The client and server must always behave like the original Compunet system. All functionality must be verified against the disassembly before implementation. Do not guess or assume behaviour — check the code first.
 
+## Client Rules
+
+1. The client must ALWAYS be rebuilt after any change to `client/c64/src/compunet.s`. Build with `make` in `client/c64/src/`. The output is `client/c64/compunet-reborn.prg`.
+
 ## Server Rules
 
-1. The server must ALWAYS be restarted after any change to server Python code. It does not hot-reload. Content files (SEQ frames, root.json) are re-read on each request and do not require a restart.
+1. The server must ALWAYS be restarted after any change to server Python code. It does not hot-reload. Use `./server.sh restart`. Content files (SEQ frames, root.json) are re-read on each request and do not require a restart.
 
 ## Git Rules
 
