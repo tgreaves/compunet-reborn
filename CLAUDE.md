@@ -12,6 +12,11 @@ The application-layer protocol (command bytes, response types, directory format,
 
 The client and server must always behave like the original Compunet system. All functionality must be verified against the disassembly before implementation. Do not guess or assume behaviour — check the code first.
 
+## Debugging Rules
+
+1. When investigating client behaviour, check `client/c64/src/compunet.s` source directly — do not disassemble the PRG binary.
+2. The user can run VICE monitor commands (breakpoints, memory dumps, register inspection) to debug client-side issues at runtime.
+
 ## Client Rules
 
 1. The client must ALWAYS be rebuilt after any change to `client/c64/src/compunet.s`. Build with `make` in `client/c64/src/`. The output is `client/c64/compunet-reborn.prg`.

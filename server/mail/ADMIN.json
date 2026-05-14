@@ -1,0 +1,12 @@
+{
+  "messages": [
+    {
+      "id": "msg001",
+      "from": "TEST",
+      "subject": "HELLO",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": ["msg001-1.seq"]
+    }
+  ]
+}

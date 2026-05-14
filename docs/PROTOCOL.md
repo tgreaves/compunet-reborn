@@ -842,7 +842,7 @@ The client sends single ASCII letters as command identifiers:
 | $49  | 'I'   | ID            | User ID string | Check user ID |
 | $4D  | 'M'   | MAIL          | None (Y=1) | Access Courier mailbox |
 | $50  | 'P'   | DIR / SHOW    | Page info (Y=3) | Show page (frame + directory data) |
-| $55  | 'U'   | UPLD          | None (Y=1) | Start upload process |
+| $55  | 'U'   | UPLD/SEND     | subject(16)+type(1)+dest(8) | Start upload/mail send |
 | $56  | 'V'   | VOTE          | Vote value (Y=4) | Vote 1-9 on content |
 
 **Important corrections** (verified against terminal disassembly at $A34E-$A358):
@@ -1089,14 +1089,58 @@ LIFE extends the expiry of content owned by the user. Uses command 'X' ($58).
 Server should validate that the requesting user is the page author before
 allowing the extension.
 
-### Upload Sequence
+### Upload/SEND Sequence (confirmed from disassembly + live testing)
 
-1. Client sends 'U' ($55) with Y=1
-2. Prompts for: title, type (T/P), price, lifetime
-3. Sends upload header via SEND_DATA
-4. For text: sends frame data page by page
-5. For programs: sends binary data from memory
-6. Server acknowledges with response byte
+The 'U' ($55) command handles both content uploads and mail SEND.
+
+#### Packet Format
+
+```
+Command byte: $55 ('U')
+Params (25 bytes):
+  [0-15]  Subject/title — 16 chars, space-padded
+  [16]    Type — 'T' (text) or 'P' (program)
+  [17-24] Destination ID — 8 chars, space-padded (recipient for mail)
+```
+
+#### Protocol Flow
+
+```
+1. User selects SEND from Courier duckshoot
+2. Client prompts: "SUBJECT?" → user enters subject (stored in params[0-15])
+3. Client prompts: "DESTINATION ID?" → user enters recipient(s)
+   (up to 5 IDs, blank line terminates entry)
+4. Client sends 'U' ($55) + 25-byte params via L_A784
+5. Client calls L96D2 — WAITS for server ACK
+   (Server must respond with valid DAT packet, token != $40/$41/$42/$43)
+6. On success: client enters LIMITED EDITOR DUCKSHOOT
+   (commands: SEND, GET, NEXT, LAST, FINISH)
+7. User navigates to their prepared message using NEXT/LAST/GET
+8. User selects SEND → client sends current Editor page as DAT ($22) packet
+9. Client calls L96D2 — WAITS for server ACK of frame
+10. Duckshoot returns:
+    - FINISH → client sends 'N' ($4E), message delivery complete
+    - NEXT/LAST → navigate to next page, repeat from step 8
+11. Messages may be up to an Editor-full long (10-15 pages)
+```
+
+#### Server Response Requirements
+
+- After 'U': must respond with ACK (any valid non-error DAT packet, no EOS)
+- After each DAT frame: must respond with ACK (no EOS)
+- After 'N' (FINISH): message is delivered to recipient, ACK response
+
+#### Key Implementation Detail
+
+The client sends frame data using token $22 (DAT), NOT token $43 (COM).
+The server must handle incoming DAT packets from the client during the
+upload phase — these contain raw Editor page data (PETSCII screen content).
+
+#### Error Handling
+
+- If destination user doesn't exist: server returns error token
+- Client checks carry flag: C=1 aborts the send flow
+- On abort, client sends 'N' ($4E) and returns to menu
 
 ### Connection State
 

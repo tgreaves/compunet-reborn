@@ -156,12 +156,20 @@ The original ROM code is preserved with targeted patches:
 
 - Handle the `NEW` requirement automatically (BASIC memory pointers)
 - Fix CRC calculation in ACIA_SEND_PACKET
-- Implement Courier (MAIL) and uploads
+- Complete MAIL SEND flow (ACK delivery to client after 'U' command — VICE socket polling issue)
 - Sub-directory creation by users (DIR on owned non-directory entries)
+- Investigate VICE NMI/socket polling timing for reliable ACK delivery
 
 ## Acknowledgements
 
 Thanks to Charles Headey for providing the cnboot.prg and cnet.prg files.
+
+Historical SEQ file sources:
+- **4Rich** — Graeme Norgate (PIMAN)
+- **compunet-pages-interviews** — Frank @ Games That Weren't
+- **compunet-sequence-files** — Unknown
+
+Thanks to Richard Hawkins (RH18 FROODLE) for helping source some of these files.
 
 ## Links
 

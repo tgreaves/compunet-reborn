@@ -225,6 +225,11 @@ class CompunetSession:
         self.show_frame_index = 0
         self.dir_page_offset = 0
         self.dir_displayed = False
+        self.mail_mode = False
+        self.mail_messages = []
+        self.mail_show_msg = None
+        self.mail_frame_index = 0
+        self.pending_send = None
         self.last_response_type = None  # Set by response methods for WS prefix detection
         self._users = self._load_users()
     
@@ -295,6 +300,8 @@ class CompunetSession:
             return self._cmd_mail()
         elif cmd == CMD_BUY:
             return self._cmd_buy(params)
+        elif cmd == CMD_UPLD:
+            return self._cmd_upload(params)
         elif cmd == ord('N'):
             return self._cmd_more(params)
         else:
@@ -334,6 +341,14 @@ class CompunetSession:
         Otherwise, show the selected entry's first frame or enter sub-directory.
         Params: 2 ASCII digits = selected entry index (from $C004).
         """
+        # Upload mode: client is sending frame data
+        if self.pending_send is not None:
+            return self._recv_upload_frame(params)
+
+        # Mail mode: show mail message or advance frame
+        if self.mail_mode:
+            return self._cmd_mail_show(params)
+
         # If already viewing a frame, advance to next page
         if hasattr(self, 'show_page') and self.show_page:
             if self.show_frame_index < len(self.show_page.frames) - 1:
@@ -413,7 +428,9 @@ class CompunetSession:
         return self._make_dir_response()
     
     def _cmd_more(self, params):
-        """MORE command - show next frame of current page."""
+        """MORE/DONE command - show next frame, or complete upload."""
+        if self.pending_send is not None:
+            return self._complete_upload()
         if hasattr(self, 'show_page') and self.show_page:
             if self.show_frame_index < len(self.show_page.frames) - 1:
                 self.show_frame_index += 1
@@ -506,6 +523,10 @@ class CompunetSession:
 
     def _cmd_back(self):
         """BACK command - go to previous page, or parent directory if on first page."""
+        if self.mail_mode:
+            self.mail_mode = False
+            self.mail_show_msg = None
+            return self._make_dir_response()
         if self.dir_page_offset > 0:
             # Go back to previous page of same directory
             self.dir_page_offset = max(0, self.dir_page_offset - 11)
@@ -523,28 +544,250 @@ class CompunetSession:
         return bytes([RESP_ACK])
     
     def _cmd_mail(self):
-        """MAIL command - no mail for now."""
+        """MAIL command - show mailbox as 6-part directory listing."""
+        self.mail_mode = True
+        self.mail_messages = self._load_mail()
+        self.mail_frame_index = 0
+        self.mail_show_msg = None
+        return self._make_mail_response()
+
+    def _load_mail(self):
+        """Load mail metadata for the current user."""
+        mail_file = os.path.join(os.path.dirname(__file__), 'mail', self.user_id + '.json')
+        if os.path.exists(mail_file):
+            with open(mail_file, 'r') as f:
+                data = json.load(f)
+            return data.get('messages', [])
+        return []
+
+    def _make_mail_response(self):
+        """Build mailbox listing as 6-part directory response."""
+        self.last_response_type = RESP_DIR
+        self.dir_displayed = True
+        data = bytearray()
+
+        # Part 1: no frame header
+        data.append(0x00)
+
+        # Part 2: footer (empty)
+        data.append(0x0D)
+        data.append(0x0D)
+
+        # Part 3: no field definitions
+        data.append(0x00)
+
+        # Part 4: breadcrumb
+        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.append(0x0D)
+        data.extend(ascii_to_petscii('  COURIER - ' + self.user_id))
+        data.append(0x00)
+
+        # Part 5: column headers
+        data.extend(ascii_to_petscii('DATE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('STATUS'))
+        data.append(0x0D)
+        data.append(0x00)
+
+        # Part 6: mail entries
+        if not self.mail_messages:
+            data.extend(ascii_to_petscii('      (NO MAIL)'))
+            data.append(0x2C)
+            data.append(0x2C)
+            data.append(0x0D)
+        else:
+            for i, msg in enumerate(self.mail_messages):
+                from_str = msg.get('from', '?')[:6]
+                subject = msg.get('subject', '')[:10]
+                num_frames = len(msg.get('frames', []))
+                type_str = ('T' + str(num_frames)).ljust(3)
+                title = from_str + ': ' + subject
+                page_str = str(i + 1).rjust(4) + '  '
+                title_field = title[:18].ljust(18) + type_str
+                data.extend(ascii_to_petscii(page_str + title_field))
+                data.append(0x2C)
+                # Date as DD-MM-YY (8 chars max)
+                raw_date = msg.get('date', '')
+                if len(raw_date) == 10:
+                    date_str = raw_date[8:10] + '-' + raw_date[5:7] + '-' + raw_date[2:4]
+                else:
+                    date_str = raw_date[:8]
+                data.extend(ascii_to_petscii(date_str))
+                data.append(0x2C)
+                status = 'NEW' if not msg.get('read', False) else 'READ'
+                data.extend(ascii_to_petscii(status))
+                data.append(0x0D)
+
+        log.info('MAIL response: %d messages, %d bytes', len(self.mail_messages), len(data))
+        return bytes(data)
+
+    def _cmd_mail_show(self, params):
+        """Handle 'D' command while in mail mode — show message or advance frame."""
+        # If already viewing a mail message, advance to next frame
+        if self.mail_show_msg is not None:
+            msg = self.mail_messages[self.mail_show_msg]
+            frames = msg.get('frames', [])
+            if self.mail_frame_index < len(frames) - 1:
+                self.mail_frame_index += 1
+                return self._send_mail_frame()
+            else:
+                # Last frame — return to mail listing
+                self.mail_show_msg = None
+                if not params:
+                    return self._make_mail_response()
+
+        # Select message by index
+        if params:
+            try:
+                selected = int(params.decode('ascii'))
+            except (ValueError, UnicodeDecodeError):
+                selected = 0
+        else:
+            selected = 0
+
+        if selected < len(self.mail_messages):
+            self.mail_show_msg = selected
+            self.mail_frame_index = 0
+            # Mark as read
+            self.mail_messages[selected]['read'] = True
+            self._save_mail()
+            return self._send_mail_frame()
+
+        return self._make_error(ascii_to_petscii('NO SUCH MESSAGE'))
+
+    def _send_mail_frame(self):
+        """Send current mail message frame."""
         self.last_response_type = RESP_FRAME
-        frame = bytearray()
-        frame.append(0x00)
-        frame.append(0xF6)  # border blue
-        frame.append(0xF1)  # bg white
-        frame.append(PETSCII_UPPER)
-        frame.append(PETSCII_RETURN)
-        frame.append(PETSCII_RETURN)
-        frame.extend(b'\x06\x03')
-        frame.append(PETSCII_RED)
-        frame.extend(ascii_to_petscii('COURIER'))
-        frame.append(PETSCII_RETURN)
-        frame.append(PETSCII_RETURN)
-        frame.extend(b'\x06\x03')
-        frame.append(PETSCII_BLUE)
-        frame.extend(ascii_to_petscii('NO MAIL WAITING'))
-        frame.append(PETSCII_RETURN)
-        frame.append(0x00)
-        
-        return bytes([RESP_FRAME, 0x00]) + bytes(frame)
-    
+        msg = self.mail_messages[self.mail_show_msg]
+        frames = msg.get('frames', [])
+        frame_file = frames[self.mail_frame_index]
+        mail_dir = os.path.join(os.path.dirname(__file__), 'mail', self.user_id)
+        frame_path = os.path.join(mail_dir, frame_file)
+
+        if os.path.exists(frame_path):
+            with open(frame_path, 'rb') as f:
+                frame_data = bytearray(f.read())
+        else:
+            frame_data = bytearray(b'\x00\x06\x0f\x8e\x0d\x0d  MESSAGE NOT FOUND\x0d\x00')
+
+        has_more = self.mail_frame_index < len(frames) - 1
+        if has_more:
+            frame_data[0] |= 0x80
+        log.info('MAIL FRAME: msg=%d frame=%d/%d file=%s (%d bytes, more=%s)',
+                 self.mail_show_msg, self.mail_frame_index + 1, len(frames),
+                 frame_file, len(frame_data), has_more)
+        return bytes(frame_data)
+
+    def _save_mail(self):
+        """Persist mail metadata (read status etc)."""
+        mail_file = os.path.join(os.path.dirname(__file__), 'mail', self.user_id + '.json')
+        data = {'messages': self.mail_messages}
+        with open(mail_file, 'w') as f:
+            json.dump(data, f, indent=2)
+
+    def _cmd_upload(self, params):
+        """Handle 'U' command — mail SEND or content upload.
+
+        Params: subject(16) + type(1) + dest_id(8)
+        Server stores metadata and ACKs. Client then enters Editor.
+        Subsequent 'D' sends frame data, 'N' signals completion.
+        """
+        if len(params) < 17:
+            return self._make_error(ascii_to_petscii('INVALID SEND'))
+
+        subject = params[0:16].decode('latin-1').strip()
+        msg_type = chr(params[16])
+        dest_id = params[17:25].decode('latin-1').strip() if len(params) > 17 else ''
+
+        log.info('UPLOAD/SEND: from=%s to=%s subject="%s" type=%s',
+                 self.user_id, dest_id, subject, msg_type)
+
+        # Validate destination
+        users = self._load_users()
+        if dest_id and dest_id.upper() not in users:
+            return self._make_error(ascii_to_petscii('NO SUCH USER'))
+
+        # Store pending send state
+        self.pending_send = {
+            'to': dest_id.upper(),
+            'subject': subject,
+            'type': msg_type,
+            'frames': [],
+        }
+
+        # ACK — client expects a valid DAT response to proceed.
+        # Send a small padding payload to ensure tcpser flushes the packet.
+        self.last_response_type = RESP_ACK
+        return bytes([RESP_ACK, 0x00, 0x00, 0x00])
+
+    def _recv_upload_frame(self, params):
+        """Receive frame data from client during SEND/upload.
+
+        The 'D' command in upload context contains frame data as payload.
+        Store it and ACK for the next frame (or completion).
+        """
+        if params:
+            self.pending_send['frames'].append(bytes(params))
+            log.info('UPLOAD: received frame %d (%d bytes)',
+                     len(self.pending_send['frames']), len(params))
+        self.last_response_type = RESP_ACK
+        return bytes([RESP_ACK])
+
+    def _complete_upload(self):
+        """Complete a SEND/upload — deliver mail to recipient."""
+        send = self.pending_send
+        self.pending_send = None
+
+        if not send or not send['to']:
+            log.info('UPLOAD: completed with no destination')
+            self.last_response_type = RESP_ACK
+            return bytes([RESP_ACK])
+
+        dest_id = send['to']
+        mail_dir = os.path.join(os.path.dirname(__file__), 'mail')
+        dest_dir = os.path.join(mail_dir, dest_id)
+        os.makedirs(dest_dir, exist_ok=True)
+
+        # Generate message ID
+        dest_mail_file = os.path.join(mail_dir, dest_id + '.json')
+        if os.path.exists(dest_mail_file):
+            with open(dest_mail_file, 'r') as f:
+                dest_inbox = json.load(f)
+        else:
+            dest_inbox = {'messages': []}
+
+        msg_num = len(dest_inbox['messages']) + 1
+        msg_id = f'msg{msg_num:03d}'
+
+        # Save frame files
+        frame_files = []
+        for i, frame_data in enumerate(send['frames']):
+            frame_file = f'{msg_id}-{i+1}.seq'
+            frame_path = os.path.join(dest_dir, frame_file)
+            with open(frame_path, 'wb') as f:
+                f.write(frame_data)
+            frame_files.append(frame_file)
+
+        # Add to recipient's inbox
+        import datetime
+        today = datetime.date.today().isoformat()
+        dest_inbox['messages'].append({
+            'id': msg_id,
+            'from': self.user_id,
+            'subject': send['subject'],
+            'date': today,
+            'read': False,
+            'frames': frame_files,
+        })
+        with open(dest_mail_file, 'w') as f:
+            json.dump(dest_inbox, f, indent=2)
+
+        log.info('UPLOAD: delivered mail from %s to %s subject="%s" frames=%d',
+                 self.user_id, dest_id, send['subject'], len(frame_files))
+
+        self.last_response_type = RESP_ACK
+        return bytes([RESP_ACK])
+
     def _cmd_ucat(self):
         """UCAT command - user catalogue listing."""
         return self._make_error(ascii_to_petscii('NO UPLOADS'))
@@ -1012,8 +1255,9 @@ async def tcp_handler(reader, writer):
                         log.info('TCP: dispatching command (authenticated=True)')
                         cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
-                            log.info('CMD: pre-response delay 250ms starting')
-                            await asyncio.sleep(0.25)
+                            is_ack = (session.last_response_type == RESP_ACK)
+                            log.info('CMD: pre-response delay 500ms starting')
+                            await asyncio.sleep(0.5)
                             log.info('CMD: sending %d bytes in %d-byte chunks', len(cmd_response), 100)
                             MAX_PAYLOAD = 100
                             offset = 0
@@ -1024,17 +1268,34 @@ async def tcp_handler(reader, writer):
                                 writer.write(pkt)
                                 await writer.drain()
                                 pkt_num += 1
-                                log.info('CMD: sent pkt %d (%d payload, %d wire), sleeping 50ms', pkt_num, len(chunk), len(pkt))
-                                await asyncio.sleep(0.05)
+                                if not is_ack:
+                                    log.info('CMD: sent pkt %d (%d payload, %d wire), sleeping 500ms', pkt_num, len(chunk), len(pkt))
+                                    await asyncio.sleep(0.5)
+                                else:
+                                    log.info('CMD: sent ACK pkt (%d wire)', len(pkt))
                                 offset += MAX_PAYLOAD
-                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
-                            writer.write(eos_pkt)
-                            await writer.drain()
-                            log.info('CMD: sent EOS pkt (%d wire)', len(eos_pkt))
+                            if not is_ack:
+                                eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                                writer.write(eos_pkt)
+                                await writer.drain()
+                                log.info('CMD: sent EOS pkt (%d wire)', len(eos_pkt))
                 
                 elif token == TOKEN_ACK:
                     log.debug('TCP: received ACK seq=$%02X', seq)
-                
+
+                elif token == TOKEN_DAT:
+                    # DAT from client = frame data upload (during SEND)
+                    log.info('TCP: DAT seq=$%02X payload=%d bytes (upload frame)',
+                             seq, len(payload))
+                    if session.pending_send is not None:
+                        session.pending_send['frames'].append(bytes(payload))
+                        log.info('UPLOAD: received frame %d (%d bytes)',
+                                 len(session.pending_send['frames']), len(payload))
+                        # ACK the frame
+                        ack_pkt = x25.make_data_packet(bytes([RESP_ACK]), TOKEN_DAT)
+                        writer.write(ack_pkt)
+                        await writer.drain()
+
                 else:
                     log.debug('TCP: other token=$%02X seq=$%02X', token, seq)
     

@@ -525,6 +525,33 @@ All three must be addressed together. Fixes 1 and 2 are complementary (as
 documented earlier). Fix 3 is orthogonal — it explains the intermittent nature
 that persisted even after fixes 1 and 2 were applied.
 
+### Further Findings (2026-05-14, later session)
+
+**Inter-packet delay must be 500ms** — 200ms inter-packet caused intermittent
+DIR crashes. 500ms is reliable. This is significantly longer than expected and
+suggests tcpser's baud-rate throttling introduces buffering that requires the
+gap to allow the client to fully drain each packet from the NMI buffer before
+the next begins arriving.
+
+**VICE socket polling requires 500ms pre-response delay** — even for single-
+packet ACK responses. Confirmed via VICE monitor: NMI buffer HEAD==TAIL (empty)
+after timeout, proving the ACK bytes never reached the emulated ACIA. The issue
+is that VICE's ip232 socket polling doesn't deliver incoming data immediately
+after the C64 finishes transmitting. A 500ms server-side delay before ALL
+responses (including ACKs) is necessary to ensure VICE has re-established
+socket polling after the TX activity.
+
+**Client-side post-TX re-arm is minimal** — aggressive settle loops that read
+ACIA_DATA or ACIA_STATUS repeatedly caused regressions (welcome frame
+corruption). The current fix is a simple ACIA_CMD toggle (disable/re-enable RX
+IRQ) which re-arms the NMI edge. The real reliability comes from the server-side
+500ms delay, not from client-side polling.
+
+**EOS marker must NOT be sent after ACK responses** — the client only calls
+L96D2 once for ACKs. If an EOS follows, it sits in the NMI buffer and corrupts
+the next command's response. EOS is only sent for multi-part streamed responses
+(directories, frames).
+
 ## Verification Plan
 
 1. Create a test directory with 11 entries (triggers ~400 byte response)

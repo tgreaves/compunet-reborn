@@ -7094,25 +7094,13 @@ ACIA_SEND_PACKET:
     STX $C20E
 
     ; --- Re-arm NMI after TX and settle ---
-    ; TX can kill NMI edge detection in VICE. Re-arm explicitly,
-    ; drain any byte stuck in ACIA RX register, and settle.
-    LDA ACIA_STATUS                     ; Read status (clears IRQ state)
-    AND #$08                            ; RDRF — byte waiting?
-    BEQ @no_stray
-    LDA ACIA_DATA                       ; Drain stray byte into NMI buffer
-    LDX NMI_BUF_TAIL
-    STA NMI_BUF,X
-    INC NMI_BUF_TAIL
-@no_stray:
+    ; TX can kill NMI edge detection in VICE. Re-arm explicitly
+    ; and wait briefly for edge to re-establish.
+    LDA ACIA_STATUS                     ; Read status (clears pending IRQ)
     LDA #$01
     STA ACIA_CMD                        ; Disable RX IRQ
     LDA #$09
     STA ACIA_CMD                        ; Re-enable (re-arms NMI edge)
-    LDY #$00
-@post_tx_settle:
-    LDA ACIA_STATUS                     ; Poke VICE to trigger socket poll
-    DEY
-    BNE @post_tx_settle                 ; ~256 iterations settle delay
 
     RTS
 
