@@ -156,9 +156,8 @@ The original ROM code is preserved with targeted patches:
 
 - Handle the `NEW` requirement automatically (BASIC memory pointers)
 - Fix CRC calculation in ACIA_SEND_PACKET
-- Complete MAIL SEND flow (ACK delivery to client after 'U' command — VICE socket polling issue)
+- Replace L96C9 (PROTO_RECV_FRAME) with ACIA-based upload routine for MAIL SEND frame upload
 - Sub-directory creation by users (DIR on owned non-directory entries)
-- Investigate VICE NMI/socket polling timing for reliable ACK delivery
 
 ## Acknowledgements
 

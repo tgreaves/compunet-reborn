@@ -692,33 +692,53 @@ class CompunetSession:
         Server stores metadata and ACKs. Client then enters Editor.
         Subsequent 'D' sends frame data, 'N' signals completion.
         """
+        # Second 'U' (no params) = ready to send a frame, just ACK it
+        if len(params) == 0:
+            log.info('UPLOAD: frame-ready signal, sending ACK')
+            self.last_response_type = RESP_DIR
+            return bytes([RESP_ACK])
+
         if len(params) < 17:
             return self._make_error(ascii_to_petscii('INVALID SEND'))
 
         subject = params[0:16].decode('latin-1').strip()
         msg_type = chr(params[16])
-        dest_id = params[17:25].decode('latin-1').strip() if len(params) > 17 else ''
+
+        # Parse destination IDs (8 bytes each, starting at offset 17)
+        dest_ids = []
+        offset = 17
+        while offset + 8 <= len(params):
+            did = params[offset:offset+8].decode('latin-1').strip()
+            if did:
+                dest_ids.append(did.upper())
+            offset += 8
 
         log.info('UPLOAD/SEND: from=%s to=%s subject="%s" type=%s',
-                 self.user_id, dest_id, subject, msg_type)
-
-        # Validate destination
-        users = self._load_users()
-        if dest_id and dest_id.upper() not in users:
-            return self._make_error(ascii_to_petscii('NO SUCH USER'))
+                 self.user_id, dest_ids, subject, msg_type)
 
         # Store pending send state
         self.pending_send = {
-            'to': dest_id.upper(),
+            'to': dest_ids,
             'subject': subject,
             'type': msg_type,
             'frames': [],
         }
 
-        # ACK — client expects a valid DAT response to proceed.
-        # Send a small padding payload to ensure tcpser flushes the packet.
-        self.last_response_type = RESP_ACK
-        return bytes([RESP_ACK, 0x00, 0x00, 0x00])
+        # Client calls L_B0EA which validates each destination:
+        # For each dest: [8-byte ID] [status text] $1E
+        #   status text present = user exists (text displayed as confirmation)
+        #   $1E immediately after ID = user not found (triggers error)
+        # Stream ends at EOS (C=1 from L96CC).
+        self.last_response_type = RESP_DIR
+        data = bytearray()
+        users = self._load_users()
+        for did in dest_ids:
+            data.extend(ascii_to_petscii(did.ljust(8)[:8]))
+            if did in users:
+                data.extend(ascii_to_petscii('OK'))
+            data.append(0x1E)
+        log.info('UPLOAD: validation response %d bytes: %s', len(data), data.hex())
+        return bytes(data)
 
     def _recv_upload_frame(self, params):
         """Receive frame data from client during SEND/upload.
@@ -743,47 +763,51 @@ class CompunetSession:
             self.last_response_type = RESP_ACK
             return bytes([RESP_ACK])
 
-        dest_id = send['to']
         mail_dir = os.path.join(os.path.dirname(__file__), 'mail')
-        dest_dir = os.path.join(mail_dir, dest_id)
-        os.makedirs(dest_dir, exist_ok=True)
+        users = self._load_users()
 
-        # Generate message ID
-        dest_mail_file = os.path.join(mail_dir, dest_id + '.json')
-        if os.path.exists(dest_mail_file):
-            with open(dest_mail_file, 'r') as f:
-                dest_inbox = json.load(f)
-        else:
-            dest_inbox = {'messages': []}
+        # Deliver to each valid destination
+        for dest_id in send['to']:
+            if dest_id not in users:
+                continue
+            dest_dir = os.path.join(mail_dir, dest_id)
+            os.makedirs(dest_dir, exist_ok=True)
 
-        msg_num = len(dest_inbox['messages']) + 1
-        msg_id = f'msg{msg_num:03d}'
+            dest_mail_file = os.path.join(mail_dir, dest_id + '.json')
+            if os.path.exists(dest_mail_file):
+                with open(dest_mail_file, 'r') as f:
+                    dest_inbox = json.load(f)
+            else:
+                dest_inbox = {'messages': []}
 
-        # Save frame files
-        frame_files = []
-        for i, frame_data in enumerate(send['frames']):
-            frame_file = f'{msg_id}-{i+1}.seq'
-            frame_path = os.path.join(dest_dir, frame_file)
-            with open(frame_path, 'wb') as f:
-                f.write(frame_data)
-            frame_files.append(frame_file)
+            msg_num = len(dest_inbox['messages']) + 1
+            msg_id = f'msg{msg_num:03d}'
 
-        # Add to recipient's inbox
-        import datetime
-        today = datetime.date.today().isoformat()
-        dest_inbox['messages'].append({
-            'id': msg_id,
-            'from': self.user_id,
-            'subject': send['subject'],
-            'date': today,
-            'read': False,
-            'frames': frame_files,
-        })
-        with open(dest_mail_file, 'w') as f:
-            json.dump(dest_inbox, f, indent=2)
+            # Save frame files
+            frame_files = []
+            for i, frame_data in enumerate(send['frames']):
+                frame_file = f'{msg_id}-{i+1}.seq'
+                frame_path = os.path.join(dest_dir, frame_file)
+                with open(frame_path, 'wb') as f:
+                    f.write(frame_data)
+                frame_files.append(frame_file)
+
+            # Add to recipient's inbox
+            import datetime
+            today = datetime.date.today().isoformat()
+            dest_inbox['messages'].append({
+                'id': msg_id,
+                'from': self.user_id,
+                'subject': send['subject'],
+                'date': today,
+                'read': False,
+                'frames': frame_files,
+            })
+            with open(dest_mail_file, 'w') as f:
+                json.dump(dest_inbox, f, indent=2)
 
         log.info('UPLOAD: delivered mail from %s to %s subject="%s" frames=%d',
-                 self.user_id, dest_id, send['subject'], len(frame_files))
+                 self.user_id, send['to'], send['subject'], len(send['frames']))
 
         self.last_response_type = RESP_ACK
         return bytes([RESP_ACK])
@@ -1082,9 +1106,15 @@ async def tcp_handler(reader, writer):
     5. Enter command loop (receive COM packets, send responses)
     """
     from x25_protocol import X25Connection, TOKEN_COM, TOKEN_ACK, TOKEN_DAT
-    
+    import socket
+
     addr = writer.get_extra_info('peername')
     log.info('TCP client connected: %s', addr)
+
+    # Disable Nagle's algorithm — send packets immediately
+    sock = writer.get_extra_info('socket')
+    if sock:
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     
     directory = CompunetDirectory()
     session = CompunetSession(directory)
@@ -1255,7 +1285,6 @@ async def tcp_handler(reader, writer):
                         log.info('TCP: dispatching command (authenticated=True)')
                         cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
-                            is_ack = (session.last_response_type == RESP_ACK)
                             log.info('CMD: pre-response delay 500ms starting')
                             await asyncio.sleep(0.5)
                             log.info('CMD: sending %d bytes in %d-byte chunks', len(cmd_response), 100)
@@ -1268,33 +1297,33 @@ async def tcp_handler(reader, writer):
                                 writer.write(pkt)
                                 await writer.drain()
                                 pkt_num += 1
-                                if not is_ack:
-                                    log.info('CMD: sent pkt %d (%d payload, %d wire), sleeping 500ms', pkt_num, len(chunk), len(pkt))
-                                    await asyncio.sleep(0.5)
-                                else:
-                                    log.info('CMD: sent ACK pkt (%d wire)', len(pkt))
+                                log.info('CMD: sent pkt %d (%d payload, %d wire), sleeping 500ms', pkt_num, len(chunk), len(pkt))
+                                await asyncio.sleep(0.5)
                                 offset += MAX_PAYLOAD
-                            if not is_ack:
-                                eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
-                                writer.write(eos_pkt)
-                                await writer.drain()
-                                log.info('CMD: sent EOS pkt (%d wire)', len(eos_pkt))
+                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                            writer.write(eos_pkt)
+                            await writer.drain()
+                            log.info('CMD: sent EOS pkt (%d wire)', len(eos_pkt))
                 
                 elif token == TOKEN_ACK:
                     log.debug('TCP: received ACK seq=$%02X', seq)
 
-                elif token == TOKEN_DAT:
-                    # DAT from client = frame data upload (during SEND)
-                    log.info('TCP: DAT seq=$%02X payload=%d bytes (upload frame)',
-                             seq, len(payload))
-                    if session.pending_send is not None:
-                        session.pending_send['frames'].append(bytes(payload))
-                        log.info('UPLOAD: received frame %d (%d bytes)',
-                                 len(session.pending_send['frames']), len(payload))
-                        # ACK the frame
-                        ack_pkt = x25.make_data_packet(bytes([RESP_ACK]), TOKEN_DAT)
-                        writer.write(ack_pkt)
-                        await writer.drain()
+                elif session.pending_send is not None and token != 0x43:
+                    # Any non-COM packet during upload = frame data
+                    log.info('TCP: upload frame token=$%02X seq=$%02X payload=%d bytes',
+                             token, seq, len(payload))
+                    session.pending_send['frames'].append(bytes(payload))
+                    log.info('UPLOAD: received frame %d (%d bytes)',
+                             len(session.pending_send['frames']), len(payload))
+                    # ACK — client calls L96D2 after send, needs C=0 response.
+                    # Pad to 11+ bytes (19+ wire) — same size as validation
+                    # response which is known to deliver reliably.
+                    await asyncio.sleep(0.5)
+                    ack_data = bytes([RESP_ACK]) + b'\x00' * 10
+                    ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
+                    writer.write(ack_pkt)
+                    await writer.drain()
+                    log.info('UPLOAD: sent frame ACK (%d wire)', len(ack_pkt))
 
                 else:
                     log.debug('TCP: other token=$%02X seq=$%02X', token, seq)

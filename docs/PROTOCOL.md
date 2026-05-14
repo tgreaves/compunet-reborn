@@ -1097,50 +1097,78 @@ The 'U' ($55) command handles both content uploads and mail SEND.
 
 ```
 Command byte: $55 ('U')
-Params (25 bytes):
+First 'U' params (25+ bytes, up to 5 destinations):
   [0-15]  Subject/title — 16 chars, space-padded
   [16]    Type — 'T' (text) or 'P' (program)
-  [17-24] Destination ID — 8 chars, space-padded (recipient for mail)
+  [17-24] Destination ID #1 — 8 chars, space-padded
+  [25-32] Destination ID #2 (optional)
+  ...up to 5 destinations (8 bytes each)
+
+Second 'U' (no params): "ready to send frame" signal
 ```
 
-#### Protocol Flow
+#### Protocol Flow (confirmed via live testing 2026-05-14)
 
 ```
 1. User selects SEND from Courier duckshoot
-2. Client prompts: "SUBJECT?" → user enters subject (stored in params[0-15])
+2. Client prompts: "SUBJECT?" → user enters subject
 3. Client prompts: "DESTINATION ID?" → user enters recipient(s)
-   (up to 5 IDs, blank line terminates entry)
-4. Client sends 'U' ($55) + 25-byte params via L_A784
-5. Client calls L96D2 — WAITS for server ACK
-   (Server must respond with valid DAT packet, token != $40/$41/$42/$43)
-6. On success: client enters LIMITED EDITOR DUCKSHOOT
-   (commands: SEND, GET, NEXT, LAST, FINISH)
-7. User navigates to their prepared message using NEXT/LAST/GET
-8. User selects SEND → client sends current Editor page as DAT ($22) packet
-9. Client calls L96D2 — WAITS for server ACK of frame
-10. Duckshoot returns:
-    - FINISH → client sends 'N' ($4E), message delivery complete
-    - NEXT/LAST → navigate to next page, repeat from step 8
-11. Messages may be up to an Editor-full long (10-15 pages)
+   (up to 5 IDs, blank RETURN terminates entry)
+4. Client sends first 'U' ($55) + params via ACIA_SEND_PACKET [COM token]
+5. Client calls L96D2 + L_B0EA — reads VALIDATION STREAM from server
+6. Client displays validation results, prompts "OKAY?"
+7. On confirm: client enters LIMITED SUB-DUCKSHOOT
+   (commands dispatched via table at $AF8B, $8033 selects)
+8. User selects SEND from sub-duckshoot:
+   a. Client sends second 'U' (no params) via ACIA_SEND_PACKET [COM token]
+   b. Client calls L96D2 — waits for server ACK
+   c. Client prints "SENDING"
+   d. Client calls $B175 — sends frame byte-by-byte via L96C9 (PROTO_RECV_FRAME)
+   e. Client calls L96D2 — waits for final server ACK
+9. Sub-duckshoot returns. User can SEND more pages or FINISH.
+10. FINISH: client sends 'N' ($4E) [COM token], server delivers message.
 ```
 
-#### Server Response Requirements
+#### Server Validation Response (after first 'U')
 
-- After 'U': must respond with ACK (any valid non-error DAT packet, no EOS)
-- After each DAT frame: must respond with ACK (no EOS)
-- After 'N' (FINISH): message is delivered to recipient, ACK response
+The server responds with a byte stream read via L96CC (L_B0EA parser).
+For each destination ID in the request:
 
-#### Key Implementation Detail
+```
+[8 bytes] User ID (echoed back, printed on screen)
+[status]:
+  - $1E immediately = user NOT FOUND (client prints "*** NO SUCH USER ***")
+  - [text bytes...] $1E = user FOUND (text printed as confirmation)
+```
 
-The client sends frame data using token $22 (DAT), NOT token $43 (COM).
-The server must handle incoming DAT packets from the client during the
-upload phase — these contain raw Editor page data (PETSCII screen content).
+Stream ends when L96CC returns C=1 (EOS marker packet).
+
+Example (2 dests, first valid, second invalid):
+```
+  ADMIN    O K $1E  FOOBAR   $1E  [EOS]
+```
+
+#### Frame Upload Mechanism ($B175)
+
+**Important:** The frame upload at $B175 does NOT use ACIA_SEND_PACKET.
+It calls L96C9 → PROTO_RECV_FRAME — the original ROM's half-duplex X.25
+protocol engine. This sends bytes one at a time through the modem register
+abstraction layer (MODEM_REG_WRITE → ACIA_REG_WRITE), interleaving TX
+with RX processing on each byte.
+
+On the original 1200/75 baud system, this interleaving was necessary because
+TX was slow (75 baud) and RX data (1200 baud) could arrive during each TX byte.
+
+**Current status:** L96C9 needs to be replaced with an ACIA-native upload
+routine that sends frame data as properly framed X.25 packets via
+ACIA_SEND_PACKET, matching how all other client→server communication works.
 
 #### Error Handling
 
-- If destination user doesn't exist: server returns error token
-- Client checks carry flag: C=1 aborts the send flow
-- On abort, client sends 'N' ($4E) and returns to menu
+- If ALL destination users invalid: $C023 bit 7 set, client aborts after "OKAY?"
+- Second 'U' ACK failure (C=1): client aborts send
+- Frame send failure: client aborts
+- FINISH ('N'): always sent to signal end of upload session
 
 ### Connection State
 

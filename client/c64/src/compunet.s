@@ -7259,9 +7259,21 @@ ACIA_FLOW_CONTROL:
 ; --- Get one byte (non-blocking, C=1 if empty) ---
 @get_byte:
     LDA ACIA_STATUS                     ; Poke VICE to trigger socket poll
+    PHA                                 ; Save status for RDRF check
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
+    BNE @gb_from_buf
+    ; Buffer empty — check if ACIA has a byte (NMI may have failed)
+    PLA
+    AND #$08                            ; RDRF — byte in DATA register?
     BEQ @gb_empty
+    ; Read directly from ACIA (bypassing dead NMI)
+    LDA ACIA_DATA
+    CLC
+    RTS
+@gb_from_buf:
+    PLA                                 ; Discard saved status
+    LDA NMI_BUF_HEAD
     TAX
     LDA NMI_BUF,X
     INC NMI_BUF_HEAD

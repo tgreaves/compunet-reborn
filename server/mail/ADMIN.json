@@ -6,7 +6,17 @@
       "subject": "HELLO",
       "date": "2026-05-14",
       "read": false,
-      "frames": ["msg001-1.seq"]
+      "frames": [
+        "msg001-1.seq"
+      ]
+    },
+    {
+      "id": "msg002",
+      "from": "TEST",
+      "subject": "SUBJECT",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": []
     }
   ]
 }
