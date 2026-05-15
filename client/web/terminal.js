@@ -56,6 +56,20 @@ class CompunetTerminal {
             return;
         }
         
+        if (this._seqFrames && this.state === 'editor') {
+            if (e.key === 'ArrowRight' && this._seqFrameIndex < this._seqFrames.length - 1) {
+                this._seqFrameIndex++;
+                this._renderSeqFrame();
+                this._updateSeqInfo();
+                return;
+            } else if (e.key === 'ArrowLeft' && this._seqFrameIndex > 0) {
+                this._seqFrameIndex--;
+                this._renderSeqFrame();
+                this._updateSeqInfo();
+                return;
+            }
+        }
+
         if (this.state === 'ready') {
             this._handleReadyKey(e);
         } else if (this.state === 'editor') {
@@ -668,11 +682,24 @@ class CompunetTerminal {
             }
         }
     }
+
+    _renderSeqFrame() {
+        if (!this._seqFrames) return;
+        const seq = new SEQRenderer(this.renderer);
+        seq.render(this._seqFrames[this._seqFrameIndex], 25);
+    }
+
+    _updateSeqInfo() {
+        const el = document.getElementById('seq-info');
+        if (el && this._seqFrames) {
+            el.textContent = `Frame ${this._seqFrameIndex + 1} of ${this._seqFrames.length}`;
+        }
+    }
 }
 
 /**
  * Frame Editor - the Compunet page editor.
- * 
+ *
  * A frame is a single 40x25 screen containing:
  * - 1000 character codes (40 * 25)
  * - 1000 colour values (40 * 25)
@@ -1028,7 +1055,7 @@ class FrameEditor {
         r.printAt(1, 13, 'Ctrl+1-8 - Change colour', 1);
         r.printAt(1, 14, 'Arrows - Move cursor', 1);
         r.printAt(1, 16, 'RETURN - Back to BASIC', 7);
-        r.printAt(1, 18, 'Page ' + (this.currentFrameIndex + 1) + 
+        r.printAt(1, 18, 'Page ' + (this.currentFrameIndex + 1) +
                   ' of ' + this.frames.length, 14);
     }
 }
@@ -1045,13 +1072,59 @@ window.addEventListener('DOMContentLoaded', () => {
         reader.onload = () => {
             const data = new Uint8Array(reader.result);
             const t = window.terminal;
-            const seq = new SEQRenderer(t.renderer);
-            seq.render(data, 23);
-            // Show the SHOW duckshoot after loading
+
+            // Split into frames on $00 terminators.
+            // Server-generated frames start with $00 marker; historical files don't.
+            const hasMarker = data[0] === 0x00;
+            const frames = [];
+            if (hasMarker) {
+                // Single server-format frame (or already includes marker)
+                frames.push(data);
+            } else {
+                // Multi-frame historical file: split on $00, prepend marker
+                let start = 0;
+                for (let i = 0; i < data.length; i++) {
+                    if (data[i] === 0x00) {
+                        if (i > start) {
+                            const frame = new Uint8Array(i - start + 1);
+                            frame[0] = 0x00;
+                            frame.set(data.slice(start, i), 1);
+                            frames.push(frame);
+                        }
+                        start = i + 1;
+                    }
+                }
+                if (frames.length === 0) {
+                    frames.push(data);
+                }
+            }
+
+            // Store frames and render first
+            t._seqFrames = frames;
+            t._seqFrameIndex = 0;
+            t._renderSeqFrame();
+
             t.state = 'editor';
             t.duckshoot.setCommands(DUCKSHOOT_SHOW);
             t.duckshoot.show();
+            t._updateSeqInfo();
         };
         reader.readAsArrayBuffer(file);
+    });
+
+    document.getElementById('seq-prev').addEventListener('click', () => {
+        const t = window.terminal;
+        if (!t._seqFrames || t._seqFrameIndex <= 0) return;
+        t._seqFrameIndex--;
+        t._renderSeqFrame();
+        t._updateSeqInfo();
+    });
+
+    document.getElementById('seq-next').addEventListener('click', () => {
+        const t = window.terminal;
+        if (!t._seqFrames || t._seqFrameIndex >= t._seqFrames.length - 1) return;
+        t._seqFrameIndex++;
+        t._renderSeqFrame();
+        t._updateSeqInfo();
     });
 });

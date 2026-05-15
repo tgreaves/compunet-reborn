@@ -87,11 +87,12 @@
     {
       "page_num": 600,
       "title": "JUNGLE",
-      "type": "D",
+      "type": "T",
       "author": "JUNGLE",
       "price": 0,
       "life": 99,
       "keyword": "JUNGLE",
+      "frames": ["frame-1.seq", "frame-2.seq", "frame-3.seq", "frame-4.seq", "frame-5.seq"],
       "directory": "jungle/directory.json"
     }
   ]

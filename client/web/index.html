@@ -12,7 +12,10 @@
     </div>
     <div id="info">
         <p>Compunet Terminal Emulator &mdash; Use &larr; &rarr; to scroll duckshoot, ENTER to select</p>
-        <p><label>Load SEQ file: <input type="file" id="seq-file" accept=".seq"></label></p>
+        <p><label>Load SEQ file: <input type="file" id="seq-file"></label>
+           <button id="seq-prev">&larr; Prev</button>
+           <span id="seq-info"></span>
+           <button id="seq-next">Next &rarr;</button></p>
     </div>
     <script src="charrom.js"></script>
     <script src="help_data.js"></script>
