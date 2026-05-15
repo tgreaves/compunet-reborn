@@ -491,9 +491,14 @@ class CompunetSession:
         """SHOW/DIR command ('P') - show current page.
 
         The 'P' command is sent by both DIR and SHOW duckshoot commands.
+        Also sent by FINISH to return to directory from frame viewing.
         If we're already viewing the directory and the selected entry has a
         sub-directory, enter it. Otherwise show the current page directory.
         """
+        # FINISH clears frame viewing state
+        self.show_page = None
+        self.show_frame_index = 0
+
         # Complete pending upload if client returned to directory
         if self.pending_send is not None and self.pending_send.get('mode') == 'upload':
             if self.pending_send['frames']:
