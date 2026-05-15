@@ -1,0 +1,15 @@
+{
+  "pages": [
+    {
+      "page_num": 606,
+      "title": "JUNGLE2",
+      "type": "T",
+      "author": "TEST",
+      "price": 4.0,
+      "life": 4,
+      "frames": [
+        "frame-1.seq"
+      ]
+    }
+  ]
+}

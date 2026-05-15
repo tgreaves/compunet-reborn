@@ -1181,7 +1181,7 @@ Example (2 dests, first valid, second invalid):
    d. Client calls L96D2 — waits for frame ACK
 6. Sub-duckshoot returns. User can SEND more or FINISH.
 7. FINISH: client sends 'P' (DIR refresh) which triggers server to
-   complete the upload (save page, update root.json) and return directory.
+   complete the upload (save page to disk, update directory JSON) and return directory.
 ```
 
 Key differences from MAIL SEND:

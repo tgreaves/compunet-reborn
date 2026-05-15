@@ -49,6 +49,7 @@ log = logging.getLogger('compunet')
 WS_PORT = 6502
 TCP_PORT = 6400
 CONTENT_DIR = os.path.join(os.path.dirname(__file__), 'content')
+ROOT_DIR = os.path.join(CONTENT_DIR, 'root')
 
 # Protocol constants
 RESP_ACK = 0x41       # 'A' - acknowledge/proceed
@@ -156,59 +157,100 @@ class CompunetPage:
 
 
 class CompunetDirectory:
-    """The content tree, loaded from root.json."""
-    
+    """The content tree, loaded from per-directory JSON files."""
+
     def __init__(self):
         self.pages = {}
         self.root = None
+        self.global_adverts = []
         self._load_tree()
-    
+        self._apply_votes()
+
     def _load_tree(self):
-        """Load directory structure from JSON."""
-        json_path = os.path.join(CONTENT_DIR, 'root.json')
-        if os.path.exists(json_path):
-            with open(json_path, 'r') as f:
-                data = json.load(f)
-            self.root = self._build_page(data['root'], None)
-        else:
-            # Fallback: minimal default
+        """Load directory structure from root/root.json (new flat format)."""
+        json_path = os.path.join(ROOT_DIR, 'root.json')
+        if not os.path.exists(json_path):
             self.root = CompunetPage(1, 'COMPUNET', 'D')
             self.pages[1] = self.root
-    
-    def _build_page(self, node, parent):
-        """Recursively build page tree from JSON node."""
+            return
+
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+
+        # Root page (virtual container)
+        self.root = CompunetPage(page_num=100, title='WELCOME', page_type='D', author='SYSTEM')
+        self.root.header = data.get('header', None)
+        self.root._adverts = data.get('adverts', [])
+        self.root._dir_path = ROOT_DIR
+        self.pages[100] = self.root
+
+        for page_data in data.get('pages', []):
+            page = self._build_flat_page(page_data, self.root, ROOT_DIR)
+            self.root.children.append(page)
+
+        # Load global fallback adverts
+        adverts_path = os.path.join(CONTENT_DIR, 'adverts.json')
+        if os.path.exists(adverts_path):
+            with open(adverts_path, 'r') as f:
+                self.global_adverts = json.load(f).get('adverts', [])
+
+    def _build_flat_page(self, node, parent, base_dir):
+        """Build a page from flat JSON node, resolving paths from its folder."""
+        page_slug = node['title'].lower().replace(' ', '-')
+        page_dir = os.path.join(base_dir, page_slug)
+
         page = CompunetPage(
             page_num=node['page_num'],
             title=node['title'],
             page_type=node.get('type', 'T'),
-            size=node.get('size', 0),
+            size=len(node.get('frames', [])),
             author=node.get('author', 'SYSTEM'),
             price=node.get('price', 0),
             life=node.get('life', 0),
-            vote=node.get('vote', 0),
             keyword=node.get('keyword', None),
         )
         page.parent = parent
+        page._dir_path = page_dir
         self.pages[page.page_num] = page
-        
-        # Load header file (directory frame header)
-        page.header = node.get('header', None)
-        
-        # Load frame files
-        page._frame_files = []
-        for frame_file in node.get('frames', []):
-            frame_path = os.path.join(CONTENT_DIR, 'pages', frame_file)
+
+        # Load frames from page folder
+        page._frame_files = node.get('frames', [])
+        for frame_file in page._frame_files:
+            frame_path = os.path.join(page_dir, frame_file)
             if os.path.exists(frame_path):
                 with open(frame_path, 'rb') as f:
                     page.frames.append(f.read())
-                page._frame_files.append(frame_file)
-        
-        # Build children
-        for child_node in node.get('children', []):
-            child = self._build_page(child_node, page)
-            page.children.append(child)
-        
+
+        # If page is also a directory, load sub-directory JSON
+        if 'directory' in node:
+            dir_json_path = os.path.join(ROOT_DIR, node['directory'])
+            sub_base_dir = os.path.dirname(dir_json_path)
+            if os.path.exists(dir_json_path):
+                with open(dir_json_path, 'r') as f:
+                    sub_data = json.load(f)
+                page._adverts = sub_data.get('adverts', [])
+                if sub_data.get('header'):
+                    page.header = sub_data['header']
+                for child_data in sub_data.get('pages', []):
+                    child = self._build_flat_page(child_data, page, sub_base_dir)
+                    page.children.append(child)
+        else:
+            page._adverts = []
+
         return page
+
+    def _apply_votes(self):
+        """Populate vote averages from votes.json."""
+        votes_path = os.path.join(os.path.dirname(__file__), 'votes.json')
+        if not os.path.exists(votes_path):
+            return
+        with open(votes_path, 'r') as f:
+            votes = json.load(f)
+        for page_key, user_votes in votes.items():
+            page_num = int(page_key)
+            if page_num in self.pages and user_votes:
+                self.pages[page_num].vote = round(
+                    sum(user_votes.values()) / len(user_votes))
 
 
 class CompunetSession:
@@ -321,6 +363,16 @@ class CompunetSession:
             return True
         author = self.current_page.author
         return author == 'JUNGLE' or author == self.user_id
+
+    def _pick_advert(self):
+        """Pick a random advert for the current directory."""
+        import random
+        adverts = getattr(self.current_page, '_adverts', [])
+        if not adverts:
+            adverts = self.directory.global_adverts
+        if adverts:
+            return random.choice(adverts)
+        return None
 
     def _cmd_goto(self, params):
         """GOTO command ('L') — navigate by page number or keyword."""
@@ -565,7 +617,7 @@ class CompunetSession:
         """
         self.last_response_type = RESP_FRAME
         self._leaving = True
-        goodbye_path = os.path.join(CONTENT_DIR, 'pages', 'goodbye.seq')
+        goodbye_path = os.path.join(CONTENT_DIR, 'templates', 'goodbye.seq')
         if os.path.exists(goodbye_path):
             with open(goodbye_path, 'rb') as f:
                 return f.read()
@@ -1114,20 +1166,24 @@ class CompunetSession:
                      self.user_id, self.current_page.author)
             return
 
-        # Find next available page number
         all_pages = list(self.directory.pages.keys())
         next_page_num = max(all_pages) + 1 if all_pages else 1000
 
-        # Save frame files
+        # Create page folder
+        page_slug = send['title'].lower().replace(' ', '-')
+        parent_dir = getattr(self.current_page, '_dir_path', ROOT_DIR)
+        page_dir = os.path.join(parent_dir, page_slug)
+        os.makedirs(page_dir, exist_ok=True)
+
+        # Save frames into page folder
         frame_files = []
         for i, frame_data in enumerate(send['frames']):
-            frame_file = f'upload-{next_page_num}-{i+1}.seq'
-            frame_path = os.path.join(CONTENT_DIR, 'pages', frame_file)
+            frame_file = f'frame-{i+1}.seq'
+            frame_path = os.path.join(page_dir, frame_file)
             with open(frame_path, 'wb') as f:
                 f.write(frame_data)
             frame_files.append(frame_file)
 
-        # Create new page in the directory tree
         new_page = CompunetPage(
             page_num=next_page_num,
             title=send['title'],
@@ -1136,18 +1192,18 @@ class CompunetSession:
             author=self.user_id,
             price=send['price'],
             life=send['lifetime'],
-            vote=0,
         )
         new_page.parent = self.current_page
         new_page._frame_files = frame_files
+        new_page._dir_path = page_dir
+        new_page._adverts = []
         for frame_file in frame_files:
-            frame_path = os.path.join(CONTENT_DIR, 'pages', frame_file)
+            frame_path = os.path.join(page_dir, frame_file)
             with open(frame_path, 'rb') as f:
                 new_page.frames.append(f.read())
         self.current_page.children.append(new_page)
         self.directory.pages[next_page_num] = new_page
 
-        # Persist to root.json
         self._save_directory()
 
         log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
@@ -1156,33 +1212,47 @@ class CompunetSession:
         return b''
 
     def _save_directory(self):
-        """Persist the directory tree back to root.json."""
-        def _page_to_dict(page):
-            node = {
-                'page_num': page.page_num,
-                'title': page.title,
-                'type': page.page_type,
-                'size': page.size,
-                'author': page.author,
-                'price': page.price,
-                'life': page.life,
-                'vote': page.vote,
-            }
-            if page.keyword:
-                node['keyword'] = page.keyword
-            if hasattr(page, 'header') and page.header:
-                node['header'] = page.header
-            frame_files = getattr(page, '_frame_files', [])
-            if frame_files:
-                node['frames'] = frame_files
-            node['children'] = [_page_to_dict(child) for child in page.children]
-            return node
+        """Persist the directory tree to per-directory JSON files."""
+        def _page_slug(title):
+            return title.lower().replace(' ', '-')
 
-        tree = {'root': _page_to_dict(self.directory.root)}
-        json_path = os.path.join(CONTENT_DIR, 'root.json')
-        with open(json_path, 'w') as f:
-            json.dump(tree, f, indent=2)
-        log.info('DIR: saved directory tree to root.json')
+        def _save_dir_json(page, json_path):
+            """Write a directory JSON for a page's children."""
+            data = {}
+            if hasattr(page, 'header') and page.header:
+                data['header'] = page.header
+            if hasattr(page, '_adverts') and page._adverts:
+                data['adverts'] = page._adverts
+            pages_list = []
+            for child in page.children:
+                node = {
+                    'page_num': child.page_num,
+                    'title': child.title,
+                    'type': child.page_type,
+                    'author': child.author,
+                    'price': child.price,
+                    'life': child.life,
+                }
+                if child.keyword:
+                    node['keyword'] = child.keyword
+                frame_files = getattr(child, '_frame_files', [])
+                if frame_files:
+                    node['frames'] = frame_files
+                if child.children:
+                    child_slug = _page_slug(child.title)
+                    child_dir = getattr(child, '_dir_path', '')
+                    dir_json_path = os.path.join(child_dir, 'directory.json')
+                    node['directory'] = os.path.relpath(dir_json_path, ROOT_DIR)
+                    _save_dir_json(child, dir_json_path)
+                pages_list.append(node)
+            data['pages'] = pages_list
+            os.makedirs(os.path.dirname(json_path), exist_ok=True)
+            with open(json_path, 'w') as f:
+                json.dump(data, f, indent=2)
+
+        root_json_path = os.path.join(ROOT_DIR, 'root.json')
+        _save_dir_json(self.directory.root, root_json_path)
+        log.info('DIR: saved directory tree')
 
     def _cmd_ucat(self):
         """UCAT command - user catalogue listing."""
@@ -1217,7 +1287,7 @@ class CompunetSession:
         # Loaded from the page's "header" SEQ file if defined.
         header_file = getattr(page, 'header', None)
         if header_file:
-            header_path = os.path.join(CONTENT_DIR, 'pages', header_file)
+            header_path = os.path.join(ROOT_DIR, header_file)
             log.info('DIR: header=%s (exists=%s)', header_path, os.path.exists(header_path))
             if os.path.exists(header_path):
                 with open(header_path, 'rb') as f:
@@ -1228,11 +1298,20 @@ class CompunetSession:
         else:
             log.info('DIR: no header defined for page %s', page.title)
             data.append(0x00)  # No header defined
-        
-        # --- Part 2: Footer text (2 CR-terminated lines, displayed at row 22) ---
-        # Used for adverts or status text below the directory box.
-        data.append(0x0D)  # Line 1: empty
-        data.append(0x0D)  # Line 2: empty
+
+        # --- Part 2: Footer text / adverts (2 CR-terminated lines at row 22) ---
+        advert = self._pick_advert()
+        if advert:
+            lines = advert.split('\n')
+            line1 = lines[0][:40] if len(lines) > 0 else ''
+            line2 = lines[1][:40] if len(lines) > 1 else ''
+            data.extend(ascii_to_petscii(line1))
+            data.append(0x0D)
+            data.extend(ascii_to_petscii(line2))
+            data.append(0x0D)
+        else:
+            data.append(0x0D)
+            data.append(0x0D)
 
         # --- Part 3: Field definitions ---
         # $00 = none
@@ -1750,8 +1829,6 @@ async def tcp_handler(reader, writer):
 # ============================================================
 
 async def main():
-    os.makedirs(os.path.join(CONTENT_DIR, 'pages'), exist_ok=True)
-    
     ws_server = await websockets.serve(ws_handler, '0.0.0.0', WS_PORT)
     log.info('WebSocket server on port %d', WS_PORT)
     

@@ -1,0 +1,49 @@
+{
+  "pages": [
+    {
+      "page_num": 601,
+      "title": "GRAPHICS",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 30,
+      "frames": [
+        "frame-1.seq"
+      ]
+    },
+    {
+      "page_num": 602,
+      "title": "MUSIC",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 30,
+      "frames": [
+        "frame-1.seq"
+      ]
+    },
+    {
+      "page_num": 603,
+      "title": "GAMES",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 30,
+      "frames": [
+        "frame-1.seq"
+      ]
+    },
+    {
+      "page_num": 605,
+      "title": "MYJUNGLE",
+      "type": "T",
+      "author": "TEST",
+      "price": 4.0,
+      "life": 4,
+      "frames": [
+        "frame-1.seq"
+      ],
+      "directory": "myjungle/directory.json"
+    }
+  ]
+}

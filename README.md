@@ -43,6 +43,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ VOTE: users vote 1-9 on pages, average + count shown in VOTE column
 - ✅ GOTO: navigate by page number or keyword (e.g. "GOTO JUNGLE")
 - ✅ JUNGLE area (page 600): communal upload area accessible by keyword
+- ✅ Advert area: two configurable text lines above duckshoot, per-directory or global
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture
@@ -91,6 +92,9 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
   - X.25 protocol with CRC-CCITT, byte stuffing, flow control
   - User authentication, directory tree, frame serving
   - Run with: `./server.sh` (supports start/stop/restart/status)
+  - Content stored in folder-per-page layout under `server/content/root/`
+  - Per-directory JSON files with flat page lists
+  - Advert system: configurable text per directory, global fallback
 
 ### Documentation
 
