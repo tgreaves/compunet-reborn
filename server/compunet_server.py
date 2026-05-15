@@ -1226,44 +1226,70 @@ class CompunetSession:
         return bytes(frame)
 
     def _make_welcome_frame(self, user):
-        """Build the personal information welcome screen.
+        """Build the personal information welcome screen from template.
 
-        Returns raw frame data for L89D0 (FRAME_BUF_READ) to consume:
-          Byte 0: frame flags → $8035
-          Byte 1: border colour → $D020
-          Byte 2: background colour → $D021
-          Then: PETSCII content output via CHROUT until $00 terminator
+        Returns raw frame data for L89D0 (FRAME_BUF_READ) to consume.
+        Template at server/content/templates/welcome.seq with placeholders.
         """
+        import datetime
         self.last_response_type = RESP_FRAME
-        welcome_path = os.path.join(CONTENT_DIR, 'pages', 'welcome.seq')
-        if os.path.exists(welcome_path):
-            with open(welcome_path, 'rb') as f:
-                return f.read()
 
-        # Fallback: generate a simple welcome frame
-        frame = bytearray()
-        frame.append(0x00)  # frame flags
-        frame.append(0x00)  # border = black
-        frame.append(0x00)  # bg = black
-        frame.append(0x8E)  # uppercase charset
-        frame.append(PETSCII_RETURN)
-        frame.append(PETSCII_RETURN)
-        frame.extend(b'\x06\x03')
-        frame.append(PETSCII_RED)
-        frame.extend(ascii_to_petscii('COMPUNET'))
-        frame.append(PETSCII_RETURN)
-        frame.append(PETSCII_RETURN)
-        frame.extend(b'\x06\x03')
-        frame.append(PETSCII_BLUE)
-        frame.extend(ascii_to_petscii('USER : '))
-        frame.extend(ascii_to_petscii(user.get('name', self.user_id)))
-        frame.append(PETSCII_RETURN)
-        frame.append(PETSCII_RETURN)
-        frame.extend(b'\x06\x03')
-        frame.extend(ascii_to_petscii('WELCOME TO COMPUNET'))
-        frame.append(PETSCII_RETURN)
-        frame.append(0x00)  # end
-        return bytes(frame)
+        # Update last login
+        now = datetime.datetime.now()
+        MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN',
+                  'JUL','AUG','SEP','OCT','NOV','DEC']
+        prev_date = user.get('last_login_date', '')
+        prev_time = user.get('last_login_time', '')
+        if not prev_date:
+            prev_date = 'NEVER'
+            prev_time = ''
+
+        # Save current login as last_login for next time
+        user['last_login_date'] = f'{now.day:02d}-{MONTHS[now.month-1]}-{now.strftime("%y")}'
+        user['last_login_time'] = now.strftime('%H:%M')
+        self._save_user()
+
+        # Check for unread mail
+        mail_file = os.path.join(os.path.dirname(__file__), 'mail', self.user_id + '.json')
+        mail_waiting = False
+        if os.path.exists(mail_file):
+            with open(mail_file, 'r') as f:
+                inbox = json.load(f)
+            mail_waiting = any(not m.get('read', True) for m in inbox.get('messages', []))
+
+        # Mail indicator — PETSCII pillarbox graphic or blank
+        if mail_waiting:
+            mail_ind = b'\x1C\x12 MAIL \x92'  # red reversed "MAIL"
+        else:
+            mail_ind = b''
+
+        # Credit display
+        credit = user.get('credit', 0.0)
+        if credit >= 0:
+            credit_str = f'{credit:.2f} CREDIT'
+        else:
+            credit_str = f'{abs(credit):.2f} DEBIT'
+
+        # Load template
+        template_path = os.path.join(CONTENT_DIR, 'templates', 'welcome.seq')
+        if os.path.exists(template_path):
+            with open(template_path, 'rb') as f:
+                frame = f.read()
+        else:
+            frame = b'\x00\x03\x0F\x8E\x0D\x1F WELCOME\x0D\x00'
+
+        # Replace placeholders
+        frame = frame.replace(b'{USER_ID}', self.user_id.encode('ascii'))
+        frame = frame.replace(b'{ACCOUNT_TYPE}', user.get('account_type', 'BASIC').encode('ascii'))
+        frame = frame.replace(b'{LAST_DATE}', prev_date.encode('ascii'))
+        frame = frame.replace(b'{LAST_TIME}', prev_time.encode('ascii'))
+        frame = frame.replace(b'{PAGES}', b'0')  # TODO: calculate from directory
+        frame = frame.replace(b'{NEAR_DEATH}', b'0')  # TODO: calculate pages with life <= 3
+        frame = frame.replace(b'{FREE_STORAGE}', b'2000')  # TODO: calculate from account type
+        frame = frame.replace(b'{CREDIT}', credit_str.encode('ascii'))
+        frame = frame.replace(b'{MAIL_IND}', mail_ind)
+
+        return frame
     
     def _make_error(self, message_petscii):
         """Build an error response."""

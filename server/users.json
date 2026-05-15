@@ -2,7 +2,10 @@
   "TEST": {
     "password": "94ee059335e587e501cc4bf90613e0814f00a7b08bc7c648fd865a2af6a22cc2",
     "name": "MR TEST PERSON",
-    "credit": -45.0001,
+    "credit": -45.0,
+    "account_type": "GOLD",
+    "last_login_date": "",
+    "last_login_time": "",
     "purchased": [
       301,
       502,
@@ -12,12 +15,18 @@
   "NEW-USER": {
     "password": "7b303c55d8e8c1ba8fbbcfdeb83b1044901f10928590542001fa6546945180f9",
     "name": "MR NEW USER",
-    "credit": 0.0
+    "credit": 0.0,
+    "account_type": "BASIC",
+    "last_login_date": "",
+    "last_login_time": ""
   },
   "ADMIN": {
     "password": "835d6dc88b708bc646d6db82c853ef4182fabbd4a8de59c213f2b5ab3ae7d9be",
     "name": "MR SYSTEM ADMIN",
     "credit": 999.0,
-    "admin": true
+    "admin": true,
+    "account_type": "ADMIN",
+    "last_login_date": "",
+    "last_login_time": ""
   }
 }

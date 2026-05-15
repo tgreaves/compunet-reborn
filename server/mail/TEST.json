@@ -28,7 +28,7 @@
       "from": "TEST",
       "subject": "FOOBAR",
       "date": "2026-05-14",
-      "read": true,
+      "read": false,
       "frames": [
         "msg003-0.seq",
         "msg003-1.seq"

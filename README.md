@@ -17,7 +17,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ X.25 handshake: CNET identification + `*CON` response
 - ✅ Login screen displays correctly
 - ✅ Login packet sent, server authenticates
-- ✅ Welcome frame displayed after login (sets screen colours, duckshoot visible)
+- ✅ Welcome frame displayed after login (template-based with user info, last login, mail indicator)
 - ✅ Terminal code enters, duckshoot menu runs
 - ✅ DIR command sends request, server responds with directory data
 - ✅ Directory entries display with titles, type suffixes, page numbers
