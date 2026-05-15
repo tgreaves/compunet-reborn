@@ -28,5 +28,13 @@
     "account_type": "ADMIN",
     "last_login_date": "",
     "last_login_time": ""
+  },
+  "PIMAN": {
+    "password": "3c9794b88a4796835d126ea1c08201f972d99bd32e48622c0004ee0f774d26e3",
+    "name": "GRAEME NORGATE",
+    "credit": 0.0,
+    "account_type": "GOLD",
+    "last_login_date": "",
+    "last_login_time": ""
   }
 }

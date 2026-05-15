@@ -44,6 +44,8 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ GOTO: navigate by page number or keyword (e.g. "GOTO JUNGLE")
 - ✅ JUNGLE area (page 600): communal upload area accessible by keyword
 - ✅ Advert area: two configurable text lines above duckshoot, per-directory or global
+- ✅ Live content reload: directory tree re-read from disk on each request (no restart needed)
+- ✅ Historical content: THE ZOO archive (14 articles by PIMAN) in the JUNGLE
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture

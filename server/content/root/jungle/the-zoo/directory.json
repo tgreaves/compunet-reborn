@@ -1,0 +1,95 @@
+{
+  "pages": [
+    {
+      "page_num": 700,
+      "title": "FEBREVIEW FOUR",
+      "type": "T",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "frames": [
+        "frame-1.seq",
+        "frame-2.seq",
+        "frame-3.seq",
+        "frame-4.seq",
+        "frame-5.seq",
+        "frame-6.seq",
+        "frame-7.seq",
+        "frame-8.seq",
+        "frame-9.seq"
+      ]
+    },
+    {
+      "page_num": 701,
+      "title": "MARCH",
+      "type": "D",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "directory": "jungle/the-zoo/march/directory.json"
+    },
+    {
+      "page_num": 706,
+      "title": "APRIL",
+      "type": "D",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "directory": "jungle/the-zoo/april/directory.json"
+    },
+    {
+      "page_num": 710,
+      "title": "MAY",
+      "type": "D",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "directory": "jungle/the-zoo/may/directory.json"
+    },
+    {
+      "page_num": 714,
+      "title": "JULY",
+      "type": "D",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "directory": "jungle/the-zoo/july/directory.json"
+    },
+    {
+      "page_num": 718,
+      "title": "CHARTZ",
+      "type": "T",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "frames": ["frame-1.seq", "frame-2.seq", "frame-3.seq", "frame-4.seq", "frame-5.seq", "frame-6.seq", "frame-7.seq", "frame-8.seq", "frame-9.seq"]
+    },
+    {
+      "page_num": 719,
+      "title": "KILL YOURSELF",
+      "type": "T",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "frames": ["frame-1.seq"]
+    },
+    {
+      "page_num": 720,
+      "title": "LOONY INTERVIEW",
+      "type": "T",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "frames": ["frame-1.seq", "frame-2.seq", "frame-3.seq", "frame-4.seq", "frame-5.seq", "frame-6.seq", "frame-7.seq", "frame-8.seq", "frame-9.seq", "frame-10.seq", "frame-11.seq", "frame-12.seq", "frame-13.seq"]
+    },
+    {
+      "page_num": 721,
+      "title": "ZOO INTERVIEW",
+      "type": "T",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "frames": ["frame-1.seq", "frame-2.seq"]
+    }
+  ]
+}

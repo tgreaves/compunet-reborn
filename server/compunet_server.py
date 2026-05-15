@@ -157,9 +157,16 @@ class CompunetPage:
 
 
 class CompunetDirectory:
-    """The content tree, loaded from per-directory JSON files."""
+    """The content tree, loaded fresh from per-directory JSON files on each access."""
 
     def __init__(self):
+        self.pages = {}
+        self.root = None
+        self.global_adverts = []
+        self.reload()
+
+    def reload(self):
+        """Reload the entire tree from disk."""
         self.pages = {}
         self.root = None
         self.global_adverts = []
@@ -440,18 +447,19 @@ class CompunetSession:
         if self.mail_mode:
             return self._cmd_mail_show(params)
 
-        # If already viewing a frame, advance to next page
+        # If already viewing a frame:
+        # - No params = MORE (advance to next frame)
+        # - Params present = fresh SHOW from directory (reset state)
         if hasattr(self, 'show_page') and self.show_page:
-            if self.show_frame_index < len(self.show_page.frames) - 1:
+            if params:
+                self.show_page = None
+                self.show_frame_index = 0
+            elif self.show_frame_index < len(self.show_page.frames) - 1:
                 self.show_frame_index += 1
                 return self._send_current_frame()
             else:
-                # On last frame — clear state. If no params (FINISH/MORE after
-                # last page), return directory. If params present (new SHOW from
-                # directory), fall through to handle as fresh entry selection.
                 self.show_page = None
-                if not params:
-                    return self._make_dir_response()
+                return self._make_dir_response()
 
         if params:
             try:
@@ -1265,6 +1273,11 @@ class CompunetSession:
     
     def _make_dir_response(self):
         """Build directory response in the 6-part format for 'P' command."""
+        # Reload content tree from disk (picks up changes without restart)
+        current_page_num = self.current_page.page_num
+        self.directory.reload()
+        self.current_page = self.directory.pages.get(current_page_num, self.directory.root)
+
         self.dir_displayed = True
         self.last_response_type = RESP_DIR
         return self._make_page_response()
