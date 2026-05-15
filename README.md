@@ -189,6 +189,7 @@ The original ROM code is preserved with targeted patches:
 - Fix CRC calculation in ACIA_SEND_PACKET
 - Replace L96C9 (PROTO_RECV_FRAME) with ACIA-based upload routine for MAIL SEND frame upload
 - Advert area (bottom two screen rows)
+- Disconnect detection: client does not detect server disconnection (restart/timeout). The ROM checks modem register 0 bit 5 for carrier loss, but VICE's ACIA emulation doesn't map TCP socket state to DCD. A software-level solution is needed — possibly a server-sent keepalive packet or a protocol-aware idle timeout that distinguishes "end of stream" from "connection dead".
 
 ## Acknowledgements
 
