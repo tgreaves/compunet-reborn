@@ -1,0 +1,305 @@
+Neil Shumsky Disk Collection — SEQ File Index
+================================================
+
+=== Cnet Mail Disk ===
+  1.11.86              122b  FRAME  Compunet message to friends re: voting on uploads
+  1.12.86              762b  FRAME  Message to Skuzz about a picture/demo collaboration
+  12.11.86            5651b  FRAME  Message to Tak about naming the Compunet user group
+  13.11.86            3061b  FRAME  North-West User Group post re: Commodore Show van seats
+  14.10.86             877b  FRAME  Courier message from DAM2 (D A Medcraft)
+  14.11.86             774b  FRAME  Courier message from Tak (T Ahmed)
+  14.8.86             2421b  FRAME  Courier message from AM12 (Andrew Merrill)
+  15.11.86            4918b  FRAME  Courier message from Tak (T Ahmed)
+  15.11.86_2          1240b  FRAME  Courier message from PDR2 (Peter D Richardson)
+  15.11.86_3          2551b  FRAME  Message to Eggman — chatting about demos
+  15.11.86_4          1677b  FRAME  North-West Commodore User Group graphical banner
+  15.8.86             1492b  FRAME  Graphical frame (character art)
+  16.11.86             516b  FRAME  Courier message from DC4 (Donald Craigie)
+  17.11.86            2440b  FRAME  Message announcing new demo upload at page ?
+  18.11.86            1926b  FRAME  Reply about received disk — praising the "DIG I" demo
+  19.11.86             221b  FRAME  Message to Torky praising his first demo (voted 9)
+  19.11.86_2          2143b  FRAME  North-West Commodore User Group banner page
+  2.11.86             2176b  FRAME  Chat about meeting at 10; rubbish in directory
+  20.11.86            2162b  FRAME  North-West Commodore User Group banner page
+  20.11.86_2           488b  FRAME  Courier message from PJK84 (P J Kemp)
+  21.11.86             177b  FRAME  Letter to Admin re: Gold subscriber special offer
+  22.11.86             166b  FRAME  Message to Eggman confirming disk received
+  23.11.86            2704b  FRAME  Courier message from MR13 (Mark Robinson)
+  23.11.86_2           538b  FRAME  Reply to Robo about which assembler they use
+  23.11.86_3           914b  FRAME  Courier message from DC4 (Donald Craigie)
+  24.10.86            2485b  FRAME  Courier message from DC4 (Donald Craigie)
+  24.11.86            1722b  FRAME  Message to Tak about GOTO NWCUG plans
+  24.7.86             1752b  FRAME  Courier message from SIR (Stephen J Robertson)
+  25.8.86              856b  FRAME  "Rubber Stamp" print utility advert by Andy Merrill (AM12)
+  26.10.86             787b  FRAME  Courier message from VR1 (Gordon Rice T.E.C.)
+  26.11.86             401b  FRAME  Short message (fragment)
+  27.10.86            2097b  FRAME  Message to Steel — enthusiastic about Queen
+  27.11.86            1142b  FRAME  North-West Commodore User Group banner page
+  27.9.86             2551b  FRAME  Courier message from PDR2 (Peter D Richardson)
+  28.10.86            1706b  FRAME  Courier message from PDR2 (Peter D Richardson)
+  29.10.86            2100b  FRAME  Letter for Android (via Humpty) — demo/music discussion
+  29.11.86             447b  FRAME  Courier message from PB13 (Paul Blackmore)
+  29.8.86              636b  FRAME  Courier message from SL7 (Simon Lipscomb)
+  3.11.86             2079b  FRAME  Courier message from DOT (Scott Donson)
+  30.10.86             443b  FRAME  Courier message from PDR2 (Peter D Richardson)
+  30.11.86            2127b  FRAME  Message to Skuzz asking about disk/demo collaboration
+  30.11.86_2          1087b  FRAME  Reply (reference to page 210626, liking their pic)
+  4.10.86             1181b  FRAME  Courier message from VR1 (Gordon Rice T.E.C.)
+  4.11.86              750b  FRAME  Message to Humpty asking to relay disk posting info
+  4.12.86             2062b  FRAME  Courier message from PDR2 (Peter D Richardson)
+  6.11.86             2988b  FRAME  Courier message from PDR2 (Peter D Richardson)
+  6.12.86             1434b  FRAME  North-West Commodore User Group banner page
+  6.7.86              1677b  FRAME  Courier message from MT8 (Michael Tortolano)
+  7.11.86             1597b  FRAME  Chat about Sunday meet at 9pm, Queen album, disk sent
+  7.12.86             1521b  FRAME  Message to Eggman about making a demo with his music
+  8.11.86             4578b  FRAME  Courier message from PDR2 (Peter D Richardson)
+  9.11.86              747b  FRAME  Discussion about naming the user group/club
+  9.12.86             3161b  FRAME  Message to Termite asking for games wanted list
+  ad                   728b  FRAME  Graphical advert (character art)
+
+=== Disk 46 ===
+  bards instructio   12045b  TEXT   Bard's Tale game instructions (Terminator Systems 1986)
+
+=== Disk 46 Side 1 ===
+  fil's cutoff        838b  TEXT   Assembly source — greeting to Ian from Fil + code fragment
+  knight source     13253b  TEXT   Assembly source — music routine (Turbo Assembler format)
+
+=== Editor Disk 1 ===
+  10.1.87             2387b  FRAME  Description of uploaded utilities (Super-Compressor cruncher)
+  11.1.87             2073b  FRAME  Courier message from MR13 (Mark Robinson)
+  12.1.87             3531b  FRAME  Tutorial to Robo explaining character sets
+  13.1.87              951b  FRAME  "Things to come" — upcoming content teaser
+  17.11.86            2449b  FRAME  Announcement: new demo uploaded at page 210591
+  18.11.86            4832b  FRAME  Courier message from QUEST (Tony Treadwell)
+  18.11.86_2           588b  FRAME  Courier message from TORKY (Andrew Torkington)
+  19.11.86            3351b  FRAME  North-West Commodore User Group banner page
+  2.1.87              3850b  FRAME  Message to Franz with a joke (two pieces of puke)
+  20.10.86 pline      6561b  TEXT   Compunet Partyline chat log (Ariadne Terminal v1.31)
+  22.11.86            2023b  FRAME  Frame with graphical/text content
+  24.11.86             958b  FRAME  Christmas and New Year greeting from Goblin & Ian
+  28.10.86 pline      7204b  TEXT   Compunet Partyline chat log (Ariadne Terminal v1.31)
+  3.1.87              1430b  FRAME  Apology to Franz for missing tonight's meet
+  4.1.87              1369b  FRAME  Message/frame content
+  6.1.87              6016b  FRAME  Multi-page message content
+  7.1.87              2343b  FRAME  Thanks to Eggman for disk received; discussing demos
+  ad                   472b  FRAME  North-West Commodore User Group advert
+  ad 2                 578b  FRAME  North-West Commodore User Group advert (variant)
+  banner              1117b  FRAME  Graphical banner (character art)
+  blah1               1496b  FRAME  Graphical content
+  disk_cassette        649b  FRAME  Graphical header/advert
+  drummer inst        1775b  FRAME  Funky Drummer instructions for Pedro
+  games list          1247b  FRAME  Alphabetical games list (A.C.E, Baseball, Dropzone, Elite...)
+  gi1                  544b  FRAME  "Goblin & Ian" graphical logo
+  gi2                  288b  FRAME  "Goblin & Ian" graphical logo (variant)
+  gi3                 2051b  FRAME  Graphical content
+  good news            819b  FRAME  Review of pages — mentions Chat-on-line, Skuzz pic, Fed II
+  goto nwcug           677b  FRAME  North-West Commodore User Group GOTO page
+  hahaha               458b  FRAME  Character art
+  id change           4383b  FRAME  ID change request/discussion (dated 10/9)
+  loads of pages       706b  FRAME  "Storage Discounts" advert
+  modem sale          2696b  FRAME  "The Great Modem Race!" — modem sale advert
+  n.w.c.u.g.           961b  FRAME  NWCUG directory listing with page numbers (167465 Jungle II etc)
+  nwcug                285b  FRAME  North-West Commodore User Group banner
+  nwcug gold           344b  FRAME  North-West Commodore User Group Gold banner
+  pix                 5780b  FRAME  Graphical content (multi-page)
+  rh17                 690b  FRAME  "Goblin & Ian" graphical logo
+  robos               3183b  FRAME  Courier message from MR13 (Mark Robinson) — msg 271432
+  s_w opinion          831b  FRAME  Software opinion column — perspective of ex-game fan
+  scroll               219b  FRAME  Graphical scroller art
+  the list            5997b  FRAME  Courier message from PJK84 (P J Kemp) — msg 264667
+  u-u inst (prop)     7511b  FRAME  User-to-User software instructions (distance warning)
+  u-u instructions    1236b  FRAME  Dialsoft User-to-User 1200/1200 baud instructions
+  upld                 541b  FRAME  NWCUG upload page
+  upld1 29.11.86      2004b  FRAME  NWCUG upload page (29 Nov 1986)
+  upld2               1228b  FRAME  Upload content page
+  upld2 29.11.86      1776b  FRAME  Hedgehog joke + content (29 Nov 1986)
+  uplds 10.1.87       1533b  FRAME  Upload descriptions — Super-Compressor cruncher info
+  wall                 988b  FRAME  Graphical wall/art
+  zzap-nwcug plug     2097b  FRAME  NWCUG banner — Zzap magazine plug
+
+=== Goblin 4 ===
+  plexer              8852b  TEXT   Assembly source: Plexer v1.8 by Ariston Design 1988
+  spin                2700b  TEXT   Assembly source: sprite spinner routine (Turbo Assembler)
+  spin.       .src    5846b  TEXT   Assembly source: sprite spinner (German comments)
+
+=== Goblin Disk 5 Side 1 ===
+  easyspell.tm           1b  TEXT   Empty/corrupt file
+  thrust source      15626b  TEXT   Assembly source: Thrust music routine
+
+=== Goblin Disk 5 Side 2 ===
+  apt 453-bob          475b  TEXT   Easy Script doc — Judge Dredd RPG: "Apt 453-Bob" Justice Dept file
+  ask and answer       596b  TEXT   Easy Script doc — Judge Dredd RPG: "Ask and Answer" Justice Dept file
+  background          2753b  TEXT   Easy Script doc — RPG background: "The Barony of Cathode the Noble"
+  bob minkhouse       1039b  TEXT   Easy Script doc — Judge Dredd RPG: citizen's file for Bob Minkhouse
+  bricknerd            614b  TEXT   Easy Script doc — Judge Dredd RPG: "Bricknerd" Justice Dept file
+  briefing             805b  TEXT   Easy Script doc — Judge Dredd RPG: Team Cyan-Delta 7 briefing
+  bub minkhouse        548b  TEXT   Easy Script doc — Judge Dredd RPG: citizen's file for Bub Minkhouse
+  dredd1              1303b  TEXT   Easy Script doc — Judge Dredd RPG: May 19 2109, Sector 169
+  dredd2               756b  TEXT   Easy Script doc — Judge Dredd RPG: Team 169/Cyan-Jay schedule
+  elidor              1098b  TEXT   Easy Script doc — RPG notes: places and taverns in Elidor
+  foresnic             399b  TEXT   Easy Script doc — Judge Dredd RPG: forensic report
+  higgin alex          854b  TEXT   Easy Script doc — Judge Dredd RPG: citizen's file for Higgin Alex
+  items                540b  TEXT   Easy Script doc — Judge Dredd RPG: item list
+  kernal kriplette     675b  TEXT   Easy Script doc — Judge Dredd RPG: citizen's file for Kernal Kriplette
+  mekal-tek            349b  TEXT   Easy Script doc — Judge Dredd RPG: "Mekal-Tek" Justice Dept file
+  missing vids         315b  TEXT   Easy Script doc — Judge Dredd RPG: missing vids item
+  notes               2328b  TEXT   Easy Script doc — RPG game master notes concerning players
+  tables              1556b  TEXT   Easy Script doc — RPG combat/stat tables
+  urchin bomber        803b  TEXT   Easy Script doc — Judge Dredd RPG: citizen's file for Urchin Bomber
+
+=== Goblin+Ian demos ===
+  cruncher text        631b  FRAME  Instructions/info for "Cruncher One" utility
+  disk rename inst     679b  FRAME  Instructions for Disk Rename utility
+  display inst         621b  FRAME  Instructions for Vidcom picture display utility
+
+=== Ian Disk 1 Side 2 ===
+  fld inst            3930b  FRAME  FLD (Flexible Line Distance) program instructions
+  splitter inst.      2630b  FRAME  "Program Splitter" instructions by Eddy Carroll 1988
+
+=== Ian Disk 2 ===
+  01.06.88             938b  FRAME  Message to Jason (Compunet) re: Ariston Design area layout
+  02.02.88             523b  FRAME  Courier message from DM23 (Darren Millburn)
+  02.04.88             196b  FRAME  Enquiry about getting the Ariston Editor
+  02.05.87             825b  FRAME  Message from Ian (WIM1) about page numbering
+  02.05.88             382b  FRAME  Courier message from SS18 (S Skinner)
+  02.06.88             824b  FRAME  Thanks to Jason for rearranging Ariston Design area
+  03.03.88             908b  FRAME  Courier message from RAIDER (John R Waring)
+  03.05.88             899b  FRAME  Courier message from SLAYER (Alastair J Kerswell)
+  04.02.88             205b  FRAME  Awed comment about a 22K demo ("sheer pose value")
+  04.05.88             604b  FRAME  Courier message from SS18 (S Skinner)
+  07.02.88            1017b  FRAME  Courier message from ALLANON (Eddy Carroll)
+  08.05.88            1570b  FRAME  Message: Ariston Editor still not publicly available
+  08.05.88+            471b  FRAME  Rant about hacking music out of demos
+  08.09.88            2779b  FRAME  Courier message from KAISER (The Kaiser)
+  09.05.88             847b  FRAME  Courier message from FROODLE (Richard Hawkins)
+  11.02.88             720b  FRAME  Courier message from PYROS (Stephen Harcourt)
+  12.02.88             851b  FRAME  Ariston Editor availability — looking for distribution method
+  12.04.88            2708b  FRAME  Courier message from SLAYER (Alastair J Kerswell)
+  12.04.88.+           744b  FRAME  Message to IS5 — killed Dudges demo at 352316 (too much)
+  12.06.88             602b  FRAME  Courier message from MONTY (P M Howe)
+  13.04.88             578b  FRAME  Courier message from JASON (Jason Gold - Compunet staff)
+  13.6.88              380b  FRAME  Courier message from SS18 (S Skinner)
+  14.06.88            2739b  FRAME  Message to Ste: send disk for "Rhaa Lovely II"
+  14.12.88            1306b  FRAME  Graphical content
+  16.02.88             964b  FRAME  Courier message from EMB1 (David Bain)
+  18.12.88            1710b  FRAME  Courier message from SP7 (Sandra Park)
+  21.04.88            1074b  FRAME  Courier message from EMB1 (David Bain)
+  22.02.88             404b  FRAME  Courier message from MG9 (Mark Green)
+  23.01.88            2474b  FRAME  Courier message from RAIDER (John R Waring)
+  24.01.88             650b  FRAME  Courier message from EMB1 (David Bain)
+  24.02.89             228b  FRAME  Cancellation letter — leaving Compunet
+  26.02.89             255b  FRAME  Cancellation letter — leaving Compunet (end of month)
+  26.04.88            3851b  FRAME  Ariston Editor not yet public; discussion of distribution
+  27.09.88            2145b  FRAME  Courier message from KENDAL (Kendal G May)
+  28.01.88            1060b  FRAME  Courier message from RAIDER (John R Waring)
+  28.04.88             450b  FRAME  Courier message from EMB1 (David Bain)
+  30.03.88            2810b  FRAME  Message: showed music examples to someone; positive reaction
+  ad1                  240b  FRAME  Graphical advert
+  ad2                  231b  FRAME  Graphical advert
+  ariston titles       748b  FRAME  "A R I S T O N   D E S I G N" title banner
+  easyspell.tm        2972b  TEXT   Easy Script doc: "Inspis Review" (demo/music review article)
+  editor reply         424b  FRAME  Reply: Ariston Editor coming to public when distribution sorted
+  good news 1&2        624b  FRAME  Good news: Federation II space trading game announcement
+  good news nwcug     2750b  FRAME  Demo reviews — EMB1 KKY section
+  inspis review       2974b  TEXT   Easy Script doc: "Inspis Review" (demo/music review article)
+  quotes               510b  FRAME  Quote: "You think of everything my dear..." — The Triffids
+  review 1             910b  FRAME  Demo Roundup: Ariston Music at 332740 by IS5
+  review 10            880b  FRAME  Demo review (graphical header + text)
+  review 11            660b  FRAME  Demo review continuation — Amiga music from Mole
+  review 12            904b  FRAME  Demo review with percentage ratings (Overall: 82%)
+  review 13           1027b  FRAME  KKY Reviews: upload trace info
+  review 14            711b  FRAME  Demo Reviews page 124 — title/comments format
+  review 15           2341b  FRAME  Demo review (graphical header + text)
+  review 16            939b  FRAME  KKY Reviews EMB1 page 672
+  review 17           1860b  FRAME  KKY Reviews EMB1 page 686
+  review 2            2729b  FRAME  Demo review (graphical header + text)
+  review 3             892b  FRAME  EMB1 page 645 — must-see demo reviews
+  review 4            2587b  FRAME  Demo review with graphical banner
+  review 5             698b  FRAME  Think Twice 5 review — rating 90%, 22K, 88 blocks
+  review 6             724b  FRAME  Demo Reviews page 078
+  review 7            1766b  FRAME  Demo review with graphical border
+  review 8             607b  FRAME  KKY Reviews: upload trace day
+  review 9             977b  FRAME  Demo review with stylised "THE" header
+  review getter         92b  FRAME  Review submission template (Name of demo, Type checkboxes)
+  sad                  408b  FRAME  "22K of sheer pose value" — awed reaction to a demo
+  total good news     2636b  FRAME  Demo reviews compilation — EMB1 KKY section
+  ttv c128 fix         426b  FRAME  Bug note: Think Twice V won't run on C128 (VIC chip issue)
+
+=== Ian Disk 2 Side 2 ===
+  bardis              6401b  TEXT   Assembly source: raster bar display routine (bardis)
+  bars v1.1          10741b  TEXT   Assembly source: raster bars v1.1
+  bars-eon-9.88       3676b  TEXT   Assembly source: raster bars (Eon, Sept 1988)
+  multi bars          5078b  TEXT   Assembly source: multi-colour raster bars
+
+=== Ian disk 5 Side 1 ===
+  bardis              6401b  TEXT   Assembly source: raster bar display routine (bardis)
+  bardis pt1          5467b  TEXT   Assembly source: raster bars part 1
+  bardis pt2           567b  TEXT   Assembly source: raster bars part 2
+  bars-eon-9.88       3676b  TEXT   Assembly source: raster bars (Eon, Sept 1988)
+  blank                 66b  TEXT   Assembly source: blank screen routine
+  plexor              2383b  TEXT   Assembly source: Plexer v1.2 by Gilbert the Goat
+  priority             728b  TEXT   Assembly source: bar priority sorting routine
+  raster source       2107b  TEXT   Assembly source: raster interrupt setup
+  set col table        189b  TEXT   Assembly source: colour table initialisation
+  tables              2047b  TEXT   Assembly source: raster position data tables
+  update                65b  TEXT   Assembly source: bar position update routine
+
+=== Ian disk 5 Side 2 ===
+  animate inst         710b  FRAME  ANNIMATE instructions by A. Crowther 1988 (works with Ratt-Edit)
+
+=== Utilities ===
+  di-5                  23b  TEXT   Data file (short numeric list)
+  ditto.data          3556b  TEXT   Data file for Ditto disk copier
+
+=== Vidcom 64 ===
+  display inst         621b  FRAME  Instructions for Vidcom picture display utility
+  vidcom inst 1       8153b  FRAME  Vidcom 64 manual part 1
+  vidcom inst 2       7903b  FRAME  Vidcom 64 manual part 2
+  vidcom inst 3       6129b  FRAME  Vidcom 64 manual part 3
+  vidcom inst 4       4683b  FRAME  Vidcom 64 manual part 4
+
+=== adl 1988a ===
+  crunch      .src     849b  TEXT   Assembly source: cruncher routine (Dutch comments)
+  mover               1358b  TEXT   Assembly source: character line mover (MAXLINES=10)
+  r1-r25               539b  TEXT   Assembly source: screen row position equates ($0400-based)
+
+=== easy script BAD ===
+  1515underline       1193b  TEXT   Easy Script doc: demonstration of underlining on 1515 printer
+  alldem              2032b  TEXT   Easy Script doc: formatted demo/feature showcase
+  mx80_fx80 info      2254b  TEXT   Easy Script doc: MX-80/FX-80 printer control codes guide
+
+=== goblin 3 ===
+  1-50                2073b  TEXT   Index/catalogue: numbered entries with page addresses (A.C.E, etc)
+  16sozzled source   13757b  TEXT   Assembly source: Sozzled sprite editor (16-sprite version)
+  8 sozzled source   10835b  TEXT   Assembly source: Sozzled sprite editor (8-sprite version)
+  categories             5b  TEXT   Single byte — category marker
+  demo source         9342b  TEXT   Assembly source: NWCUG demo routine
+  fantasy banner       132b  FRAME  "From KKY TV" banner
+  from robo            909b  FRAME  Courier message from MR13 (Mark Robinson) — msg 324439
+  nwcug iii ad         630b  FRAME  North-West Commodore User Group advert
+  spin source         3194b  TEXT   Assembly source: sprite spin routine
+  tak's address        484b  FRAME  Message with address for NWCUG meeting location
+  weird                119b  TEXT   Assembly source: short VIC chip manipulation snippet
+
+=== ian 2b ===
+  15.4.87 chat       14004b  TEXT   Compunet Partyline chat log, 15 April 1987 (via Ariadne Terminal)
+  crimelist           7174b  TEXT   Easy Script doc: "Crimelist" — formatted text document
+
+=== nwcug demos Side 1 ===
+  pc&l                 258b  FRAME  Graphical content
+  sozzedsource       13694b  TEXT   Assembly source: Sozzled sprite editor (full source)
+  sozzled inst.       2601b  FRAME  Sozzled sprite editor instructions (C) Goblin 1987
+
+=== spinny work ===
+  bouncescroll        3013b  TEXT   Assembly source: bouncing scroll text routine
+  scrl                4664b  TEXT   Assembly source: scroll routine (extended version)
+  scroll              1506b  TEXT   Assembly source: scroll setup (screen at $8400, blocks at $A000)
+  v1.0                5865b  TEXT   Assembly source: Plexer v1.2 (spinny demo version 1.0)
+  v2.0                6803b  TEXT   Assembly source: spinny demo v2.0
+  v2.a               12168b  TEXT   Assembly source: spinny demo v2.a (expanded)
+  v2.b                9178b  TEXT   Assembly source: spinny demo v2.b
+
+---
+TOTALS: 21 directories, 256 files
+FORMATS: FRAME = Compunet display frame (viewable in web client)
+         TEXT  = Raw PETSCII text (viewable in web client raw text mode)

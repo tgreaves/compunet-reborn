@@ -84,6 +84,7 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
 - **[client/web/](client/web/)** — Browser-based Compunet terminal emulator
   - Authentic C64 PETSCII rendering using the real chargen ROM
   - Duckshoot menu, frame editor, SEQ file renderer
+  - Raw PETSCII text viewer (auto-detected, paginates text files like Partyline logs)
   - Open `client/web/index.html` in a browser to use
 
 ### Server
@@ -107,6 +108,9 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
 ### Historical Sources
 
 - **[historical/](historical/)** — Original ROM, terminal code, SEQ files, manuals
+  - `historical/seq/` — Extracted SEQ files from various sources (indexed with INDEX.txt per directory)
+  - `historical/Neil Shumsky DISKS/` — Collection of 107 D64 disk images from Neil Shumsky
+  - `historical/neil_shumsky_disk_listing.txt` — Directory listing of all D64 images
 
 ## Quick Start (C64 in VICE)
 
@@ -199,6 +203,7 @@ Historical SEQ file sources:
 - **4Rich** — Graeme Norgate (PIMAN)
 - **compunet-pages-interviews** — Frank @ Games That Weren't
 - **compunet-sequence-files** — Unknown
+- **neil_shumsky** — Neil Shumsky (256 SEQ files extracted from D64 disk images)
 
 Thanks to Richard Hawkins (RH18 FROODLE) for helping source some of these files.
 

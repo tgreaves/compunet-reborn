@@ -1,0 +1,138 @@
+compunet-pages-interviews — SEQ File Index
+============================================
+
+Compunet uploaded pages — primarily an Ash & Dave (DJS12) interview conducted
+by CW14 (Christopher Wood / "Woody"), plus demo reviews, adverts, news, and
+assorted correspondence. Mostly from late 1987 to mid 1988.
+
+=== Ash & Dave Interview (Q&A) ===
+  question 1.seq       481b  FRAME  Interview intro — thanks for agreeing, will MBX questions
+  answer 1.seq        1567b  FRAME  Q1: What made you buy a C64 and why code on it?
+  question 2.seq       400b  FRAME  Q2 context: learning to code, Programmers Reference Guide
+  answer2.1.seq        374b  FRAME  Q2 answer pt1: After Phantoms II, decided to write demos?
+  answer2.2.seq        789b  FRAME  Q2 answer pt2: Got modems, were at college doing O-levels
+  question 3.seq       206b  FRAME  Q3: Pirates in Hyperspace was a flop — what next?
+  answer3.seq          696b  FRAME  Q3 answer: What they did after the flop
+  question4.seq        123b  FRAME  Q4: All on 64 — intend writing for Amiga? Is 64 dying?
+  answer4.seq          490b  FRAME  Q4 answer: The 64 has its place
+  answer5.seq          636b  FRAME  Q5 answer: Do you still log on as much? Work in the way?
+  question6.seq        176b  FRAME  Q6: All time in office, no play? What's your day like?
+  answer6.seq          635b  FRAME  Q6 answer: Cups of tea and a biscuit?
+  answer6 update.seq   648b  FRAME  Q6 answer (updated version)
+  answer 7.seq         507b  FRAME  Q7 answer: Drinking Coke, watching Neighbours! Office staff?
+  answer8.seq          772b  FRAME  Q8 answer: Graphics first or game first? Original vs conversion
+  answer9.seq          497b  FRAME  Q9 answer: What music do you like?
+  answer10.seq         709b  FRAME  Q10 answer: Leisure — televisual interests?
+  answer 12.seq        635b  FRAME  Q12 answer: TV graphics/Quantel Paintbox ambitions?
+  answer 13.seq       1472b  FRAME  Q13 answer: Advice for hopeful game designers?
+  answer 15.seq        677b  FRAME  Q15 answer: How do you feel about "the Net"? Will it last?
+  half answer15.seq    410b  FRAME  Q15 answer (partial/draft version)
+  question 16.seq      139b  FRAME  Q16: Future looks bleak? What if Compunet went European?
+  answer 16.seq        228b  FRAME  Q16 answer: European expansion — what would happen?
+  ans1718.seq          997b  FRAME  Q17-18 answers: Power to improve Cnet — what would you do?
+  q1718.seq            468b  FRAME  Q17-18 intro: Sorry to see you going; final question
+
+=== Ash & Dave Profile/Features ===
+  ash  dave.seq        576b  FRAME  Ash & Dave header/title frame
+  ad stars at chr.seq  656b  FRAME  Ash & Dave profile: names, occupation, Compunet status
+  cdir1.seq            575b  FRAME  Section: Teams — Ashley Routledge (ASH) & David Saunders (DJS12)
+  cdir2.seq            305b  FRAME  Profile cont: at college, willing to leave for right offer
+  ashdave part1.seq   6019b  FRAME  Courier msg from CW14 (27-Dec-87) — interview planning
+  ashdave part2.seq   3675b  FRAME  "Ash-Man + Dave Comicstrip Part 2"
+  ashdave part3.seq   4118b  FRAME  "Ash-Man + Dave Part 3" (C) Comixstrip Productions
+
+=== Demo Reviews ===
+  -sonix- 1.seq        652b  FRAME  Demo Roundup: -Sonix- by Ash & Dave (DJS12), 309542, 44K
+  -sonix- 2.seq        734b  FRAME  -Sonix- review continued — scrolling effects analysis
+  ad rev..seq          725b  FRAME  Review by Woody/CW14: A&D's Nemesis
+  biz pose!.seq        580b  FRAME  Demo Roundup: Ash & Dave's Mental Moons at 242662
+  dc pose1.seq         771b  FRAME  Upload trace 22-Mar-88: Dual Cassette II, page 348584
+  mental moons-96%.seq 1005b  FRAME  KKY Demo Review: Mental Moons — "Hero Classic"
+  nemesis rev..seq    1077b  FRAME  KKY Demo Review: Nemesis — "Hero Good"
+  outrun rev..seq      974b  FRAME  KKY Demo Review: Outrun — "Hero Average"
+  scroll rev..seq     1063b  FRAME  KKY Demo Review: Scroll — "Hero Average"
+  sonix rev..seq       919b  FRAME  KKY Demo Review: Sonix — EMB1 page 564, "Must Downld"
+  final link.seq       959b  FRAME  KKY Demo Review: utility review — EMB1 page 560
+  snow - term revs2.seq 1451b FRAME  Demo Reviews page 022 — Snowball Sunday + others
+  term - snow biz.seq 2787b  FRAME  Demo Roundup: weekly upload summary (unusually busy week)
+  term - snow revs1.seq 3506b FRAME  Christmas demo reviews — 95% rating, "Merry Xmas" header
+  term - snow revs3.seq 1864b FRAME  KKY Demo Reviews — "Mega" rated uploads, EMB1 page 587
+
+=== Adverts & Headers (graphical) ===
+  ad head.seq          153b  FRAME  Ash & Dave graphical header logo
+  ad head2.seq         151b  FRAME  Ash & Dave graphical header logo (variant)
+  ad head3.seq         158b  FRAME  Ash & Dave graphical header logo (variant)
+  ad header2.seq       316b  FRAME  Graphical header
+  ad header3.seq       151b  FRAME  Graphical header (different style)
+  ad header4.seq       153b  FRAME  Ash & Dave graphical header logo (variant)
+  ad header5.seq       151b  FRAME  Graphical header (variant)
+  ad logo.seq          249b  FRAME  Ash & Dave column logo
+  ad boxes.seq        1593b  FRAME  Advert layout with box frames
+  black header.seq     153b  FRAME  Ash & Dave header (black background)
+  final heads.seq      325b  FRAME  Final version of header graphic
+  inv.head.seq         221b  FRAME  Interview header graphic
+  jason header1.seq    286b  FRAME  "Jason" header graphic (for Jason Gold, Compunet staff)
+  jason header2.seq    288b  FRAME  "Jason" header graphic (variant)
+  logosart.seq        2886b  FRAME  Collection of logo artwork
+  update logos.seq    1367b  FRAME  Updated logo graphics
+
+=== Compunet Pages & Uploads ===
+  alloyrun demo t.seq  670b  FRAME  Alloyrun demo text/info page (A&D logo header)
+  backwards!.seq      1562b  FRAME  Humorous message written entirely backwards
+  bar!.seq             652b  FRAME  Graphical frame (block pattern)
+  bubbles.seq         1528b  FRAME  Graphical content
+  chrissie prezzie.seq 600b  FRAME  "Happy Christmas" greeting card frame
+  denton.seq           458b  FRAME  Graphical header: stylised name "DENTON"
+  dice addr.seq        533b  FRAME  Death Trooper demo tape advert: "Fallen Angel" — 4 demos
+  digital d.seq       1141b  FRAME  Graphical content with "Digital D" branding
+  dual cassette ii.seq 638b  FRAME  Dual Cassette II upload page (A&D logo header)
+  error fix.seq        626b  FRAME  Error fix notice (A&D logo header)
+  portable.seq         537b  FRAME  Portable upload page (A&D logo header)
+  please vote!.seq     828b  FRAME  Voting request page
+  vote.seq             359b  FRAME  "Mail to EMB1 and Nelson before 20th Dec" — musician award vote
+
+=== The Final Link (Partyline software) ===
+  f.link1.seq          694b  FRAME  The Final Link info: replaces normal party software, Hubbard music
+  f.link2.seq          454b  FRAME  The Final Link: must go straight to Partyline, don't DNLD first
+  link mbx to all.seq  492b  FRAME  The Final Link announcement frame
+
+=== Federation II ===
+  fed1.seq            4976b  FRAME  Federation II preview — text pages reviewing upcoming game
+  fed2.seq            5763b  FRAME  Federation II info page 2/9
+  fed4.seq            3617b  FRAME  Federation II info page 4/1
+
+=== Correspondence ===
+  1page in 1 day.seq  7690b  FRAME  Courier msg from EMB1 (David Bain), 18-Dec-87
+  fan mails.seq       4088b  FRAME  Christmas-themed fan mail collection
+  from l.kid.seq      4261b  FRAME  Message from London Kid (MYK-P) of New Age
+  from tjno6.seq      1615b  FRAME  Message from B.A.C.C. member (independent Compunet club)
+  from xtro.seq        464b  FRAME  Message from Xtro
+  froo.seq [4Rich]     ---   (duplicate — listed in 4Rich directory)
+  help for hs.seq     3512b  FRAME  Message to Hawk & Snork: offering help after Alloyrun demo
+  lkid1.seq            767b  FRAME  London Kid (MYK-P) of New Age — message header
+  lkid2.seq            341b  FRAME  London Kid sign-off: "talk to ya soon, MBX to acknowledge"
+  rebel.seq            645b  FRAME  Message to Rebel with promised info
+  some more mail.seq  4438b  FRAME  More Christmas mail compilation
+  to hawksnork.seq    1589b  FRAME  Message to Hawk & Snork: nothing to do after Alloyrun demo
+  to jane!.seq        1442b  FRAME  Message to Jane (A&D header)
+  to matt gray!.seq   1743b  FRAME  Message to Matt Gray (C64 musician) (A&D logo header)
+  to tdmrich.seq       952b  FRAME  Message to TDM Rich (A&D logo header)
+  tjsem.seq            972b  FRAME  B.A.C.C. member message — liaison and public relations
+
+=== News & Info ===
+  in news.seq          735b  FRAME  News: ornithology page at PEOP1, new Road area content
+  netwise!.seq         673b  FRAME  Netwise 87/88: year-end netwisers and those who didn't survive
+  news tc.seq          668b  FRAME  Netnews 8/12: Compunet system disk problems + alien invasion joke
+  lucy documentn..seq 2711b  FRAME  Ariadne Cnet documentation at GOTO 158463 — Lucy docs
+  music hacks.seq      510b  FRAME  Music hacks info: Robb Hubbard, memory 2077-5540
+  snowball info.seq    624b  FRAME  Info for downloading -Snowball Sunday- demo
+  sonix info.seq       645b  FRAME  Download instructions for -Sonix- (loader + data files)
+  terminal c.info.seq 1256b  FRAME  "Terminal City" — another game demo by Ash & Dave
+  zzap zz.reviews.seq 1432b  FRAME  Zzap magazine-style review page with GOTO links
+
+---
+TOTALS: 106 files
+FORMAT: All FRAME (Compunet display frames — viewable in web client)
+NOTES: This collection centres on Ash & Dave (Ashley Routledge + David Saunders),
+       prolific Compunet demo/game coders. The interview by CW14 (Woody) is
+       a complete Q&A spanning their history from ZX80 to freelance game dev.

@@ -1073,29 +1073,55 @@ window.addEventListener('DOMContentLoaded', () => {
             const data = new Uint8Array(reader.result);
             const t = window.terminal;
 
-            // Split multi-frame SEQ files into individual frames.
-            // Two formats exist:
-            //   Server/4Rich: $00 [border] [bg] [content...] $00 (flags byte is $00)
-            //   Historical:   [border] [bg] [content...] $00 (no flags byte)
-            // Detect by checking if first byte is $00 (flags) and bytes 1-2 have
-            // high nibble $F0 (colour OR mask).
-            const frames = [];
+            // Detect file format:
+            //   Server/4Rich: $00 [border] [bg] [content...] $00
+            //   Historical frames: [border] [bg] [content...] $00
+            //   Raw PETSCII text: no $00 bytes, just text with $0D line breaks
+            const hasZeroByte = data.indexOf(0x00) !== -1;
             const serverFormat = data[0] === 0x00 && data.length > 2 &&
                                 (data[1] & 0xF0) === 0xF0 && (data[2] & 0xF0) === 0xF0;
-            if (serverFormat) {
+            const rawText = !hasZeroByte;
+
+            const frames = [];
+            if (rawText) {
+                // Raw PETSCII text — paginate into 25-line pages
+                const lines = [];
+                let lineStart = 0;
+                for (let i = 0; i < data.length; i++) {
+                    if (data[i] === 0x0D) {
+                        lines.push(data.slice(lineStart, i));
+                        lineStart = i + 1;
+                    }
+                }
+                if (lineStart < data.length) {
+                    lines.push(data.slice(lineStart));
+                }
+                const LINES_PER_PAGE = 25;
+                for (let p = 0; p < lines.length; p += LINES_PER_PAGE) {
+                    const pageLines = lines.slice(p, p + LINES_PER_PAGE);
+                    // Build a synthetic frame: $00 header, black bg, light blue border
+                    const parts = [0x00, 0xFE, 0xF0, 0x05]; // header + white text
+                    for (let l = 0; l < pageLines.length; l++) {
+                        for (let b = 0; b < pageLines[l].length; b++) {
+                            parts.push(pageLines[l][b]);
+                        }
+                        if (l < pageLines.length - 1) parts.push(0x0D);
+                    }
+                    parts.push(0x00); // terminator
+                    frames.push(new Uint8Array(parts));
+                }
+            } else if (serverFormat) {
                 // Frames start with $00 flags byte; split on $00 that follows content
                 let i = 0;
                 while (i < data.length) {
                     if (data[i] !== 0x00) { i++; continue; }
-                    // Found a $00 flags byte — scan for terminating $00
                     let frameStart = i;
-                    i++; // skip flags
+                    i++;
                     while (i < data.length && data[i] !== 0x00) i++;
-                    // i now points to terminating $00 (or end of file)
                     if (i > frameStart + 1) {
                         frames.push(data.slice(frameStart, i + 1));
                     }
-                    i++; // skip terminator
+                    i++;
                 }
             } else {
                 // Historical format: no flags byte, split on $00, prepend marker

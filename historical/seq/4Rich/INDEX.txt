@@ -1,0 +1,29 @@
+4Rich — SEQ File Index
+=======================
+
+Monthly magazine/newsletter pages uploaded to Compunet, plus interviews.
+Likely from user "4Rich" (Richard). Covers approx. Feb-July 1988.
+
+  aprilfour.seq       7512b  FRAME  Magazine page (April issue, page 4 — graphical layout)
+  aprilsix.seq        7326b  FRAME  Magazine page (April issue, page 6 — graphical layout)
+  apriltwo.seq        7673b  FRAME  Magazine page (April issue, page 2 — graphical layout)
+  chartz.seq          4234b  FRAME  Charts page — demo/music chart listings
+  febreviewfour.seq   8197b  FRAME  February reviews page 4 — demo review with graphical header
+  froo.seq             419b  FRAME  Courier message from RH18 (Richard Hawkins), 24-Feb-88
+  julysix.seq         5958b  FRAME  Magazine page (July issue, page 6 — graphical layout)
+  julythree.seq       7360b  FRAME  Magazine page (July issue, page 3 — graphical layout)
+  julytwo.seq         7610b  FRAME  Magazine page (July issue, page 2 — graphical layout)
+  kill_yourself.seq    443b  FRAME  Joke: "Top eight ways to kill yourself" (ride Daz's bike, etc)
+  loonyinterview.seq  7604b  FRAME  Interview feature with stylised "THE" header
+  marchfive.seq       6547b  FRAME  Magazine page (March issue, page 5 — graphical layout)
+  marchfour.seq       7363b  FRAME  Magazine page (March issue, page 4 — graphical layout)
+  marchone.seq        7443b  FRAME  Magazine page (March issue, page 1 — graphical layout)
+  marchthree.seq      7354b  FRAME  Magazine page (March issue, page 3 — graphical layout)
+  mayfour.seq         7522b  FRAME  Magazine page (May issue, page 4 — graphical layout)
+  maysix.seq          7464b  FRAME  Magazine page (May issue, page 6 — graphical layout)
+  maythree.seq        7153b  FRAME  Magazine page (May issue, page 3 — graphical layout)
+  zoo_interview.seq    959b  FRAME  "The World Famous Interview with The Zoo!" by Froo+Chain
+
+---
+TOTALS: 19 files
+FORMAT: All FRAME (Compunet display frames — viewable in web client)

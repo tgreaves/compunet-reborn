@@ -1,0 +1,17 @@
+compunet-sequence-files — SEQ File Index
+==========================================
+
+Miscellaneous Compunet frames — appears to be a small grab-bag of saved pages.
+
+  AllFrames.seq      17743b  FRAME  Multi-frame file: challenge to Bogg (name 3 songs to attempt)
+  bv.seq               379b  FRAME  Single frame: challenge to Bogg (same content as first frame of AllFrames)
+  hi guys.seq          424b  FRAME  "Hi guys, well here we go for our second night on the net"
+  neds effort good.seq 382b  FRAME  Graphical content (Ned's effort)
+  rip off.seq         7762b  FRAME  Multi-frame graphical page
+  tb3 message.seq      631b  FRAME  Message to TB3: thanks for mailing, names are Darren & Charles
+  v 1.seq             7920b  FRAME  Multi-frame: "I'm still here Stu, what are you going to do in London"
+  virgin.seq           292b  FRAME  "FRAMES — News and Views from the Gang of Five"
+
+---
+TOTALS: 8 files
+FORMAT: All FRAME (Compunet display frames — viewable in web client)
