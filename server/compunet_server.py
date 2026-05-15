@@ -128,7 +128,7 @@ def make_space_run(count):
 class CompunetPage:
     """A page in the Compunet directory tree."""
     
-    def __init__(self, page_num, title, page_type='T', size=0, author='SYSTEM', price=0.0, life=0, vote=0):
+    def __init__(self, page_num, title, page_type='T', size=0, author='SYSTEM', price=0.0, life=0, vote=0, keyword=None):
         self.page_num = page_num
         self.title = title
         self.page_type = page_type
@@ -137,6 +137,7 @@ class CompunetPage:
         self.price = price
         self.life = life
         self.vote = vote
+        self.keyword = keyword
         self.children = []
         self.frames = []    # list of bytes objects (raw frame data)
         self.parent = None
@@ -185,6 +186,7 @@ class CompunetDirectory:
             price=node.get('price', 0),
             life=node.get('life', 0),
             vote=node.get('vote', 0),
+            keyword=node.get('keyword', None),
         )
         page.parent = parent
         self.pages[page.page_num] = page
@@ -306,23 +308,55 @@ class CompunetSession:
             return self._cmd_id(params)
         elif cmd == ord('E'):
             return self._cmd_leave()
+        elif cmd == ord('L'):
+            return self._cmd_goto(params)
         elif cmd == ord('N'):
             return self._cmd_more(params)
         else:
             return self._make_error(ascii_to_petscii('UNKNOWN COMMAND'))
     
-    def handle_goto(self, page_num):
-        """Handle GOTO to a specific page number."""
-        self.last_response_type = None  # Reset per-command for WS prefix detection
+    def _can_upload_here(self):
+        """Check if current user can upload/create DIRs in the current page."""
+        if self.is_admin:
+            return True
+        author = self.current_page.author
+        return author == 'JUNGLE' or author == self.user_id
+
+    def _cmd_goto(self, params):
+        """GOTO command ('L') — navigate by page number or keyword."""
+        self.last_response_type = None
+        if not params:
+            return self._make_error(ascii_to_petscii('NO DESTINATION'))
+
+        target = params.decode('ascii', errors='replace').strip()
+        log.info('GOTO: target="%s"', target)
+
+        # Try numeric page number first
+        try:
+            page_num = int(target)
+            return self._goto_page(page_num)
+        except ValueError:
+            pass
+
+        # Try keyword lookup
+        for page in self.directory.pages.values():
+            if page.keyword and page.keyword.upper() == target.upper():
+                return self._goto_page(page.page_num)
+
+        return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
+
+    def _goto_page(self, page_num):
+        """Navigate to a page by number."""
         page = self.directory.pages.get(page_num)
         if page is None:
             return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
-        
+
         self.current_page = page
+        self.selected_entry = 0
+        self.dir_page_offset = 0
         if page.has_subdir():
             return self._make_dir_response()
         elif page.frames:
-            # Set current_page to parent so BACK/FINISH returns correctly
             if page.parent:
                 self.current_page = page.parent
             self.show_page = page
@@ -330,6 +364,11 @@ class CompunetSession:
             return self._send_current_frame()
         else:
             return self._make_error(ascii_to_petscii('NO CONTENT'))
+
+    def handle_goto(self, page_num):
+        """Handle GOTO for WebSocket clients."""
+        self.last_response_type = None
+        return self._goto_page(page_num)
     
     def handle_select(self, index):
         """Handle selection of a directory entry by index."""
@@ -422,12 +461,18 @@ class CompunetSession:
                 if selected < len(visible):
                     child = visible[selected]
                     log.info('P cmd: child="%s" has_subdir=%s', child.title, child.has_subdir())
-                    if child.has_subdir():
-                        self.current_page = child
-                        self.selected_entry = 0
-                        self.dir_page_offset = 0
-                        self.dir_displayed = False
-                        return self._make_dir_response()
+                    if not child.has_subdir():
+                        if not self._can_upload_here():
+                            log.info('P cmd: DIR creation denied for user=%s on page owned by %s',
+                                     self.user_id, self.current_page.author)
+                            return self._make_dir_response()
+                        log.info('P cmd: creating new sub-directory under "%s" (page %d)',
+                                 child.title, child.page_num)
+                    self.current_page = child
+                    self.selected_entry = 0
+                    self.dir_page_offset = 0
+                    self.dir_displayed = False
+                    return self._make_dir_response()
         else:
             log.info('P cmd: dir_displayed=%s params=%s (not entering subdir)',
                      self.dir_displayed, params.hex() if params else 'none')
@@ -1064,6 +1109,11 @@ class CompunetSession:
 
     def _complete_content_upload(self, send):
         """Add uploaded page to the current directory."""
+        if not self._can_upload_here():
+            log.info('UPLOAD DISCARDED: user=%s cannot upload to page owned by %s',
+                     self.user_id, self.current_page.author)
+            return
+
         # Find next available page number
         all_pages = list(self.directory.pages.keys())
         next_page_num = max(all_pages) + 1 if all_pages else 1000
@@ -1118,6 +1168,8 @@ class CompunetSession:
                 'life': page.life,
                 'vote': page.vote,
             }
+            if page.keyword:
+                node['keyword'] = page.keyword
             if hasattr(page, 'header') and page.header:
                 node['header'] = page.header
             frame_files = getattr(page, '_frame_files', [])
@@ -1222,7 +1274,6 @@ class CompunetSession:
         if not visible:
             data.extend(ascii_to_petscii('0     (EMPTY)'))
             data.append(0x2C)
-            data.extend(ascii_to_petscii('T'))
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)

@@ -38,7 +38,11 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Frame upload via ACIA_UPLOAD_BYTE (replaced PROTO_RECV_FRAME)
 - ✅ LEAVE command: goodbye frame displayed, connection closed gracefully
 - ✅ UPLOAD: users can upload text frames to directories, persisted to root.json
+- ✅ UPLOAD permissions: admins anywhere, users in JUNGLE or own directories only
+- ✅ Sub-directory creation: DIR on page without children creates empty sub-directory
 - ✅ VOTE: users vote 1-9 on pages, average + count shown in VOTE column
+- ✅ GOTO: navigate by page number or keyword (e.g. "GOTO JUNGLE")
+- ✅ JUNGLE area (page 600): communal upload area accessible by keyword
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture
@@ -178,7 +182,7 @@ The original ROM code is preserved with targeted patches:
 - Handle the `NEW` requirement automatically (BASIC memory pointers)
 - Fix CRC calculation in ACIA_SEND_PACKET
 - Replace L96C9 (PROTO_RECV_FRAME) with ACIA-based upload routine for MAIL SEND frame upload
-- Sub-directory creation by users (DIR on owned non-directory entries)
+- Advert area (bottom two screen rows)
 
 ## Acknowledgements
 

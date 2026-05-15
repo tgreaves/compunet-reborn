@@ -5717,14 +5717,72 @@ L_B1AF:
 L_B1BB:
     SEC
     RTS
-    .byte $A0, $19, $B1, $D1, $C9, $84, $F0, $08, $C9, $85, $F0, $04, $C9, $95, $D0, $0A; $B1BD ................
-    .byte $A2, $53, $A0, $B2, $20, $45, $81, $4C, $4B, $81, $A9, $58, $8D, $00, $C1, $20; $B1CD .S.. E.LK..X... 
-    .byte $13, $A7, $AD, $86, $02, $8D, $0A, $C0, $20, $9B, $A7, $A2, $60, $A0, $B2, $20; $B1DD ........ ...`.. 
-    .byte $42, $81, $A2, $04, $A0, $01, $A9, $2D, $38, $20, $1B, $81, $A2, $00, $A0, $02; $B1ED B......-8 ......
-    .byte $20, $1E, $81, $08, $20, $91, $A7, $20, $A6, $A7, $AD, $0A, $C0, $8D, $86, $02; $B1FD  ... .. ........
-    .byte $28, $90, $01, $60, $A6, $1A, $A9, $20, $9D, $00, $02, $E8, $E0, $04, $90, $F8; $B20D (..`... ........
-    .byte $AD, $00, $02, $8D, $03, $C1, $A2, $03, $BD, $00, $02, $C9, $2D, $F0, $AB, $9D; $B21D ............-...
-    .byte $03, $C1, $CA, $D0, $F3, $A0, $07, $20, $84, $A7, $20, .lobyte(L96D2), .hibyte(L96D2), $B0, $D4; $B22D ....... .. ....
+; --- LIFE/EXTEND handler ($B1BD) ---
+; Checks type suffix at screen col 25; D/E/U types can't be extended.
+; Sends 'X' command with entry index + extension amount.
+L_B1BD:
+    LDY #$19
+    LDA ($D1),Y                         ; read type suffix char at col 25
+    CMP #$84                            ; screen code for 'D'
+    BEQ L_B1CD
+    CMP #$85                            ; screen code for 'E'
+    BEQ L_B1CD
+    CMP #$95                            ; screen code for 'U'
+    BNE L_B1D7
+L_B1CD:
+    LDX #$53                            ; "CAN'T EXTEND" string
+    LDY #$B2
+    JSR ROMCALL_23                      ; PRINT_STATUS_MSG
+    JMP ROMCALL_25                      ; return
+L_B1D7:
+    LDA #$58                            ; 'X' command byte (LIFE/EXTEND)
+    STA $C100
+    JSR L_A713
+    LDA $0286                           ; save current colour
+    STA $C00A
+    JSR L_A79B
+    LDX #$60                            ; "EXTEND BY? " string
+    LDY #$B2
+    JSR ROMCALL_22
+    LDX #$04                            ; max 4 digit input
+    LDY #$01
+    LDA #$2D                            ; '-' terminator
+    SEC
+    JSR ROMCALL_09                      ; get user input
+    LDX #$00
+    LDY #$02
+    JSR ROMCALL_10                      ; process input
+    PHP
+    JSR L_A791
+    JSR L_A7A6
+    LDA $C00A
+    STA $0286                           ; restore colour
+    PLP
+    BCC L_B211
+L_B210:
+    RTS                                 ; user cancelled
+L_B211:
+    LDX $1A
+    LDA #$20
+L_B215:
+    STA $0200,X                         ; pad input buffer with spaces
+    INX
+    CPX #$04
+    BCC L_B215
+    LDA $0200
+    STA $C103                           ; store first digit in command params
+    LDX #$03
+L_B225:
+    LDA $0200,X
+    CMP #$2D                            ; '-' = user entered nothing, retry
+    BEQ L_B1D7
+    STA $C103,X
+    DEX
+    BNE L_B225
+    LDY #$07                            ; Y=7 bytes total payload
+    JSR L_A784                          ; send 'X' command
+    JSR L96D2                           ; receive response
+    BCS L_B210                          ; error → RTS
 L_B23C:
     LDX #$6C
     LDY #$B2
@@ -5735,12 +5793,27 @@ L_B23C:
     STA $C000
     STA $C004
     JMP L_A358
-    .byte $43, $41, $4E, $27, $54, $20, $45, $58, $54, $45, $4E, $44, $00, $45, $58, $54; $B253 CAN'T EXTEND.EXT
-    .byte $45, $4E, $44, $20, $42, $59, $3F, $20, $00, $4F, $4B, $20, $2D, $20, $47, $45; $B263 END BY? .OK - GE
-    .byte $54, $54, $49, $4E, $47, $20, $4E, $45, $57, $20, $44, $49, $52; $B273 TTING NEW DIR
-    BRK
-    .byte $AD, $03, $C0, $C9, $0B, $D0, $0A, $A2, $66, $A0, $B9, $20, $45, $81, $4C, $4B; $B281 ........f.. E.LK
-    .byte $81, $20, $F8, $A6, $AD, $03, $C0, $18, $69, $0A, $AA, $A0, $00, $18; $B291 . ......i.....
+    .byte $43, $41, $4E, $27, $54, $20, $45, $58, $54, $45, $4E, $44, $00  ; "CAN'T EXTEND"
+    .byte $45, $58, $54, $45, $4E, $44, $20, $42, $59, $3F, $20, $00      ; "EXTEND BY? "
+    .byte $4F, $4B, $20, $2D, $20, $47, $45, $54, $54, $49, $4E, $47, $20 ; "OK - GETTING "
+    .byte $4E, $45, $57, $20, $44, $49, $52, $00                           ; "NEW DIR"
+; --- UPLD handler: check directory capacity ($B281) ---
+L_B281:
+    LDA $C003                           ; number of entries in current directory
+    CMP #$0B                            ; max 11 entries?
+    BNE L_B292                          ; not full, continue
+    LDX #$66                            ; "NO ROOM ON THIS PAGE" string
+    LDY #$B9
+    JSR ROMCALL_23                      ; PRINT_STATUS_MSG
+    JMP ROMCALL_25                      ; abort
+L_B292:
+    JSR L_A6F8
+    LDA $C003                           ; re-read entry count
+    CLC
+    ADC #$0A                            ; add 10 (screen row offset)
+    TAX
+    LDY #$00
+    CLC
     JSR $FFF0
     LDA $C004
     PHA

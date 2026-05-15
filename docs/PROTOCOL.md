@@ -558,7 +558,7 @@ DIR  EDITR  SAVE  LEAVE  BUY  SHOW  ACCNT  BACK  GOTO  HELP  LIFE  MAIL  PRINT  
 | BUY     | Download program or show chargeable text |
 | DIR     | Enter sub-directory beneath highlighted entry |
 | EDITR   | Access the Editor while online |
-| GOTO    | Jump to a specific page number |
+| GOTO    | Jump to a page number or keyword |
 | HELP    | Display general help |
 | LEAVE   | Disconnect from Compunet |
 | LIFE    | Extend life of your uploaded content |
@@ -964,12 +964,16 @@ server uses session state to distinguish the two cases.
 
 ### GOTO Command
 
-GOTO sends the page number as ASCII digits:
+GOTO sends command byte 'L' ($4C) with a page number or keyword as ASCII:
 ```
-$C100: command letter (from context)
-$C103-$C107: page number (5 ASCII digits from input buffer at $0804)
-Y = $08 (8 bytes total)
+Command byte: $4C ('L')
+Params: ASCII string — either numeric page number or keyword
 ```
+
+Server resolves numeric targets via page number lookup, or matches against
+page `keyword` fields for named navigation (e.g. "GOTO JUNGLE" → page 600).
+Response: directory listing if target has children, frame if target has content,
+or error if not found.
 
 ### VOTE Command
 
