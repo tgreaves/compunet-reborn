@@ -1073,15 +1073,32 @@ window.addEventListener('DOMContentLoaded', () => {
             const data = new Uint8Array(reader.result);
             const t = window.terminal;
 
-            // Split into frames on $00 terminators.
-            // Server-generated frames start with $00 marker; historical files don't.
-            const hasMarker = data[0] === 0x00;
+            // Split multi-frame SEQ files into individual frames.
+            // Two formats exist:
+            //   Server/4Rich: $00 [border] [bg] [content...] $00 (flags byte is $00)
+            //   Historical:   [border] [bg] [content...] $00 (no flags byte)
+            // Detect by checking if first byte is $00 (flags) and bytes 1-2 have
+            // high nibble $F0 (colour OR mask).
             const frames = [];
-            if (hasMarker) {
-                // Single server-format frame (or already includes marker)
-                frames.push(data);
+            const serverFormat = data[0] === 0x00 && data.length > 2 &&
+                                (data[1] & 0xF0) === 0xF0 && (data[2] & 0xF0) === 0xF0;
+            if (serverFormat) {
+                // Frames start with $00 flags byte; split on $00 that follows content
+                let i = 0;
+                while (i < data.length) {
+                    if (data[i] !== 0x00) { i++; continue; }
+                    // Found a $00 flags byte — scan for terminating $00
+                    let frameStart = i;
+                    i++; // skip flags
+                    while (i < data.length && data[i] !== 0x00) i++;
+                    // i now points to terminating $00 (or end of file)
+                    if (i > frameStart + 1) {
+                        frames.push(data.slice(frameStart, i + 1));
+                    }
+                    i++; // skip terminator
+                }
             } else {
-                // Multi-frame historical file: split on $00, prepend marker
+                // Historical format: no flags byte, split on $00, prepend marker
                 let start = 0;
                 for (let i = 0; i < data.length; i++) {
                     if (data[i] === 0x00) {
@@ -1094,9 +1111,15 @@ window.addEventListener('DOMContentLoaded', () => {
                         start = i + 1;
                     }
                 }
-                if (frames.length === 0) {
-                    frames.push(data);
-                }
+            }
+            // Filter out preamble-only frames (just header bytes, no content)
+            const filtered = frames.filter(f => f.length > 5);
+            if (filtered.length > 0) {
+                frames.length = 0;
+                frames.push(...filtered);
+            }
+            if (frames.length === 0) {
+                frames.push(data);
             }
 
             // Store frames and render first
