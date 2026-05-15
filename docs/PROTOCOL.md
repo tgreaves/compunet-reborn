@@ -977,7 +977,12 @@ Y = $08 (8 bytes total)
 $C100: (command context)
 $C103: vote value (ASCII digit '1'-'9')
 Y = $04
+Payload: 2-digit ASCII entry index (zero-padded) + 1-digit ASCII score ('1'-'9')
+Example: "049" = entry index 04, score 9
 ```
+
+Server stores per-user votes, computes rounded average, responds with ACK ($41).
+VOTE column displays: "avg (count)" e.g. "5 (14)" — up to 8 characters.
 
 ### Server Response Handling
 

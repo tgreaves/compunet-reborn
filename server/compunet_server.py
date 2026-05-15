@@ -597,9 +597,63 @@ class CompunetSession:
         return self._make_dir_response()
     
     def _cmd_vote(self, params):
-        """VOTE command."""
+        """VOTE command. Params: 2-digit entry index + 1-digit score (1-9)."""
+        if len(params) < 3:
+            log.warning('VOTE: params too short: %s', params.hex())
+            self.last_response_type = RESP_ACK
+            return bytes([RESP_ACK])
+
+        try:
+            index = int(params[:2].decode('ascii'))
+            score = int(params[2:3].decode('ascii'))
+        except (ValueError, UnicodeDecodeError):
+            log.warning('VOTE: invalid params: %s', params.hex())
+            self.last_response_type = RESP_ACK
+            return bytes([RESP_ACK])
+
+        offset = getattr(self, 'dir_page_offset', 0)
+        visible_children = self.current_page.children[offset:offset+11]
+
+        if index >= len(visible_children) or score < 1 or score > 9:
+            log.warning('VOTE: out of range index=%d score=%d', index, score)
+            self.last_response_type = RESP_ACK
+            return bytes([RESP_ACK])
+
+        page = visible_children[index]
+        page_key = str(page.page_num)
+
+        votes = self._load_votes()
+        if page_key not in votes:
+            votes[page_key] = {}
+        votes[page_key][self.user_id] = score
+        self._save_votes(votes)
+
+        avg = round(sum(votes[page_key].values()) / len(votes[page_key]))
+        page.vote = avg
+        self._save_directory()
+
+        log.info('VOTE: user=%s page=%d (%s) score=%d avg=%d',
+                 self.user_id, page.page_num, page.title, score, avg)
+
         self.last_response_type = RESP_ACK
         return bytes([RESP_ACK])
+
+    def _get_vote_count(self, page_num):
+        votes = self._load_votes()
+        page_votes = votes.get(str(page_num), {})
+        return len(page_votes)
+
+    def _load_votes(self):
+        votes_path = os.path.join(os.path.dirname(__file__), 'votes.json')
+        if os.path.exists(votes_path):
+            with open(votes_path, 'r') as f:
+                return json.load(f)
+        return {}
+
+    def _save_votes(self, votes):
+        votes_path = os.path.join(os.path.dirname(__file__), 'votes.json')
+        with open(votes_path, 'w') as f:
+            json.dump(votes, f, indent=2)
     
     def _cmd_mail(self):
         """MAIL command - show mailbox as 6-part directory listing."""
@@ -1198,9 +1252,11 @@ class CompunetSession:
                 # Column 3: AUTHOR
                 data.extend(ascii_to_petscii(child.author[:8]))
                 data.append(0x2C)
-                # Column 4: VOTE
+                # Column 4: VOTE — "avg (count)" format
                 if child.vote > 0:
-                    data.extend(ascii_to_petscii(str(child.vote)[:8]))
+                    vote_count = self._get_vote_count(child.page_num)
+                    vote_str = f'{child.vote} ({vote_count})'
+                    data.extend(ascii_to_petscii(vote_str[:8]))
                 data.append(0x0D)
         
         log.info('PAGE response: %d bytes hex=%s', len(data), data.hex())

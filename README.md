@@ -38,6 +38,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Frame upload via ACIA_UPLOAD_BYTE (replaced PROTO_RECV_FRAME)
 - ✅ LEAVE command: goodbye frame displayed, connection closed gracefully
 - ✅ UPLOAD: users can upload text frames to directories, persisted to root.json
+- ✅ VOTE: users vote 1-9 on pages, average + count shown in VOTE column
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture

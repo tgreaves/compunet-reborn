@@ -18,7 +18,7 @@
         "author": "EDITOR",
         "price": 0,
         "life": 7,
-        "vote": 6,
+        "vote": 0,
         "frames": [
           "news-1.seq",
           "news-2.seq"
@@ -32,7 +32,7 @@
             "author": "EDITOR",
             "price": 0,
             "life": 7,
-            "vote": 5,
+            "vote": 0,
             "frames": [
               "latest-1.seq"
             ],
@@ -46,7 +46,7 @@
             "author": "EDITOR",
             "price": 0,
             "life": 30,
-            "vote": 3,
+            "vote": 0,
             "frames": [
               "archive-1.seq"
             ],
@@ -62,7 +62,7 @@
         "author": "TEST",
         "price": 1.5,
         "life": 30,
-        "vote": 8,
+        "vote": 0,
         "frames": [
           "paid-1.seq",
           "paid-2.seq"
@@ -77,7 +77,7 @@
         "author": "SYS",
         "price": 50.0,
         "life": 99,
-        "vote": 9,
+        "vote": 0,
         "frames": [
           "vip-1.seq"
         ],
@@ -91,7 +91,7 @@
         "author": "SYSTEM",
         "price": 0,
         "life": 30,
-        "vote": 4,
+        "vote": 0,
         "frames": [
           "chat-1.seq"
         ],
@@ -104,7 +104,7 @@
             "author": "SYSTEM",
             "price": 0,
             "life": 30,
-            "vote": 3,
+            "vote": 0,
             "frames": [
               "chat-1.seq"
             ],
@@ -118,7 +118,7 @@
             "author": "SYSTEM",
             "price": 0,
             "life": 30,
-            "vote": 2,
+            "vote": 0,
             "frames": [
               "chat-1.seq"
             ],
@@ -134,7 +134,7 @@
         "author": "ADMIN",
         "price": 0,
         "life": 14,
-        "vote": 7,
+        "vote": 5,
         "frames": [
           "reviews-1.seq"
         ],
