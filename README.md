@@ -113,6 +113,18 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
 6. Login with any username/password (e.g., TEST/TEST)
 7. Duckshoot menu appears!
 
+### Automated Testing
+
+Use `vice_test.sh` to launch VICE with the client and automate the login sequence:
+
+```bash
+./vice_test.sh <ip_address> <username> <password> [--restart-server]
+```
+
+Example: `./vice_test.sh 127.0.0.1:6400 test test --restart-server`
+
+This launches x64sc with the remote monitor on port 6510, injects keystrokes via `keybuf` to automate SYS, CONNECT, and login. The remote monitor remains available for debug sessions after login completes.
+
 ### Why `NEW` is needed
 The `LOAD "...",8,1` command loads the PRG at $8000-$CFXX, which overwrites BASIC's top-of-memory pointer. `NEW` resets BASIC's internal state so that `SYS 33184` doesn't trigger an "OUT OF MEMORY" error. A future improvement will handle this automatically in the ROM's MAIN_INIT.
 
