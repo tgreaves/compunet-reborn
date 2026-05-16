@@ -92,7 +92,9 @@
       "price": 0,
       "life": 99,
       "keyword": "JUNGLE",
-      "frames": ["frame-1.seq"],
+      "frames": [
+        "frame-1.seq"
+      ],
       "directory": "jungle/directory.json"
     }
   ]

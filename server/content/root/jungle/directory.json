@@ -26,9 +26,7 @@
       "author": "JUNGLE",
       "price": 0,
       "life": 30,
-      "frames": [
-        "frame-1.seq"
-      ]
+      "frames": ["frame-1.seq"]
     },
     {
       "page_num": 602,
@@ -37,9 +35,7 @@
       "author": "JUNGLE",
       "price": 0,
       "life": 30,
-      "frames": [
-        "frame-1.seq"
-      ]
+      "frames": ["frame-1.seq"]
     },
     {
       "page_num": 603,
@@ -48,9 +44,7 @@
       "author": "JUNGLE",
       "price": 0,
       "life": 30,
-      "frames": [
-        "frame-1.seq"
-      ]
+      "frames": ["frame-1.seq"]
     },
     {
       "page_num": 605,
@@ -59,9 +53,7 @@
       "author": "TEST",
       "price": 4.0,
       "life": 4,
-      "frames": [
-        "frame-1.seq"
-      ],
+      "frames": ["frame-1.seq"],
       "directory": "jungle/myjungle/directory.json"
     },
     {

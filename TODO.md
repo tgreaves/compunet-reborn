@@ -3,6 +3,8 @@
 ## Bugs
 
 - ~~**Frame upload sends wrong data when Editor empty**~~: FIXED — `$8019/$801A` correctly points to Editor buffer at $E000 when user has edited a frame. ACIA_UPLOAD_BYTE preserves X register so frame data transmits correctly.
+- **Login freeze on incorrect credentials**: Client freezes on "PLEASE WAIT" if wrong user ID or password entered. Server sends error response but client doesn't handle it.
+- **Program upload data corruption (bit-7 stripping)**: P-type uploads arrive with bit 7 cleared on all data bytes. VICE's SwiftLink emulation strips bit 7 from bytes transmitted by the C64. Downloads are unaffected (server→client path preserves all 8 bits), but uploads (client→server) lose the high bit. Uploaded file is also ~700 bytes shorter than expected (19532 vs 20219) — some packets are discarded due to CRC mismatches caused by the same bit-7 issue. The upload protocol framework itself works correctly (chunks concatenated into single .prg file). Fix requires either a VICE configuration change or an encoding scheme on the client upload path.
 
 ## Features
 

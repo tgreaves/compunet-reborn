@@ -257,7 +257,7 @@ class X25Connection:
             raw_pkt = bytearray()
             i = 0
             while i < len(raw_wire):
-                if raw_wire[i] == 0x03 and i + 1 < len(raw_wire):
+                if raw_wire[i] == 0x03 and i + 1 < len(raw_wire) and 0x20 <= raw_wire[i + 1] <= 0x2F:
                     raw_pkt.append(raw_wire[i + 1] - 0x20)
                     i += 2
                 else:

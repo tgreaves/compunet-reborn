@@ -1219,18 +1219,27 @@ class CompunetSession:
 
         # Save frames into page folder
         frame_files = []
+        is_program = send['type'] == 'P'
         for i, frame_data in enumerate(send['frames']):
-            frame_file = f'frame-{i+1}.seq'
+            if is_program:
+                frame_file = f'{page_slug}.prg' if i == 0 else f'{page_slug}-{i+1}.prg'
+            else:
+                frame_file = f'frame-{i+1}.seq'
             frame_path = os.path.join(page_dir, frame_file)
             with open(frame_path, 'wb') as f:
                 f.write(frame_data)
             frame_files.append(frame_file)
 
+        if is_program and send['frames']:
+            size = (len(send['frames'][0]) - 2 + 1023) // 1024
+        else:
+            size = len(send['frames'])
+
         new_page = CompunetPage(
             page_num=next_page_num,
             title=send['title'],
             page_type=send['type'],
-            size=len(send['frames']),
+            size=size,
             author=self.user_id,
             price=send['price'],
             life=send['lifetime'],
@@ -1877,12 +1886,23 @@ async def tcp_handler(reader, writer):
                     # Any non-COM packet during upload = frame data chunk
                     log.info('TCP: upload chunk token=$%02X seq=$%02X payload=%d bytes',
                              token, seq, len(payload))
-                    session.pending_send['frames'].append(bytes(payload))
+                    is_program_upload = session.pending_send.get('type') == 'P'
+                    if is_program_upload:
+                        # Program uploads: accumulate all chunks into a single bytearray
+                        if not session.pending_send['frames']:
+                            session.pending_send['frames'].append(bytearray())
+                        session.pending_send['frames'][0].extend(payload)
+                    else:
+                        session.pending_send['frames'].append(bytes(payload))
                     # ACK only the final chunk (< 100 bytes = partial = last)
                     # Client calls L96D2 once after all bytes sent
                     if len(payload) < 100:
-                        log.info('UPLOAD: final chunk received (%d total chunks), sending ACK',
-                                 len(session.pending_send['frames']))
+                        if is_program_upload:
+                            log.info('UPLOAD: program received (%d bytes), sending ACK',
+                                     len(session.pending_send['frames'][0]))
+                        else:
+                            log.info('UPLOAD: final chunk received (%d total chunks), sending ACK',
+                                     len(session.pending_send['frames']))
                         await asyncio.sleep(0.5)
                         ack_data = bytes([RESP_ACK]) + b'\x00' * 10
                         ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
