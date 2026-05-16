@@ -850,8 +850,7 @@ class CompunetSession:
         now = datetime.datetime.now()
         users = self._load_users()
         real_name = users.get(self.user_id, {}).get('name', self.user_id)
-        data.extend(ascii_to_petscii('           '))  # 11 bytes padding (offset $0B)
-        data.extend(ascii_to_petscii(self.user_id))
+        data.extend(ascii_to_petscii(' USER ID : ' + self.user_id))
         data.append(0x0D)
         data.extend(ascii_to_petscii(real_name))
         data.append(0x0D)
@@ -862,6 +861,8 @@ class CompunetSession:
         data.append(0x00)
 
         # Part 5: column headers
+        data.extend(ascii_to_petscii('SENDER'))
+        data.append(0x2C)
         data.extend(ascii_to_petscii('DATE'))
         data.append(0x2C)
         data.extend(ascii_to_petscii('STATUS'))
@@ -873,19 +874,23 @@ class CompunetSession:
             data.extend(ascii_to_petscii('      (NO MAIL)'))
             data.append(0x2C)
             data.append(0x2C)
+            data.append(0x2C)
             data.append(0x0D)
         else:
             for i, msg in enumerate(self.mail_messages):
-                from_str = msg.get('from', '?')[:6]
-                subject = msg.get('subject', '')[:9]
+                subject = msg.get('subject', '')[:18]
                 num_frames = len(msg.get('frames', []))
                 type_str = ('T' + str(num_frames)).ljust(3)
-                title = from_str + ': ' + subject
-                page_str = str(i + 1).rjust(4) + '  '
-                title_field = title[:17].ljust(18) + type_str
+                msg_id = msg.get('id', str(i + 1))
+                page_str = str(msg_id).rjust(6) + ' '
+                title_field = subject[:16].ljust(17) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
-                # Date as DD-MM-YY (8 chars max)
+                # Column 1: SENDER
+                sender = msg.get('from', '?')[:8]
+                data.extend(ascii_to_petscii(sender))
+                data.append(0x2C)
+                # Column 2: DATE as DD-MM-YY
                 raw_date = msg.get('date', '')
                 if len(raw_date) == 10:
                     date_str = raw_date[8:10] + '-' + raw_date[5:7] + '-' + raw_date[2:4]
@@ -893,6 +898,7 @@ class CompunetSession:
                     date_str = raw_date[:8]
                 data.extend(ascii_to_petscii(date_str))
                 data.append(0x2C)
+                # Column 3: STATUS
                 status = 'NEW' if not msg.get('read', False) else 'READ'
                 data.extend(ascii_to_petscii(status))
                 data.append(0x0D)
@@ -1166,8 +1172,7 @@ class CompunetSession:
             else:
                 dest_inbox = {'messages': []}
 
-            msg_num = len(dest_inbox['messages']) + 1
-            msg_id = f'msg{msg_num:03d}'
+            msg_id = str(msg_seq)
 
             header_frame = self._generate_mail_header(
                 msg_seq, self.user_id, send['subject'],

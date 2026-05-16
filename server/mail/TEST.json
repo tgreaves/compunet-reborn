@@ -1,7 +1,7 @@
 {
   "messages": [
     {
-      "id": "msg001",
+      "id": "100001",
       "from": "ADMIN",
       "subject": "WELCOME",
       "date": "2026-05-14",
@@ -13,7 +13,7 @@
       ]
     },
     {
-      "id": "msg002",
+      "id": "100002",
       "from": "SYSTEM",
       "subject": "MAINTENANCE",
       "date": "2026-05-14",
@@ -24,11 +24,11 @@
       ]
     },
     {
-      "id": "msg003",
+      "id": "100003",
       "from": "TEST",
       "subject": "FOOBAR",
       "date": "2026-05-14",
-      "read": false,
+      "read": true,
       "frames": [
         "msg003-0.seq",
         "msg003-1.seq"

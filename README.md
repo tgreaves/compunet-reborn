@@ -30,7 +30,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Sub-directories: entries with "+" suffix can be entered via DIR
 - ✅ BACK command navigates to parent directory
 - ✅ Multi-packet responses (>100 bytes) delivered reliably with EOS marker
-- ✅ Courier (MAIL): inbox listing, read messages, mark as read
+- ✅ Courier (MAIL): inbox listing with SENDER/DATE/STATUS columns, message IDs, read/mark as read
 - ✅ Courier SEND: compose and deliver messages to other users
 - ✅ Courier SEND: destination user validation with real names
 - ✅ Courier SEND: FROM/DATE/TIME fields on compose screen
