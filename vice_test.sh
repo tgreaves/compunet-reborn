@@ -9,6 +9,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PRG="$SCRIPT_DIR/client/c64/compunet-reborn.prg"
+D64="$SCRIPT_DIR/client/c64/compunet-reborn.d64"
 MONITOR_PORT=6510
 VICE=x64sc
 
@@ -36,8 +37,8 @@ PASSWORD="${args[2]}"
 
 # --- Preflight checks ---
 
-if [ ! -f "$PRG" ]; then
-    echo "Error: PRG not found at $PRG"
+if [ ! -f "$D64" ]; then
+    echo "Error: D64 not found at $D64"
     echo "Build it first: make -C client/c64/src/"
     exit 1
 fi
@@ -72,7 +73,8 @@ echo "  Username: $USERNAME"
 $VICE \
     -remotemonitor \
     -remotemonitoraddress ip4://127.0.0.1:$MONITOR_PORT \
-    "$PRG" &
+    -8 "$D64" \
+    -autostart "$D64:compunet" &
 
 VICE_PID=$!
 echo "  VICE PID: $VICE_PID"

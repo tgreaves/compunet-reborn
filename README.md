@@ -46,6 +46,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Advert area: two configurable text lines above duckshoot, per-directory or global
 - ✅ Live content reload: directory tree re-read from disk on each request (no restart needed)
 - ✅ Historical content: THE ZOO archive (14 articles by PIMAN) in the JUNGLE
+- ✅ Telesoftware: program downloads (type 'P') with 2-phase header/data protocol
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture
@@ -118,15 +119,17 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
 - VICE C64 emulator with SwiftLink enabled
 - tcpser (`tcpser -v 25232 -p 6401 -s 1200 -l 7`)
 - Python 3 for the server
+- cc65 suite (ca65/ld65) and c1541 for building
 
 ### Steps
 1. Start tcpser: `tcpser -v 25232 -p 6401 -s 1200 -l 7`
 2. Start server: `./server.sh`
 3. In VICE: enable SwiftLink (Settings → Cartridge/IO → SwiftLink, port 25232)
-4. Load: `LOAD "COMPUNET",8,1` then `NEW` then `SYS 33184`
-5. Type `CONNECT`, enter `127.0.0.1:6400`
-6. Login with any username/password (e.g., TEST/TEST)
-7. Duckshoot menu appears!
+4. Attach `client/c64/compunet-reborn.d64` to drive 8
+5. Load: `LOAD "COMPUNET",8,1` then `NEW` then `SYS 33184`
+6. Type `CONNECT`, enter `127.0.0.1:6400`
+7. Login with any username/password (e.g., TEST/TEST)
+8. Duckshoot menu appears!
 
 ### Automated Testing
 
@@ -138,7 +141,7 @@ Use `vice_test.sh` to launch VICE with the client and automate the login sequenc
 
 Example: `./vice_test.sh 127.0.0.1:6400 test test --restart-server`
 
-This launches x64sc with the remote monitor on port 6510, injects keystrokes via `keybuf` to automate SYS, CONNECT, and login. The remote monitor remains available for debug sessions after login completes.
+This launches x64sc with the D64 disk image on drive 8, remote monitor on port 6510, and injects keystrokes via `keybuf` to automate SYS, CONNECT, and login. The remote monitor remains available for debug sessions after login completes. Downloaded programs are saved to the same D64 disk image.
 
 ### Why `NEW` is needed
 The `LOAD "...",8,1` command loads the PRG at $8000-$CFXX, which overwrites BASIC's top-of-memory pointer. `NEW` resets BASIC's internal state so that `SYS 33184` doesn't trigger an "OUT OF MEMORY" error. A future improvement will handle this automatically in the ROM's MAIN_INIT.
@@ -148,12 +151,12 @@ The `LOAD "...",8,1` command loads the PRG at $8000-$CFXX, which overwrites BASI
 ```bash
 cd client/c64/src
 make
-# Output: ../compunet-reborn.prg
+# Output: ../compunet-reborn.prg, ../compunet-reborn.d64
 ```
 
-Requires `ca65` and `ld65` from the [cc65](https://cc65.github.io/) suite.
+Requires `ca65` and `ld65` from the [cc65](https://cc65.github.io/) suite, and `c1541` from VICE.
 
-The build produces a single PRG file with a $8000 load address. The Makefile prepends the 2-byte load address header and concatenates the assembled binary.
+The build produces a PRG file with a $8000 load address and a D64 disk image containing it. The D64 is used by VICE for both loading the client and saving downloaded programs.
 
 ## How It Works
 

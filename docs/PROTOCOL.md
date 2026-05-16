@@ -1253,6 +1253,39 @@ Programs are downloaded via the BUY command:
 - Each 1K of program = 4 blocks of disk space
 - Failed saves can be retried with the SAVE directory command
 
+#### Program Download Wire Format
+
+Program download is a 2-phase protocol:
+
+**Phase 1 — Header (server → client, response to 'D' command):**
+
+```
+Byte 0-3: $00 $00 $00 $00  (padding, discarded by client at L_AB67)
+Byte 4:   load_address_lo   (PRG file byte 0)
+Byte 5:   load_address_hi   (PRG file byte 1)
+Byte 6:   size_lo           (program length excluding 2-byte load address, low byte)
+Byte 7:   size_hi           (program length excluding 2-byte load address, high byte)
+```
+
+Sent as standard DAT packets + EOS marker. The client uses the load address
+for the PRG file header when saving to disk, and the size to check available
+RAM ($2B/$2C + size vs $37/$38).
+
+**Phase 2 — Data (client requests, server delivers):**
+
+Client sends a packet with token $40 (proceed) to confirm download, or token
+$41 (abort) if the program won't fit in RAM. On receiving $40, the server
+responds with the raw program bytes (PRG file offset 2 onward) in 100-byte
+DAT packets followed by an EOS marker.
+
+The client receives data byte-by-byte via L96CC into memory starting at
+$2B/$2C (BASIC start), updating $2D/$2E (end of BASIC) when complete. It
+then prompts "SAVE FILENAME?" and saves with the KERNAL SAVE routine using
+the load address from the header.
+
+**Directory listing:** P-type entries show "P" followed by size in KB (rounded
+up), e.g. "P20" for a ~20K program.
+
 ### Courier (Electronic Mail) — Protocol Analysis
 
 #### MAIL Command ('M', $4D)

@@ -2,9 +2,10 @@
 # Compunet server control script
 # Usage: ./server.sh [start|stop|restart|status]
 
-SERVER_DIR="$(dirname "$0")/server"
-LOG_FILE="$(dirname "$0")/server/logs/compunet-server.log"
-PID_FILE="$(dirname "$0")/server/.pid"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SERVER_DIR="$SCRIPT_DIR/server"
+LOG_FILE="$SERVER_DIR/logs/compunet-server.log"
+PID_FILE="$SERVER_DIR/.pid"
 
 start_server() {
     if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then

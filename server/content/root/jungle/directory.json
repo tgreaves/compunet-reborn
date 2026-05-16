@@ -63,6 +63,15 @@
         "frame-1.seq"
       ],
       "directory": "jungle/myjungle/directory.json"
+    },
+    {
+      "page_num": 610,
+      "title": "SNOWBALL",
+      "type": "P",
+      "author": "TEST",
+      "price": 0,
+      "life": 99,
+      "frames": ["snowball.prg"]
     }
   ]
 }

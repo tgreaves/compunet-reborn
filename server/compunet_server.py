@@ -228,6 +228,10 @@ class CompunetDirectory:
                 with open(frame_path, 'rb') as f:
                     page.frames.append(f.read())
 
+        # For program pages, calculate size in KB from file data
+        if page.page_type == 'P' and page.frames:
+            page.size = (len(page.frames[0]) - 2 + 1023) // 1024
+
         # If page is also a directory, load sub-directory JSON
         if 'directory' in node:
             dir_json_path = os.path.join(ROOT_DIR, node['directory'])
@@ -276,6 +280,8 @@ class CompunetSession:
         self.show_frame_index = 0
         self.dir_page_offset = 0
         self.dir_displayed = False
+        self._program_download_pending = False
+        self._program_download_data = None
         self.mail_mode = False
         self.mail_messages = []
         self.mail_show_msg = None
@@ -506,6 +512,8 @@ class CompunetSession:
         # FINISH clears frame viewing state
         self.show_page = None
         self.show_frame_index = 0
+        self._program_download_pending = False
+        self._program_download_data = None
 
         # Complete pending upload if client returned to directory
         if self.pending_send is not None and self.pending_send.get('mode') == 'upload':
@@ -569,9 +577,30 @@ class CompunetSession:
 
         Frame byte 0 (flags → $8035): bit 7 = more pages follow.
         Client checks BPL after rendering to decide "press any key" vs "MORE" duckshoot.
+
+        For program pages (type 'P'), sends an 8-byte binary header instead:
+          [4 padding bytes] [load_lo] [load_hi] [size_lo] [size_hi]
+        The client then sends a token $40 packet to request the actual data.
         """
         self.last_response_type = RESP_FRAME
         if self.show_page and self.show_frame_index < len(self.show_page.frames):
+            # Program download: send header, wait for proceed token
+            if self.show_page.page_type == 'P':
+                prg_data = self.show_page.frames[self.show_frame_index]
+                load_lo = prg_data[0]
+                load_hi = prg_data[1]
+                program_bytes = prg_data[2:]
+                size = len(program_bytes)
+                size_lo = size & 0xFF
+                size_hi = (size >> 8) & 0xFF
+                header = bytes([0x00, 0x00, 0x00, 0x00, load_lo, load_hi, size_lo, size_hi])
+                self._program_download_pending = True
+                self._program_download_data = program_bytes
+                log.info('PROGRAM: page=%d "%s" load=$%02X%02X size=%d bytes (%dK), header sent',
+                         self.show_page.page_num, self.show_page.title,
+                         load_hi, load_lo, size, (size + 1023) // 1024)
+                return header
+
             frame_data = bytearray(self.show_page.frames[self.show_frame_index])
             has_more = self.show_frame_index < len(self.show_page.frames) - 1
             if has_more:
@@ -1810,6 +1839,36 @@ async def tcp_handler(reader, writer):
                                 writer.close()
                                 await writer.wait_closed()
                                 return
+
+                elif token == 0x40 and session._program_download_pending:
+                    # Client confirms download proceed — send program data
+                    program_data = session._program_download_data
+                    session._program_download_pending = False
+                    session._program_download_data = None
+                    log.info('DOWNLOAD: proceed received, sending %d bytes of program data', len(program_data))
+                    await asyncio.sleep(0.5)
+                    MAX_PAYLOAD = 100
+                    offset = 0
+                    pkt_num = 0
+                    while offset < len(program_data):
+                        chunk = program_data[offset:offset + MAX_PAYLOAD]
+                        pkt = x25.make_data_packet(chunk, TOKEN_DAT)
+                        writer.write(pkt)
+                        await writer.drain()
+                        pkt_num += 1
+                        await asyncio.sleep(0.05)
+                        offset += MAX_PAYLOAD
+                    eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                    writer.write(eos_pkt)
+                    await writer.drain()
+                    log.info('DOWNLOAD: sent %d packets + EOS (%d bytes total)', pkt_num, len(program_data))
+
+                elif token == 0x41 and session._program_download_pending:
+                    # Client aborted download (no room in RAM)
+                    session._program_download_pending = False
+                    session._program_download_data = None
+                    session.show_page = None
+                    log.info('DOWNLOAD: client aborted (no room in RAM)')
 
                 elif token == TOKEN_ACK:
                     log.debug('TCP: received ACK seq=$%02X', seq)
