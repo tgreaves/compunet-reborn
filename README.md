@@ -49,6 +49,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Telesoftware: program downloads (type 'P') with 2-phase header/data protocol
 - ✅ Telesoftware: program uploads (type 'P') with 8-bit clean storage as PRG
 - ✅ Direct VICE connection (no tcpser needed): server handles Hayes AT commands
+- ✅ UCAT: user catalogue listing of all owned pages with LIFE/PRICE/VOTE/PAGE columns
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture

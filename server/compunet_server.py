@@ -1314,8 +1314,71 @@ class CompunetSession:
         log.info('DIR: saved directory tree')
 
     def _cmd_ucat(self):
-        """UCAT command - user catalogue listing."""
-        return self._make_error(ascii_to_petscii('NO UPLOADS'))
+        """UCAT command - list all pages owned by the current user."""
+        self.last_response_type = RESP_DIR
+        user_pages = [p for p in self.directory.pages.values()
+                      if p.author == self.user_id]
+        data = bytearray()
+
+        # Part 1: no header frame
+        data.append(0x00)
+
+        # Part 2: footer/adverts (empty)
+        data.append(0x0D)
+        data.append(0x0D)
+
+        # Part 3: field definitions (none)
+        data.append(0x00)
+
+        # Part 4: breadcrumb
+        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.append(0x0D)
+        data.extend(ascii_to_petscii('  YOUR UPLOADS'))
+        data.append(0x00)
+
+        # Part 5: column headers
+        data.extend(ascii_to_petscii('LIFE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('PRICE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('VOTE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('PAGE'))
+        data.append(0x0D)
+        data.append(0x00)
+
+        # Part 6: entries
+        if not user_pages:
+            data.extend(ascii_to_petscii('      (NO UPLOADS)'))
+            data.append(0x2C)
+            data.append(0x2C)
+            data.append(0x2C)
+            data.append(0x2C)
+            data.append(0x0D)
+        else:
+            for page in user_pages:
+                page_str = str(page.page_num).ljust(6)
+                type_str = page.type_string().ljust(3)
+                title_field = page.title[:18].ljust(18) + type_str
+                data.extend(ascii_to_petscii(page_str + title_field))
+                data.append(0x2C)
+                # Column 1: LIFE
+                data.extend(ascii_to_petscii(str(page.life)))
+                data.append(0x2C)
+                # Column 2: PRICE
+                price_str = '{:.2f}'.format(page.price) if page.price > 0 else ''
+                data.extend(ascii_to_petscii(price_str))
+                data.append(0x2C)
+                # Column 3: VOTE
+                vote_str = str(page.vote) if page.vote > 0 else ''
+                data.extend(ascii_to_petscii(vote_str))
+                data.append(0x2C)
+                # Column 4: PAGE
+                data.extend(ascii_to_petscii(str(page.page_num)))
+                data.append(0x0D)
+
+        log.info('UCAT: user=%s pages=%d', self.user_id, len(user_pages))
+        return bytes(data)
     
     def _make_dir_response(self):
         """Build directory response in the 6-part format for 'P' command."""
@@ -1428,7 +1491,7 @@ class CompunetSession:
                 # First 6 chars = page number (hidden in bg colour)
                 # Chars 7-26 = title left-aligned, type right-aligned (20 chars total)
                 # Type suffix must start at screen column 25 (SHOW reads $19)
-                page_str = ('  ' + str(child.page_num)).ljust(6)[:6]
+                page_str = str(child.page_num).ljust(6)
                 type_str = child.type_string().ljust(3)
                 title = child.title[:18]
                 title_field = title.ljust(18) + type_str

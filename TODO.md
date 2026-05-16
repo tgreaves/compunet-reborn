@@ -23,4 +23,4 @@
 - **Web administration interface**: Browser-based admin panel for managing the system. Features: create/edit/delete users, move/reorganise pages in the directory tree, view mail queues, monitor active sessions, edit system configuration.
 - **Project website + sign-up system**: Public-facing website with project information, user registration (create account with email verification), password reminder/reset functionality. Required because the C64 client cannot handle account creation or password recovery — these must be done out-of-band via the web.
 - ~~**Automated testing via VICE remote monitor**~~: DONE — `vice_test.sh` launches VICE with remote monitor, injects keystrokes via `keybuf` to automate login. Kills stray VICE processes on start. Password sent char-by-char to accommodate the client's input routine.
-- **UCAT duckshoot command**: Shows a summary of the user's uploaded content.
+- ~~**UCAT duckshoot command**~~: DONE — Lists all pages owned by the current user with LIFE, PRICE, VOTE, PAGE columns. Standard DIR duckshoot available for interaction.
