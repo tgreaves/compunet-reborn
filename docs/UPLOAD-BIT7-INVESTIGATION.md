@@ -174,16 +174,18 @@ being configured for 8-bit word length ($1F, bits 6-5 = 00), VICE clears
 bit 7 on transmitted bytes before sending them to the ip232 socket.
 
 **Next steps:**
-1. Check if VICE has a configuration option or resource setting that
-   controls this behaviour (e.g. `Acia1Mode`, word length override).
-2. Try different ACIA command register ($09) values — bits 7-5 control
-   parity; the current $09 has bits 7-5 = 000 meaning "odd parity 
-   transmitted/received, parity check disabled". Try explicit "no parity" 
-   values.
-3. Try Turbo232 mode (`-acia1mode 2`) which may handle 8-bit differently.
-4. Check VICE version — this may be a known bug fixed in newer versions.
-5. If VICE cannot be fixed: implement a 7-bit-safe encoding on the upload
+1. Test with a newer VICE version — this may be a known bug that's been
+   fixed. The VICE source code (aciacore.c) correctly computes
+   `datamask = 0xFF` for our $1F control register, so the emulation
+   SHOULD send 8 bits. A version-specific bug is plausible.
+2. Try Turbo232 mode (`-acia1mode 2`) or user-port RS232 emulation
+   (`-rsuser`) which may use a different TX code path.
+3. If VICE cannot be fixed: implement a 7-bit-safe encoding on the upload
    path (e.g. escape bytes with bit 7 set into two-byte sequences).
+
+Note: changing the ACIA control/command register values is unlikely to
+help — VICE source confirms our $1F already selects 8-bit word length
+and the datamask logic is mode-independent.
 
 **Eliminating tcpser alone will NOT fix the issue** — VICE strips bit 7
 before bytes reach the ip232 socket.
