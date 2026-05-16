@@ -1476,16 +1476,15 @@ offset 15/16 — if both are $30 ('0'), skip=True.
 
 ### Server Handshake (TCP via tcpser)
 
-The connection flow over TCP:
+The connection flow over TCP (direct, no tcpser):
 
 ```
-tcpser ←→ VICE SwiftLink (ip232 on port 25232)
-tcpser ←→ Compunet Server (TCP on port 6400)
+VICE SwiftLink (raw TCP) ←→ Compunet Server (port 6400)
 ```
 
-1. C64 sends `ATDT127.0.0.1:6400\r` via ACIA
-2. tcpser opens TCP connection to 127.0.0.1:6400
-3. tcpser sends `CONNECT 1200\r` back to C64
+1. VICE opens TCP connection to 127.0.0.1:6400
+2. C64 sends `ATDT127.0.0.1:6400\r` via ACIA
+3. Server auto-detects Hayes AT command, responds `CONNECT 1200\r`
 4. Server sends 12 spaces (handshake ready signal)
 5. C64 sends CNET identification string
 6. Server sends `*CON\r`
@@ -1493,6 +1492,10 @@ tcpser ←→ Compunet Server (TCP on port 6400)
 8. C64 sends login packet (X.25 framed)
 9. Server sends ACK packet (X.25 framed)
 10. C64 enters terminal code at $A005
+
+The server also supports legacy tcpser connections (auto-detected: if the
+first byte is `$20` instead of `A`/`$C1`, the server skips Hayes handling
+and proceeds directly with the X.25 handshake).
 
 ### Multi-Packet Response Delivery
 

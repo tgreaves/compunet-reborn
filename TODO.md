@@ -4,8 +4,8 @@
 
 - ~~**Frame upload sends wrong data when Editor empty**~~: FIXED — `$8019/$801A` correctly points to Editor buffer at $E000 when user has edited a frame. ACIA_UPLOAD_BYTE preserves X register so frame data transmits correctly.
 - **Login freeze on incorrect credentials**: Client freezes on "PLEASE WAIT" if wrong user ID or password entered. Server sends error response but client doesn't handle it.
-- **Program upload data corruption (bit-7 stripping)**: VICE's ACIA TX emulation strips bit 7 from transmitted bytes before they reach the ip232 socket, despite the control register being correctly configured for 8-bit word length ($1F). Confirmed via tcpser trace and VICE source analysis. Downloads unaffected (RX path preserves all 8 bits). Eliminating tcpser will NOT fix this. Options: (1) test with a newer VICE version (may be a fixed bug), (2) try Turbo232 mode or user-port RS232 emulation, (3) implement 7-bit-safe encoding on the upload path. See `docs/UPLOAD-BIT7-INVESTIGATION.md`.
-- **Directory display corruption after upload**: After completing a P-type upload, the directory header area shows raw entry metadata (e.g. `,30,JUNGLE,` followed by entry lines). BACK then DIR renders correctly. Likely a stream synchronisation issue — multiple upload ACKs may leave stale bytes that the client's 6-part directory parser picks up as Part 1 header content.
+- ~~**Program upload data corruption (bit-7 stripping)**~~: FIXED — caused by VICE's ip232 protocol layer corrupting TX bytes, which triggered tcpser's parity auto-detection to strip bit 7. Eliminated tcpser entirely: server now handles Hayes AT commands directly. Direct raw socket from VICE to server preserves all 8 bits. See `docs/UPLOAD-BIT7-INVESTIGATION.md`.
+- ~~**Directory display corruption after upload**~~: FIXED — was caused by tcpser's parity stripping mangling the server's ACK response, desynchronising the client's stream parser. Resolved by eliminating tcpser.
 
 ## Features
 

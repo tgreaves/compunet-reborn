@@ -1222,6 +1222,9 @@ class CompunetSession:
         is_program = send['type'] == 'P'
         for i, frame_data in enumerate(send['frames']):
             if is_program:
+                # Client sends: [4 padding] [load_lo] [load_hi] [size_lo] [size_hi] [data...]
+                # Store as standard PRG: [load_lo] [load_hi] [data...]
+                frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
                 frame_file = f'{page_slug}.prg' if i == 0 else f'{page_slug}-{i+1}.prg'
             else:
                 frame_file = f'frame-{i+1}.seq'
@@ -1656,21 +1659,51 @@ async def tcp_handler(reader, writer):
     
     try:
         # ============================================================
-        # Phase 1: Connection handshake
-        # Client sends $20 (space), we respond with $20
+        # Phase 1: Connection handshake (auto-detect Hayes vs raw X.25)
+        # Hayes (VICE direct): first byte is 'A' ($41/$C1) → handle ATDT
+        # Raw X.25 (tcpser): server sends 12×$20, client responds
         # ============================================================
-        log.info('TCP: connected, waiting for break delay...')
-        
-        # Handshake: minimal delay then send bytes immediately
+        log.info('TCP: connected, waiting for first byte to auto-detect mode...')
+
+        # Peek at first byte to determine connection type
+        try:
+            first_data = await asyncio.wait_for(reader.read(1), timeout=5.0)
+        except asyncio.TimeoutError:
+            log.info('TCP: no data received within 5s, assuming raw X.25')
+            first_data = None
+
+        if first_data and (first_data[0] & 0x7F) == 0x41:
+            # Hayes mode: consume AT command, send CONNECT response
+            log.info('TCP: detected Hayes AT command (byte=$%02X), entering modem emulation', first_data[0])
+            at_buf = bytearray(first_data)
+            while True:
+                try:
+                    ch = await asyncio.wait_for(reader.read(1), timeout=5.0)
+                except asyncio.TimeoutError:
+                    break
+                if not ch:
+                    break
+                at_buf.extend(ch)
+                if ch[0] == 0x0D:
+                    break
+            at_cmd = bytes(b & 0x7F for b in at_buf).decode('ascii', errors='replace').strip()
+            log.info('TCP: Hayes command: %s', at_cmd)
+            # Send CONNECT response (what tcpser would send)
+            await asyncio.sleep(0.5)
+            writer.write(b'CONNECT 1200\r')
+            await writer.drain()
+            log.info('TCP: sent CONNECT 1200 response')
+
+        # Proceed with X.25 handshake (same for both modes)
+        log.info('TCP: sending X.25 handshake...')
         await asyncio.sleep(0.05)
-        log.info('X25: sending handshake bytes one at a time')
         for i in range(12):
             writer.write(bytes([0x20]))
             await writer.drain()
             await asyncio.sleep(0.1)
         log.info('X25 TX: handshake complete - 12 bytes of $20 sent')
         x25.connected = True
-        
+
         log.info('TCP: handshake complete, entering negotiation phase...')
         
         # ============================================================

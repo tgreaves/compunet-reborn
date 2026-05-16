@@ -47,6 +47,8 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 - ✅ Live content reload: directory tree re-read from disk on each request (no restart needed)
 - ✅ Historical content: THE ZOO archive (14 articles by PIMAN) in the JUNGLE
 - ✅ Telesoftware: program downloads (type 'P') with 2-phase header/data protocol
+- ✅ Telesoftware: program uploads (type 'P') with 8-bit clean storage as PRG
+- ✅ Direct VICE connection (no tcpser needed): server handles Hayes AT commands
 - ✅ Duckshoot fully functional throughout
 
 ### Architecture
@@ -61,8 +63,8 @@ All communication uses **NMI-driven receive** with a ring buffer at $CE00. The N
 ### Connection Flow
 
 ```
-SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
-→ ACIA_PROTO_CONNECT (send CNET ID, receive *CON)
+SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT to server)
+→ Server responds CONNECT 1200 → ACIA_PROTO_CONNECT (send CNET ID, receive *CON)
 → Login screen → ACIA_SEND_PACKET (login credentials)
 → Skip linking (terminal already embedded) → JMP $A005
 → Terminal init → Duckshoot menu
@@ -92,7 +94,8 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
 
 - **[server/](server/)** — Python Compunet server
   - WebSocket interface (port 6502) for the web client
-  - TCP interface (port 6400) for C64 clients via tcpser
+  - TCP interface (port 6400) for C64 clients (direct connection, no tcpser needed)
+  - Auto-detects Hayes AT commands (VICE direct) vs raw X.25 (legacy tcpser)
   - X.25 protocol with CRC-CCITT, byte stuffing, flow control
   - User authentication, directory tree, frame serving
   - Run with: `./server.sh` (supports start/stop/restart/status)
@@ -117,14 +120,13 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT via tcpser)
 
 ### Prerequisites
 - VICE C64 emulator with SwiftLink enabled
-- tcpser (`tcpser -v 25232 -p 6401 -s 1200 -l 7`)
 - Python 3 for the server
 - cc65 suite (ca65/ld65) and c1541 for building
 
 ### Steps
-1. Start tcpser: `tcpser -v 25232 -p 6401 -s 1200 -l 7`
-2. Start server: `./server.sh`
-3. In VICE: enable SwiftLink (Settings → Cartridge/IO → SwiftLink, port 25232)
+1. Start server: `./server.sh`
+2. In VICE: enable SwiftLink (Settings → Cartridge/IO → SwiftLink)
+3. Set RS232 device to `127.0.0.1:6400` (ip232 disabled)
 4. Attach `client/c64/compunet-reborn.d64` to drive 8
 5. Load: `LOAD "COMPUNET",8,1` then `NEW` then `SYS 33184`
 6. Type `CONNECT`, enter `127.0.0.1:6400`
@@ -141,7 +143,7 @@ Use `vice_test.sh` to launch VICE with the client and automate the login sequenc
 
 Example: `./vice_test.sh 127.0.0.1:6400 test test --restart-server`
 
-This launches x64sc with the D64 disk image on drive 8, remote monitor on port 6510, and injects keystrokes via `keybuf` to automate SYS, CONNECT, and login. The remote monitor remains available for debug sessions after login completes. Downloaded programs are saved to the same D64 disk image.
+This launches x64sc with the D64 disk image on drive 8, remote monitor on port 6510, and injects keystrokes via `keybuf` to automate SYS, CONNECT, and login. VICE connects directly to the server (no tcpser needed). The remote monitor remains available for debug sessions after login completes. Downloaded programs are saved to the same D64 disk image.
 
 ### Why `NEW` is needed
 The `LOAD "...",8,1` command loads the PRG at $8000-$CFXX, which overwrites BASIC's top-of-memory pointer. `NEW` resets BASIC's internal state so that `SYS 33184` doesn't trigger an "OUT OF MEMORY" error. A future improvement will handle this automatically in the ROM's MAIN_INIT.
@@ -178,6 +180,8 @@ The original ROM used IRQ-driven packet assembly — a CIA timer fired at ~60Hz,
 
 Our approach: NMI stores incoming bytes in a ring buffer ($CE00). All mainline code reads exclusively from the ring buffer — never directly from ACIA_DATA — to avoid race conditions where the NMI handler and mainline code both read the same byte, causing duplication. ACIA_STATUS reads are used solely to trigger VICE's socket polling.
 
+VICE's SwiftLink connects directly to the server via raw TCP socket (no tcpser, no ip232 protocol). The server auto-detects Hayes AT commands and responds with `CONNECT 1200` before proceeding with the X.25 handshake. This gives full 8-bit clean communication in both directions.
+
 ### ROM Modifications
 
 The original ROM code is preserved with targeted patches:
@@ -193,9 +197,6 @@ The original ROM code is preserved with targeted patches:
 ## Next Steps
 
 - Handle the `NEW` requirement automatically (BASIC memory pointers)
-- Fix CRC calculation in ACIA_SEND_PACKET
-- Replace L96C9 (PROTO_RECV_FRAME) with ACIA-based upload routine for MAIL SEND frame upload
-- Advert area (bottom two screen rows)
 - Disconnect detection: client does not detect server disconnection (restart/timeout). The ROM checks modem register 0 bit 5 for carrier loss, but VICE's ACIA emulation doesn't map TCP socket state to DCD. A software-level solution is needed — possibly a server-sent keepalive packet or a protocol-aware idle timeout that distinguishes "end of stream" from "connection dead".
 
 ## Acknowledgements

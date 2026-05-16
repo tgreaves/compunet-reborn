@@ -190,10 +190,14 @@ and the datamask logic is mode-independent.
 **Eliminating tcpser alone will NOT fix the issue** — VICE strips bit 7
 before bytes reach the ip232 socket.
 
-## Current Status
+## Resolution
 
-Downloads work correctly with full 8-bit fidelity. Upload protocol
-framework is complete and tested. The bit-7 corruption is a VICE ACIA
-emulation issue. Patching tcpser (to avoid parity detection) is still
-useful for avoiding the secondary CRC-mismatch packet loss, but does not
-restore bit 7.
+**FIXED** — The bit-7 corruption was caused by VICE's ip232 protocol layer,
+NOT the ACIA core emulation. With ip232 disabled and VICE connecting via
+raw TCP socket directly to the server (no tcpser), all 8 bits are preserved
+on both upload and download paths.
+
+The server now handles Hayes AT commands directly (auto-detected from the
+first byte), eliminating the need for tcpser entirely. Full round-trip
+verified: upload program → store as PRG → download → save to disk → runs
+correctly.

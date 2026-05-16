@@ -126,7 +126,7 @@ echo "Sending: $IP_ADDRESS"
 send_keybuf "$IP_ADDRESS"
 
 # Step 4: Username
-sleep 2
+sleep 3
 echo "Sending: $USERNAME"
 send_keybuf "$USERNAME"
 
