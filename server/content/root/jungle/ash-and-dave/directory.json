@@ -1,0 +1,32 @@
+{
+  "header": "jungle/ash-and-dave/header.seq",
+  "pages": [
+    {
+      "page_num": 613,
+      "title": "INTERVIEW",
+      "type": "T",
+      "author": "ASH+DAVE",
+      "price": 0,
+      "life": 99,
+      "frames": ["frame-1.seq", "frame-2.seq", "frame-3.seq", "frame-4.seq", "frame-5.seq", "frame-6.seq", "frame-7.seq", "frame-8.seq", "frame-9.seq", "frame-10.seq", "frame-11.seq", "frame-12.seq", "frame-13.seq", "frame-14.seq", "frame-15.seq", "frame-16.seq", "frame-17.seq", "frame-18.seq", "frame-19.seq", "frame-20.seq", "frame-21.seq", "frame-22.seq", "frame-23.seq"]
+    },
+    {
+      "page_num": 611,
+      "title": "SNOWBALL SUNDAY",
+      "type": "T",
+      "author": "ASH+DAVE",
+      "price": 0,
+      "life": 99,
+      "frames": ["frame-1.seq"]
+    },
+    {
+      "page_num": 610,
+      "title": "SNOWBALL",
+      "type": "P",
+      "author": "ASH+DAVE",
+      "price": 0,
+      "life": 99,
+      "frames": ["snowball.prg"]
+    }
+  ]
+}

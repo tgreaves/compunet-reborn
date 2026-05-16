@@ -1411,8 +1411,14 @@ class CompunetSession:
         
         # --- Part 1: Frame header ---
         # PETSCII frame data stored at $D000, displayed via CHROUT after template.
-        # Loaded from the page's "header" SEQ file if defined.
-        header_file = getattr(page, 'header', None)
+        # Inherits from parent if not defined on this page.
+        header_file = None
+        ancestor = page
+        while ancestor:
+            header_file = getattr(ancestor, 'header', None)
+            if header_file:
+                break
+            ancestor = getattr(ancestor, 'parent', None)
         if header_file:
             header_path = os.path.join(ROOT_DIR, header_file)
             log.info('DIR: header=%s (exists=%s)', header_path, os.path.exists(header_path))
