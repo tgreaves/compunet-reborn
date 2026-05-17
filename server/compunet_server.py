@@ -1893,7 +1893,32 @@ async def tcp_handler(reader, writer):
                         
                         response = session.handle_login(user_id, password)
                         if not session.authenticated:
-                            log.info('TCP: login FAILED - closing connection')
+                            log.info('TCP: login FAILED - sending error frame and closing')
+                            # Send a proper frame (flags/border/bg + message + $00)
+                            # so L89D0 (FRAME_BUF_READ) can display it correctly
+                            error_frame = bytearray()
+                            error_frame.append(0x00)  # flags (no more pages)
+                            error_frame.append(0x00)  # border (black)
+                            error_frame.append(0x00)  # background (black)
+                            error_frame.append(0x0D)
+                            error_frame.append(0x0D)
+                            error_frame.extend(ascii_to_petscii('  INVALID ID OR PASSWORD'))
+                            error_frame.append(0x0D)
+                            error_frame.append(0x00)  # end of frame
+                            await asyncio.sleep(0.5)
+                            MAX_PAYLOAD = 100
+                            offset = 0
+                            while offset < len(error_frame):
+                                chunk = error_frame[offset:offset + MAX_PAYLOAD]
+                                pkt = x25.make_data_packet(chunk, TOKEN_DAT)
+                                writer.write(pkt)
+                                await writer.drain()
+                                await asyncio.sleep(0.05)
+                                offset += MAX_PAYLOAD
+                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                            writer.write(eos_pkt)
+                            await writer.drain()
+                            await asyncio.sleep(2.0)
                             writer.close()
                             await writer.wait_closed()
                             return
