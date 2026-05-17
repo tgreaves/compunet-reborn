@@ -3,7 +3,7 @@
 ## Bugs
 
 - ~~**Frame upload sends wrong data when Editor empty**~~: FIXED — `$8019/$801A` correctly points to Editor buffer at $E000 when user has edited a frame. ACIA_UPLOAD_BYTE preserves X register so frame data transmits correctly.
-- **Login freeze on incorrect credentials**: Client freezes on "PLEASE WAIT" if wrong user ID or password entered. Server sends error response but client doesn't handle it.
+- ~~**Login freeze on incorrect credentials**~~: PARTIALLY FIXED — Server now sends a proper error frame ("INVALID ID OR PASSWORD") before closing. Client displays the message but then enters the terminal duckshoot with a dead connection (no disconnect detection). Full fix requires client-side disconnect detection (see below).
 - ~~**Program upload data corruption (bit-7 stripping)**~~: FIXED — caused by VICE's ip232 protocol layer corrupting TX bytes, which triggered tcpser's parity auto-detection to strip bit 7. Eliminated tcpser entirely: server now handles Hayes AT commands directly. Direct raw socket from VICE to server preserves all 8 bits. See `docs/UPLOAD-BIT7-INVESTIGATION.md`.
 - ~~**Directory display corruption after upload**~~: FIXED — was caused by tcpser's parity stripping mangling the server's ACK response, desynchronising the client's stream parser. Resolved by eliminating tcpser.
 
