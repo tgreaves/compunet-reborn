@@ -1,5 +1,6 @@
 services:
   compunet-server:
+    container_name: compunet-server
     build: ./server
     ports:
       - "6400:6400"
@@ -13,7 +14,8 @@ services:
       - .env
     restart: unless-stopped
 
-  website:
+  compunet-web:
+    container_name: compunet-web
     build: ./website
     ports:
       - "6464:6464"
