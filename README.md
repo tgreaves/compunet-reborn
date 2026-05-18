@@ -99,8 +99,9 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT to server)
   - Auto-detects Hayes AT commands (VICE direct) vs raw X.25 (legacy tcpser)
   - X.25 protocol with CRC-CCITT, byte stuffing, flow control
   - User authentication, directory tree, frame serving
-  - Run with: `./server.sh` (supports start/stop/restart/status)
-  - Content stored in folder-per-page layout under `server/content/root/`
+  - Run with: `./server.sh` or `docker compose up`
+  - Config in `server/cfg/` (users.json)
+  - Dynamic data in `server/data/` (content tree, mail, votes)
   - Per-directory JSON files with flat page lists
   - Advert system: configurable text per directory, global fallback
 

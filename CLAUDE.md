@@ -23,7 +23,7 @@ The client and server must always behave like the original Compunet system. All 
 
 ## Server Rules
 
-1. The server must ALWAYS be restarted after any change to server Python code. It does not hot-reload. Use `./server.sh restart`. Content files (SEQ frames, directory JSON files, adverts.json) are re-read on each request and do not require a restart.
+1. The server must ALWAYS be restarted after any change to server Python code. It does not hot-reload. Use `./server.sh restart`. Content files (SEQ frames, directory JSON files, adverts.json) in `server/data/` are re-read on each request and do not require a restart.
 
 ## Git Rules
 

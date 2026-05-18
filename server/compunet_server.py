@@ -48,8 +48,13 @@ log = logging.getLogger('compunet')
 # Server configuration
 WS_PORT = 6502
 TCP_PORT = 6400
-CONTENT_DIR = os.path.join(os.path.dirname(__file__), 'content')
+SERVER_DIR = os.path.dirname(__file__)
+CFG_DIR = os.path.join(SERVER_DIR, 'cfg')
+DATA_DIR = os.path.join(SERVER_DIR, 'data')
+CONTENT_DIR = os.path.join(DATA_DIR, 'content')
 ROOT_DIR = os.path.join(CONTENT_DIR, 'root')
+MAIL_DIR = os.path.join(DATA_DIR, 'mail')
+VOTES_PATH = os.path.join(DATA_DIR, 'votes.json')
 
 # Protocol constants
 RESP_ACK = 0x41       # 'A' - acknowledge/proceed
@@ -258,7 +263,7 @@ class CompunetDirectory:
 
     def _apply_votes(self):
         """Populate vote averages from votes.json."""
-        votes_path = os.path.join(os.path.dirname(__file__), 'votes.json')
+        votes_path = VOTES_PATH
         if not os.path.exists(votes_path):
             return
         with open(votes_path, 'r') as f:
@@ -297,7 +302,7 @@ class CompunetSession:
         self._users = self._load_users()
     
     def _load_users(self):
-        users_file = os.path.join(os.path.dirname(__file__), 'users.json')
+        users_file = os.path.join(CFG_DIR, 'users.json')
         if os.path.exists(users_file):
             with open(users_file, 'r') as f:
                 return json.load(f)
@@ -716,7 +721,7 @@ class CompunetSession:
 
     def _save_user(self):
         """Persist user credit and purchases to users.json."""
-        users_file = os.path.join(os.path.dirname(__file__), 'users.json')
+        users_file = os.path.join(CFG_DIR, 'users.json')
         users = self._load_users()
         if self.user_id in users:
             users[self.user_id]['credit'] = self.credit
@@ -789,14 +794,14 @@ class CompunetSession:
         return len(page_votes)
 
     def _load_votes(self):
-        votes_path = os.path.join(os.path.dirname(__file__), 'votes.json')
+        votes_path = VOTES_PATH
         if os.path.exists(votes_path):
             with open(votes_path, 'r') as f:
                 return json.load(f)
         return {}
 
     def _save_votes(self, votes):
-        votes_path = os.path.join(os.path.dirname(__file__), 'votes.json')
+        votes_path = VOTES_PATH
         with open(votes_path, 'w') as f:
             json.dump(votes, f, indent=2)
     
@@ -810,7 +815,7 @@ class CompunetSession:
 
     def _load_mail(self):
         """Load mail metadata for the current user."""
-        mail_file = os.path.join(os.path.dirname(__file__), 'mail', self.user_id + '.json')
+        mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
         if os.path.exists(mail_file):
             with open(mail_file, 'r') as f:
                 data = json.load(f)
@@ -952,7 +957,7 @@ class CompunetSession:
         msg = self.mail_messages[self.mail_show_msg]
         frames = msg.get('frames', [])
         frame_file = frames[self.mail_frame_index]
-        mail_dir = os.path.join(os.path.dirname(__file__), 'mail', self.user_id)
+        mail_dir = os.path.join(MAIL_DIR, self.user_id)
         frame_path = os.path.join(mail_dir, frame_file)
 
         if os.path.exists(frame_path):
@@ -971,14 +976,14 @@ class CompunetSession:
 
     def _save_mail(self):
         """Persist mail metadata (read status etc)."""
-        mail_file = os.path.join(os.path.dirname(__file__), 'mail', self.user_id + '.json')
+        mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
         data = {'messages': self.mail_messages}
         with open(mail_file, 'w') as f:
             json.dump(data, f, indent=2)
 
     def _next_message_number(self):
         """Get and increment the global message sequence number."""
-        seq_file = os.path.join(os.path.dirname(__file__), 'mail', 'sequence.json')
+        seq_file = os.path.join(MAIL_DIR, 'sequence.json')
         if os.path.exists(seq_file):
             with open(seq_file, 'r') as f:
                 seq_data = json.load(f)
@@ -1161,7 +1166,7 @@ class CompunetSession:
         """Deliver mail to recipients."""
         import datetime
         now = datetime.datetime.now()
-        mail_dir = os.path.join(os.path.dirname(__file__), 'mail')
+        mail_dir = MAIL_DIR
         users = self._load_users()
         msg_seq = self._next_message_number()
 
@@ -1575,7 +1580,7 @@ class CompunetSession:
         self._save_user()
 
         # Check for unread mail
-        mail_file = os.path.join(os.path.dirname(__file__), 'mail', self.user_id + '.json')
+        mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
         mail_waiting = False
         if os.path.exists(mail_file):
             with open(mail_file, 'r') as f:
