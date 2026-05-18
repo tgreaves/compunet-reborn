@@ -10,7 +10,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 **This project is in BETA.** Most core functionality has been implemented and is working, but things may break. The system is under active development.
 
-Working features include: directory browsing, content viewing, multi-page frames, telesoftware downloads and uploads, electronic mail (Courier) with send/receive, user-generated content uploads, voting, GOTO navigation, sub-directories, UCAT, advert system, and the full duckshoot menu. The server handles direct connections from VICE (no tcpser needed) with 8-bit clean communication.
+Working features include: directory browsing, content viewing, multi-page frames, telesoftware downloads and uploads, electronic mail (Courier) with send/receive, user-generated content uploads, voting, GOTO navigation, sub-directories, UCAT, advert system, and the full duckshoot menu. 
 
 ## Quick Start (C64 in VICE)
 
@@ -56,6 +56,8 @@ See `.env.example` for required configuration variables.
 
 ## Building from Source
 
+### Client
+
 ```bash
 cd client/c64/src
 make
@@ -63,6 +65,17 @@ make
 ```
 
 Requires `ca65` and `ld65` from the [cc65](https://cc65.github.io/) suite, and `c1541` from VICE.
+
+### Server (local, without Docker)
+
+```bash
+cd server
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cd ..
+./server.sh start
+```
 
 ## Repository Contents
 
