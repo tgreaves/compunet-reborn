@@ -2,10 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt ./
+COPY server/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY compunet_server.py x25_protocol.py ./
+COPY server/compunet_server.py server/x25_protocol.py ./
+COPY VERSION ./
 
 EXPOSE 6400 6403 6502
 

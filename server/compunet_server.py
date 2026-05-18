@@ -2354,10 +2354,12 @@ async def main():
     else:
         log.warning('aiohttp not installed — REST API disabled')
 
-    _version_file = os.path.join(SERVER_DIR, 'VERSION')
-    if not os.path.exists(_version_file):
-        _version_file = os.path.join(SERVER_DIR, '..', 'VERSION')
-    _version = open(_version_file).read().strip() if os.path.exists(_version_file) else 'unknown'
+    for _vp in [os.path.join(SERVER_DIR, 'VERSION'), os.path.join(SERVER_DIR, '..', 'VERSION')]:
+        if os.path.exists(_vp):
+            _version = open(_vp).read().strip()
+            break
+    else:
+        _version = 'unknown'
     log.info('Compunet server v%s ready.', _version)
 
     async with ws_server, tcp_server:

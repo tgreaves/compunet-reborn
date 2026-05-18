@@ -2,11 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt ./
+COPY website/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY website/ ./
+COPY VERSION ./
 
-EXPOSE 5000
+EXPOSE 6464
 
 CMD ["python3", "app.py"]
