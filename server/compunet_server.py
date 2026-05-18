@@ -70,6 +70,12 @@ CMD_UPLD = 0x55       # 'U'
 CMD_VOTE = 0x56       # 'V'
 CMD_BUY = 0x58        # 'X'
 
+# Shared locks for multi-client safety (asyncio single-threaded, but
+# prevents interleaving of read-modify-write sequences across await points)
+_lock_users = asyncio.Lock()
+_lock_content = asyncio.Lock()
+_lock_mail = asyncio.Lock()
+
 # PETSCII helpers
 PETSCII_RETURN = 0x0D
 PETSCII_RED = 0x1C
@@ -1664,7 +1670,8 @@ async def ws_handler(websocket):
             user_id = parts[0].decode('latin-1') if len(parts) > 0 else 'GUEST'
             password = parts[1].decode('latin-1') if len(parts) > 1 else ''
 
-            response = session.handle_login(user_id, password)
+            async with _lock_users:
+                response = session.handle_login(user_id, password)
             await websocket.send(_ws_wrap(response))
 
             if session.authenticated:
@@ -1690,8 +1697,9 @@ async def ws_handler(websocket):
                 session.handle_select(message[1])
                 continue  # no response
             else:
-                # Standard command
-                response = session.handle_command(message)
+                # Standard command (lock prevents interleaved writes)
+                async with _lock_content:
+                    response = session.handle_command(message)
 
             if response:
                 await websocket.send(_ws_wrap(response))
@@ -1891,7 +1899,8 @@ async def tcp_handler(reader, writer):
                         log.info('TCP:   user=%r pass=%r cnload_bytes=$%02X/$%02X (skip=%s)',
                                  user_id, password, cnload_1, cnload_2, skip_linking)
                         
-                        response = session.handle_login(user_id, password)
+                        async with _lock_users:
+                            response = session.handle_login(user_id, password)
                         if not session.authenticated:
                             log.info('TCP: login FAILED - sending error frame and closing')
                             # Send a proper frame (flags/border/bg + message + $00)
@@ -1947,9 +1956,10 @@ async def tcp_handler(reader, writer):
                         log.debug('TCP: ignoring retransmitted login packet')
                     
                     elif authenticated:
-                        # Post-login commands
+                        # Post-login commands (lock prevents interleaved writes)
                         log.info('TCP: dispatching command (authenticated=True)')
-                        cmd_response = session.handle_command(cmd_payload)
+                        async with _lock_content:
+                            cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
                             log.info('CMD: pre-response delay 500ms starting')
                             await asyncio.sleep(0.5)
