@@ -19,8 +19,8 @@ services:
     build: ./website
     ports:
       - "6464:6464"
-    env_file:
-      - .env
+    volumes:
+      - ./.env:/app/.env:ro
     environment:
       - COMPUNET_API_URL=http://compunet-server:6403
     depends_on:

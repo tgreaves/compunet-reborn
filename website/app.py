@@ -14,7 +14,7 @@ from flask import (Flask, flash, redirect, render_template, request,
 import config
 
 app = Flask(__name__)
-app.secret_key = config.SECRET_KEY
+app.secret_key = config.get('WEBSITE_SECRET_KEY', 'dev-secret-change-me')
 
 USERID_RE = re.compile(r'^[A-Z0-9]{1,8}$')
 PASSWORD_RE = re.compile(r'^[A-Z0-9]{1,6}$')
@@ -26,45 +26,52 @@ PASSWORD_RE = re.compile(r'^[A-Z0-9]{1,6}$')
 
 def _api_headers():
     return {
-        'Authorization': f'Bearer {config.COMPUNET_API_KEY}',
+        'Authorization': f'Bearer {config.get("COMPUNET_API_KEY")}',
         'Content-Type': 'application/json',
     }
 
 
 def _api_get(path):
-    return requests.get(f'{config.COMPUNET_API_URL}{path}', headers=_api_headers())
+    return requests.get(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers())
 
 
 def _api_post(path, data):
-    return requests.post(f'{config.COMPUNET_API_URL}{path}', headers=_api_headers(), json=data)
+    return requests.post(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers(), json=data)
 
 
 def _api_put(path, data):
-    return requests.put(f'{config.COMPUNET_API_URL}{path}', headers=_api_headers(), json=data)
+    return requests.put(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers(), json=data)
+
+
+def _pending_file():
+    return config.get('WEBSITE_PENDING_FILE',
+                      os.path.join(os.path.dirname(__file__), 'pending.json'))
 
 
 def _load_pending():
-    if os.path.exists(config.PENDING_FILE):
-        with open(config.PENDING_FILE, 'r') as f:
+    path = _pending_file()
+    if os.path.exists(path):
+        with open(path, 'r') as f:
             return json.load(f)
     return {}
 
 
 def _save_pending(pending):
-    with open(config.PENDING_FILE, 'w') as f:
+    with open(_pending_file(), 'w') as f:
         json.dump(pending, f, indent=2)
 
 
 def _send_email(to, subject, body_text):
     """Send email via Postmark. Returns True on success."""
-    if not config.POSTMARK_API_KEY:
+    postmark_key = config.get('POSTMARK_API_KEY')
+    if not postmark_key:
         app.logger.warning('POSTMARK_API_KEY not set — email not sent to %s', to)
         app.logger.info('Email would be: subject=%s body=%s', subject, body_text)
         return True  # Pretend success in dev mode
     resp = requests.post(
         'https://api.postmarkapp.com/email',
         headers={
-            'X-Postmark-Server-Token': config.POSTMARK_API_KEY,
+            'X-Postmark-Server-Token': postmark_key,
             'Content-Type': 'application/json',
         },
         json={
@@ -150,7 +157,7 @@ def register():
     }
     _save_pending(pending)
 
-    verify_url = f'{config.BASE_URL}/verify/{token}'
+    verify_url = f'{config.get("WEBSITE_BASE_URL", "http://localhost:6464")}/verify/{token}'
     _send_email(
         to=email,
         subject='Compunet Reborn — Verify Your Account',
