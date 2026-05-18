@@ -21,9 +21,7 @@ services:
       - "6464:6464"
     volumes:
       - ./.env:/app/.env:ro
-      - ./website/data:/app/data
     environment:
-      - WEBSITE_PENDING_FILE=/app/data/pending.json
       - COMPUNET_API_URL=http://compunet-server:6403
     depends_on:
       - compunet-server
