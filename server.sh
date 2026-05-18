@@ -7,6 +7,13 @@ SERVER_DIR="$SCRIPT_DIR/server"
 LOG_FILE="$SERVER_DIR/logs/compunet-server.log"
 PID_FILE="$SERVER_DIR/.pid"
 
+# Load environment variables from .env if present
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    . "$SCRIPT_DIR/.env"
+    set +a
+fi
+
 start_server() {
     if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
         echo "Server already running (PID $(cat "$PID_FILE"))"
@@ -14,7 +21,12 @@ start_server() {
     fi
     cd "$SERVER_DIR"
     mkdir -p logs
-    python3 compunet_server.py >> "$LOG_FILE" 2>&1 &
+    if [ -f "venv/bin/python3" ]; then
+        PYTHON="venv/bin/python3"
+    else
+        PYTHON="python3"
+    fi
+    $PYTHON compunet_server.py >> "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
     echo "Server started (PID $!)"
 }

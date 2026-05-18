@@ -32,6 +32,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import glob
 import logging
 from pathlib import Path
@@ -42,12 +43,18 @@ except ImportError:
     print("Install websockets: pip install websockets")
     raise
 
+try:
+    from aiohttp import web as aiohttp_web
+except ImportError:
+    aiohttp_web = None
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 log = logging.getLogger('compunet')
 
 # Server configuration
 WS_PORT = 6502
 TCP_PORT = 6400
+API_PORT = 6403
 SERVER_DIR = os.path.dirname(__file__)
 CFG_DIR = os.path.join(SERVER_DIR, 'cfg')
 DATA_DIR = os.path.join(SERVER_DIR, 'data')
@@ -2069,18 +2076,190 @@ async def tcp_handler(reader, writer):
 
 
 # ============================================================
+# REST API — User Management
+# ============================================================
+
+_USERID_RE = re.compile(r'^[A-Z0-9]{1,8}$')
+_PASSWORD_RE = re.compile(r'^[A-Z0-9]{1,6}$')
+
+
+def _api_check_auth(request):
+    api_key = os.environ.get('COMPUNET_API_KEY', '')
+    if not api_key:
+        return False
+    auth = request.headers.get('Authorization', '')
+    return auth == f'Bearer {api_key}'
+
+
+def _api_load_users():
+    users_file = os.path.join(CFG_DIR, 'users.json')
+    if os.path.exists(users_file):
+        with open(users_file, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def _api_save_users(users):
+    users_file = os.path.join(CFG_DIR, 'users.json')
+    with open(users_file, 'w') as f:
+        json.dump(users, f, indent=2)
+
+
+def _api_user_public(user_id, user_data):
+    return {
+        'user_id': user_id,
+        'name': user_data.get('name', ''),
+        'account_type': user_data.get('account_type', 'BASIC'),
+        'credit': user_data.get('credit', 0.0),
+        'admin': user_data.get('admin', False),
+    }
+
+
+async def api_health(request):
+    return aiohttp_web.json_response({'status': 'ok'})
+
+
+async def api_list_users(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    async with _lock_users:
+        users = _api_load_users()
+    return aiohttp_web.json_response({
+        'users': [_api_user_public(uid, data) for uid, data in users.items()]
+    })
+
+
+async def api_get_user(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    user_id = request.match_info['user_id'].upper()
+    async with _lock_users:
+        users = _api_load_users()
+    if user_id not in users:
+        return aiohttp_web.json_response({'error': 'not found'}, status=404)
+    return aiohttp_web.json_response(_api_user_public(user_id, users[user_id]))
+
+
+async def api_create_user(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    user_id = body.get('user_id', '').upper().strip()
+    password = body.get('password', '').upper().strip()
+    name = body.get('name', '').strip()
+    account_type = body.get('account_type', 'BASIC').upper().strip()
+
+    if not _USERID_RE.match(user_id):
+        return aiohttp_web.json_response(
+            {'error': 'user_id must be 1-8 chars, A-Z and 0-9 only'}, status=400)
+    if not _PASSWORD_RE.match(password):
+        return aiohttp_web.json_response(
+            {'error': 'password must be 1-6 chars, A-Z and 0-9 only'}, status=400)
+    if not name:
+        return aiohttp_web.json_response(
+            {'error': 'name is required'}, status=400)
+
+    async with _lock_users:
+        users = _api_load_users()
+        if user_id in users:
+            return aiohttp_web.json_response(
+                {'error': 'user already exists'}, status=409)
+        password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+        users[user_id] = {
+            'password': password_hash,
+            'name': name,
+            'credit': 0.0,
+            'account_type': account_type,
+            'last_login_date': '',
+            'last_login_time': '',
+        }
+        _api_save_users(users)
+
+    log.info('API: created user %s', user_id)
+    return aiohttp_web.json_response(
+        _api_user_public(user_id, users[user_id]), status=201)
+
+
+async def api_update_user(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    user_id = request.match_info['user_id'].upper()
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    async with _lock_users:
+        users = _api_load_users()
+        if user_id not in users:
+            return aiohttp_web.json_response({'error': 'not found'}, status=404)
+
+        if 'password' in body:
+            password = body['password'].upper().strip()
+            if not _PASSWORD_RE.match(password):
+                return aiohttp_web.json_response(
+                    {'error': 'password must be 1-6 chars, A-Z and 0-9 only'}, status=400)
+            users[user_id]['password'] = hashlib.sha256(password.encode('utf-8')).hexdigest()
+        if 'name' in body:
+            users[user_id]['name'] = body['name'].strip()
+        if 'account_type' in body:
+            users[user_id]['account_type'] = body['account_type'].upper().strip()
+
+        _api_save_users(users)
+
+    log.info('API: updated user %s', user_id)
+    return aiohttp_web.json_response(_api_user_public(user_id, users[user_id]))
+
+
+async def api_delete_user(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    user_id = request.match_info['user_id'].upper()
+
+    async with _lock_users:
+        users = _api_load_users()
+        if user_id not in users:
+            return aiohttp_web.json_response({'error': 'not found'}, status=404)
+        del users[user_id]
+        _api_save_users(users)
+
+    log.info('API: deleted user %s', user_id)
+    return aiohttp_web.json_response({'status': 'deleted'})
+
+
+# ============================================================
 # Main
 # ============================================================
 
 async def main():
     ws_server = await websockets.serve(ws_handler, '0.0.0.0', WS_PORT)
     log.info('WebSocket server on port %d', WS_PORT)
-    
+
     tcp_server = await asyncio.start_server(tcp_handler, '0.0.0.0', TCP_PORT)
     log.info('TCP server on port %d', TCP_PORT)
-    
+
+    if aiohttp_web:
+        app = aiohttp_web.Application()
+        app.router.add_get('/api/health', api_health)
+        app.router.add_get('/api/users', api_list_users)
+        app.router.add_get('/api/users/{user_id}', api_get_user)
+        app.router.add_post('/api/users', api_create_user)
+        app.router.add_put('/api/users/{user_id}', api_update_user)
+        app.router.add_delete('/api/users/{user_id}', api_delete_user)
+        runner = aiohttp_web.AppRunner(app)
+        await runner.setup()
+        site = aiohttp_web.TCPSite(runner, '0.0.0.0', API_PORT)
+        await site.start()
+        log.info('REST API on port %d', API_PORT)
+    else:
+        log.warning('aiohttp not installed — REST API disabled')
+
     log.info('Compunet server ready.')
-    
+
     async with ws_server, tcp_server:
         await asyncio.gather(
             ws_server.serve_forever(),

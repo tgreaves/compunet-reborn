@@ -3,8 +3,11 @@ services:
     build: ./server
     ports:
       - "6400:6400"
+      - "6403:6403"
       - "6502:6502"
     volumes:
       - ./server/cfg:/app/cfg
       - ./server/data:/app/data
+    env_file:
+      - .env
     restart: unless-stopped

@@ -19,6 +19,12 @@ client/c64/src/build/
 # Connection artifacts
 client/c64/127.0.0.1:*
 
+# Secrets
+.env
+
+# Virtual environment
+server/venv/
+
 # Logs
 server/logs/
 client/c64/logs/
