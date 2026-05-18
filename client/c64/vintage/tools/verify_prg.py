@@ -6,7 +6,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 rom_bin = os.path.join(script_dir, 'build', 'rom.bin')
 term_bin = os.path.join(script_dir, 'build', 'terminal.bin')
 orig_rom = os.path.join(script_dir, 'original_rom.bin')
-orig_term = os.path.join(script_dir, '..', '..', '..', 'historical', 'cnet.prg')
+orig_term = os.path.join(script_dir, '..', 'cnet.prg')
 
 with open(rom_bin, 'rb') as f:
     rom = f.read()

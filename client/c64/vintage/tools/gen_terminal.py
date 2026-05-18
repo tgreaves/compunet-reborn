@@ -14,7 +14,7 @@ Entry point is $A005. It calls back into the ROM via the jump table at $8100.
 import os
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-prg_path = os.path.join(script_dir, '..', '..', '..', 'historical', 'cnet.prg')
+prg_path = os.path.join(script_dir, '..', 'cnet.prg')
 output_path = os.path.join(script_dir, 'terminal.s')
 
 with open(prg_path, 'rb') as f:

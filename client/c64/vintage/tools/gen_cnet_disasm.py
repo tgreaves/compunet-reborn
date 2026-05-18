@@ -6,7 +6,8 @@ File loads at $0801, so runtime_addr = file_addr + $97EF.
 Or equivalently: payload offset + $9FF0 = runtime address.
 """
 
-filepath = r'c:\Users\trist\src\compunet-reborn\historical\cnet.prg'
+import os
+filepath = os.path.join(os.path.dirname(__file__), '..', 'cnet.prg')
 with open(filepath, 'rb') as f:
     data = f.read()
 

@@ -1,7 +1,8 @@
 """Generate the final annotated disassembly of the Compunet Terminal ROM."""
 import struct
 
-filepath = r'c:\Users\trist\src\compunet-reborn\historical\chip0_bank0_8000.bin'
+import os
+filepath = os.path.join(os.path.dirname(__file__), '..', 'chip0_bank0_8000.bin')
 with open(filepath, 'rb') as f:
     rom = f.read()
 
