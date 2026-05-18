@@ -1646,7 +1646,7 @@ class CompunetSession:
         if not os.path.exists(_vf):
             _vf = os.path.join(SERVER_DIR, '..', 'VERSION')
         _ver = open(_vf).read().strip() if os.path.exists(_vf) else '?'
-        frame = frame.replace(b'{VERSION}', _ver.encode('ascii'))
+        frame = frame.replace(b'{VERSION}', ascii_to_petscii(_ver))
 
         return frame
     
