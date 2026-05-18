@@ -14,9 +14,16 @@
 
 <h2>VICE SETUP</h2>
 <ol>
-    <li>Enable SwiftLink: Settings &rarr; Cartridge/IO &rarr; SwiftLink</li>
-    <li>Set RS232 device to the server address (e.g. <code>compunet-reborn.com:6400</code>)</li>
-    <li>Disable ip232 for that device</li>
+    <li>Go to Settings &rarr; Peripheral Devices &rarr; RS232</li>
+    <li>Enable <code>ACIA RS232 interface emulation</code></li>
+    <li>Set Device to <code>Serial 3</code></li>
+    <li>In the RS232 devices section for Serial 3, set:
+        <ul>
+            <li>Host: <code>compunet.live:6400</code></li>
+            <li>Baud: <code>1200</code></li>
+            <li>IP232: <strong>Unchecked</strong></li>
+        </ul>
+    </li>
     <li>Attach <code>compunet-reborn.d64</code> to drive 8</li>
 </ol>
 
@@ -25,7 +32,7 @@
     <li>Load the client: <code>LOAD "COMPUNET",8,1</code></li>
     <li>Type <code>SYS 33184</code></li>
     <li>Type <code>CONNECT</code></li>
-    <li>Enter the server address (e.g. <code>compunet-reborn.com:6400</code>)</li>
+    <li>Enter the server address (e.g. <code>compunet.live:6400</code>)</li>
     <li>Enter your User ID and password</li>
     <li>The duckshoot menu appears &mdash; you're in!</li>
 </ol>

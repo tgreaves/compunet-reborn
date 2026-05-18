@@ -27,6 +27,11 @@
     </div>
 
     <div class="form-group">
+        <label for="confirm_password">CONFIRM PASSWORD</label>
+        <input type="password" id="confirm_password" name="confirm_password" maxlength="6" required>
+    </div>
+
+    <div class="form-group">
         <label for="email">EMAIL ADDRESS</label>
         <input type="email" id="email" name="email" value="{{ email|default('') }}" required>
         <p class="hint">Used for verification and password resets only.</p>

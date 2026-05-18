@@ -1,14 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 :root {
-    --c64-blue: #40318d;
-    --c64-light-blue: #7869c4;
-    --c64-dark-blue: #2b1f6e;
-    --c64-white: #ffffff;
-    --c64-green: #6cd94b;
-    --c64-red: #9f4e44;
+    --c64-blue: #3838b8;
+    --c64-light-blue: #7878e8;
+    --c64-purple: #8838a8;
+    --c64-light-grey: #b8b8b8;
+    --c64-med-grey: #787878;
+    --c64-dark-grey: #585858;
+    --c64-white: #f8f8f8;
+    --c64-green: #58b858;
+    --c64-red: #a83838;
     --c64-black: #000000;
-    --c64-grey: #9f9f9f;
     --font-pixel: 'Press Start 2P', monospace;
 }
 
@@ -19,19 +21,20 @@
 }
 
 body {
-    background-color: var(--c64-blue);
-    color: var(--c64-light-blue);
+    background-color: var(--c64-light-grey);
+    color: var(--c64-blue);
     font-family: var(--font-pixel);
     font-size: 12px;
     line-height: 1.8;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    border: 80px solid var(--c64-purple);
 }
 
 /* Navigation */
 .nav {
-    background-color: var(--c64-dark-blue);
+    background-color: var(--c64-blue);
     border-bottom: 4px solid var(--c64-light-blue);
     padding: 16px 0;
 }
@@ -48,9 +51,13 @@ body {
 }
 
 .nav-brand {
-    color: var(--c64-white);
+    color: var(--c64-light-grey);
     text-decoration: none;
     font-size: 14px;
+}
+
+.nav-brand:hover {
+    color: var(--c64-white);
 }
 
 .nav-links {
@@ -80,14 +87,14 @@ body {
 
 /* Typography */
 h1 {
-    color: var(--c64-white);
+    color: var(--c64-blue);
     font-size: 18px;
     margin-bottom: 24px;
     text-transform: uppercase;
 }
 
 h2 {
-    color: var(--c64-white);
+    color: var(--c64-blue);
     font-size: 14px;
     margin-bottom: 16px;
     margin-top: 32px;
@@ -99,11 +106,12 @@ p {
 }
 
 a {
-    color: var(--c64-green);
+    color: var(--c64-light-blue);
 }
 
 a:hover {
-    color: var(--c64-white);
+    color: var(--c64-blue);
+    text-decoration: underline;
 }
 
 /* Flash messages */
@@ -125,8 +133,8 @@ a:hover {
 }
 
 .flash-info {
-    border-color: var(--c64-light-blue);
-    color: var(--c64-light-blue);
+    border-color: var(--c64-blue);
+    color: var(--c64-blue);
 }
 
 /* Forms */
@@ -136,10 +144,11 @@ a:hover {
 
 label {
     display: block;
-    color: var(--c64-white);
+    color: var(--c64-blue);
     font-size: 10px;
     margin-bottom: 8px;
     text-transform: uppercase;
+    font-weight: bold;
 }
 
 input[type="text"],
@@ -148,9 +157,9 @@ input[type="email"] {
     width: 100%;
     max-width: 400px;
     padding: 10px 12px;
-    background-color: var(--c64-black);
-    border: 2px solid var(--c64-light-blue);
-    color: var(--c64-green);
+    background-color: var(--c64-white);
+    border: 2px solid var(--c64-blue);
+    color: var(--c64-blue);
     font-family: var(--font-pixel);
     font-size: 12px;
     text-transform: uppercase;
@@ -160,7 +169,7 @@ input[type="text"]:focus,
 input[type="password"]:focus,
 input[type="email"]:focus {
     outline: none;
-    border-color: var(--c64-white);
+    border-color: var(--c64-light-blue);
 }
 
 input[type="email"] {
@@ -169,7 +178,7 @@ input[type="email"] {
 
 .hint {
     font-size: 8px;
-    color: var(--c64-grey);
+    color: var(--c64-dark-grey);
     margin-top: 4px;
 }
 
@@ -177,8 +186,8 @@ input[type="email"] {
 button, .btn {
     display: inline-block;
     padding: 12px 24px;
-    background-color: var(--c64-light-blue);
-    color: var(--c64-black);
+    background-color: var(--c64-blue);
+    color: var(--c64-light-grey);
     font-family: var(--font-pixel);
     font-size: 10px;
     text-transform: uppercase;
@@ -188,7 +197,8 @@ button, .btn {
 }
 
 button:hover, .btn:hover {
-    background-color: var(--c64-white);
+    background-color: var(--c64-light-blue);
+    color: var(--c64-white);
 }
 
 /* Errors list */
@@ -211,9 +221,9 @@ button:hover, .btn:hover {
 code, pre {
     font-family: var(--font-pixel);
     font-size: 10px;
-    background-color: var(--c64-black);
+    background-color: var(--c64-white);
     padding: 2px 6px;
-    border: 1px solid var(--c64-light-blue);
+    border: 1px solid var(--c64-blue);
 }
 
 pre {
@@ -224,41 +234,43 @@ pre {
 
 /* Footer */
 .footer {
-    background-color: var(--c64-dark-blue);
+    background-color: var(--c64-blue);
     border-top: 4px solid var(--c64-light-blue);
     padding: 20px;
     text-align: center;
     font-size: 8px;
-    color: var(--c64-grey);
+    color: var(--c64-light-grey);
 }
 
 /* Hero section */
 .hero {
     text-align: center;
-    padding: 40px 0;
-    border: 4px double var(--c64-light-blue);
+    padding: 20px 0;
+    border: 2px solid var(--c64-blue);
     margin-bottom: 32px;
 }
 
 .hero h1 {
     font-size: 24px;
     margin-bottom: 16px;
+    color: var(--c64-red);
 }
 
 .hero p {
     font-size: 10px;
-    color: var(--c64-grey);
+    color: var(--c64-dark-grey);
 }
 
 /* Info boxes */
 .info-box {
-    border: 2px solid var(--c64-light-blue);
+    border: 2px solid var(--c64-blue);
     padding: 20px;
     margin-bottom: 20px;
+    background-color: var(--c64-white);
 }
 
 .info-box h3 {
-    color: var(--c64-white);
+    color: var(--c64-blue);
     font-size: 11px;
     margin-bottom: 12px;
 }

@@ -1231,6 +1231,11 @@ class CompunetSession:
                      self.user_id, self.current_page.author)
             return
 
+        if len(self.current_page.children) >= 11:
+            log.info('UPLOAD DISCARDED: user=%s directory full (%d entries)',
+                     self.user_id, len(self.current_page.children))
+            return
+
         all_pages = list(self.directory.pages.keys())
         next_page_num = max(all_pages) + 1 if all_pages else 1000
 

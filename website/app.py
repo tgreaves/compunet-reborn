@@ -68,7 +68,7 @@ def _send_email(to, subject, body_text):
             'Content-Type': 'application/json',
         },
         json={
-            'From': 'noreply@compunet-reborn.com',
+            'From': 'noreply@compunet.live',
             'To': to,
             'Subject': subject,
             'TextBody': body_text,
@@ -114,6 +114,7 @@ def register():
 
     user_id = request.form.get('user_id', '').upper().strip()
     password = request.form.get('password', '').upper().strip()
+    confirm_password = request.form.get('confirm_password', '').upper().strip()
     email = request.form.get('email', '').strip()
     name = request.form.get('name', '').strip()
 
@@ -122,6 +123,8 @@ def register():
         errors.append('User ID must be 1-8 characters, A-Z and 0-9 only.')
     if not PASSWORD_RE.match(password):
         errors.append('Password must be 1-6 characters, A-Z and 0-9 only.')
+    if password != confirm_password:
+        errors.append('Passwords do not match.')
     if not email or '@' not in email:
         errors.append('A valid email address is required.')
     if not name:
@@ -304,4 +307,4 @@ def reset_password(token):
 # ============================================================
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=6464, debug=True)
