@@ -20,7 +20,7 @@ handling) inline, so overwriting $8E17 is safe.
 
 import os
 
-ORIGINAL_CRT = os.path.join(os.path.dirname(__file__), '..', '..', 'historical', 'Compunet Terminal.crt')
+ORIGINAL_CRT = os.path.join(os.path.dirname(__file__), '..', 'vintage', 'Compunet Terminal.crt')
 OUTPUT_CRT = os.path.join(os.path.dirname(__file__), 'compunet-patched.crt')
 
 with open(ORIGINAL_CRT, 'rb') as f:

@@ -5,7 +5,7 @@ This is our reference — the assembled source must match this exactly.
 import os
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-crt_path = os.path.join(script_dir, '..', '..', '..', 'historical', 'Compunet Terminal.crt')
+crt_path = os.path.join(script_dir, '..', 'Compunet Terminal.crt')
 out_path = os.path.join(script_dir, 'original_rom.bin')
 
 with open(crt_path, 'rb') as f:
