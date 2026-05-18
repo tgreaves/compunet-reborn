@@ -10,8 +10,7 @@ services:
     volumes:
       - ./server/cfg:/app/cfg
       - ./server/data:/app/data
-    env_file:
-      - .env
+      - ./.env:/app/.env:ro
     restart: unless-stopped
 
   compunet-web:

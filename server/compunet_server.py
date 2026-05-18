@@ -35,6 +35,7 @@ import os
 import re
 import glob
 import logging
+import secrets
 from pathlib import Path
 
 try:
@@ -50,6 +51,17 @@ except ImportError:
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 log = logging.getLogger('compunet')
+
+# Load .env file if present (allows restart without rebuild)
+_env_file = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(_env_file):
+    with open(_env_file, 'r') as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if not _line or _line.startswith('#') or '=' not in _line:
+                continue
+            _key, _val = _line.split('=', 1)
+            os.environ.setdefault(_key.strip(), _val.strip())
 
 # Server configuration
 WS_PORT = 6502
@@ -2096,6 +2108,20 @@ def _api_check_auth(request):
     return auth == f'Bearer {api_key}'
 
 
+def _api_load_pending():
+    pending_file = os.path.join(CFG_DIR, 'pending.json')
+    if os.path.exists(pending_file):
+        with open(pending_file, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def _api_save_pending(pending):
+    pending_file = os.path.join(CFG_DIR, 'pending.json')
+    with open(pending_file, 'w') as f:
+        json.dump(pending, f, indent=2)
+
+
 def _api_load_users():
     users_file = os.path.join(CFG_DIR, 'users.json')
     if os.path.exists(users_file):
@@ -2236,6 +2262,63 @@ async def api_delete_user(request):
     return aiohttp_web.json_response({'status': 'deleted'})
 
 
+async def api_create_pending(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    import time
+    token = secrets.token_urlsafe(32)
+    entry = {
+        'user_id': body.get('user_id', ''),
+        'password': body.get('password', ''),
+        'email': body.get('email', ''),
+        'name': body.get('name', ''),
+        'created': time.time(),
+    }
+
+    async with _lock_users:
+        pending = _api_load_pending()
+        pending[token] = entry
+        _api_save_pending(pending)
+
+    log.info('API: created pending registration for %s', entry['user_id'])
+    return aiohttp_web.json_response({'token': token}, status=201)
+
+
+async def api_get_pending(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    token = request.match_info['token']
+
+    async with _lock_users:
+        pending = _api_load_pending()
+        if token not in pending:
+            return aiohttp_web.json_response({'error': 'not found'}, status=404)
+        entry = pending[token]
+
+    return aiohttp_web.json_response(entry)
+
+
+async def api_consume_pending(request):
+    """Retrieve and delete a pending registration (used after verification)."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    token = request.match_info['token']
+
+    async with _lock_users:
+        pending = _api_load_pending()
+        if token not in pending:
+            return aiohttp_web.json_response({'error': 'not found'}, status=404)
+        entry = pending.pop(token)
+        _api_save_pending(pending)
+
+    return aiohttp_web.json_response(entry)
+
+
 # ============================================================
 # Main
 # ============================================================
@@ -2255,6 +2338,9 @@ async def main():
         app.router.add_post('/api/users', api_create_user)
         app.router.add_put('/api/users/{user_id}', api_update_user)
         app.router.add_delete('/api/users/{user_id}', api_delete_user)
+        app.router.add_post('/api/pending', api_create_pending)
+        app.router.add_get('/api/pending/{token}', api_get_pending)
+        app.router.add_delete('/api/pending/{token}', api_consume_pending)
         runner = aiohttp_web.AppRunner(app)
         await runner.setup()
         site = aiohttp_web.TCPSite(runner, '0.0.0.0', API_PORT)

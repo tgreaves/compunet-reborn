@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import re
-import secrets
 import time
 
 import requests
@@ -43,22 +42,16 @@ def _api_put(path, data):
     return requests.put(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers(), json=data)
 
 
-def _pending_file():
-    return config.get('WEBSITE_PENDING_FILE',
-                      os.path.join(os.path.dirname(__file__), 'pending.json'))
+def _api_create_pending(data):
+    return requests.post(
+        f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}/api/pending',
+        headers=_api_headers(), json=data)
 
 
-def _load_pending():
-    path = _pending_file()
-    if os.path.exists(path):
-        with open(path, 'r') as f:
-            return json.load(f)
-    return {}
-
-
-def _save_pending(pending):
-    with open(_pending_file(), 'w') as f:
-        json.dump(pending, f, indent=2)
+def _api_consume_pending(token):
+    return requests.delete(
+        f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}/api/pending/{token}',
+        headers=_api_headers())
 
 
 def _send_email(to, subject, body_text):
@@ -146,16 +139,17 @@ def register():
         return render_template('register.html', errors=errors,
                                user_id=user_id, email=email, name=name)
 
-    token = secrets.token_urlsafe(32)
-    pending = _load_pending()
-    pending[token] = {
+    resp = _api_create_pending({
         'user_id': user_id,
         'password': password,
         'email': email,
         'name': name,
-        'created': time.time(),
-    }
-    _save_pending(pending)
+    })
+    if resp.status_code != 201:
+        errors.append('Registration failed. Please try again.')
+        return render_template('register.html', errors=errors,
+                               user_id=user_id, email=email, name=name)
+    token = resp.json()['token']
 
     verify_url = f'{config.get("WEBSITE_BASE_URL", "http://localhost:6464")}/verify/{token}'
     _send_email(
@@ -175,15 +169,13 @@ def register():
 
 @app.route('/verify/<token>')
 def verify(token):
-    pending = _load_pending()
-    if token not in pending:
+    consume_resp = _api_consume_pending(token)
+    if consume_resp.status_code != 200:
         flash('Invalid or expired verification link.', 'error')
         return redirect(url_for('register'))
 
-    entry = pending[token]
-    if time.time() - entry['created'] > 86400:
-        del pending[token]
-        _save_pending(pending)
+    entry = consume_resp.json()
+    if time.time() - entry.get('created', 0) > 86400:
         flash('Verification link has expired. Please register again.', 'error')
         return redirect(url_for('register'))
 
@@ -192,9 +184,6 @@ def verify(token):
         'password': entry['password'],
         'name': entry['name'],
     })
-
-    del pending[token]
-    _save_pending(pending)
 
     if resp.status_code == 201:
         return render_template('verify.html', user_id=entry['user_id'])
