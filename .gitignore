@@ -22,8 +22,12 @@ client/c64/127.0.0.1:*
 # Secrets
 .env
 
-# Virtual environment
+# Virtual environments
 server/venv/
+website/venv/
+
+# Website runtime data
+website/pending.json
 
 # Logs
 server/logs/

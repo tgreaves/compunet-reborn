@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Register — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>REGISTER</h1>
+
+<p>Create your Compunet User ID. Once verified, you can log in from a C64 (or emulator).</p>
+
+{% if errors %}
+<ul class="errors">
+    {% for error in errors %}
+        <li>{{ error }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<form method="POST">
+    <div class="form-group">
+        <label for="user_id">USER ID</label>
+        <input type="text" id="user_id" name="user_id" maxlength="8" value="{{ user_id|default('') }}" required>
+        <p class="hint">1-8 characters. Letters A-Z and numbers 0-9 only.</p>
+    </div>
+
+    <div class="form-group">
+        <label for="password">PASSWORD</label>
+        <input type="password" id="password" name="password" maxlength="6" required>
+        <p class="hint">1-6 characters. Letters A-Z and numbers 0-9 only.</p>
+    </div>
+
+    <div class="form-group">
+        <label for="email">EMAIL ADDRESS</label>
+        <input type="email" id="email" name="email" value="{{ email|default('') }}" required>
+        <p class="hint">Used for verification and password resets only.</p>
+    </div>
+
+    <div class="form-group">
+        <label for="name">DISPLAY NAME</label>
+        <input type="text" id="name" name="name" value="{{ name|default('') }}" required>
+        <p class="hint">Your real name or handle. Shown to other users.</p>
+    </div>
+
+    <button type="submit">CREATE ACCOUNT</button>
+</form>
+{% endblock %}

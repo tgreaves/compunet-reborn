@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Login — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>LOGIN</h1>
+
+<p>Log in to manage your account settings.</p>
+
+<form method="POST">
+    <div class="form-group">
+        <label for="user_id">USER ID</label>
+        <input type="text" id="user_id" name="user_id" maxlength="8" value="{{ user_id|default('') }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="password">PASSWORD</label>
+        <input type="password" id="password" name="password" maxlength="6" required>
+    </div>
+
+    <button type="submit">LOGIN</button>
+</form>
+
+<p style="margin-top: 20px;"><a href="{{ url_for('forgot_password') }}">FORGOT PASSWORD?</a></p>
+{% endblock %}

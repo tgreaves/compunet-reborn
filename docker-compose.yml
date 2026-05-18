@@ -3,11 +3,24 @@ services:
     build: ./server
     ports:
       - "6400:6400"
-      - "6403:6403"
       - "6502:6502"
+    expose:
+      - "6403"
     volumes:
       - ./server/cfg:/app/cfg
       - ./server/data:/app/data
     env_file:
       - .env
+    restart: unless-stopped
+
+  website:
+    build: ./website
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - COMPUNET_API_URL=http://compunet-server:6403
+    depends_on:
+      - compunet-server
     restart: unless-stopped

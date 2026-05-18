@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Compunet Reborn{% endblock %}
+{% block content %}
+<div class="hero">
+    <h1>COMPUNET REBORN</h1>
+    <p>THE LIVE ONE LIVES ON</p>
+</div>
+
+<p>Compunet was a UK-based interactive online service that ran from 1984 to 1993, serving Commodore 64 users. It featured user-generated content, electronic mail, telesoftware downloads, and a unique community experience.</p>
+
+<p>Compunet Reborn is an effort to reverse engineer and recreate the original protocol, bringing this piece of computing history back to life on modern systems.</p>
+
+<h2>FEATURES</h2>
+<div class="info-box">
+    <h3>WHAT WORKS TODAY</h3>
+    <p>Directory browsing, content viewing, program downloads and uploads, electronic mail (Courier), user-generated content uploads, voting, and the full duckshoot menu system.</p>
+</div>
+
+<div class="info-box">
+    <h3>GET CONNECTED</h3>
+    <p>All you need is VICE (C64 emulator) with SwiftLink enabled. No modem emulator required &mdash; connect directly to the server.</p>
+    <p><a href="{{ url_for('connect') }}">CONNECTION INSTRUCTIONS &raquo;</a></p>
+</div>
+
+<div class="info-box">
+    <h3>CREATE AN ACCOUNT</h3>
+    <p>Register your User ID to join the system. Upload your own content, send mail, and download telesoftware.</p>
+    <p><a href="{{ url_for('register') }}">REGISTER NOW &raquo;</a></p>
+</div>
+{% endblock %}

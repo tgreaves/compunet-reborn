@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Check Your Email — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>CHECK YOUR EMAIL</h1>
+
+<div class="info-box">
+    <h3>VERIFICATION REQUIRED</h3>
+    <p>We've sent a verification link to <strong>{{ email }}</strong>.</p>
+    <p>Click the link in the email to activate your account. The link expires in 24 hours.</p>
+    <p>Once verified, you can log in from your C64 using your new User ID and password.</p>
+</div>
+{% endblock %}

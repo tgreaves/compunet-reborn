@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Account — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>YOUR ACCOUNT</h1>
+
+<div class="info-box">
+    <h3>{{ user.user_id }}</h3>
+    <p>Name: {{ user.name }}</p>
+    <p>Account type: {{ user.account_type }}</p>
+    <p>Credit: {{ "%.2f"|format(user.credit) }}</p>
+</div>
+
+<h2>ACTIONS</h2>
+<p><a href="{{ url_for('change_password') }}">CHANGE PASSWORD</a></p>
+{% endblock %}

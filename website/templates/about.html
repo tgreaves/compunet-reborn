@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}About — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>ABOUT</h1>
+
+<p>Compunet (also known as CNet) was operated by Compunet Teleservices Ltd and developed by Ariadne Software. Users connected via a custom 1200/75 baud modem (the "brick") that plugged into the C64's cartridge port.</p>
+
+<p>The service featured a tree-structured content system, electronic mail ("Courier"), telesoftware downloads, a page editor, and the iconic horizontally-scrolling "duckshoot" menu system.</p>
+
+<h2>WHAT WE'RE RECREATING</h2>
+
+<p>Compunet Reborn reverse-engineers the original X.25-derived protocol from the ROM and terminal software. The server reimplements the protocol in Python, allowing a real (or emulated) C64 to connect over TCP as if it were 1987 again.</p>
+
+<p>The original modem registers are swapped for 6551 ACIA (SwiftLink) equivalents, and TCP provides the reliable transport that the phone line couldn't.</p>
+
+<h2>LINKS</h2>
+
+<p><a href="https://en.wikipedia.org/wiki/Compunet">Compunet on Wikipedia</a></p>
+<p><a href="http://www.64apocalypse.com/compunet/compunet.htm">C64 Apocalypse — Compunet pages</a></p>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Account Verified — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>ACCOUNT VERIFIED</h1>
+
+<div class="info-box">
+    <h3>WELCOME, {{ user_id }}!</h3>
+    <p>Your account is now active. You can log in from your C64 using:</p>
+    <p>User ID: <code>{{ user_id }}</code></p>
+    <p>See <a href="{{ url_for('connect') }}">connection instructions</a> to get started.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Connect — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>HOW TO CONNECT</h1>
+
+<p>Compunet Reborn runs on a real (or emulated) Commodore 64 with a SwiftLink-compatible serial interface. The easiest way to get started is with the VICE emulator.</p>
+
+<h2>PREREQUISITES</h2>
+<ol>
+    <li>VICE C64 emulator (x64sc) — <a href="https://vice-emu.sourceforge.io/">download here</a></li>
+    <li>The Compunet Reborn D64 disk image (from the project repository)</li>
+    <li>A registered account — <a href="{{ url_for('register') }}">register here</a></li>
+</ol>
+
+<h2>VICE SETUP</h2>
+<ol>
+    <li>Enable SwiftLink: Settings &rarr; Cartridge/IO &rarr; SwiftLink</li>
+    <li>Set RS232 device to the server address (e.g. <code>compunet-reborn.com:6400</code>)</li>
+    <li>Disable ip232 for that device</li>
+    <li>Attach <code>compunet-reborn.d64</code> to drive 8</li>
+</ol>
+
+<h2>CONNECTING</h2>
+<ol>
+    <li>Load the client: <code>LOAD "COMPUNET",8,1</code></li>
+    <li>Type <code>NEW</code> then <code>SYS 33184</code></li>
+    <li>Type <code>CONNECT</code></li>
+    <li>Enter the server address (e.g. <code>compunet-reborn.com:6400</code>)</li>
+    <li>Enter your User ID and password</li>
+    <li>The duckshoot menu appears &mdash; you're in!</li>
+</ol>
+
+<h2>TIPS</h2>
+<div class="info-box">
+    <h3>NAVIGATION</h3>
+    <p>Use the duckshoot (bottom menu) to navigate. Cursor left/right scrolls commands. RETURN selects. F7/F8 cycles directory columns.</p>
+</div>
+{% endblock %}

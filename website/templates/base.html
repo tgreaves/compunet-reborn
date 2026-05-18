@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Compunet Reborn{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="{{ url_for('home') }}" class="nav-brand">COMPUNET REBORN</a>
+            <div class="nav-links">
+                <a href="{{ url_for('about') }}">ABOUT</a>
+                <a href="{{ url_for('connect') }}">CONNECT</a>
+                {% if session.get('user_id') %}
+                    <a href="{{ url_for('account') }}">ACCOUNT</a>
+                    <a href="{{ url_for('logout') }}">LOGOUT</a>
+                {% else %}
+                    <a href="{{ url_for('register') }}">REGISTER</a>
+                    <a href="{{ url_for('login') }}">LOGIN</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>COMPUNET REBORN &mdash; THE LIVE ONE LIVES ON</p>
+    </footer>
+</body>
+</html>
