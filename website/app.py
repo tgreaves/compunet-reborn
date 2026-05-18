@@ -75,7 +75,7 @@ def _send_email(to, subject, body_text):
             'Content-Type': 'application/json',
         },
         json={
-            'From': 'noreply@compunet.live',
+            'From': config.get('EMAIL_FROM', 'noreply@compunet.live'),
             'To': to,
             'Subject': subject,
             'TextBody': body_text,
