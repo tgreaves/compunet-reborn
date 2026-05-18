@@ -79,9 +79,11 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT to server)
   - `compunet.s` — Combined source (ROM + terminal + ACIA driver)
   - `compunet.cfg` — ca65/ld65 linker configuration
   - `Makefile` — Build with `make` (requires ca65/ld65 from cc65 suite)
-  - `gen_source.py` — ROM disassembler (generates compunet_rom.s from binary)
-  - `gen_terminal.py` — Terminal disassembler (generates terminal.s from cnet.prg)
 - **[client/c64/compunet-reborn.prg](client/c64/compunet-reborn.prg)** — Ready-to-run PRG
+- **[client/c64/vintage/](client/c64/vintage/)** — Original reverse engineering artefacts
+  - `modem_bootstrap.asm` — Annotated ROM disassembly
+  - `terminal_app.asm` — Annotated terminal software disassembly
+  - `tools/` — Disassembly and code generation scripts
 
 ### Web Client
 
@@ -171,7 +173,7 @@ The source (`compunet.s`) is a single combined assembly file containing:
 2. The terminal code (generated from cnet.prg disassembly)
 3. The ACIA driver (hand-written polling-based communication layer)
 
-The `gen_source.py` script performs recursive-descent disassembly of the original ROM binary, identifying code vs data regions and generating proper ca65 source with labels. Address tables use `.lobyte()/.hibyte()` for correct relocation when code shifts.
+The `client/c64/vintage/tools/gen_source.py` script performs recursive-descent disassembly of the original ROM binary, identifying code vs data regions and generating proper ca65 source with labels. Address tables use `.lobyte()/.hibyte()` for correct relocation when code shifts.
 
 ### Communication Model
 
