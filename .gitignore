@@ -28,6 +28,7 @@ website/venv/
 
 # Website runtime data
 website/pending.json
+website/data/
 
 # Logs
 server/logs/
