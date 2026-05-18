@@ -11,6 +11,7 @@ services:
       - ./server/cfg:/app/cfg
       - ./server/data:/app/data
       - ./.env:/app/.env:ro
+      - ./VERSION:/app/VERSION:ro
     restart: unless-stopped
 
   compunet-web:
@@ -20,6 +21,7 @@ services:
       - "6464:6464"
     volumes:
       - ./.env:/app/.env:ro
+      - ./VERSION:/app/VERSION:ro
     environment:
       - COMPUNET_API_URL=http://compunet-server:6403
     depends_on:

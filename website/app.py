@@ -15,6 +15,16 @@ import config
 app = Flask(__name__)
 app.secret_key = config.get('WEBSITE_SECRET_KEY', 'dev-secret-change-me')
 
+_version_file = os.path.join(os.path.dirname(__file__), 'VERSION')
+if not os.path.exists(_version_file):
+    _version_file = os.path.join(os.path.dirname(__file__), '..', 'VERSION')
+APP_VERSION = open(_version_file).read().strip() if os.path.exists(_version_file) else 'unknown'
+
+
+@app.context_processor
+def inject_version():
+    return {'version': APP_VERSION}
+
 USERID_RE = re.compile(r'^[A-Z0-9]{1,8}$')
 PASSWORD_RE = re.compile(r'^[A-Z0-9]{1,6}$')
 

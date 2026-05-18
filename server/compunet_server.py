@@ -1642,6 +1642,11 @@ class CompunetSession:
         frame = frame.replace(b'{FREE_STORAGE}', b'2000')  # TODO: calculate from account type
         frame = frame.replace(b'{CREDIT}', credit_str.encode('ascii'))
         frame = frame.replace(b'{MAIL_IND}', mail_ind)
+        _vf = os.path.join(SERVER_DIR, 'VERSION')
+        if not os.path.exists(_vf):
+            _vf = os.path.join(SERVER_DIR, '..', 'VERSION')
+        _ver = open(_vf).read().strip() if os.path.exists(_vf) else '?'
+        frame = frame.replace(b'{VERSION}', _ver.encode('ascii'))
 
         return frame
     
@@ -2349,7 +2354,11 @@ async def main():
     else:
         log.warning('aiohttp not installed — REST API disabled')
 
-    log.info('Compunet server ready.')
+    _version_file = os.path.join(SERVER_DIR, 'VERSION')
+    if not os.path.exists(_version_file):
+        _version_file = os.path.join(SERVER_DIR, '..', 'VERSION')
+    _version = open(_version_file).read().strip() if os.path.exists(_version_file) else 'unknown'
+    log.info('Compunet server v%s ready.', _version)
 
     async with ws_server, tcp_server:
         await asyncio.gather(
