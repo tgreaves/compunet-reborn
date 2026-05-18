@@ -22,18 +22,18 @@ $BE03+       ACIA driver — polling-based SwiftLink communication
 
 ### Boot Sequence
 ```
-LOAD "COMPUNET",8,1 : NEW : SYS 33184
+LOAD "COMPUNET",8,1
+SYS 33184
 ```
 
 - `LOAD "...",8,1` loads the PRG at its embedded address ($8000)
-- `NEW` resets BASIC's memory pointers (corrupted by the load)
 - `SYS 33184` ($81A0) enters MAIN_INIT
 
 ### Why Not a Cartridge?
 
 A cartridge ROM is limited to exactly 8K ($8000-$9FFF). The terminal code and
 ACIA driver don't fit. A PRG file has no size limit and loads everything in one
-shot. The trade-off is needing `NEW` before `SYS` (fixable in future).
+shot.
 
 ## Build System
 
@@ -190,7 +190,7 @@ Must be in RAM that's visible regardless of ROM banking ($CF00 is always accessi
 $0000-$00FF  Zero page (shared with BASIC/Kernal)
 $029B        Ring buffer tail pointer (NMI writes)
 $029C        Ring buffer head pointer (main code reads)
-$0801-$7FFF  BASIC RAM (available after NEW)
+$0801-$7FFF  BASIC RAM
 $8000-$9FEF  ROM code (loaded from PRG)
 $9FF0-$9FFF  Phone number storage (written at runtime)
 $A000-$BE02  Terminal code (loaded from PRG)
@@ -247,9 +247,7 @@ through careful code sizing.
    Server accepts packets despite CRC errors (logs warning).
 2. **TX sequence number** — $C20E not properly initialised, sends as $7F instead
    of $20-range. Server tolerates this.
-3. **`NEW` required** — BASIC memory pointers corrupted by LOAD. Future fix:
-   add pointer reset to MAIN_INIT (currently overflows ROM segment into TERMINAL).
-4. **No welcome frame** — server needs to send initial frame after login for
+3. **No welcome frame** — server needs to send initial frame after login for
    proper terminal initialisation.
 5. **tcpser break delay** — reduced to 50ms, may need further tuning.
 

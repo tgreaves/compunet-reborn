@@ -10,7 +10,7 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 **Directory browsing is working!**
 
-- ✅ Single PRG file loads and runs in VICE (`LOAD "COMPUNET",8,1 : NEW : SYS 33184`)
+- ✅ Single PRG file loads and runs in VICE (`LOAD "COMPUNET",8,1` then `SYS 33184`)
 - ✅ EDITOR, HELP, CONNECT commands functional
 - ✅ SwiftLink/ACIA communication via polling (no IRQ deadlocks)
 - ✅ Hayes AT dial through tcpser → TCP connection to server
@@ -132,7 +132,7 @@ SYS 33184 → CONNECT → phone input → ACIA_DIAL (Hayes ATDT to server)
 2. In VICE: enable SwiftLink (Settings → Cartridge/IO → SwiftLink)
 3. Set RS232 device to `127.0.0.1:6400` (ip232 disabled)
 4. Attach `client/c64/compunet-reborn.d64` to drive 8
-5. Load: `LOAD "COMPUNET",8,1` then `NEW` then `SYS 33184`
+5. Load: `LOAD "COMPUNET",8,1` then `SYS 33184`
 6. Type `CONNECT`, enter `127.0.0.1:6400`
 7. Login with any username/password (e.g., TEST/TEST)
 8. Duckshoot menu appears!
@@ -149,8 +149,6 @@ Example: `./vice_test.sh 127.0.0.1:6400 test test --restart-server`
 
 This launches x64sc with the D64 disk image on drive 8, remote monitor on port 6510, and injects keystrokes via `keybuf` to automate SYS, CONNECT, and login. VICE connects directly to the server (no tcpser needed). The remote monitor remains available for debug sessions after login completes. Downloaded programs are saved to the same D64 disk image.
 
-### Why `NEW` is needed
-The `LOAD "...",8,1` command loads the PRG at $8000-$CFXX, which overwrites BASIC's top-of-memory pointer. `NEW` resets BASIC's internal state so that `SYS 33184` doesn't trigger an "OUT OF MEMORY" error. A future improvement will handle this automatically in the ROM's MAIN_INIT.
 
 ## Building from Source
 
@@ -200,7 +198,6 @@ The original ROM code is preserved with targeted patches:
 
 ## Next Steps
 
-- Handle the `NEW` requirement automatically (BASIC memory pointers)
 - Disconnect detection: client does not detect server disconnection (restart/timeout). The ROM checks modem register 0 bit 5 for carrier loss, but VICE's ACIA emulation doesn't map TCP socket state to DCD. A software-level solution is needed — possibly a server-sent keepalive packet or a protocol-aware idle timeout that distinguishes "end of stream" from "connection dead".
 
 ## Acknowledgements

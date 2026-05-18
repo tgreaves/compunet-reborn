@@ -15,7 +15,6 @@ cd server && python3 compunet_server.py
 
 # 3. In VICE (with SwiftLink at port 25232):
 LOAD "COMPUNET",8,1
-NEW
 SYS 33184
 
 # 4. Type CONNECT, enter 127.0.0.1:6400, login with TEST/TEST
@@ -82,7 +81,6 @@ Requires `ca65` and `ld65` from the [cc65](https://cc65.github.io/) suite.
 
 ## Known Issues
 
-- `NEW` required before `SYS 33184` (BASIC memory pointers)
 - Frame header (Part 1) displays at wrong screen position
 - Entry alignment off by 1 char between first and subsequent entries
 - Phantom third entry from stream termination
