@@ -197,6 +197,7 @@ def verify(token):
         'user_id': entry['user_id'],
         'password': entry['password'],
         'name': entry['name'],
+        'email': entry.get('email', ''),
     })
 
     if resp.status_code == 201:
@@ -338,6 +339,10 @@ def admin_edit_user(user_id):
     if name:
         updates['name'] = name
 
+    email = request.form.get('email', '').strip()
+    if email is not None:
+        updates['email'] = email
+
     credit = request.form.get('credit', '').strip()
     if credit:
         try:
@@ -378,6 +383,7 @@ def admin_approve_pending(token):
         'user_id': entry['user_id'],
         'password': entry['password'],
         'name': entry['name'],
+        'email': entry.get('email', ''),
     })
 
     if resp.status_code == 201:

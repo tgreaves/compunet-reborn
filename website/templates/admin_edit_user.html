@@ -5,6 +5,7 @@
 
 <div class="info-box">
     <p>Name: {{ user.name }}</p>
+    <p>Email: {{ user.email or '(none)' }}</p>
     <p>Account type: {{ user.account_type }}</p>
     <p>Credit: {{ "%.2f"|format(user.credit) }}</p>
 </div>
@@ -13,6 +14,11 @@
     <div class="form-group">
         <label for="name">NAME</label>
         <input type="text" id="name" name="name" value="{{ user.name }}">
+    </div>
+
+    <div class="form-group">
+        <label for="email">EMAIL</label>
+        <input type="email" id="email" name="email" value="{{ user.email }}">
     </div>
 
     <div class="form-group">

@@ -2145,6 +2145,7 @@ def _api_user_public(user_id, user_data):
     return {
         'user_id': user_id,
         'name': user_data.get('name', ''),
+        'email': user_data.get('email', ''),
         'account_type': user_data.get('account_type', 'BASIC'),
         'credit': user_data.get('credit', 0.0),
         'admin': user_data.get('admin', False),
@@ -2213,6 +2214,7 @@ async def api_create_user(request):
     user_id = body.get('user_id', '').upper().strip()
     password = body.get('password', '').upper().strip()
     name = body.get('name', '').strip()
+    email = body.get('email', '').strip()
     account_type = body.get('account_type', 'BASIC').upper().strip()
 
     if not _USERID_RE.match(user_id):
@@ -2234,6 +2236,7 @@ async def api_create_user(request):
         users[user_id] = {
             'password': password_hash,
             'name': name,
+            'email': email,
             'credit': 0.0,
             'account_type': account_type,
             'last_login_date': '',
@@ -2268,6 +2271,8 @@ async def api_update_user(request):
             users[user_id]['password'] = hashlib.sha256(password.encode('utf-8')).hexdigest()
         if 'name' in body:
             users[user_id]['name'] = body['name'].strip()
+        if 'email' in body:
+            users[user_id]['email'] = body['email'].strip()
         if 'credit' in body:
             try:
                 users[user_id]['credit'] = float(body['credit'])
