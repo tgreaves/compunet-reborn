@@ -28,6 +28,7 @@
 	* Welcome screen: live PAGES/NEAR DEATH, FREE STORAGE, NEXT QUARTER fields.
 	* Welcome screen: last login date/time now persisted between sessions.
 	* Fixed welcome frame packet timing (50ms → 250ms to prevent buffer overflow).
+	* F-key navigation shortcuts: F1-F6 trigger GOTO via Part 3 field definitions.
 * Dev:
 	* server/data/ removed from git tracking (use server/data.example/ for dev setup).
 	* users.json removed from git tracking (use users.json.example for dev setup).

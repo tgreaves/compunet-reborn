@@ -218,6 +218,7 @@ class CompunetDirectory:
         self.root = CompunetPage(page_num=100, title='WELCOME', page_type='D', author='SYSTEM')
         self.root.header = data.get('header', None)
         self.root._adverts = data.get('adverts', [])
+        self.root.shortcuts = data.get('shortcuts', None)
         self.root._dir_path = ROOT_DIR
         self.pages[100] = self.root
 
@@ -270,6 +271,7 @@ class CompunetDirectory:
                 with open(dir_json_path, 'r') as f:
                     sub_data = json.load(f)
                 page._adverts = sub_data.get('adverts', [])
+                page.shortcuts = sub_data.get('shortcuts', None)
                 if sub_data.get('header'):
                     page.header = sub_data['header']
                 for child_data in sub_data.get('pages', []):
@@ -1511,8 +1513,19 @@ class CompunetSession:
             data.append(0x0D)
             data.append(0x0D)
 
-        # --- Part 3: Field definitions ---
-        # $00 = none
+        # --- Part 3: Field definitions (F-key shortcuts, stored at $D580+) ---
+        # Format: [field_id] '=' [value] $0D ... $00
+        # field_id 1-6 maps to F1, F3, F5, F2, F4, F6
+        shortcuts = getattr(page, 'shortcuts', None)
+        if shortcuts:
+            fkey_map = {'F1': 1, 'F2': 4, 'F3': 2, 'F4': 5, 'F5': 3, 'F6': 6}
+            for key, value in shortcuts.items():
+                field_id = fkey_map.get(key)
+                if field_id and value:
+                    data.append(field_id)
+                    data.append(0x3D)  # '='
+                    data.extend(ascii_to_petscii(value[:7]))
+                    data.append(0x0D)
         data.append(0x00)
 
         # --- Part 4: Routing/breadcrumb (stored at $D400, displayed at row 7) ---
