@@ -14,6 +14,10 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 Working features include: directory browsing, content viewing, multi-page frames, telesoftware downloads and uploads, electronic mail (Courier) with send/receive, user-generated content uploads, voting, GOTO navigation, sub-directories, UCAT, advert system, and the full duckshoot menu. 
 
+## Live Service
+
+The official live instance of this project is running at [https://compunet.live/](https://compunet.live/)
+
 ## Quick Start (C64 in VICE)
 
 ### Prerequisites
@@ -22,15 +26,17 @@ Working features include: directory browsing, content viewing, multi-page frames
 - cc65 suite (ca65/ld65) and c1541 for building
 
 ### Steps
-1. Start server: `./server.sh`
-2. In VICE: Settings → Peripheral Devices → RS232
-3. Enable ACIA RS232 interface emulation, set Device to Serial 3
-4. Serial 3 settings: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
-5. Attach `client/c64/compunet-reborn.d64` to drive 8
-6. `LOAD "COMPUNET",8,1` then `SYS 33184`
-7. Type `CONNECT`, enter `127.0.0.1:6400`
-8. Login with TEST/TEST
-9. Duckshoot menu appears!
+1. Copy the server data template: `cp -R server/data.example server/data`
+2. Copy the user database template: `cp server/cfg/users.json.example server/cfg/users.json`
+3. Start server: `./server.sh`
+4. In VICE: Settings → Peripheral Devices → RS232
+5. Enable ACIA RS232 interface emulation, set Device to Serial 3
+6. Serial 3 settings: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
+7. Attach `client/c64/compunet-reborn.d64` to drive 8
+8. `LOAD "COMPUNET",8,1` then `SYS 33184`
+9. Type `CONNECT`, enter any number at the phone number prompt
+10. Login with TEST/TEST
+11. Duckshoot menu appears!
 
 ### Automated Testing
 
@@ -119,6 +125,8 @@ Historical SEQ file sources:
 - **compunet-pages-interviews** — Frank @ Games That Weren't
 - **compunet-sequence-files** — Unknown
 - **neil_shumsky** — Neil Shumsky (256 SEQ files extracted from D64 disk images)
+
+Thanks to Mark Wilson for providing the Welcome screen and other historical frames.
 
 Thanks to Richard Hawkins (RH18 FROODLE) for helping source some of these files.
 

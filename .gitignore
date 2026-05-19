@@ -22,6 +22,11 @@ client/c64/127.0.0.1:*
 # Secrets
 .env
 
+# Live user and server data (use .example copies for dev setup)
+server/cfg/users.json
+server/cfg/pending.json
+server/data/
+
 # Virtual environments
 server/venv/
 website/venv/
@@ -33,3 +38,6 @@ website/pending.json
 server/logs/
 client/c64/logs/
 *.pid
+
+# Local scripts
+transfer-repo.sh

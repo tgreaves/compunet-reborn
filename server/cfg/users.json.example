@@ -1,0 +1,22 @@
+{
+  "TEST": {
+    "password": "94ee059335e587e501cc4bf90613e0814f00a7b08bc7c648fd865a2af6a22cc2",
+    "name": "MR TEST PERSON",
+    "email": "",
+    "credit": 100.0,
+    "account_type": "GOLD",
+    "last_login_date": "",
+    "last_login_time": "",
+    "purchased": []
+  },
+  "ADMIN": {
+    "password": "835d6dc88b708bc646d6db82c853ef4182fabbd4a8de59c213f2b5ab3ae7d9be",
+    "name": "MR SYSTEM ADMIN",
+    "email": "",
+    "credit": 999.0,
+    "admin": true,
+    "account_type": "ADMIN",
+    "last_login_date": "",
+    "last_login_time": ""
+  }
+}

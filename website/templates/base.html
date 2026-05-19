@@ -15,6 +15,9 @@
                 <a href="{{ url_for('connect') }}">CONNECT</a>
                 {% if session.get('user_id') %}
                     <a href="{{ url_for('account') }}">ACCOUNT</a>
+                    {% if session.get('user_id') == 'ADMIN' %}
+                        <a href="{{ url_for('admin_users') }}">ADMIN</a>
+                    {% endif %}
                     <a href="{{ url_for('logout') }}">LOGOUT</a>
                 {% else %}
                     <a href="{{ url_for('register') }}">REGISTER</a>

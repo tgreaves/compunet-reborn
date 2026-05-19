@@ -1,5 +1,8 @@
 {
   "header": "header.seq",
+  "shortcuts": {
+    "F1": "JUNGLE"
+  },
   "pages": [
     {
       "page_num": 101,

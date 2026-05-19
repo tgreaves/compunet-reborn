@@ -1,0 +1,15 @@
+{
+  "messages": [
+    {
+      "id": "100002",
+      "from": "ADMIN",
+      "subject": "WELCOME",
+      "date": "2026-05-14",
+      "read": false,
+      "frames": [
+        "msg001-0.seq",
+        "msg001-1.seq"
+      ]
+    }
+  ]
+}

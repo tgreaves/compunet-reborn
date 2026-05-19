@@ -1689,7 +1689,7 @@ L8D52:
     JSR PRINT_STRING
     LDY #$00                            ; PRINT_STRING
 L8D78:
-    LDX #$10
+    LDX #$18
     LDA #$2D
     SEC
     JSR SETUP_INPUT_PARAMS              ; INPUT_LINE
@@ -2145,6 +2145,11 @@ L9128:
 L9139:
     BPL L9145
 L913B:
+    CMP #$41                            ; ;--- MODIFIED: allow A-Z for domain names
+    BCC @not_alpha
+    CMP #$5B
+    BCC L9162                           ; Accept A-Z
+@not_alpha:
     CMP #$2E                            ; ;--- MODIFIED: allow . for IP
     BCC L90F7
     CMP #$3B                            ; ;--- MODIFIED: allow : for port
@@ -4020,7 +4025,7 @@ ROMCALL_31      = $815D   ; FRAME_STORE
 
 .segment "TERMINAL"
 
-L9FF0 = $9FF0                           ; Phone number storage (RAM, written at runtime)
+L9FF0 = $C1E0                           ; Phone number storage (relocated for longer input)
 
     .byte $31, $45, $20, $F0, $B9                                ; $A000 1E ..
     LDA #$00
@@ -6881,7 +6886,7 @@ ACIA_WAIT_READY:
 
 ; =================================================================
 ; ACIA_DIAL — Hayes AT dial sequence
-; Sends "ATDT" + phone number from $9FF1 (length in $9FF0) + CR
+; Sends "ATDT" + phone number/hostname from L9FF0+1 (length in L9FF0) + CR
 ; Waits for "CONNECT" response (CR-terminated)
 ; Returns: C=0 success, C=1 failure
 ; =================================================================
@@ -6898,15 +6903,22 @@ ACIA_DIAL:
     ; Send phone number digits
     LDY #$00
 @send_digit:
-    CPY $9FF0
+    CPY L9FF0
     BEQ @send_cr
-    CPY #$14                            ; Safety: max 20 chars
+    CPY #$18                            ; Safety: max 24 chars
     BEQ @send_cr
-    LDA $9FF1,Y
+    LDA L9FF0+1,Y
     CMP #$2D                            ; '-' = pause
     BNE @not_pause
     LDA #','                            ; Hayes pause
+    JMP @send_char
 @not_pause:
+    CMP #$41                            ; Convert uppercase PETSCII A-Z
+    BCC @send_char                      ; to lowercase ASCII a-z
+    CMP #$5B
+    BCS @send_char
+    ORA #$20
+@send_char:
     JSR ACIA_WAIT_READY
     INY
     BNE @send_digit
@@ -7043,36 +7055,80 @@ ACIA_PROTO_CONNECT:
 @ident_done:
 
     ; --- Step 3: Wait for *CON response ---
-    ; Server sends "*CON\r" — we look for the CR after receiving "*CON"
-    LDX #$00                            ; Match index
-    LDY #$00                            ; Timeout hi
+    ; Server sends lines prefixed with '*'. Characters after '*' are displayed.
+    ; When a line matches "*CON", handshake is complete.
+    LDA #$00
+    STA $C200                           ; Display flag (bit 7 = printing active)
+    STA $C201                           ; Buffer index
+    STA $C202                           ; Timeout page counter
+    LDX #$00                            ; Timeout hi
+    LDY #$00                            ; Timeout lo
 @wait_con:
-    LDA ACIA_STATUS                     ; Poke VICE
-    AND #$08
-    BNE @got_con_byte
+    LDA ACIA_STATUS                     ; Poke VICE to trigger NMI
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
-    BNE @got_con_buf
-    ; Timeout
+    BNE @got_con_byte
+    ; Timeout (~30 seconds at 1MHz)
     INY
     BNE @wait_con
     INX
-    CPX #$FF
+    BNE @wait_con
+    INC $C202
+    LDA $C202
+    CMP #$06
     BCC @wait_con
     SEC                                 ; Timeout — failure
     RTS
 
 @got_con_byte:
-    LDA ACIA_DATA
-    JMP @check_con
-@got_con_buf:
-    LDX NMI_BUF_HEAD
+    TAX
     LDA NMI_BUF,X
     INC NMI_BUF_HEAD
-@check_con:
-    ; Check for CR (end of *CON\r response)
+@process_con:
+    ; Check for '*' — enables display
+    CMP #$2A
+    BNE @not_star
+    SEC
+    ROR $C200                           ; Set bit 7 = display active
+    LDA #$00
+    STA $C201                           ; Reset buffer index
+    LDA #$2A                            ; Restore '*' for display
+@not_star:
+    ; Display character if flag set
+    BIT $C200
+    BPL @no_print
+    JSR KERNAL_CHROUT
+@no_print:
+    ; Store in line buffer for *CON check
+    AND #$7F
+    LDX $C201
+    CPX #$04
+    BCS @skip_store
+    STA $0200,X
+    INC $C201
+@skip_store:
+    ; Check for CR — end of line
     CMP #$0D
-    BEQ @con_received
+    BNE @not_cr
+    ; Check if line buffer = "*CON"
+    LDA $0200
+    CMP #$2A                            ; '*'
+    BNE @reset_line
+    LDA $0201
+    CMP #$43                            ; 'C'
+    BNE @reset_line
+    LDA $0202
+    CMP #$4F                            ; 'O'
+    BNE @reset_line
+    LDA $0203
+    CMP #$4E                            ; 'N'
+    BNE @reset_line
+    JMP @con_received
+@reset_line:
+    LDA #$00
+    STA $C200                           ; Reset display flag
+    STA $C201                           ; Reset buffer
+@not_cr:
     ; Reset timeout
     LDY #$00
     LDX #$00

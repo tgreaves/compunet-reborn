@@ -8,7 +8,7 @@
 <h2>PREREQUISITES</h2>
 <ol>
     <li>VICE C64 emulator (x64sc) — <a href="https://vice-emu.sourceforge.io/">download here</a></li>
-    <li>The Compunet Reborn D64 disk image (from the project repository)</li>
+    <li>The Compunet Reborn D64 disk image — <a href="https://github.com/tgreaves/compunet-reborn/raw/main/client/c64/compunet-reborn.d64">download here</a></li>
     <li>A registered account — <a href="{{ url_for('register') }}">register here</a></li>
 </ol>
 
@@ -19,7 +19,7 @@
     <li>Set Device to <code>Serial 3</code></li>
     <li>In the RS232 devices section for Serial 3, set:
         <ul>
-            <li>Host: <code>compunet.live:6400</code></li>
+            <li>Host: <code>vme.compunet.live:6400</code></li>
             <li>Baud: <code>1200</code></li>
             <li>IP232: <strong>Unchecked</strong></li>
         </ul>
@@ -32,7 +32,7 @@
     <li>Load the client: <code>LOAD "COMPUNET",8,1</code></li>
     <li>Type <code>SYS 33184</code></li>
     <li>Type <code>CONNECT</code></li>
-    <li>Enter the server address (e.g. <code>compunet.live:6400</code>)</li>
+    <li>Enter any number at the phone number prompt (the connection is configured in VICE settings)</li>
     <li>Enter your User ID and password</li>
     <li>The duckshoot menu appears &mdash; you're in!</li>
 </ol>

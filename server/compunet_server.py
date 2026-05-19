@@ -99,6 +99,7 @@ CMD_BUY = 0x58        # 'X'
 _lock_users = asyncio.Lock()
 _lock_content = asyncio.Lock()
 _lock_mail = asyncio.Lock()
+_online_users = set()
 
 # PETSCII helpers
 PETSCII_RETURN = 0x0D
@@ -218,6 +219,7 @@ class CompunetDirectory:
         self.root = CompunetPage(page_num=100, title='WELCOME', page_type='D', author='SYSTEM')
         self.root.header = data.get('header', None)
         self.root._adverts = data.get('adverts', [])
+        self.root.shortcuts = data.get('shortcuts', None)
         self.root._dir_path = ROOT_DIR
         self.pages[100] = self.root
 
@@ -270,6 +272,7 @@ class CompunetDirectory:
                 with open(dir_json_path, 'r') as f:
                     sub_data = json.load(f)
                 page._adverts = sub_data.get('adverts', [])
+                page.shortcuts = sub_data.get('shortcuts', None)
                 if sub_data.get('header'):
                     page.header = sub_data['header']
                 for child_data in sub_data.get('pages', []):
@@ -432,6 +435,10 @@ class CompunetSession:
             return self._goto_page(page_num)
         except ValueError:
             pass
+
+        # Built-in virtual pages
+        if target.upper() == 'WHO':
+            return self._make_who_frame()
 
         # Try keyword lookup
         for page in self.directory.pages.values():
@@ -739,20 +746,29 @@ class CompunetSession:
         return bytes([0x00])
 
     def _save_user(self):
-        """Persist user credit and purchases to users.json."""
+        """Persist user state to users.json."""
         users_file = os.path.join(CFG_DIR, 'users.json')
         users = self._load_users()
         if self.user_id in users:
             users[self.user_id]['credit'] = self.credit
             users[self.user_id]['purchased'] = sorted(self.purchased)
+            mem_user = self._users.get(self.user_id, {})
+            if mem_user.get('last_login_date'):
+                users[self.user_id]['last_login_date'] = mem_user['last_login_date']
+                users[self.user_id]['last_login_time'] = mem_user.get('last_login_time', '')
             with open(users_file, 'w') as f:
                 json.dump(users, f, indent=2)
 
     def _cmd_back(self):
         """BACK command - go to previous page, or parent directory if on first page."""
         if self.mail_mode:
+            if self.mail_show_msg is not None:
+                self.mail_show_msg = None
+                return self._make_mail_response()
+            if getattr(self, 'mail_page_offset', 0) > 0:
+                self.mail_page_offset = max(0, self.mail_page_offset - 11)
+                return self._make_mail_response()
             self.mail_mode = False
-            self.mail_show_msg = None
             return self._make_dir_response()
         if self.dir_page_offset > 0:
             # Go back to previous page of same directory
@@ -825,11 +841,20 @@ class CompunetSession:
             json.dump(votes, f, indent=2)
     
     def _cmd_mail(self):
-        """MAIL command - show mailbox as 6-part directory listing."""
+        """MAIL command - show mailbox or advance mail page.
+
+        When already in mail mode, 'M' acts as MORE (next page).
+        """
+        if self.mail_mode:
+            self.mail_page_offset = getattr(self, 'mail_page_offset', 0) + 11
+            if self.mail_page_offset >= len(self.mail_messages):
+                self.mail_page_offset = 0
+            return self._make_mail_response()
         self.mail_mode = True
         self.mail_messages = self._load_mail()
         self.mail_frame_index = 0
         self.mail_show_msg = None
+        self.mail_page_offset = 0
         return self._make_mail_response()
 
     def _load_mail(self):
@@ -899,7 +924,10 @@ class CompunetSession:
         data.append(0x0D)
         data.append(0x00)
 
-        # Part 6: mail entries
+        # Part 6: mail entries (max 11 per page)
+        offset = getattr(self, 'mail_page_offset', 0)
+        visible = self.mail_messages[offset:offset+11]
+
         if not self.mail_messages:
             data.extend(ascii_to_petscii('      (NO MAIL)'))
             data.append(0x2C)
@@ -907,11 +935,11 @@ class CompunetSession:
             data.append(0x2C)
             data.append(0x0D)
         else:
-            for i, msg in enumerate(self.mail_messages):
+            for i, msg in enumerate(visible):
                 subject = msg.get('subject', '')[:18]
                 num_frames = len(msg.get('frames', []))
                 type_str = ('T' + str(num_frames)).ljust(3)
-                msg_id = msg.get('id', str(i + 1))
+                msg_id = msg.get('id', str(offset + i + 1))
                 page_str = str(msg_id).rjust(6) + ' '
                 title_field = subject[:16].ljust(17) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
@@ -933,7 +961,8 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(status))
                 data.append(0x0D)
 
-        log.info('MAIL response: %d messages, %d bytes', len(self.mail_messages), len(data))
+        log.info('MAIL response: %d messages (offset=%d, visible=%d), %d bytes',
+                 len(self.mail_messages), offset, len(visible), len(data))
         return bytes(data)
 
     def _cmd_mail_show(self, params):
@@ -960,15 +989,21 @@ class CompunetSession:
         else:
             selected = 0
 
-        if selected < len(self.mail_messages):
-            self.mail_show_msg = selected
+        offset = getattr(self, 'mail_page_offset', 0)
+        visible = self.mail_messages[offset:offset+11]
+
+        if selected < len(visible):
+            actual_index = offset + selected
+            self.mail_show_msg = actual_index
             self.mail_frame_index = 0
             # Mark as read
-            self.mail_messages[selected]['read'] = True
+            self.mail_messages[actual_index]['read'] = True
             self._save_mail()
             return self._send_mail_frame()
-
-        return self._make_error(ascii_to_petscii('NO SUCH MESSAGE'))
+        else:
+            # Beyond visible entries — advance to next page
+            self.mail_page_offset = offset + 11
+            return self._make_mail_response()
 
     def _send_mail_frame(self):
         """Send current mail message frame."""
@@ -988,6 +1023,8 @@ class CompunetSession:
         has_more = self.mail_frame_index < len(frames) - 1
         if has_more:
             frame_data[0] |= 0x80
+        else:
+            frame_data[0] &= 0x7F
         log.info('MAIL FRAME: msg=%d frame=%d/%d file=%s (%d bytes, more=%s)',
                  self.mail_show_msg, self.mail_frame_index + 1, len(frames),
                  frame_file, len(frame_data), has_more)
@@ -1022,14 +1059,14 @@ class CompunetSession:
                   'JUL','AUG','SEP','OCT','NOV','DEC']
         date_str = f'{timestamp.day:02d}-{MONTHS[timestamp.month-1]}-{timestamp.strftime("%y")}'
         time_str = timestamp.strftime('%H:%M')
-        sender_name = users.get(sender_id, {}).get('name', sender_id)
+        sender_name = users.get(sender_id, {}).get('name', sender_id).upper()
 
         # Build destination slot lines
         dest_lines = []
         for i in range(5):
             if i < len(dest_ids):
                 did = dest_ids[i]
-                dest_name = users.get(did, {}).get('name', '')
+                dest_name = users.get(did, {}).get('name', '').upper()
                 # cyan ID + red colon + cyan name
                 line = b'\x20\x20\x1F' + did.ljust(8)[:8].encode('ascii') + b'\x1C: \x1F' + dest_name.encode('ascii')
             else:
@@ -1481,8 +1518,19 @@ class CompunetSession:
             data.append(0x0D)
             data.append(0x0D)
 
-        # --- Part 3: Field definitions ---
-        # $00 = none
+        # --- Part 3: Field definitions (F-key shortcuts, stored at $D580+) ---
+        # Format: [field_id] '=' [value] $0D ... $00
+        # field_id 1-6 maps to F1, F3, F5, F2, F4, F6
+        shortcuts = getattr(page, 'shortcuts', None)
+        if shortcuts:
+            fkey_map = {'F1': 1, 'F2': 4, 'F3': 2, 'F4': 5, 'F5': 3, 'F6': 6}
+            for key, value in shortcuts.items():
+                field_id = fkey_map.get(key)
+                if field_id and value:
+                    data.append(field_id)
+                    data.append(0x3D)  # '='
+                    data.extend(ascii_to_petscii(value[:7]))
+                    data.append(0x0D)
         data.append(0x00)
 
         # --- Part 4: Routing/breadcrumb (stored at $D400, displayed at row 7) ---
@@ -1490,7 +1538,15 @@ class CompunetSession:
         data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
         data.append(0x0D)
         path_line2 = '  ' + str(page.page_num) + ' ' + (page.title or '')
-        data.extend(ascii_to_petscii(path_line2[:22]))
+        data.extend(ascii_to_petscii(path_line2[:22].ljust(24)))
+        # Unread mail indicator at column 25 (aligned with type field)
+        mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
+        if os.path.exists(mail_file):
+            with open(mail_file, 'r') as f:
+                inbox = json.load(f)
+            if any(not m.get('read', True) for m in inbox.get('messages', [])):
+                data.append(0x1C)  # red
+                data.extend(ascii_to_petscii('MAIL'))
         data.append(0x00)
 
         # --- Part 5: Column headers (at $D500, 8 bytes per field) ---
@@ -1579,6 +1635,71 @@ class CompunetSession:
         frame.append(0x00)  # end
         return bytes(frame)
 
+    def _make_who_frame(self):
+        """Build the WHO page — directory response with user list in header."""
+        import datetime
+        self.last_response_type = RESP_DIR
+        self.dir_displayed = True
+        now = datetime.datetime.now()
+
+        data = bytearray()
+
+        # Part 1: Header frame showing connected users
+        data.append(0x8E)  # uppercase
+        data.append(0x0D)
+        data.append(0x0D)
+        data.extend(ascii_to_petscii(
+            f'  CNETTERS ON THE SYSTEM AT {now.strftime("%H:%M")}'))
+        data.append(0x0D)
+        data.extend(ascii_to_petscii(
+            '  * INDICATES A USER ON PARTYLINE'))
+        data.append(0x0D)
+        data.append(0x0D)
+
+        users = sorted(_online_users)
+        for i in range(0, len(users), 4):
+            row = users[i:i+4]
+            line = '  ' + ''.join(u.ljust(10) for u in row)
+            data.extend(ascii_to_petscii(line))
+            data.append(0x0D)
+
+        if not users:
+            data.extend(ascii_to_petscii('  (NONE)'))
+            data.append(0x0D)
+
+        data.append(0x00)  # End Part 1
+
+        # Part 2: empty footer
+        data.append(0x0D)
+        data.append(0x0D)
+
+        # Part 3: empty
+        data.append(0x00)
+
+        # Part 4: breadcrumb
+        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.append(0x0D)
+        data.extend(ascii_to_petscii('  WHO'))
+        data.append(0x00)
+
+        # Part 5: column header
+        data.extend(ascii_to_petscii('WHO'))
+        data.append(0x0D)
+        data.append(0x00)
+
+        # Part 6: user entries (one per line)
+        if users:
+            for u in users:
+                data.extend(ascii_to_petscii('0     ' + u.ljust(18)))
+                data.append(0x2C)
+                data.append(0x0D)
+        else:
+            data.extend(ascii_to_petscii('0     (NONE)'))
+            data.append(0x2C)
+            data.append(0x0D)
+
+        return bytes(data)
+
     def _make_welcome_frame(self, user):
         """Build the personal information welcome screen from template.
 
@@ -1611,11 +1732,21 @@ class CompunetSession:
                 inbox = json.load(f)
             mail_waiting = any(not m.get('read', True) for m in inbox.get('messages', []))
 
-        # Mail indicator — PETSCII pillarbox graphic or blank
+        # Pillarbox mail indicator (6 lines of graphic or equivalent spaces)
         if mail_waiting:
-            mail_ind = b'\x1C\x12 MAIL \x92'  # red reversed "MAIL"
+            pb1 = b'\xa5\x06\x1c\x1c\xaf\xb9\xaf\x20\x20'
+            pb2 = b'\x20\xbc\x12\x06\x02\x92\xbe\x20'
+            pb3 = b'\x12\x20\x92\xa2\x12\x20\x92\x20\x20'
+            pb4 = b'\x06\x1c\x1c\x12\x20\xa6\x20\x92\x20\x20'
+            pb5 = b'\x12\x06\x02\x92\x20\x20'
+            pb6 = b'\x90\xac\x12\x06\x02\x92\xbb\x20'
         else:
-            mail_ind = b''
+            pb1 = b'\xb4\x06\x21'
+            pb2 = b'\x06\x06'
+            pb3 = b'\x06\x04'
+            pb4 = b'\x06\x21'
+            pb5 = b'\x06\x04'
+            pb6 = b'\x06\x05'
 
         # Credit display
         credit = user.get('credit', 0.0)
@@ -1623,6 +1754,26 @@ class CompunetSession:
             credit_str = f'{credit:.2f} CREDIT'
         else:
             credit_str = f'{abs(credit):.2f} DEBIT'
+
+        # Pages and storage calculations
+        self.directory.reload()
+        user_pages = [p for p in self.directory.pages.values() if p.author == self.user_id]
+        pages_count = len(user_pages)
+        near_death = len([p for p in user_pages if 0 < p.life < 5])
+        storage_used = sum(len(p.frames) * p.life for p in user_pages if p.life > 0)
+        free_storage = max(0, 2000 - storage_used)
+
+        # Next quarter start date
+        month = now.month
+        if month <= 3:
+            nq = datetime.date(now.year, 4, 1)
+        elif month <= 6:
+            nq = datetime.date(now.year, 7, 1)
+        elif month <= 9:
+            nq = datetime.date(now.year, 10, 1)
+        else:
+            nq = datetime.date(now.year + 1, 1, 1)
+        next_quarter_str = f'{nq.day:02d}-{MONTHS[nq.month-1]}'
 
         # Load template
         template_path = os.path.join(CONTENT_DIR, 'templates', 'welcome.seq')
@@ -1632,21 +1783,39 @@ class CompunetSession:
         else:
             frame = b'\x00\x03\x0F\x8E\x0D\x1F WELCOME\x0D\x00'
 
-        # Replace placeholders
-        frame = frame.replace(b'{USER_ID}', self.user_id.encode('ascii'))
-        frame = frame.replace(b'{ACCOUNT_TYPE}', user.get('account_type', 'BASIC').encode('ascii'))
-        frame = frame.replace(b'{LAST_DATE}', prev_date.encode('ascii'))
-        frame = frame.replace(b'{LAST_TIME}', prev_time.encode('ascii'))
-        frame = frame.replace(b'{PAGES}', b'0')  # TODO: calculate from directory
-        frame = frame.replace(b'{NEAR_DEATH}', b'0')  # TODO: calculate pages with life <= 3
-        frame = frame.replace(b'{FREE_STORAGE}', b'2000')  # TODO: calculate from account type
-        frame = frame.replace(b'{CREDIT}', credit_str.encode('ascii'))
-        frame = frame.replace(b'{MAIL_IND}', mail_ind)
-        _vf = os.path.join(SERVER_DIR, 'VERSION')
-        if not os.path.exists(_vf):
-            _vf = os.path.join(SERVER_DIR, '..', 'VERSION')
-        _ver = open(_vf).read().strip() if os.path.exists(_vf) else '?'
-        frame = frame.replace(b'{VERSION}', ascii_to_petscii(_ver))
+        # Replace placeholders with padding adjustment.
+        # Each placeholder is followed by $06 $XX (repeat XX spaces).
+        # Total field width (value + spaces) must stay constant.
+        def replace_padded(frame, placeholder, value, orig_len):
+            """Replace placeholder and adjust the $06 $XX space padding that follows."""
+            val = value.encode('ascii') if isinstance(value, str) else value
+            pos = frame.find(placeholder)
+            if pos < 0:
+                return frame
+            after = pos + len(placeholder)
+            if after + 1 < len(frame) and frame[after] == 0x06:
+                orig_pad = frame[after + 1]
+                total_width = orig_len + orig_pad
+                new_pad = max(0, total_width - len(val))
+                frame = frame[:pos] + val + bytes([0x06, new_pad]) + frame[after + 2:]
+            else:
+                frame = frame[:pos] + val + frame[after:]
+            return frame
+
+        user_name = user.get('name', self.user_id).upper()
+        pages_stats = f'{pages_count}/{near_death}'
+        frame = replace_padded(frame, b'{USER_NAME}', user_name, 14)
+        frame = replace_padded(frame, b'{LAST_TIME}', prev_time or '', 5)
+        frame = replace_padded(frame, b'{PAGES_STATS}', pages_stats, 3)
+        frame = replace_padded(frame, b'{FREE_STORAGE}', str(free_storage), 3)
+        frame = replace_padded(frame, b'{NEXT_QUARTER}', next_quarter_str, 6)
+        frame = frame.replace(b'{LAST_DATE}', prev_date.ljust(9).encode('ascii'))
+        frame = frame.replace(b'{PB1}', pb1)
+        frame = frame.replace(b'{PB2}', pb2)
+        frame = frame.replace(b'{PB3}', pb3)
+        frame = frame.replace(b'{PB4}', pb4)
+        frame = frame.replace(b'{PB5}', pb5)
+        frame = frame.replace(b'{PB6}', pb6)
 
         return frame
     
@@ -1868,10 +2037,39 @@ async def tcp_handler(reader, writer):
                 ident_received = True
                 rx_buffer.clear()
                 
-                # Send "*CON\r" immediately — no delay.
+                # Send MOTD (if present) before *CON
+                # Each line must start with '*' to activate client display.
+                # The motd.txt already has '*' borders so lines are sent as-is.
+                motd_path = os.path.join(CFG_DIR, 'motd.txt')
+                if os.path.exists(motd_path):
+                    with open(motd_path, 'r') as f:
+                        lines = [l.rstrip('\n') for l in f if l.strip()]
+                    if lines:
+                        _vf = os.path.join(SERVER_DIR, 'VERSION')
+                        if not os.path.exists(_vf):
+                            _vf = os.path.join(SERVER_DIR, '..', 'VERSION')
+                        _ver = open(_vf).read().strip() if os.path.exists(_vf) else '?'
+                        for line in lines:
+                            line = line.replace('{VERSION}', _ver.center(9))
+                            # Convert to PETSCII lowercase mode: A-Z → $C1-$DA
+                            raw = bytearray()
+                            for ch in line.upper():
+                                code = ord(ch)
+                                if 0x41 <= code <= 0x5A:
+                                    raw.append(code + 0x80)
+                                else:
+                                    raw.append(code)
+                            raw.append(0x0D)
+                            writer.write(bytes(raw))
+                            await writer.drain()
+                            await asyncio.sleep(0.1)
+                    log.info('TCP TX: sent MOTD from %s', motd_path)
+
+                # Pause to let user read MOTD, then send "*CON\r"
+                await asyncio.sleep(3.0)
                 writer.write(b'\x2a\x43\x4f\x4e\x0d')
                 await writer.drain()
-                log.info('TCP TX: sent "*CON\\r" connection signal (burst)')
+                log.info('TCP TX: sent "*CON\\r" connection signal')
                 login_done = True  # Exit negotiation, enter command loop
                 break
         
@@ -1930,8 +2128,8 @@ async def tcp_handler(reader, writer):
                         skip_linking = (cnload_1 == 0x30 and cnload_2 == 0x30)
                         
                         log.info('TCP: *** LOGIN ***')
-                        log.info('TCP:   user=%r pass=%r cnload_bytes=$%02X/$%02X (skip=%s)',
-                                 user_id, password, cnload_1, cnload_2, skip_linking)
+                        log.info('TCP:   user=%r cnload_bytes=$%02X/$%02X (skip=%s)',
+                                 user_id, cnload_1, cnload_2, skip_linking)
                         
                         async with _lock_users:
                             response = session.handle_login(user_id, password)
@@ -1967,6 +2165,7 @@ async def tcp_handler(reader, writer):
                             return
                         
                         authenticated = True
+                        _online_users.add(session.user_id)
                         log.info('TCP: login OK! Skipping LINKING (terminal pre-loaded)')
 
                         # Send welcome frame — L89D0 reads this after login
@@ -1978,7 +2177,7 @@ async def tcp_handler(reader, writer):
                                 pkt = x25.make_data_packet(chunk, TOKEN_DAT)
                                 writer.write(pkt)
                                 await writer.drain()
-                                await asyncio.sleep(0.05)
+                                await asyncio.sleep(0.25)
                                 offset += MAX_PAYLOAD
                             eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
                             writer.write(eos_pkt)
@@ -2092,8 +2291,13 @@ async def tcp_handler(reader, writer):
     except (ConnectionResetError, BrokenPipeError) as e:
         log.info('TCP: connection error: %s', e)
     finally:
+        if session.user_id:
+            _online_users.discard(session.user_id)
         writer.close()
-        await writer.wait_closed()
+        try:
+            await writer.wait_closed()
+        except (ConnectionResetError, BrokenPipeError, OSError):
+            pass
         log.info('TCP client disconnected: %s', addr)
 
 
@@ -2145,6 +2349,7 @@ def _api_user_public(user_id, user_data):
     return {
         'user_id': user_id,
         'name': user_data.get('name', ''),
+        'email': user_data.get('email', ''),
         'account_type': user_data.get('account_type', 'BASIC'),
         'credit': user_data.get('credit', 0.0),
         'admin': user_data.get('admin', False),
@@ -2153,6 +2358,32 @@ def _api_user_public(user_id, user_data):
 
 async def api_health(request):
     return aiohttp_web.json_response({'status': 'ok'})
+
+
+async def api_auth(request):
+    """Verify user credentials. Returns user info on success, 401 on failure."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    user_id = body.get('user_id', '').upper().strip()
+    password = body.get('password', '').upper().strip()
+
+    async with _lock_users:
+        users = _api_load_users()
+
+    user = users.get(user_id)
+    if user is None:
+        return aiohttp_web.json_response({'error': 'invalid credentials'}, status=401)
+
+    password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    if user['password'] != password_hash:
+        return aiohttp_web.json_response({'error': 'invalid credentials'}, status=401)
+
+    return aiohttp_web.json_response(_api_user_public(user_id, user))
 
 
 async def api_list_users(request):
@@ -2187,6 +2418,7 @@ async def api_create_user(request):
     user_id = body.get('user_id', '').upper().strip()
     password = body.get('password', '').upper().strip()
     name = body.get('name', '').strip()
+    email = body.get('email', '').strip()
     account_type = body.get('account_type', 'BASIC').upper().strip()
 
     if not _USERID_RE.match(user_id):
@@ -2208,6 +2440,7 @@ async def api_create_user(request):
         users[user_id] = {
             'password': password_hash,
             'name': name,
+            'email': email,
             'credit': 0.0,
             'account_type': account_type,
             'last_login_date': '',
@@ -2242,6 +2475,14 @@ async def api_update_user(request):
             users[user_id]['password'] = hashlib.sha256(password.encode('utf-8')).hexdigest()
         if 'name' in body:
             users[user_id]['name'] = body['name'].strip()
+        if 'email' in body:
+            users[user_id]['email'] = body['email'].strip()
+        if 'credit' in body:
+            try:
+                users[user_id]['credit'] = float(body['credit'])
+            except (ValueError, TypeError):
+                return aiohttp_web.json_response(
+                    {'error': 'credit must be a number'}, status=400)
         if 'account_type' in body:
             users[user_id]['account_type'] = body['account_type'].upper().strip()
 
@@ -2265,6 +2506,23 @@ async def api_delete_user(request):
 
     log.info('API: deleted user %s', user_id)
     return aiohttp_web.json_response({'status': 'deleted'})
+
+
+async def api_list_pending(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    async with _lock_users:
+        pending = _api_load_pending()
+    entries = []
+    for token, entry in pending.items():
+        entries.append({
+            'token': token,
+            'user_id': entry.get('user_id', ''),
+            'email': entry.get('email', ''),
+            'name': entry.get('name', ''),
+            'created': entry.get('created', 0),
+        })
+    return aiohttp_web.json_response({'pending': entries})
 
 
 async def api_create_pending(request):
@@ -2338,11 +2596,13 @@ async def main():
     if aiohttp_web:
         app = aiohttp_web.Application()
         app.router.add_get('/api/health', api_health)
+        app.router.add_post('/api/auth', api_auth)
         app.router.add_get('/api/users', api_list_users)
         app.router.add_get('/api/users/{user_id}', api_get_user)
         app.router.add_post('/api/users', api_create_user)
         app.router.add_put('/api/users/{user_id}', api_update_user)
         app.router.add_delete('/api/users/{user_id}', api_delete_user)
+        app.router.add_get('/api/pending', api_list_pending)
         app.router.add_post('/api/pending', api_create_pending)
         app.router.add_get('/api/pending/{token}', api_get_pending)
         app.router.add_delete('/api/pending/{token}', api_consume_pending)

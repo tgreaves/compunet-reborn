@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Admin — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>ADMIN PANEL</h1>
+
+<h2>REGISTERED USERS ({{ users|length }})</h2>
+
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>USER ID</th>
+            <th>NAME</th>
+            <th>EMAIL</th>
+            <th>TYPE</th>
+            <th>CREDIT</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.user_id }}</td>
+            <td>{{ user.name }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.account_type }}</td>
+            <td>{{ "%.2f"|format(user.credit) }}</td>
+            <td><a href="{{ url_for('admin_edit_user', user_id=user.user_id) }}">EDIT</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if pending %}
+<h2>PENDING REGISTRATIONS ({{ pending|length }})</h2>
+
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>USER ID</th>
+            <th>NAME</th>
+            <th>EMAIL</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in pending %}
+        <tr>
+            <td>{{ entry.user_id }}</td>
+            <td>{{ entry.name }}</td>
+            <td>{{ entry.email }}</td>
+            <td>
+                <a href="{{ url_for('admin_approve_pending', token=entry.token) }}">APPROVE</a>
+                <a href="{{ url_for('admin_delete_pending', token=entry.token) }}" class="link-danger">DELETE</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% endblock %}

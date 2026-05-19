@@ -242,6 +242,17 @@ pre {
     color: var(--c64-light-grey);
 }
 
+/* Walkthrough GIF */
+.walkthrough {
+    text-align: center;
+    margin: 24px 0;
+}
+
+.walkthrough img {
+    max-width: 100%;
+    border: 2px solid var(--c64-blue);
+}
+
 /* Hero section */
 .hero {
     text-align: center;
@@ -273,6 +284,39 @@ pre {
     color: var(--c64-blue);
     font-size: 11px;
     margin-bottom: 12px;
+}
+
+/* Admin table */
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 24px;
+    font-size: 10px;
+}
+
+.admin-table th,
+.admin-table td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--c64-blue);
+}
+
+.admin-table th {
+    background-color: var(--c64-blue);
+    color: var(--c64-light-grey);
+}
+
+.admin-table tr:hover td {
+    background-color: var(--c64-white);
+}
+
+.link-danger {
+    color: var(--c64-red);
+}
+
+.link-danger:hover {
+    color: var(--c64-red);
+    text-decoration: underline;
 }
 
 /* Steps list */
