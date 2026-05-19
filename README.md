@@ -33,7 +33,7 @@ The official live instance of this project is running at [https://compunet.live/
 5. Serial 3 settings: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
 6. Attach `client/c64/compunet-reborn.d64` to drive 8
 7. `LOAD "COMPUNET",8,1` then `SYS 33184`
-8. Type `CONNECT`, enter `127.0.0.1:6400`
+8. Type `CONNECT`, enter any number at the phone number prompt
 9. Login with TEST/TEST
 10. Duckshoot menu appears!
 

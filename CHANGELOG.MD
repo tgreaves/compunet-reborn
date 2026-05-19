@@ -18,6 +18,7 @@
 * Dev:
 	* users.json removed from git tracking (use users.json.example for dev setup).
 	* README: added Live Service section linking to https://compunet.live/
+	* Docs: clarified that any number can be entered at the phone number prompt.
 
 # 0.1-beta (2026-05-19)
 
