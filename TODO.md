@@ -3,6 +3,7 @@
 ## Bugs
 
 - **Login freeze on incorrect credentials**: Server sends error frame and closes, but client enters terminal duckshoot with dead connection (no disconnect detection). Full fix requires client-side disconnect detection.
+- **Backspace not working on login screen**: DEL/backspace key does not function when entering user ID or password.
 
 ## Features
 
