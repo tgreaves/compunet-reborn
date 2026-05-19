@@ -99,6 +99,7 @@ CMD_BUY = 0x58        # 'X'
 _lock_users = asyncio.Lock()
 _lock_content = asyncio.Lock()
 _lock_mail = asyncio.Lock()
+_online_users = set()
 
 # PETSCII helpers
 PETSCII_RETURN = 0x0D
@@ -434,6 +435,10 @@ class CompunetSession:
             return self._goto_page(page_num)
         except ValueError:
             pass
+
+        # Built-in virtual pages
+        if target.upper() == 'WHO':
+            return self._make_who_frame()
 
         # Try keyword lookup
         for page in self.directory.pages.values():
@@ -1630,6 +1635,71 @@ class CompunetSession:
         frame.append(0x00)  # end
         return bytes(frame)
 
+    def _make_who_frame(self):
+        """Build the WHO page — directory response with user list in header."""
+        import datetime
+        self.last_response_type = RESP_DIR
+        self.dir_displayed = True
+        now = datetime.datetime.now()
+
+        data = bytearray()
+
+        # Part 1: Header frame showing connected users
+        data.append(0x8E)  # uppercase
+        data.append(0x0D)
+        data.append(0x0D)
+        data.extend(ascii_to_petscii(
+            f'  CNETTERS ON THE SYSTEM AT {now.strftime("%H:%M")}'))
+        data.append(0x0D)
+        data.extend(ascii_to_petscii(
+            '  * INDICATES A USER ON PARTYLINE'))
+        data.append(0x0D)
+        data.append(0x0D)
+
+        users = sorted(_online_users)
+        for i in range(0, len(users), 4):
+            row = users[i:i+4]
+            line = '  ' + ''.join(u.ljust(10) for u in row)
+            data.extend(ascii_to_petscii(line))
+            data.append(0x0D)
+
+        if not users:
+            data.extend(ascii_to_petscii('  (NONE)'))
+            data.append(0x0D)
+
+        data.append(0x00)  # End Part 1
+
+        # Part 2: empty footer
+        data.append(0x0D)
+        data.append(0x0D)
+
+        # Part 3: empty
+        data.append(0x00)
+
+        # Part 4: breadcrumb
+        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.append(0x0D)
+        data.extend(ascii_to_petscii('  WHO'))
+        data.append(0x00)
+
+        # Part 5: column header
+        data.extend(ascii_to_petscii('WHO'))
+        data.append(0x0D)
+        data.append(0x00)
+
+        # Part 6: user entries (one per line)
+        if users:
+            for u in users:
+                data.extend(ascii_to_petscii('0     ' + u.ljust(18)))
+                data.append(0x2C)
+                data.append(0x0D)
+        else:
+            data.extend(ascii_to_petscii('0     (NONE)'))
+            data.append(0x2C)
+            data.append(0x0D)
+
+        return bytes(data)
+
     def _make_welcome_frame(self, user):
         """Build the personal information welcome screen from template.
 
@@ -2066,6 +2136,7 @@ async def tcp_handler(reader, writer):
                             return
                         
                         authenticated = True
+                        _online_users.add(session.user_id)
                         log.info('TCP: login OK! Skipping LINKING (terminal pre-loaded)')
 
                         # Send welcome frame — L89D0 reads this after login
@@ -2191,6 +2262,8 @@ async def tcp_handler(reader, writer):
     except (ConnectionResetError, BrokenPipeError) as e:
         log.info('TCP: connection error: %s', e)
     finally:
+        if session.user_id:
+            _online_users.discard(session.user_id)
         writer.close()
         try:
             await writer.wait_closed()
