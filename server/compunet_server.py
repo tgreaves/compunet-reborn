@@ -2037,10 +2037,39 @@ async def tcp_handler(reader, writer):
                 ident_received = True
                 rx_buffer.clear()
                 
-                # Send "*CON\r" immediately — no delay.
+                # Send MOTD (if present) before *CON
+                # Each line must start with '*' to activate client display.
+                # The motd.txt already has '*' borders so lines are sent as-is.
+                motd_path = os.path.join(CFG_DIR, 'motd.txt')
+                if os.path.exists(motd_path):
+                    with open(motd_path, 'r') as f:
+                        lines = [l.rstrip('\n') for l in f if l.strip()]
+                    if lines:
+                        _vf = os.path.join(SERVER_DIR, 'VERSION')
+                        if not os.path.exists(_vf):
+                            _vf = os.path.join(SERVER_DIR, '..', 'VERSION')
+                        _ver = open(_vf).read().strip() if os.path.exists(_vf) else '?'
+                        for line in lines:
+                            line = line.replace('{VERSION}', _ver.center(9))
+                            # Convert to PETSCII lowercase mode: A-Z → $C1-$DA
+                            raw = bytearray()
+                            for ch in line.upper():
+                                code = ord(ch)
+                                if 0x41 <= code <= 0x5A:
+                                    raw.append(code + 0x80)
+                                else:
+                                    raw.append(code)
+                            raw.append(0x0D)
+                            writer.write(bytes(raw))
+                            await writer.drain()
+                            await asyncio.sleep(0.1)
+                    log.info('TCP TX: sent MOTD from %s', motd_path)
+
+                # Pause to let user read MOTD, then send "*CON\r"
+                await asyncio.sleep(3.0)
                 writer.write(b'\x2a\x43\x4f\x4e\x0d')
                 await writer.drain()
-                log.info('TCP TX: sent "*CON\\r" connection signal (burst)')
+                log.info('TCP TX: sent "*CON\\r" connection signal')
                 login_done = True  # Exit negotiation, enter command loop
                 break
         
