@@ -242,6 +242,17 @@ pre {
     color: var(--c64-light-grey);
 }
 
+/* Walkthrough GIF */
+.walkthrough {
+    text-align: center;
+    margin: 24px 0;
+}
+
+.walkthrough img {
+    max-width: 100%;
+    border: 2px solid var(--c64-blue);
+}
+
 /* Hero section */
 .hero {
     text-align: center;
