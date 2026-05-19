@@ -2155,6 +2155,32 @@ async def api_health(request):
     return aiohttp_web.json_response({'status': 'ok'})
 
 
+async def api_auth(request):
+    """Verify user credentials. Returns user info on success, 401 on failure."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    user_id = body.get('user_id', '').upper().strip()
+    password = body.get('password', '').upper().strip()
+
+    async with _lock_users:
+        users = _api_load_users()
+
+    user = users.get(user_id)
+    if user is None:
+        return aiohttp_web.json_response({'error': 'invalid credentials'}, status=401)
+
+    password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    if user['password'] != password_hash:
+        return aiohttp_web.json_response({'error': 'invalid credentials'}, status=401)
+
+    return aiohttp_web.json_response(_api_user_public(user_id, user))
+
+
 async def api_list_users(request):
     if not _api_check_auth(request):
         return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
@@ -2242,6 +2268,12 @@ async def api_update_user(request):
             users[user_id]['password'] = hashlib.sha256(password.encode('utf-8')).hexdigest()
         if 'name' in body:
             users[user_id]['name'] = body['name'].strip()
+        if 'credit' in body:
+            try:
+                users[user_id]['credit'] = float(body['credit'])
+            except (ValueError, TypeError):
+                return aiohttp_web.json_response(
+                    {'error': 'credit must be a number'}, status=400)
         if 'account_type' in body:
             users[user_id]['account_type'] = body['account_type'].upper().strip()
 
@@ -2265,6 +2297,23 @@ async def api_delete_user(request):
 
     log.info('API: deleted user %s', user_id)
     return aiohttp_web.json_response({'status': 'deleted'})
+
+
+async def api_list_pending(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    async with _lock_users:
+        pending = _api_load_pending()
+    entries = []
+    for token, entry in pending.items():
+        entries.append({
+            'token': token,
+            'user_id': entry.get('user_id', ''),
+            'email': entry.get('email', ''),
+            'name': entry.get('name', ''),
+            'created': entry.get('created', 0),
+        })
+    return aiohttp_web.json_response({'pending': entries})
 
 
 async def api_create_pending(request):
@@ -2338,11 +2387,13 @@ async def main():
     if aiohttp_web:
         app = aiohttp_web.Application()
         app.router.add_get('/api/health', api_health)
+        app.router.add_post('/api/auth', api_auth)
         app.router.add_get('/api/users', api_list_users)
         app.router.add_get('/api/users/{user_id}', api_get_user)
         app.router.add_post('/api/users', api_create_user)
         app.router.add_put('/api/users/{user_id}', api_update_user)
         app.router.add_delete('/api/users/{user_id}', api_delete_user)
+        app.router.add_get('/api/pending', api_list_pending)
         app.router.add_post('/api/pending', api_create_pending)
         app.router.add_get('/api/pending/{token}', api_get_pending)
         app.router.add_delete('/api/pending/{token}', api_consume_pending)

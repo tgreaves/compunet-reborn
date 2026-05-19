@@ -52,6 +52,10 @@ def _api_put(path, data):
     return requests.put(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers(), json=data)
 
 
+def _api_delete(path):
+    return requests.delete(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers())
+
+
 def _api_create_pending(data):
     return requests.post(
         f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}/api/pending',
@@ -217,22 +221,15 @@ def login():
     user_id = request.form.get('user_id', '').upper().strip()
     password = request.form.get('password', '').upper().strip()
 
-    resp = _api_get(f'/api/users/{user_id}')
+    resp = _api_post('/api/auth', {'user_id': user_id, 'password': password})
     if resp.status_code != 200:
         flash('Invalid User ID or password.', 'error')
         return render_template('login.html', user_id=user_id)
 
-    # Verify password by checking hash matches
-    # We need to compare hashes — the API doesn't expose passwords,
-    # so we add a verify endpoint or check locally.
-    # For now: call a dedicated auth check on the API.
-    # Actually, we'll just hash and compare via a new endpoint.
-    # Simpler: the website stores nothing — we add a /api/auth endpoint.
-    # For MVP: trust the API user lookup + hash comparison.
-    # TODO: Add /api/auth endpoint to server for proper verification
+    user_data = resp.json()
+    session['user_id'] = user_data['user_id']
+    session['name'] = user_data.get('name', '')
     flash('Login successful.', 'success')
-    session['user_id'] = user_id
-    session['name'] = resp.json().get('name', '')
     return redirect(url_for('account'))
 
 
@@ -282,6 +279,130 @@ def change_password():
     else:
         flash('Failed to change password.', 'error')
         return render_template('password.html')
+
+
+# ============================================================
+# Admin Panel
+# ============================================================
+
+def _require_admin():
+    """Check session user is the ADMIN account. Returns redirect or None."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if session['user_id'] != 'ADMIN':
+        flash('Access denied.', 'error')
+        return redirect(url_for('account'))
+    return None
+
+
+@app.route('/admin')
+def admin_users():
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    resp = _api_get('/api/users')
+    users = resp.json().get('users', []) if resp.status_code == 200 else []
+
+    resp_pending = _api_get('/api/pending')
+    pending = resp_pending.json().get('pending', []) if resp_pending.status_code == 200 else []
+
+    return render_template('admin_users.html', users=users, pending=pending)
+
+
+@app.route('/admin/user/<user_id>', methods=['GET', 'POST'])
+def admin_edit_user(user_id):
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    user_id = user_id.upper()
+
+    if request.method == 'GET':
+        resp = _api_get(f'/api/users/{user_id}')
+        if resp.status_code != 200:
+            flash('User not found.', 'error')
+            return redirect(url_for('admin_users'))
+        return render_template('admin_edit_user.html', user=resp.json())
+
+    # POST — update user fields
+    updates = {}
+    new_password = request.form.get('password', '').upper().strip()
+    if new_password:
+        if not PASSWORD_RE.match(new_password):
+            flash('Password must be 1-6 characters, A-Z and 0-9 only.', 'error')
+            return redirect(url_for('admin_edit_user', user_id=user_id))
+        updates['password'] = new_password
+
+    name = request.form.get('name', '').strip()
+    if name:
+        updates['name'] = name
+
+    credit = request.form.get('credit', '').strip()
+    if credit:
+        try:
+            updates['credit'] = float(credit)
+        except ValueError:
+            flash('Credit must be a number.', 'error')
+            return redirect(url_for('admin_edit_user', user_id=user_id))
+
+    account_type = request.form.get('account_type', '').upper().strip()
+    if account_type:
+        updates['account_type'] = account_type
+
+    if updates:
+        resp = _api_put(f'/api/users/{user_id}', updates)
+        if resp.status_code == 200:
+            flash(f'User {user_id} updated.', 'success')
+        else:
+            flash(f'Update failed: {resp.json().get("error", "unknown")}', 'error')
+    else:
+        flash('No changes submitted.', 'info')
+
+    return redirect(url_for('admin_edit_user', user_id=user_id))
+
+
+@app.route('/admin/pending/<token>/approve')
+def admin_approve_pending(token):
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    consume_resp = _api_consume_pending(token)
+    if consume_resp.status_code != 200:
+        flash('Pending registration not found or already consumed.', 'error')
+        return redirect(url_for('admin_users'))
+
+    entry = consume_resp.json()
+    resp = _api_post('/api/users', {
+        'user_id': entry['user_id'],
+        'password': entry['password'],
+        'name': entry['name'],
+    })
+
+    if resp.status_code == 201:
+        flash(f'User {entry["user_id"]} approved and created.', 'success')
+    elif resp.status_code == 409:
+        flash(f'User ID {entry["user_id"]} already exists.', 'error')
+    else:
+        flash('Failed to create user.', 'error')
+
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/pending/<token>/delete')
+def admin_delete_pending(token):
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    resp = _api_delete(f'/api/pending/{token}')
+    if resp.status_code == 200:
+        flash('Pending registration deleted.', 'success')
+    else:
+        flash('Failed to delete pending registration.', 'error')
+
+    return redirect(url_for('admin_users'))
 
 
 # ============================================================

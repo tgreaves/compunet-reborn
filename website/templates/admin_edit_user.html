@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ user.user_id }} — Admin — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>EDIT USER: {{ user.user_id }}</h1>
+
+<div class="info-box">
+    <p>Name: {{ user.name }}</p>
+    <p>Account type: {{ user.account_type }}</p>
+    <p>Credit: {{ "%.2f"|format(user.credit) }}</p>
+</div>
+
+<form method="post">
+    <div class="form-group">
+        <label for="name">NAME</label>
+        <input type="text" id="name" name="name" value="{{ user.name }}">
+    </div>
+
+    <div class="form-group">
+        <label for="password">NEW PASSWORD (LEAVE BLANK TO KEEP)</label>
+        <input type="text" id="password" name="password" value="">
+        <p class="hint">1-6 characters, A-Z and 0-9 only</p>
+    </div>
+
+    <div class="form-group">
+        <label for="credit">CREDIT</label>
+        <input type="text" id="credit" name="credit" value="{{ "%.2f"|format(user.credit) }}">
+    </div>
+
+    <div class="form-group">
+        <label for="account_type">ACCOUNT TYPE</label>
+        <input type="text" id="account_type" name="account_type" value="{{ user.account_type }}">
+        <p class="hint">BASIC, GOLD, or ADMIN</p>
+    </div>
+
+    <button type="submit">SAVE CHANGES</button>
+</form>
+
+<p style="margin-top: 24px;"><a href="{{ url_for('admin_users') }}">&lt; BACK TO USER LIST</a></p>
+{% endblock %}

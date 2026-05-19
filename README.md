@@ -22,15 +22,16 @@ Working features include: directory browsing, content viewing, multi-page frames
 - cc65 suite (ca65/ld65) and c1541 for building
 
 ### Steps
-1. Start server: `./server.sh`
-2. In VICE: Settings → Peripheral Devices → RS232
-3. Enable ACIA RS232 interface emulation, set Device to Serial 3
-4. Serial 3 settings: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
-5. Attach `client/c64/compunet-reborn.d64` to drive 8
-6. `LOAD "COMPUNET",8,1` then `SYS 33184`
-7. Type `CONNECT`, enter `127.0.0.1:6400`
-8. Login with TEST/TEST
-9. Duckshoot menu appears!
+1. Copy the user database template: `cp server/cfg/users.json.example server/cfg/users.json`
+2. Start server: `./server.sh`
+3. In VICE: Settings → Peripheral Devices → RS232
+4. Enable ACIA RS232 interface emulation, set Device to Serial 3
+5. Serial 3 settings: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
+6. Attach `client/c64/compunet-reborn.d64` to drive 8
+7. `LOAD "COMPUNET",8,1` then `SYS 33184`
+8. Type `CONNECT`, enter `127.0.0.1:6400`
+9. Login with TEST/TEST
+10. Duckshoot menu appears!
 
 ### Automated Testing
 

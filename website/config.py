@@ -1,6 +1,9 @@
 import os
 
-_ENV_FILE = os.environ.get('ENV_FILE', '/app/.env')
+_DEFAULT_ENV = '/app/.env'
+if not os.path.exists(_DEFAULT_ENV):
+    _DEFAULT_ENV = os.path.join(os.path.dirname(__file__), '..', '.env')
+_ENV_FILE = os.environ.get('ENV_FILE', _DEFAULT_ENV)
 
 
 def _load_env_file():
