@@ -126,6 +126,8 @@ Historical SEQ file sources:
 - **compunet-sequence-files** — Unknown
 - **neil_shumsky** — Neil Shumsky (256 SEQ files extracted from D64 disk images)
 
+Thanks to Mark Wilson for providing the Welcome screen and other historical frames.
+
 Thanks to Richard Hawkins (RH18 FROODLE) for helping source some of these files.
 
 ## Links
