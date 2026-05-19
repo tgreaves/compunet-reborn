@@ -739,12 +739,16 @@ class CompunetSession:
         return bytes([0x00])
 
     def _save_user(self):
-        """Persist user credit and purchases to users.json."""
+        """Persist user state to users.json."""
         users_file = os.path.join(CFG_DIR, 'users.json')
         users = self._load_users()
         if self.user_id in users:
             users[self.user_id]['credit'] = self.credit
             users[self.user_id]['purchased'] = sorted(self.purchased)
+            mem_user = self._users.get(self.user_id, {})
+            if mem_user.get('last_login_date'):
+                users[self.user_id]['last_login_date'] = mem_user['last_login_date']
+                users[self.user_id]['last_login_time'] = mem_user.get('last_login_time', '')
             with open(users_file, 'w') as f:
                 json.dump(users, f, indent=2)
 
@@ -1645,11 +1649,21 @@ class CompunetSession:
                 inbox = json.load(f)
             mail_waiting = any(not m.get('read', True) for m in inbox.get('messages', []))
 
-        # Mail indicator — PETSCII pillarbox graphic or blank
+        # Pillarbox mail indicator (6 lines of graphic or equivalent spaces)
         if mail_waiting:
-            mail_ind = b'\x1C\x12 MAIL \x92'  # red reversed "MAIL"
+            pb1 = b'\xa5\x06\x1c\x1c\xaf\xb9\xaf\x20\x20'
+            pb2 = b'\x20\xbc\x12\x06\x02\x92\xbe\x20'
+            pb3 = b'\x12\x20\x92\xa2\x12\x20\x92\x20\x20'
+            pb4 = b'\x06\x1c\x1c\x12\x20\xa6\x20\x92\x20\x20'
+            pb5 = b'\x12\x06\x02\x92\x20\x20'
+            pb6 = b'\x90\xac\x12\x06\x02\x92\xbb\x20'
         else:
-            mail_ind = b''
+            pb1 = b'\xb4\x06\x21'
+            pb2 = b'\x06\x06'
+            pb3 = b'\x06\x04'
+            pb4 = b'\x06\x21'
+            pb5 = b'\x06\x04'
+            pb6 = b'\x06\x05'
 
         # Credit display
         credit = user.get('credit', 0.0)
@@ -1657,6 +1671,26 @@ class CompunetSession:
             credit_str = f'{credit:.2f} CREDIT'
         else:
             credit_str = f'{abs(credit):.2f} DEBIT'
+
+        # Pages and storage calculations
+        self.directory.reload()
+        user_pages = [p for p in self.directory.pages.values() if p.author == self.user_id]
+        pages_count = len(user_pages)
+        near_death = len([p for p in user_pages if 0 < p.life < 5])
+        storage_used = sum(len(p.frames) * p.life for p in user_pages if p.life > 0)
+        free_storage = max(0, 2000 - storage_used)
+
+        # Next quarter start date
+        month = now.month
+        if month <= 3:
+            nq = datetime.date(now.year, 4, 1)
+        elif month <= 6:
+            nq = datetime.date(now.year, 7, 1)
+        elif month <= 9:
+            nq = datetime.date(now.year, 10, 1)
+        else:
+            nq = datetime.date(now.year + 1, 1, 1)
+        next_quarter_str = f'{nq.day:02d}-{MONTHS[nq.month-1]}'
 
         # Load template
         template_path = os.path.join(CONTENT_DIR, 'templates', 'welcome.seq')
@@ -1666,21 +1700,39 @@ class CompunetSession:
         else:
             frame = b'\x00\x03\x0F\x8E\x0D\x1F WELCOME\x0D\x00'
 
-        # Replace placeholders
-        frame = frame.replace(b'{USER_ID}', self.user_id.encode('ascii'))
-        frame = frame.replace(b'{ACCOUNT_TYPE}', user.get('account_type', 'BASIC').encode('ascii'))
-        frame = frame.replace(b'{LAST_DATE}', prev_date.encode('ascii'))
-        frame = frame.replace(b'{LAST_TIME}', prev_time.encode('ascii'))
-        frame = frame.replace(b'{PAGES}', b'0')  # TODO: calculate from directory
-        frame = frame.replace(b'{NEAR_DEATH}', b'0')  # TODO: calculate pages with life <= 3
-        frame = frame.replace(b'{FREE_STORAGE}', b'2000')  # TODO: calculate from account type
-        frame = frame.replace(b'{CREDIT}', credit_str.encode('ascii'))
-        frame = frame.replace(b'{MAIL_IND}', mail_ind)
-        _vf = os.path.join(SERVER_DIR, 'VERSION')
-        if not os.path.exists(_vf):
-            _vf = os.path.join(SERVER_DIR, '..', 'VERSION')
-        _ver = open(_vf).read().strip() if os.path.exists(_vf) else '?'
-        frame = frame.replace(b'{VERSION}', ascii_to_petscii(_ver))
+        # Replace placeholders with padding adjustment.
+        # Each placeholder is followed by $06 $XX (repeat XX spaces).
+        # Total field width (value + spaces) must stay constant.
+        def replace_padded(frame, placeholder, value, orig_len):
+            """Replace placeholder and adjust the $06 $XX space padding that follows."""
+            val = value.encode('ascii') if isinstance(value, str) else value
+            pos = frame.find(placeholder)
+            if pos < 0:
+                return frame
+            after = pos + len(placeholder)
+            if after + 1 < len(frame) and frame[after] == 0x06:
+                orig_pad = frame[after + 1]
+                total_width = orig_len + orig_pad
+                new_pad = max(0, total_width - len(val))
+                frame = frame[:pos] + val + bytes([0x06, new_pad]) + frame[after + 2:]
+            else:
+                frame = frame[:pos] + val + frame[after:]
+            return frame
+
+        user_name = user.get('name', self.user_id).upper()
+        pages_stats = f'{pages_count}/{near_death}'
+        frame = replace_padded(frame, b'{USER_NAME}', user_name, 14)
+        frame = replace_padded(frame, b'{LAST_TIME}', prev_time or '', 5)
+        frame = replace_padded(frame, b'{PAGES_STATS}', pages_stats, 3)
+        frame = replace_padded(frame, b'{FREE_STORAGE}', str(free_storage), 3)
+        frame = replace_padded(frame, b'{NEXT_QUARTER}', next_quarter_str, 6)
+        frame = frame.replace(b'{LAST_DATE}', prev_date.ljust(9).encode('ascii'))
+        frame = frame.replace(b'{PB1}', pb1)
+        frame = frame.replace(b'{PB2}', pb2)
+        frame = frame.replace(b'{PB3}', pb3)
+        frame = frame.replace(b'{PB4}', pb4)
+        frame = frame.replace(b'{PB5}', pb5)
+        frame = frame.replace(b'{PB6}', pb6)
 
         return frame
     
@@ -2012,7 +2064,7 @@ async def tcp_handler(reader, writer):
                                 pkt = x25.make_data_packet(chunk, TOKEN_DAT)
                                 writer.write(pkt)
                                 await writer.drain()
-                                await asyncio.sleep(0.05)
+                                await asyncio.sleep(0.25)
                                 offset += MAX_PAYLOAD
                             eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
                             writer.write(eos_pkt)

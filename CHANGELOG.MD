@@ -23,6 +23,11 @@
 	* Fixed mail frame flags (last frame bit 7 now correctly cleared).
 	* Fixed mixed-case real names displaying as graphics characters on C64.
 	* Unread mail indicator: "MAIL" shown in red on directory breadcrumb line.
+	* Welcome screen: recreated original PETSCII artwork from historical template.
+	* Welcome screen: pillarbox mail indicator (shown when unread mail exists).
+	* Welcome screen: live PAGES/NEAR DEATH, FREE STORAGE, NEXT QUARTER fields.
+	* Welcome screen: last login date/time now persisted between sessions.
+	* Fixed welcome frame packet timing (50ms → 250ms to prevent buffer overflow).
 * Dev:
 	* server/data/ removed from git tracking (use server/data.example/ for dev setup).
 	* users.json removed from git tracking (use users.json.example for dev setup).
