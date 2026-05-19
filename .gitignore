@@ -36,3 +36,6 @@ website/pending.json
 server/logs/
 client/c64/logs/
 *.pid
+
+# Local scripts
+transfer-repo.sh
