@@ -126,19 +126,19 @@ echo "Sending: $IP_ADDRESS"
 send_keybuf "$IP_ADDRESS"
 
 # Step 4: Username
-sleep 3
+sleep 7
 echo "Sending: $USERNAME"
 send_keybuf "$USERNAME"
 
 # Step 5: Password (sent char-by-char as the input routine drains the buffer quickly)
-sleep 2
+sleep 1
 echo "Sending: $PASSWORD"
 local_pass=$(echo "$PASSWORD" | tr '[:upper:]' '[:lower:]')
 for (( i=0; i<${#local_pass}; i++ )); do
     char="${local_pass:$i:1}"
     echo "keybuf $char" | nc -q 1 127.0.0.1 $MONITOR_PORT >/dev/null 2>&1 \
         || echo "keybuf $char" | nc -w 1 127.0.0.1 $MONITOR_PORT >/dev/null 2>&1
-    sleep 0.3
+    sleep 0.2
 done
 send_keybuf ""
 
