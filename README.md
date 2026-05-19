@@ -14,6 +14,10 @@ Users connected via a custom 1200/75 baud modem (the "brick") that plugged into 
 
 Working features include: directory browsing, content viewing, multi-page frames, telesoftware downloads and uploads, electronic mail (Courier) with send/receive, user-generated content uploads, voting, GOTO navigation, sub-directories, UCAT, advert system, and the full duckshoot menu. 
 
+## Live Service
+
+The official live instance of this project is running at [https://compunet.live/](https://compunet.live/)
+
 ## Quick Start (C64 in VICE)
 
 ### Prerequisites

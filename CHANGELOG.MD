@@ -13,8 +13,11 @@
 	* New /api/pending list endpoint for admin use.
 	* /api/users update endpoint now supports credit and email changes.
 	* Email address now stored when user accounts are created.
+	* Fixed unhandled exception on client disconnect (connection reset).
+	* Removed plaintext passwords from log output.
 * Dev:
 	* users.json removed from git tracking (use users.json.example for dev setup).
+	* README: added Live Service section linking to https://compunet.live/
 
 # 0.1-beta (2026-05-19)
 

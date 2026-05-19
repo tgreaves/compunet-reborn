@@ -1930,8 +1930,8 @@ async def tcp_handler(reader, writer):
                         skip_linking = (cnload_1 == 0x30 and cnload_2 == 0x30)
                         
                         log.info('TCP: *** LOGIN ***')
-                        log.info('TCP:   user=%r pass=%r cnload_bytes=$%02X/$%02X (skip=%s)',
-                                 user_id, password, cnload_1, cnload_2, skip_linking)
+                        log.info('TCP:   user=%r cnload_bytes=$%02X/$%02X (skip=%s)',
+                                 user_id, cnload_1, cnload_2, skip_linking)
                         
                         async with _lock_users:
                             response = session.handle_login(user_id, password)
@@ -2093,7 +2093,10 @@ async def tcp_handler(reader, writer):
         log.info('TCP: connection error: %s', e)
     finally:
         writer.close()
-        await writer.wait_closed()
+        try:
+            await writer.wait_closed()
+        except (ConnectionResetError, BrokenPipeError, OSError):
+            pass
         log.info('TCP client disconnected: %s', addr)
 
 
