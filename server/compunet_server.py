@@ -1048,14 +1048,14 @@ class CompunetSession:
                   'JUL','AUG','SEP','OCT','NOV','DEC']
         date_str = f'{timestamp.day:02d}-{MONTHS[timestamp.month-1]}-{timestamp.strftime("%y")}'
         time_str = timestamp.strftime('%H:%M')
-        sender_name = users.get(sender_id, {}).get('name', sender_id)
+        sender_name = users.get(sender_id, {}).get('name', sender_id).upper()
 
         # Build destination slot lines
         dest_lines = []
         for i in range(5):
             if i < len(dest_ids):
                 did = dest_ids[i]
-                dest_name = users.get(did, {}).get('name', '')
+                dest_name = users.get(did, {}).get('name', '').upper()
                 # cyan ID + red colon + cyan name
                 line = b'\x20\x20\x1F' + did.ljust(8)[:8].encode('ascii') + b'\x1C: \x1F' + dest_name.encode('ascii')
             else:
