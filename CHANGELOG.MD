@@ -19,7 +19,10 @@
 	* Email address now stored when user accounts are created.
 	* Fixed unhandled exception on client disconnect (connection reset).
 	* Removed plaintext passwords from log output.
+	* Mail pagination: mailbox now shows max 11 messages per page with MORE/BACK.
+	* Fixed mail frame flags (last frame bit 7 now correctly cleared).
 * Dev:
+	* server/data/ removed from git tracking (use server/data.example/ for dev setup).
 	* users.json removed from git tracking (use users.json.example for dev setup).
 	* README: added Live Service section linking to https://compunet.live/
 	* Docs: clarified that any number can be entered at the phone number prompt.

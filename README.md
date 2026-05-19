@@ -26,16 +26,17 @@ The official live instance of this project is running at [https://compunet.live/
 - cc65 suite (ca65/ld65) and c1541 for building
 
 ### Steps
-1. Copy the user database template: `cp server/cfg/users.json.example server/cfg/users.json`
-2. Start server: `./server.sh`
-3. In VICE: Settings → Peripheral Devices → RS232
-4. Enable ACIA RS232 interface emulation, set Device to Serial 3
-5. Serial 3 settings: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
-6. Attach `client/c64/compunet-reborn.d64` to drive 8
-7. `LOAD "COMPUNET",8,1` then `SYS 33184`
-8. Type `CONNECT`, enter any number at the phone number prompt
-9. Login with TEST/TEST
-10. Duckshoot menu appears!
+1. Copy the server data template: `cp -R server/data.example server/data`
+2. Copy the user database template: `cp server/cfg/users.json.example server/cfg/users.json`
+3. Start server: `./server.sh`
+4. In VICE: Settings → Peripheral Devices → RS232
+5. Enable ACIA RS232 interface emulation, set Device to Serial 3
+6. Serial 3 settings: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
+7. Attach `client/c64/compunet-reborn.d64` to drive 8
+8. `LOAD "COMPUNET",8,1` then `SYS 33184`
+9. Type `CONNECT`, enter any number at the phone number prompt
+10. Login with TEST/TEST
+11. Duckshoot menu appears!
 
 ### Automated Testing
 

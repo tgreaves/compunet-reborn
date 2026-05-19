@@ -22,8 +22,10 @@ client/c64/127.0.0.1:*
 # Secrets
 .env
 
-# Live user data (use users.json.example as template for dev)
+# Live user and server data (use .example copies for dev setup)
 server/cfg/users.json
+server/cfg/pending.json
+server/data/
 
 # Virtual environments
 server/venv/

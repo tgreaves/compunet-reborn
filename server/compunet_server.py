@@ -751,8 +751,13 @@ class CompunetSession:
     def _cmd_back(self):
         """BACK command - go to previous page, or parent directory if on first page."""
         if self.mail_mode:
+            if self.mail_show_msg is not None:
+                self.mail_show_msg = None
+                return self._make_mail_response()
+            if getattr(self, 'mail_page_offset', 0) > 0:
+                self.mail_page_offset = max(0, self.mail_page_offset - 11)
+                return self._make_mail_response()
             self.mail_mode = False
-            self.mail_show_msg = None
             return self._make_dir_response()
         if self.dir_page_offset > 0:
             # Go back to previous page of same directory
@@ -825,11 +830,20 @@ class CompunetSession:
             json.dump(votes, f, indent=2)
     
     def _cmd_mail(self):
-        """MAIL command - show mailbox as 6-part directory listing."""
+        """MAIL command - show mailbox or advance mail page.
+
+        When already in mail mode, 'M' acts as MORE (next page).
+        """
+        if self.mail_mode:
+            self.mail_page_offset = getattr(self, 'mail_page_offset', 0) + 11
+            if self.mail_page_offset >= len(self.mail_messages):
+                self.mail_page_offset = 0
+            return self._make_mail_response()
         self.mail_mode = True
         self.mail_messages = self._load_mail()
         self.mail_frame_index = 0
         self.mail_show_msg = None
+        self.mail_page_offset = 0
         return self._make_mail_response()
 
     def _load_mail(self):
@@ -899,7 +913,10 @@ class CompunetSession:
         data.append(0x0D)
         data.append(0x00)
 
-        # Part 6: mail entries
+        # Part 6: mail entries (max 11 per page)
+        offset = getattr(self, 'mail_page_offset', 0)
+        visible = self.mail_messages[offset:offset+11]
+
         if not self.mail_messages:
             data.extend(ascii_to_petscii('      (NO MAIL)'))
             data.append(0x2C)
@@ -907,11 +924,11 @@ class CompunetSession:
             data.append(0x2C)
             data.append(0x0D)
         else:
-            for i, msg in enumerate(self.mail_messages):
+            for i, msg in enumerate(visible):
                 subject = msg.get('subject', '')[:18]
                 num_frames = len(msg.get('frames', []))
                 type_str = ('T' + str(num_frames)).ljust(3)
-                msg_id = msg.get('id', str(i + 1))
+                msg_id = msg.get('id', str(offset + i + 1))
                 page_str = str(msg_id).rjust(6) + ' '
                 title_field = subject[:16].ljust(17) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
@@ -933,7 +950,8 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(status))
                 data.append(0x0D)
 
-        log.info('MAIL response: %d messages, %d bytes', len(self.mail_messages), len(data))
+        log.info('MAIL response: %d messages (offset=%d, visible=%d), %d bytes',
+                 len(self.mail_messages), offset, len(visible), len(data))
         return bytes(data)
 
     def _cmd_mail_show(self, params):
@@ -960,15 +978,21 @@ class CompunetSession:
         else:
             selected = 0
 
-        if selected < len(self.mail_messages):
-            self.mail_show_msg = selected
+        offset = getattr(self, 'mail_page_offset', 0)
+        visible = self.mail_messages[offset:offset+11]
+
+        if selected < len(visible):
+            actual_index = offset + selected
+            self.mail_show_msg = actual_index
             self.mail_frame_index = 0
             # Mark as read
-            self.mail_messages[selected]['read'] = True
+            self.mail_messages[actual_index]['read'] = True
             self._save_mail()
             return self._send_mail_frame()
-
-        return self._make_error(ascii_to_petscii('NO SUCH MESSAGE'))
+        else:
+            # Beyond visible entries — advance to next page
+            self.mail_page_offset = offset + 11
+            return self._make_mail_response()
 
     def _send_mail_frame(self):
         """Send current mail message frame."""
@@ -988,6 +1012,8 @@ class CompunetSession:
         has_more = self.mail_frame_index < len(frames) - 1
         if has_more:
             frame_data[0] |= 0x80
+        else:
+            frame_data[0] &= 0x7F
         log.info('MAIL FRAME: msg=%d frame=%d/%d file=%s (%d bytes, more=%s)',
                  self.mail_show_msg, self.mail_frame_index + 1, len(frames),
                  frame_file, len(frame_data), has_more)
