@@ -22,6 +22,7 @@
 	* Mail pagination: mailbox now shows max 11 messages per page with MORE/BACK.
 	* Fixed mail frame flags (last frame bit 7 now correctly cleared).
 	* Fixed mixed-case real names displaying as graphics characters on C64.
+	* Unread mail indicator: "MAIL" shown in red on directory breadcrumb line.
 * Dev:
 	* server/data/ removed from git tracking (use server/data.example/ for dev setup).
 	* users.json removed from git tracking (use users.json.example for dev setup).

@@ -1516,7 +1516,15 @@ class CompunetSession:
         data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
         data.append(0x0D)
         path_line2 = '  ' + str(page.page_num) + ' ' + (page.title or '')
-        data.extend(ascii_to_petscii(path_line2[:22]))
+        data.extend(ascii_to_petscii(path_line2[:22].ljust(24)))
+        # Unread mail indicator at column 25 (aligned with type field)
+        mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
+        if os.path.exists(mail_file):
+            with open(mail_file, 'r') as f:
+                inbox = json.load(f)
+            if any(not m.get('read', True) for m in inbox.get('messages', [])):
+                data.append(0x1C)  # red
+                data.extend(ascii_to_petscii('MAIL'))
         data.append(0x00)
 
         # --- Part 5: Column headers (at $D500, 8 bytes per field) ---
