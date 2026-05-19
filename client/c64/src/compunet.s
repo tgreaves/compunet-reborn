@@ -1689,7 +1689,7 @@ L8D52:
     JSR PRINT_STRING
     LDY #$00                            ; PRINT_STRING
 L8D78:
-    LDX #$10
+    LDX #$18
     LDA #$2D
     SEC
     JSR SETUP_INPUT_PARAMS              ; INPUT_LINE
@@ -2145,6 +2145,11 @@ L9128:
 L9139:
     BPL L9145
 L913B:
+    CMP #$41                            ; ;--- MODIFIED: allow A-Z for domain names
+    BCC @not_alpha
+    CMP #$5B
+    BCC L9162                           ; Accept A-Z
+@not_alpha:
     CMP #$2E                            ; ;--- MODIFIED: allow . for IP
     BCC L90F7
     CMP #$3B                            ; ;--- MODIFIED: allow : for port
@@ -4020,7 +4025,7 @@ ROMCALL_31      = $815D   ; FRAME_STORE
 
 .segment "TERMINAL"
 
-L9FF0 = $9FF0                           ; Phone number storage (RAM, written at runtime)
+L9FF0 = $C1E0                           ; Phone number storage (relocated for longer input)
 
     .byte $31, $45, $20, $F0, $B9                                ; $A000 1E ..
     LDA #$00
@@ -6881,7 +6886,7 @@ ACIA_WAIT_READY:
 
 ; =================================================================
 ; ACIA_DIAL — Hayes AT dial sequence
-; Sends "ATDT" + phone number from $9FF1 (length in $9FF0) + CR
+; Sends "ATDT" + phone number/hostname from L9FF0+1 (length in L9FF0) + CR
 ; Waits for "CONNECT" response (CR-terminated)
 ; Returns: C=0 success, C=1 failure
 ; =================================================================
@@ -6898,15 +6903,22 @@ ACIA_DIAL:
     ; Send phone number digits
     LDY #$00
 @send_digit:
-    CPY $9FF0
+    CPY L9FF0
     BEQ @send_cr
-    CPY #$14                            ; Safety: max 20 chars
+    CPY #$18                            ; Safety: max 24 chars
     BEQ @send_cr
-    LDA $9FF1,Y
+    LDA L9FF0+1,Y
     CMP #$2D                            ; '-' = pause
     BNE @not_pause
     LDA #','                            ; Hayes pause
+    JMP @send_char
 @not_pause:
+    CMP #$41                            ; Convert uppercase PETSCII A-Z
+    BCC @send_char                      ; to lowercase ASCII a-z
+    CMP #$5B
+    BCS @send_char
+    ORA #$20
+@send_char:
     JSR ACIA_WAIT_READY
     INY
     BNE @send_digit
