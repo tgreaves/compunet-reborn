@@ -4,6 +4,9 @@
 	* Phone number input now accepts up to 24 characters (was 16).
 	* Phone number input now accepts letters, allowing domain name entry.
 	* Domain names are automatically lowercased when sent over the wire.
+	* MOTD display: server-sent text shown during connection handshake.
+	* Fixed duplicate character bug in connection handshake (NMI double-read).
+	* Increased connection handshake timeout to ~30 seconds.
 * Website:
 	* Admin panel: View all registered users and pending registrations.
 	* Admin panel: Edit user password, credit, name, email, and account type.
