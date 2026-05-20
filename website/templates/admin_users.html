@@ -3,6 +3,8 @@
 {% block content %}
 <h1>ADMIN PANEL</h1>
 
+<p><a href="{{ url_for('admin_partyline') }}" class="btn">PARTYLINE CHAT</a></p>
+
 <h2>REGISTERED USERS ({{ users|length }})</h2>
 
 <table class="admin-table">

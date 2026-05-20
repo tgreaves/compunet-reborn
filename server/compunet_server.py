@@ -37,6 +37,7 @@ import glob
 import logging
 import secrets
 from pathlib import Path
+import partyline
 
 try:
     import websockets
@@ -528,6 +529,7 @@ class CompunetSession:
                     0x00, 0x00,
                 ])
                 self.last_response_type = RESP_FRAME
+                self._enter_partyline = True
                 return header + prg_data
             if child.frames:
                 # Deduct credit for paid, unpurchased pages (allows overdraft)
@@ -2244,6 +2246,15 @@ async def tcp_handler(reader, writer):
                                 await writer.wait_closed()
                                 return
 
+                            # Enter partyline mode after LINK download
+                            if getattr(session, '_enter_partyline', False):
+                                session._enter_partyline = False
+                                log.info('TCP: entering partyline mode for user=%s', session.user_id)
+                                await asyncio.sleep(1.0)
+                                await partyline.handle_session(reader, writer, session.user_id)
+                                log.info('TCP: exited partyline mode, resuming X.25 for user=%s', session.user_id)
+                                continue
+
                 elif token == 0x40 and session._program_download_pending:
                     # Client confirms download proceed — send program data
                     program_data = session._program_download_data
@@ -2602,6 +2613,22 @@ async def api_consume_pending(request):
     return aiohttp_web.json_response(entry)
 
 
+async def api_ws_partyline(request):
+    """WebSocket endpoint for admin partyline access."""
+    # Auth via query param (WebSocket can't use headers easily)
+    api_key = os.environ.get('COMPUNET_API_KEY', '')
+    token = request.query.get('token', '')
+    if not api_key or token != api_key:
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    user_id = request.query.get('user_id', 'ADMIN').upper()
+    ws = aiohttp_web.WebSocketResponse()
+    await ws.prepare(request)
+    log.info('WebSocket partyline client connected: user=%s', user_id)
+    await partyline.handle_web_session(ws, user_id)
+    log.info('WebSocket partyline client disconnected: user=%s', user_id)
+    return ws
+
+
 # ============================================================
 # Main
 # ============================================================
@@ -2626,6 +2653,7 @@ async def main():
         app.router.add_post('/api/pending', api_create_pending)
         app.router.add_get('/api/pending/{token}', api_get_pending)
         app.router.add_delete('/api/pending/{token}', api_consume_pending)
+        app.router.add_get('/ws/partyline', api_ws_partyline)
         runner = aiohttp_web.AppRunner(app)
         await runner.setup()
         site = aiohttp_web.TCPSite(runner, '0.0.0.0', API_PORT)

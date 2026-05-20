@@ -6,13 +6,17 @@
 	* Type 'L' (link) directory entries: BUY triggers MODEM_INIT_DOWNLOAD to stream executable code to client.
 	* Partyline directory with "JOIN PARTYLINE" L-type entry added.
 * Partyline:
-	* Initial partyline client (6502 program downloaded on demand).
-	* Draws original UI frame: blue chat box, green input box, purple header.
-	* RUN/STOP returns to terminal.
+	* Full multi-user chat system implemented (server/partyline.py).
+	* C64 client: draws UI frame, sends/receives messages via ACIA, scrolling chat.
+	* Commands: *help, *alias, *who, *enter, *dice, *call, *quit.
+	* Room system: users start in lobby, can create/join rooms with *enter.
+	* Web admin partyline client at /admin/partyline (WebSocket-based).
+	* PETSCII-to-ASCII conversion for C64 text input.
 	* Loads at $2000 (safe RAM area, avoids terminal workspace).
 * Dev:
 	* Partyline demo disassembly (partyline_demo.s) added to client/c64/vintage/.
 	* Partyline source in client/c64/src/partyline/ with build system.
+	* Partyline design documented in docs/partyline.md.
 
 # 0.2-beta (2026-05-19)
 
