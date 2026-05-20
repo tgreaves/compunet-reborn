@@ -1,0 +1,176 @@
+                           19 Feb 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+ There was a time when doing REVIEW
+could get quite busy. And trying to show
+the essence of a debate, or summarise a
+long tech article without mangling its
+meaning was tricky. Nowadays its usually
+pretty simple & often dead boring.
+
+ What about this then, for a headline
+that tells a story?
+
+ NUDIST WELFARE MAN'S MODEL WIFE FELL
+FOR THE CHINESE HYPNOTIST FROM THE CO-OP
+BACON FACTORY.
+
+ This appeared once in the News of the
+World. Surely one of the neatest bits
+of file compaction.
+
+    Tue Revue coming up soon.       Gn.
+                           19 Feb 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+551714  YEH...             T    TOP-CAT
+                                       
+Dave comments on the comments about his
+C64 CTERM proposals for the Editor. Go
+take a look if you use a C64 online.
+See if you agree how the Editor should
+"rate" various types of editor frame.
+
+
+550324  MANUAL 1.2         T11  PETROL
+                                       
+Ian provides a distillation of the
+information for Amiga users which used
+to be in the booklet they were sent...
+in the light of the latest AmiCnet
+software. All useful stuff.
+                           19 Feb 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+AMICOM  NCOMM191.LZH    T, P141  .STEVE.
+                                       
+Here is a good comms package if you want
+one. Some say it's the best. Courses for
+horses. It does have some good features.
+
+
+AMICOM  TAG BBS V2.05F  T2,P?    .STEVE.
+                                       
+Well....errr... I gather its software
+for running a bulletin board on two
+floppy drives. Since this sort of
+software isn't too easily obtained,
+better grab it if you're into BBS.
+ Read the text about it first!
+                           19 Feb 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+AMICOM  TAG BBS V2.05F  T2,      .STEVE.
+                      P301,P36,P30
+                                       
+Well that comes in 3 parts. I'd not
+got the info to hand when I did the
+previous mention. And what the heck
+has happened to the dates on this dir?
+The above is dated 230191, and the
+previous one (in the autoscan) is
+dated 050291!
+
+  Ah! I've phoned Jason. He tells me
+he moved those uploads from another dir
+& they retain their original upload
+dates. And Mark has adjusted the Cnet
+host 'clock'. Seems that was a bit out.
+Watch Gnome review for all kinds of
+fascinating info!
+                           19 Feb 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+Bonzo has got carried away with Amiga
+enthusiasm tonight & uploaded music,
+pictures, demos....you name it. Best
+thing is for you to visit them & read
+the texts yourself.
+
+ 546875 plasmatronic     p69  bonzo
+ 547188 ricos-ripples    p56  bonzo
+ 547188 amiga-a3000      p51  bonzo
+ 547188 woodentops       p95  bonzo
+ 547690 final-fronteer   p33  bonzo
+ 547690 daylight-sonata  p12  bonzo
+ 547690 draconian        p24  bonzo
+ 551817 exceptions       p53  bonzo
+ 551817 music            p23  bonzo
+
+Well done Bonzo! I'll be trying some
+of those later.
+                           19 Feb 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+AMIGA3  SCRAMBLE.LZH     T, P7   .STEVE.
+                                       
+In encrypting program for the Amiga.
+Nobody can use the file unless they
+know the password. This can be useful
+if you want to upload something private
+for another user only.
+
+
+AMIGA3  Z4ACC.LZH       P61, T   .STEVE.
+                                       
+An upgrade for Access V1.42 to allow
+it to handle Zmodem. Thanks Steve. He
+& I were discussing this recently. But
+read the text. It's not guaranteed!
+                           19 Feb 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+BONZO   AMIGA & ST DIR     T     BONZO
+                                       
+Dave starts up a new section for things
+that are common to both machines, such
+as texts & some music modules.
+ Within this we have....
+551823  TEXT UPLOADS             BONZO
+551823  SNDTRKR MODULES          BONZO
+
+and within those we have... (gasp!)
+551824  BBS-QUOTES.LZH     S11   BONZO
+551824  BBS-COWS.LZH       S8    BONZO
+
+These are really great!!! You must
+download them I have a look. The quotes
+are well worth keeping on disk: and as
+for the cows.... delightful!!! All
+done with ascii characters. Hahaha!!!
+                           19 Feb 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+551609  LIFE'S A BITCH     T     AIDAN
+                                       
+As he says... "a lost boys demo" that's
+for the ST. I can't run ST demos, but
+Aidan has put up the instructions for
+decrunching it. Have a go, if you've
+got an ST.
+
+OK then. That's it. Over to Bonzo for
+the 9pm scan.  Glad to see Ken did a
+good job on this office, but he didn't
+manage to plug that terrible draught
+under the door. Maybe Nick will pay for
+some work to be done round here, now
+Cnet have wone the Fastrak case.
+
+                                  Gn

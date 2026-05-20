@@ -1,0 +1,169 @@
+  Dear Nick,
+
+  Can you please tell us exactly how
+ much Cnet owes Istel and what the
+ current position of Istel is as THEY
+ say they no longer have any dealings
+ with Cnet at all .   and if you DON'T
+ pay their bill, how exactly are they
+ going to go about getting the money
+ you owe them?
+
+  Dave
+
+  Well obviosly I don't think I owe them
+ anything quite the reverse in fact.
+ But they refuse to discuss it.
+ I claim much more from them than they
+ from me and they'll have to prove that.
+
+--
+
+ Nicely dodged Nick. I'm sure Dave will
+allow me the liberty of rephrasing the
+question . 
+
+How much do Istel CLAIM you owe them?      
+    also how long do you think Cnet will
+ last on the Direct London number only.
+  .   you aren't going to MAKE much
+ money in this situation..
+
+   Good point but we are quite far
+ advanced with an alternative supplier
+ and we all will have to turn the wick
+ down a little but I hope its only a
+ matter of days before I can make an
+ statement.
+
+ Given that the subscribers have been
+paying money to Compunet to cover the
+Istel charges and that Compunet has not
+been passing that money on to Istel, it
+would seem reasonable to expect Compunet
+to have that sum of money in the bank.
+
+However, the indications are that
+Compunet doesn't have ANY money in the
+bank.
+
+Where did the money go Nick?
+
+ Well not into my pocket. I've put in far
+more than I've taken out & in part to try
+& get a decent 1200 baud service expand
+Host etc.
+
+NOTE we will make connect free if this
+goes on into next week.
+
+ How much do Istel CLAIM you owe them?
+
+ I don't think I'm at liberty to discuss
+that as it is information coming
+directly from Istel & is central to the
+dispute.
+
+ And since the Compunet software didn't
+work at 1200/1200 when Istel provided
+the service, isn't that just being a
+little picky?
+
+  PICKY?
+ Normally you pay me 80p per hour or
+ 10 per quarter for local call access..
+ If you cant get it then I have to ask
+ my supplier to adjust his costs.
+ Granted the main cost to most netters
+ telephone calls anyway and we are sorry
+ for that but when you enter a dispute
+ with a supplier you don't expect to be
+ ignored. You expect compromise.
+ I drew the line when none came.
+ Any way we'll have some network soon
+ with a bit of luck.   ñ 
+ Software for Amiga and ST users ok at
+1200. No modem for 64. TWO numbers ?
+
+ The s/w is NOW ok at 1200/1200 but it
+wasn't when Istel made the service
+available. It was me that fixed the ST
+software, remember?
+
+EITHER number can be used for 1200/75
+access with a 16-bit machine or with a
+1.22 C64 modem. The '1200/1200' nodes
+can also be used to give 1200/75 users
+300/300 access.
+
+ Granted Cnet Host down due to H/W S/W
+upgrades. I still sweat when I remember
+the hard disk we boot the system from
+going down
+
+ Since when has switching the disk drive
+fans off and going home been a hardware
+or software upgrade? See also my upload
+in the FAULT directory.   ñ 
+ Software for Amiga and ST users ok at
+1200. No modem for 64. TWO numbers ?
+
+ The s/w is NOW ok at 1200/1200 but it
+wasn't when Istel made the service
+available. It was me that fixed the ST
+software, remember?  Indeed. You
+lengthened a timeout at least . 
+
+ EITHER number can be used for 1200/75
+access with a 16-bit machine or with a
+1.22 C64 modem. The '1200/1200' nodes
+can also be used to give 1200/75 users
+300/300 access. Quite but 1200/1200 never
+got beyond testing because Istel decided
+to withdraw it from sale. Weird.
+
+ They didn't tell us some of the modems
+took longer to emit meaningful garbage
+than others. We ended up telling them
+which were old and which were new modems
+ Since when has switching the disk drive
+fans off and going home . Nobody went
+home that night I can assure you.    
+
+As I said elsewhere will implement freeee
+connect time which pays network costs
+asap if it looks like going on much
+longer.
+
+ Peanuts Nick. What you're forgetting is
+the 4.40 per hour for most people'ss
+phone costs outside London. An 80p
+reduction compared with the 50p per
+hour phone costs that most of us get
+using ISTEL is what we're talking about
+here.
+
+Please answer the following questions:
+
+1. How much do ISTEL claim Compunet owe them?
+2. How long has the alleged debt not been paid?
+3. If Compunet are going to change
+  local access systems - how are you
+  going to convince them that you'll
+  pay them every month?    
+4. Is the money there to pay thehe
+  existing ISTEL debt? (assuming you
+  lose the case against ISTEL)
+5. If not, why not?
+6. Why haven't we been kept informed
+  every day about this? ISTEL claim to
+  have told you quite some time before
+  the actual shut-down. Is this true?
+7. Will you pay the alleged debt to
+  ISTEL and then continue looking for
+  a new system - until such times as
+  we can make an IMMEDIATE switch-over
+  to the new system? 
+   Regards,
+
+  Bil

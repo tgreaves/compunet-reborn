@@ -1,0 +1,66 @@
+
+ 1) What Computer does Cnet run on?
+ 
+VMEbus, 16VICP's with 512k Ram and
+ 68010 processors. And a main bitty
+ running at 25Mhz on a 68020 with 8Mega
+ of RAM. (it says here - ahem)
+
+ 
+
+2) What OS does Cnet run on?
+
+OS/9
+
+ 
+
+3) How (roughly) does Cnet error
+checking/protocol work?
+
+Oh god.. you don't want to know..
+ honestly...  you do?
+
+ Well.. it uses a form of CRC and
+ Length checking.  Data is sent in
+ packets each one having an
+ incrementing sequence number... ACK's
+ are sent when valid data is recieved.
+
+ Roughly, I would say that's about it..
+ . Jason?
+
+            Dave
+ 1) What Computer does Cnet run on?
+eRRRR a big one,680xx family
+
+it runs OS 9 I do believe
+
+ 3) How (roughly) does Cnet error
+checking/protocol work?
+
+Data is divided into packets, with a
+header including
+
+ start of packet byte (1)
+ packet length
+ CRC
+ Packet type
+ data
+ end of packet byte (2)
+
+ each packet is sent in a 4-window
+ system. eg packets 40,41,42,43 are
+ sent consectutively, and 40 must be
+ ACKed before the window moves along to
+ ramge 41-44
+                      STEVE
+
+ see CNETX for more info, and CNET1E
+ for the source code of 64 ROM, which
+ has it all in.. including how the
+ CRC is evaluated.
+
+ MBX me if you need more info, and I'll
+ see what I can do.
+
+ Steve

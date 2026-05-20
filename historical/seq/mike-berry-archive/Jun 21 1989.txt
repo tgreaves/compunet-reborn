@@ -1,0 +1,354 @@
+    Wednesday Reviews with ICC
+         21 June 1989
+
+       REVIEW with GNOME
+=========================================
+I've just had a phone call from TJ
+to say he's been 'marooned' at work and
+can't get online til about 9:30 or 10pm 
+
+So I'll come on about 8pm and cover
+what I can for him. Must eat first! 
+
+ Gnome
+---------------------------------------
+
+496406  The Complete Lax  T5  ANGY
+
+ In Excreta News we have the full story
+of the collapse of the international
+laxative market during the previous
+reign of 'the notorious Dr Fogg'. A
+funny if slightly pongy account!
+---------------------------------------
+426687  DOC.RUNME & DOC.UPDATE P DW28
+
+ Two more DOCs from Dave Weaver of 6510+
+assembler fame. I'm not clear - without
+logging off & downloading them - what
+these are for, but I presume they's
+tech information. And if they're by
+Dave they'll be worth looking at. He's
+got a whole series of documentary stuff
+in this dir. Have a look.
+---------------------------------------
+495858  TETRIS  T  ANGY
+
+ Another Game nomination in the TopTen
+area where people are asked for their
+favourite game.
+---------------------------------------
+MAIN  COMPUMAIN..DI-FE  T10 -METNET-
+
+ Met continues his marathon indexing.
+If you've not yet been there & voted,
+go now & show your appreciation.
+---------------------------------------
+ PLINER  OH               T  NELSON
+
+ Not in itself a very exciting upload!
+But the area has various debates &
+ideas on the subject of Pline & is
+worth a visit.  Vote on the good ones!
+---------------------------------------
+FED  BUGFIX               T  YETI
+
+ Fedders will be relieved to know that
+last night's bug, which prevented one
+from taking off from certain planets
+has been fixed. I know cos I've tried!
+---------------------------------------
+ NEWSW  NEW S/W 21/6/89  T  HOTLINE
+
+ An update to the list of new software.
+A most useful list for all wanting
+good downloads. Give Jason a 9 vote.
+---------------------------------------
+ 485074  AFTER EFFECT /XS T & P  DEEK
+
+ An intro & complete menu of demos by
+the inimitable 'sheekshanks' Deek, &
+6 proggies to go with it. Get em!!
+---------------------------------------
+494430  WATER WORRIES      T  -METNET--
+
+ This is in Met's dir on DROUGHT 1989 &
+is a must for everyone. We all use
+water. There are 5 upload here with no
+votes yet as I saw them. GO there, read
+and VOTE for him!
+---------------------------------------
+ 495485  TOILET          S/18   DIESEL
+
+ In Dr Fogg's new revitalized dirs, as
+a Guest Article is Diesel's HILARIOUS
+article on toilets. but be warned by
+the /18 suffix which means 'not for
+the kiddies'.  Oh my! I'll have to
+print that up & read it more slowly.
+At the moment I'm laughing too much.
+---------------------------------------
+BBMIS1  CNET CROSSWORD     T5  IVAN
+
+ Ivan gives an amusing little crossword
+in which the clues are all about Cnet.
+He's kind enough to supply the answers
+as well, but concealed. Sounds fun.
+I'll be trying it myself later.
+---------------------------------------
+ FLASH  DISTURBED USA      -METNET--
+ HURRICANE COMING SOON
+
+ Met provides us with interesting info
+about the weather in the U.S. including
+warning of the hurricane season at this
+time of year. Well worth a read by all.
+This is not dry statistics but
+important information that affects us
+all. No VOTES yet: please correct this!
+---------------------------------------
+496695  JUNE ATARI SHOW   T  PR12
+
+ A notice for Atari users asking them to
+upload information in the dir there,
+and giving the place/time for a meeting
+of enthusiasts. Check it out ST users.
+---------------------------------------
+496682   MOSQUITOS/FLOOD  T  -METNET-
+
+ More from Met on the weather in the US.
+The temperature on the W. coast is 113F
+and in the East 80F  with high humidity.
+Oh god! I've felt some of that & it's
+awful. OK when it's dry.  A more
+detailed US report is promised for
+tomorrow. Come on everyone, off to
+Met's dirs & vote en masse. He's
+informative & always right!
+---------------------------------------
+LOCO  HST DIRECTORY       D  PASTEL
+
+ This is an addition to the train number
+listings in LOCO. I assume it's a list
+of High Speed Train numbers with their
+names for the enthusiasts. It's an
+amusing hobyy: don't mock it.
+---------------------------------------
+494902  RANDY'S BIT       T  CNETDEM3
+
+ Randy, of Zzap, explains something . 
+err..I'm not sure what!  It's a
+discussion dir in ZZIT 64 & you need to
+read the preceding uploads. Why not do
+that? It looks very interesting. I'm
+going back later to follow it through. 
+---------------------------------------
+
+ which brings us up to date with
+the auto-index at 20:55. 
+
+After the next update I'll come back 
+with some more until poor TJ gets in.
+ He told me he's been on duty since 
+Tuesday morning without a proper break. 
+===========================================
+
+
+    Wednesday Reviews with ICC
+         21 June 1989
+
+       REVIEW with GNOME
+=========================================
+AMIGA2  HELP NEEDED        T  CRJ1
+
+ 'The Joker' desperately needs info on
+the designer dataphone modem which he
+can't get to work with Cnet or Ruby
+View. OK on manual dial or Prestel. He
+offers pd s'ware in exchange for info.
+---------------------------------------
+SPYNET  MINI-MEET         T  DIESEL
+
+ Information for Fedders about the
+meet on Saturday at the Atari Show
+(Ally Pally). Wish I could be there!
+ This information is repeated at
+ 496695  in the Atari dir. 
+---------------------------------------
+496594  ^ABOUT THIS^       T  PD9
+
+ An explanation of Solarmax above it.
+Solarmax is a test piccy transferred
+to the miggy from a Sony TV camera.
+Looks rather interesting.
+---------------------------------------
+492459  DESPERADO  /18    T  BIGHERO
+
+ Hahahah a !! er..h m . Well it's in the
+discussion about sex in public, so keep
+the infants away. But the discussion is
+hilarious if absurd!
+
+
+   . and we're up-to-date on the 21:00
+autoindex. Over to you Terence.
+========================================
+
+    Wednesday Reviews with ICC
+
+ PRAT has just supplied some useful
+information about the following:-
+
+at 426687 the DOC programs by DW28
+
+ Two more DOCs from Dave Weaver of 6510+
+assembler fame. I'm not clear - without
+logging off & downloading them - what
+these are for, but I presume they's
+tech information.
+
+ they're details of bug fixes in the
+new version of 6510+ (V3)
+
+the new version is up at PROGU.
+    
+Thanks Steve: most useful. I'll
+certainly be downloading that material.
+
+ Gnome
+
+========================================
+ 485074  AFTER EFFECT /XS  T & P  DEEK
+
+ An intro & complete menu of demos by
+the inimitable 'sheekshanks' Deek, &
+6 proggies to go with it. Get em!!
+
+ Shouldn't it be 'SHEEPSHANKS' ? 
+
+There are more parts to the demo still
+to come.
+The ones up already will work without
+the others though.
+
+Thanks to JASON for uploading them!
+---------------------------------------
+485074  AFTER EFFECT /XS T & P  DEEK
+
+ An intro & complete menu of demos by
+the inimitable 'sheekshanks' Deek, &
+6 proggies to go with it. Get em!!
+---------------------------------------
+
+Deek:
+ Shouldn't it be 'SHEEPSHANKS' ? 
+
+Yes! Of course it should !  Sorry
+about the fingers, they're a shade
+bruised for reasons I won't go into.
+ Also I suspect a psychological reason
+caused by thinking of 'Deek'?
+
+Good stuff Deek. Hi all you out there.
+Go and download, and VOTE!
+
+  Gnome
+
+   courier  message no.  269005
+      
+  from :  prat
+  steve parkinson
+
+   date :  21-jun-89
+   time :  20:17
+
+   subject :  erm.forgot
+
+   to :
+
+   gnome   :  john marchant
+   :
+  :
+  :
+
+Two more DOCs from Dave Weaver of 6510
+assembler fame. I'm not clear - without
+logging off & downloading them - what
+these are for, but I presume they's
+tech information.
+
+ they're details of bug fixes in the
+new version of 6510+ (V3)
+
+the new version is up at PROGU.
+
+GNOME: you can see the files online
+by dloading, saving then :-
+
+GOTO ABASIC (action basic)
+
+LOAD the files back in again
+and SYS 53200  to get back to cnet
+good eh!? just given a goto yesterday
+Ste(ve(n))
+
+  well done in review, by the way
+ good of you to stand in for tj
+---------------------------------------
+
+ PRAT has just supplied some useful
+information about the following:-
+
+at 426687 the DOC programs by DW28
+
+ Two more DOCs from Dave Weaver of 6510+
+assembler fame. I'm not clear - without
+logging off & downloading them - what
+these are for, but I presume they's
+tech information.
+
+ they're details of bug fixes in the
+new version of 6510+ (V3)
+
+the new version is up at PROGU.
+    
+Thanks Steve: most useful. I'll
+certainly be downloading that material.
+
+ Gnome
+---------------------------------------
+   courier  message no.  269017
+      
+  from :  roy
+  roy titchard
+
+   date :  21-jun-89
+   time :  20:37
+
+   subject :  i told you!hehee
+
+   to :
+
+   gnome   :  john marchant
+   :
+  :
+  :
+  :   û 
+   REVIEWWITHICCTONIGHT HT 
+   I've just had a phone call from TJ
+
+ to say he's been 'marooned' at work and
+ can't get online til about 9:30 or
+
+ 10pm 
+  Did I tell you, or did I tell you?
+
+Anyway, yer doing a brill, fab job.
+I wish you'd given ANGY a bit more of
+a push for his TOPTEN poll, though.
+He's asked me to mail every sod in
+DIRECT this week with the form ! 
+May have saved me a bit of time. heh e 
+
+  Roy
+========================================

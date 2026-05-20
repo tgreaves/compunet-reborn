@@ -1,0 +1,125 @@
+   courier  message no.  305214
+      
+  from :  top-cat
+  dave
+
+   date :  26-nov-89
+   time :  14:09
+
+   subject :  maybe..
+
+   to :
+
+   gnome   :  john marchant
+   :
+  :
+  :
+
+ There's something odd going on between
+Nick G. & the Istel management. One
+moment they're shaking hands (Dral tells
+me) & the next, they've pulled the
+plug. Then the plug goes in again. I
+can't see Istel giving in to pressure;
+they'd be glad to see the back of Cnet.
+
+   Yeh .  well when I first heard that
+ Nick wasn't paying Istel. I wondered
+ why we hadn't but cut off straight
+ away .   I'm just surprised that it's
+ taken this long - as you say Istel
+ have nothing to loose if we go .        
+
+ There are some discrepances between the
+ news on 'Today' and Istel's statement.
+ the news (Cnet) states that they were
+ surprised at the shutdown at 5PM Friday
+  It went down at 12 minutes past 6.
+ There was NO warning from Istel.
+ They left the meeting with a shake of
+ hands and an apointment to resume talks
+ on monday.
+  yet Istel's statement states that Cnet
+ were informed about the planed termin-
+ ation at 5PM and were advised to inform
+ it's subscribers. We were not informed
+  Even if they claim they warned us at
+ 5pm I don't see how we were supposed
+ to inform thousands of subscribers all
+ within 72 minutes!
+  surely we should be kept informed.
+  How would you propose we do this?
+  Cnet didn't know about the termination
+ then Istel is misleading Cnet's users
+ by stating otherwise.  INDEED!
+ And because of this they have now
+ reconnected us.  Regards,  Dral       
+
+
+   courier  message no.  305217
+      
+  from :  top-cat
+  dave
+
+   date :  26-nov-89
+   time :  14:16
+
+   subject :  erk!
+
+   to :
+
+   gnome   :  john marchant
+
+Istel is off at the moment. I'd hazard a
+guess that although Cnet is cut off,
+the automatic batch files and the
+checking programs don't know about it,
+so when they find it down, they put the
+link back up, and it stays that way
+until one of the ops people notices . 
+
+
+  I'm not necessarily putting Cnet
+to blame here but letting all netters
+know what Istel are saying. Last night
+for instance it shut down again at just
+after 6 again. Istel said they are
+terminating all lines to Compunet which
+is while it'll still be available for a
+short while during the day. They said
+last night that Compunet will now have
+nothing to do with Istel? Why are they
+saying all this, I myself pointed out to
+them all the faults we have had that
+were not followed up, the reason or
+partly for the current dispute.
+
+If Istel do terminate everything with
+Compunet, Is there any other system you
+can use, because no local access would
+mean a lot less netters.   Dave
+
+----------------
+
+This is a big legal argument where both
+sides have their solicitors involved.
+Some of the reasons why I suspect Cnet
+are holding back money include the
+unreliable service, reluctance to inform
+us of faults, 12/12 access taking 6
+month longer than promised leaving our
+ST & Amiga users very frustrated.
+Then theres individual nodes.
+There are almost 80, since SEPTEMBER
+over 40 different nodes have been out of
+action for 1 day or more.
+
+Liverpool was faulty for 3 months,
+Dundee out for a whole week. Teeside out
+for 35 days. Durham faulty for 10 days.
+Hull is ALWAYS faulty ! 
+
+I hope you see our reasons for trying to
+get a better deal.
+  Unofficially  . DRAL!
+

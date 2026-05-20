@@ -1,0 +1,69 @@
+    COMPUNET TODAY :  21st MARCH 1990
+
+ Today, Compunet spoke directly to  Graham
+Hurbert , Sales and Marketing Director of
+the  Midland Bank Network Service , (the
+company who run Fastrak).
+
+He has 'assured' Compunet that we WILL
+be able to resume proper network access
+via Fastrak by early afternoon tomorrow.
+The best we can say to that is 'We'll
+wait and see'! So far, Fastrak haven't
+proved to be too hot when it comes to
+keeping promises though we do sympothise
+with them as we are a very different
+proposition to their normal customers.
+
+We now know some of the reasons why we
+were 'locked out' on Sunday. Because of
+a new Security routine on Fastrak's
+Service Selector  we were automatically
+cut off when we had too many failed
+attempts at logging on. Ofcourse there
+were dozens of failed attempts over the
+Weekend.
+
+Although this shouldn't happen again, I
+need to ask you NOT to try to logon
+to Fastrak tomorrow until you have first
+been on this system. It would do us no
+good if your fix needs to be changed,
+and because you have the wrong fix, you
+cause their Selector to lock us all out
+again. As I say, this shouldn't happen
+again, but we are not sure that even
+Fastrak know this for sure.
+
+We now also know that we were the first
+system to use this new Service Selector
+system on their network, to their horror
+(not to mention ours), it didn't work!
+
+So, once again I must apologise for
+THEIR delay.
+
+
+ ISTEL AT THE HIGH COURT.
+
+ Istel , (the network who pulled the plug
+on Compunet last December) were in court
+today in an attempt to make Compunet pay
+up to the tune of 31, 0  pound forr
+money they claim we owe them.
+
+This claim was turned down by the
+High Court and the ISTEL/COMPUNET case
+has been adjourned until a later date.
+
+In turn, Compunet are also sueing Istel,
+our claim being that they did not
+provide the service offered in their
+contract. We are also claiming for poor
+reliability and the long delay in
+receiving 1200/1200 access. A number of
+Subscribers have signed Affidavits
+giving their account of the Istel
+developments over the past 3 years.
+
+   DRAL 
