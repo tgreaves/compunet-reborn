@@ -1,3 +1,8 @@
+# 0.3-beta (2026-05-20)
+
+* Client:
+	* Fixed backspace not working on login password field.
+
 # 0.2-beta (2026-05-19)
 
 * Client:
