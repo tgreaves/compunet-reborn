@@ -1255,9 +1255,9 @@ class CompunetSession:
         price_str = rest[0:8].decode('latin-1').strip()
         lifetime_str = rest[8:].decode('latin-1').strip() if len(rest) > 8 else '0'
 
-        # Parse price: strip leading zeros, format as X.XX
+        # Parse price: round to 2 decimal places (only valid precision)
         try:
-            price = float(price_str)
+            price = round(float(price_str), 2)
         except ValueError:
             price = 0.0
 
