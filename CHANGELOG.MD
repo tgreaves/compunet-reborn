@@ -6,6 +6,7 @@
 	* Type 'L' (link) directory entries: BUY triggers MODEM_INIT_DOWNLOAD to stream executable code to client.
 	* Partyline directory with "JOIN PARTYLINE" L-type entry added.
 	* Fixed multi-frame upload corruption: packet chunks now accumulated properly.
+	* Free storage tracking: 2000 units/quarter, EXTEND uses free storage first then credit.
 * Partyline:
 	* Full multi-user chat system implemented (server/partyline.py).
 	* C64 client: draws UI frame, sends/receives messages via ACIA, scrolling chat.
