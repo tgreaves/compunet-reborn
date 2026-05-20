@@ -784,6 +784,7 @@ class CompunetSession:
 
             child.life += extend_by
             self._save_user()
+            self.directory._save_directory()
             log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
                      self.user_id, child.page_num, child.title, extend_by, child.life)
 
