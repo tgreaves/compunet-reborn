@@ -48,6 +48,15 @@
       "frames": ["frame-1.seq"]
     },
     {
+      "page_num": 700,
+      "title": "DEMOS",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 30,
+      "frames": ["frame-1.seq"]
+    },
+    {
       "page_num": 612,
       "title": "ASH AND DAVE",
       "type": "T",
