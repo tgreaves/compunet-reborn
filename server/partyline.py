@@ -339,12 +339,9 @@ async def handle_web_session(ws, user_id):
         try:
             while True:
                 msg = await out_queue.get()
-                logger.debug("WS sending: %s", msg[:50])
                 await ws.send_str(msg)
-        except (asyncio.CancelledError, ConnectionResetError) as e:
-            logger.info("WS sender stopped: %s", e)
-        except Exception as e:
-            logger.error("WS sender error: %s", e)
+        except (asyncio.CancelledError, ConnectionResetError):
+            pass
 
     # Task to forward incoming WebSocket messages to reader queue
     async def ws_receiver():
