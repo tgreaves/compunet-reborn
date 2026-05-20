@@ -11,6 +11,8 @@
 	* Admins can EXTEND/reduce any content (not just their own).
 	* Fixed EXTEND causing navigation into child directory on reload.
 	* Fixed EXTEND not persisting updated life to directory JSON.
+	* Fixed negative EXTEND not persisting reduced life.
+	* Upload prices now rounded to 2 decimal places (prevents invalid fractional values).
 * Partyline:
 	* Full multi-user chat system implemented (server/partyline.py).
 	* C64 client: draws UI frame, sends/receives messages via ACIA, scrolling chat.
