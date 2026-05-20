@@ -9,6 +9,7 @@
 	* Free storage tracking: 2000 units/quarter, EXTEND uses free storage first then credit.
 	* EXTEND supports negative values to reduce LIFE (refunds storage). Life=0 deletes page.
 	* Admins can EXTEND/reduce any content (not just their own).
+	* Fixed EXTEND causing navigation into child directory on reload.
 * Partyline:
 	* Full multi-user chat system implemented (server/partyline.py).
 	* C64 client: draws UI frame, sends/receives messages via ACIA, scrolling chat.
@@ -27,7 +28,6 @@
 	* Added DEMOS jump-off directory to Jungle.
 	* PARTYLINE_WS_URL env var for configuring browser WebSocket endpoint.
 	* partyline.py added to server Dockerfile.
-	* Partyline design documented in docs/partyline.md.
 	* Partyline design documented in docs/partyline.md.
 
 # 0.2-beta (2026-05-19)
