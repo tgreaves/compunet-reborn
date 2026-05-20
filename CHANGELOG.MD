@@ -10,6 +10,7 @@
 	* EXTEND supports negative values to reduce LIFE (refunds storage). Life=0 deletes page.
 	* Admins can EXTEND/reduce any content (not just their own).
 	* Fixed EXTEND causing navigation into child directory on reload.
+	* Fixed EXTEND not persisting updated life to directory JSON.
 * Partyline:
 	* Full multi-user chat system implemented (server/partyline.py).
 	* C64 client: draws UI frame, sends/receives messages via ACIA, scrolling chat.
