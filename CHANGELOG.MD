@@ -10,6 +10,8 @@
 	* C64 client: draws UI frame, sends/receives messages via ACIA, scrolling chat.
 	* Commands: *help, *alias, *who, *enter, *dice, *call, *quit.
 	* Room system: users start in lobby, can create/join rooms with *enter.
+	* Cursor up/down scrollback through 114 lines of chat history.
+	* History buffer at $3000 (not included in download binary for speed).
 	* Web admin partyline client at /admin/partyline (WebSocket-based).
 	* PETSCII-to-ASCII conversion for C64 text input.
 	* Loads at $2000 (safe RAM area, avoids terminal workspace).

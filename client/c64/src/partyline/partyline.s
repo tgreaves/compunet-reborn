@@ -5,6 +5,7 @@
 ;   - Polls NMI ring buffer for incoming server messages
 ;   - Polls keyboard for user input
 ;   - Transmits on double-RETURN via ACIA
+;   - Cursor up/down scrolls back through chat history
 ;   - Exits on RUN/STOP or *EXIT from server
 ; =================================================================
 
@@ -40,6 +41,8 @@ ZP_PTR2_HI     = $FE           ; general pointer high
 CR              = $0D           ; carriage return
 RUNSTOP         = $03           ; RUN/STOP key code
 DEL_KEY         = $14           ; DEL key code from GETIN
+CURSOR_UP       = $91           ; cursor up key code from GETIN
+CURSOR_DOWN     = $11           ; cursor down key code from GETIN
 CURSOR_CHAR     = $1F           ; left-arrow cursor character
 SPACE           = $20           ; space screen code
 
@@ -58,6 +61,10 @@ INPUT_LEFT_COL  = 4            ; first input column
 INPUT_RIGHT_COL = 38           ; last input column (inclusive)
 INPUT_WIDTH     = 35           ; columns available (4..38)
 INPUT_ROWS      = 4            ; rows available (19..22)
+
+; --- History buffer parameters ---
+HIST_LINE_SIZE  = 35            ; same as CHAT_WIDTH
+HIST_MAX_LINES  = 114           ; 4096 / 35 ≈ 116, use 114
 
 ; =================================================================
 ; ENTRY POINT
@@ -233,6 +240,25 @@ start:
     STA tx_buf_len              ; transmit buffer length
     STA last_was_return         ; flag: last key was RETURN
     STA exit_flag               ; flag: time to exit
+    STA hist_write_idx          ; history ring buffer write index
+    STA hist_count              ; total history lines stored
+    STA scroll_offset           ; lines scrolled back (0 = live)
+
+    ; --- Zero the history buffer at $3000 (16 pages = 4096 bytes, covers 3990) ---
+    LDA #$00
+    LDX #$10                    ; 16 pages
+    LDY #$00
+    STY ZP_PTR1
+    LDA #$30
+    STA ZP_PTR1_HI
+    LDA #$00
+@zero_hist:
+    STA (ZP_PTR1),Y
+    INY
+    BNE @zero_hist
+    INC ZP_PTR1_HI
+    DEX
+    BNE @zero_hist
 
     ; --- Place cursor in input area ---
     JSR draw_input_cursor
@@ -337,6 +363,66 @@ poll_receive:
 ; =================================================================
 
 display_rx_line:
+    ; --- First: convert line to screen codes into hist_temp_line ---
+    LDX #$00
+    LDY #$00
+@conv_char:
+    CPX rx_line_len
+    BCS @conv_pad
+    LDA rx_line_buf,X
+    JSR petscii_to_screencode
+    STA hist_temp_line,Y
+    INX
+    INY
+    CPY #CHAT_WIDTH
+    BCC @conv_char
+    BCS @conv_done
+@conv_pad:
+    LDA #SPACE
+    CPY #CHAT_WIDTH
+    BCS @conv_done
+@conv_pad_loop:
+    STA hist_temp_line,Y
+    INY
+    CPY #CHAT_WIDTH
+    BCC @conv_pad_loop
+@conv_done:
+
+    ; --- Second: store into history ring buffer ---
+    ; Calculate destination: hist_buf + (hist_write_idx * 35)
+    LDA hist_write_idx
+    JSR calc_hist_offset        ; sets ZP_PTR2 = hist_buf + A*35
+
+    ; Copy 35 bytes from hist_temp_line to history buffer
+    LDY #$00
+@hist_store:
+    LDA hist_temp_line,Y
+    STA (ZP_PTR2),Y
+    INY
+    CPY #HIST_LINE_SIZE
+    BCC @hist_store
+
+    ; Advance hist_write_idx, wrap at HIST_MAX_LINES
+    INC hist_write_idx
+    LDA hist_write_idx
+    CMP #HIST_MAX_LINES
+    BCC @no_wrap_w
+    LDA #$00
+    STA hist_write_idx
+@no_wrap_w:
+
+    ; Increment hist_count, saturate at HIST_MAX_LINES
+    LDA hist_count
+    CMP #HIST_MAX_LINES
+    BCS @count_full
+    INC hist_count
+@count_full:
+
+    ; --- Third: check scroll_offset ---
+    LDA scroll_offset
+    BNE @scrolled_back
+
+    ; --- Live mode: display on screen as before ---
     ; If chat area is full, scroll up first
     LDA chat_cur_row
     CMP #CHAT_ROWS
@@ -345,7 +431,6 @@ display_rx_line:
     DEC chat_cur_row            ; stay on last row after scroll
 @no_scroll:
     ; Calculate screen address for current chat row
-    ; Row = CHAT_TOP_ROW + chat_cur_row, Col = CHAT_LEFT_COL
     LDA chat_cur_row
     CLC
     ADC #CHAT_TOP_ROW           ; absolute screen row
@@ -358,32 +443,25 @@ display_rx_line:
     BCC @no_c1
     INC ZP_PTR1_HI
 @no_c1:
-    ; Copy rx_line_buf to screen (converting PETSCII to screen codes)
-    LDX #$00
+    ; Copy from hist_temp_line to screen
     LDY #$00
-@copy_char:
-    CPX rx_line_len
-    BCS @pad_rest
-    LDA rx_line_buf,X
-    JSR petscii_to_screencode
-    STA (ZP_PTR1),Y
-    INX
-    INY
-    CPY #CHAT_WIDTH
-    BCC @copy_char
-    BCS @done_display           ; line full
-@pad_rest:
-    ; Clear remaining columns with spaces
-    LDA #SPACE
-    CPY #CHAT_WIDTH
-    BCS @done_display
-@pad_loop:
+@copy_to_scr:
+    LDA hist_temp_line,Y
     STA (ZP_PTR1),Y
     INY
     CPY #CHAT_WIDTH
-    BCC @pad_loop
-@done_display:
+    BCC @copy_to_scr
+
     INC chat_cur_row
+    RTS
+
+@scrolled_back:
+    ; User is scrolled back — don't update screen.
+    ; Increment scroll_offset so their view stays stable.
+    INC scroll_offset
+    ; But also keep chat_cur_row at maximum (screen is full when scrolled)
+    LDA #CHAT_ROWS
+    STA chat_cur_row
     RTS
 
 ; =================================================================
@@ -454,6 +532,19 @@ poll_keyboard:
     JSR GETIN
     CMP #$00
     BEQ @no_key                 ; no key pressed
+
+    ; --- Cursor up: scroll back ---
+    CMP #CURSOR_UP
+    BNE @not_cup
+    JSR scroll_back
+    JMP @no_key
+@not_cup:
+    ; --- Cursor down: scroll forward ---
+    CMP #CURSOR_DOWN
+    BNE @not_cdn
+    JSR scroll_forward
+    JMP @no_key
+@not_cdn:
 
     ; --- RUN/STOP ---
     CMP #RUNSTOP
@@ -549,6 +640,184 @@ poll_keyboard:
     STA input_row
     STA tx_buf_len
     JSR draw_input_cursor
+    RTS
+
+; =================================================================
+; SCROLL_BACK — Scroll chat view one line back into history
+; =================================================================
+
+scroll_back:
+    ; Can we scroll further back?
+    ; Max scrollback = hist_count - CHAT_ROWS
+    LDA hist_count
+    SEC
+    SBC #CHAT_ROWS
+    BCC @cant                   ; fewer lines than screen holds
+    BEQ @cant                   ; exactly fills screen, no scrollback
+    ; A = max possible scroll_offset
+    CMP scroll_offset
+    BEQ @cant                   ; already at max
+    BCC @cant                   ; scroll_offset > max (shouldn't happen)
+    INC scroll_offset
+    JSR redraw_chat_from_history
+@cant:
+    RTS
+
+; =================================================================
+; SCROLL_FORWARD — Scroll chat view one line forward toward live
+; =================================================================
+
+scroll_forward:
+    LDA scroll_offset
+    BEQ @cant                   ; already at live
+    DEC scroll_offset
+    JSR redraw_chat_from_history
+@cant:
+    RTS
+
+; =================================================================
+; REDRAW_CHAT_FROM_HISTORY — Redraw all 15 chat rows from hist_buf
+; =================================================================
+; Starting index = (hist_write_idx - scroll_offset - CHAT_ROWS) mod 114
+; Then draw CHAT_ROWS lines sequentially from history.
+
+redraw_chat_from_history:
+    ; Calculate starting history index
+    ; start = hist_write_idx - scroll_offset - CHAT_ROWS
+    LDA hist_write_idx
+    SEC
+    SBC scroll_offset
+    SEC
+    SBC #CHAT_ROWS
+    ; A might be negative (wrapped), add HIST_MAX_LINES if so
+    BPL @idx_ok
+@wrap_idx:
+    CLC
+    ADC #HIST_MAX_LINES
+    ; If still negative, wrap again (can happen if total subtraction > 114)
+    BMI @wrap_idx
+@idx_ok:
+    ; Ensure index is in range (A could be >= HIST_MAX_LINES due to unsigned)
+    CMP #HIST_MAX_LINES
+    BCC @idx_valid
+    SEC
+    SBC #HIST_MAX_LINES
+@idx_valid:
+    STA hist_read_idx           ; current read position in ring
+
+    ; Now draw CHAT_ROWS lines to screen
+    LDA #CHAT_TOP_ROW
+    STA hist_draw_row           ; absolute screen row counter
+
+    LDX #CHAT_ROWS             ; loop counter
+@draw_loop:
+    STX hist_draw_cnt           ; save loop counter
+
+    ; Get source address: hist_buf + (hist_read_idx * 35)
+    LDA hist_read_idx
+    JSR calc_hist_offset        ; ZP_PTR2 = source address
+
+    ; Get destination screen address
+    LDA hist_draw_row
+    JSR calc_row_addr           ; ZP_PTR1 = screen row start
+    CLC
+    LDA ZP_PTR1
+    ADC #CHAT_LEFT_COL
+    STA ZP_PTR1
+    BCC @no_c2
+    INC ZP_PTR1_HI
+@no_c2:
+
+    ; Copy 35 bytes from history to screen
+    LDY #$00
+@copy_hist:
+    LDA (ZP_PTR2),Y
+    STA (ZP_PTR1),Y
+    INY
+    CPY #CHAT_WIDTH
+    BCC @copy_hist
+
+    ; Advance hist_read_idx, wrap at HIST_MAX_LINES
+    INC hist_read_idx
+    LDA hist_read_idx
+    CMP #HIST_MAX_LINES
+    BCC @no_wrap_r
+    LDA #$00
+    STA hist_read_idx
+@no_wrap_r:
+
+    ; Advance screen row
+    INC hist_draw_row
+
+    ; Loop
+    LDX hist_draw_cnt
+    DEX
+    BNE @draw_loop
+
+    RTS
+
+; =================================================================
+; CALC_HIST_OFFSET — Calculate hist_buf + A*35, result in ZP_PTR2
+; =================================================================
+; Input: A = index (0..113)
+; Output: ZP_PTR2/ZP_PTR2_HI = address in hist_buf
+; Uses: multiply by 35 = (index << 5) + (index << 1) + index
+
+calc_hist_offset:
+    ; Save index
+    STA hist_mult_tmp
+
+    ; index << 1
+    ASL A
+    STA hist_mult_lo            ; low byte of index*2
+    LDA #$00
+    ROL A
+    STA hist_mult_hi            ; high byte of index*2
+
+    ; index << 5 = (index << 1) << 4
+    ; Start fresh: index << 5
+    LDA hist_mult_tmp
+    ASL A
+    ASL A
+    ASL A
+    ASL A
+    ASL A
+    STA hist_mult_32lo
+    ; For high byte: index >> 3 (since 5 shifts of 8-bit, overflow)
+    LDA hist_mult_tmp
+    LSR A
+    LSR A
+    LSR A
+    STA hist_mult_32hi
+
+    ; Now add: index*32 + index*2 + index
+    ; result = hist_mult_32 + hist_mult + hist_mult_tmp
+    CLC
+    LDA hist_mult_32lo
+    ADC hist_mult_lo
+    STA hist_mult_lo
+    LDA hist_mult_32hi
+    ADC hist_mult_hi
+    STA hist_mult_hi
+
+    ; Add index itself
+    CLC
+    LDA hist_mult_lo
+    ADC hist_mult_tmp
+    STA hist_mult_lo
+    LDA hist_mult_hi
+    ADC #$00
+    STA hist_mult_hi
+
+    ; Add base address of hist_buf
+    CLC
+    LDA hist_mult_lo
+    ADC #<hist_buf
+    STA ZP_PTR2
+    LDA hist_mult_hi
+    ADC #>hist_buf
+    STA ZP_PTR2_HI
+
     RTS
 
 ; =================================================================
@@ -1036,6 +1305,21 @@ last_was_return: .byte $00      ; flag: last key was RETURN
 exit_flag:      .byte $00       ; flag: exit main loop
 wait_cnt:       .word $0000     ; timeout counter for wait_for_exit
 
+; --- History scrollback variables ---
+hist_write_idx:  .byte $00      ; next write position in ring buffer (0-113)
+hist_count:      .byte $00      ; total lines stored (saturates at 114)
+scroll_offset:   .byte $00      ; lines scrolled back from live (0 = live mode)
+hist_read_idx:   .byte $00      ; temp: current read position during redraw
+hist_draw_row:   .byte $00      ; temp: current screen row during redraw
+hist_draw_cnt:   .byte $00      ; temp: loop counter during redraw
+
+; --- Multiply temporaries for calc_hist_offset ---
+hist_mult_tmp:   .byte $00      ; saved index
+hist_mult_lo:    .byte $00      ; low byte accumulator
+hist_mult_hi:    .byte $00      ; high byte accumulator
+hist_mult_32lo:  .byte $00      ; low byte of index*32
+hist_mult_32hi:  .byte $00      ; high byte of index*32
+
 ; =================================================================
 ; BUFFERS
 ; =================================================================
@@ -1044,3 +1328,8 @@ TX_BUF_SIZE = 140               ; 4 rows * 35 cols = 140 max
 
 rx_line_buf:    .res 40, $00    ; incoming line buffer (one line at a time)
 tx_buf:         .res TX_BUF_SIZE, $00  ; outgoing message buffer
+hist_temp_line: .res 35, $00    ; temp buffer for screen-code converted line
+
+; --- History ring buffer (114 lines x 35 bytes = 3990 bytes) ---
+; NOT included in binary — uses uninitialised RAM at $3000 (zeroed on startup)
+hist_buf = $3000
