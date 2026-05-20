@@ -2622,9 +2622,15 @@ async def api_ws_partyline(request):
         return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
     user_id = request.query.get('user_id', 'ADMIN').upper()
     ws = aiohttp_web.WebSocketResponse()
+    if not ws.can_prepare(request):
+        log.warning('WebSocket partyline: cannot prepare (missing upgrade headers)')
+        return aiohttp_web.json_response({'error': 'WebSocket upgrade required'}, status=400)
     await ws.prepare(request)
     log.info('WebSocket partyline client connected: user=%s', user_id)
-    await partyline.handle_web_session(ws, user_id)
+    try:
+        await partyline.handle_web_session(ws, user_id)
+    except Exception as e:
+        log.error('WebSocket partyline error: %s', e)
     log.info('WebSocket partyline client disconnected: user=%s', user_id)
     return ws
 
