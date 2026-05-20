@@ -6,6 +6,19 @@
   },
   "pages": [
     {
+      "page_num": 101,
+      "title": "NEWS",
+      "type": "T",
+      "author": "ADMIN",
+      "price": 0,
+      "life": 0,
+      "keyword": "NEWS",
+      "frames": [
+        "frame-1.seq"
+      ],
+      "directory": "news/directory.json"
+    },
+    {
       "page_num": 600,
       "title": "JUNGLE",
       "type": "T",
