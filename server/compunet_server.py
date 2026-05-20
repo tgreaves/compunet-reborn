@@ -806,10 +806,10 @@ class CompunetSession:
                     parent.children.remove(child)
                 if child.page_num in self.directory.pages:
                     del self.directory.pages[child.page_num]
-                self._save_directory()
                 log.info('DELETE: page %d ("%s") removed (life=0)', child.page_num, child.title)
 
             self._save_user()
+            self._save_directory()
 
         self.dir_displayed = False
         return bytes([0x00])
