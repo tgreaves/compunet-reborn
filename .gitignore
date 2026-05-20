@@ -41,3 +41,4 @@ client/c64/logs/
 
 # Local scripts
 transfer-repo.sh
+client/c64/src/partyline/build/

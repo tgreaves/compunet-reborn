@@ -514,6 +514,21 @@ class CompunetSession:
 
         if self.selected_entry < len(visible_children):
             child = visible_children[self.selected_entry]
+            if child.page_type == 'L' and child.frames:
+                # Type L: send MODEM_INIT_DOWNLOAD format for the linked program
+                log.info('LINK: user=%s activating link page %d "%s" (%d bytes)',
+                         self.user_id, child.page_num, child.title, len(child.frames[0]))
+                prg_data = child.frames[0]
+                load_addr = 0x2000
+                exec_addr = 0x2000
+                header = bytes([
+                    0x00, 0x00,
+                    exec_addr & 0xFF, (exec_addr >> 8) & 0xFF,
+                    load_addr & 0xFF, (load_addr >> 8) & 0xFF,
+                    0x00, 0x00,
+                ])
+                self.last_response_type = RESP_FRAME
+                return header + prg_data
             if child.frames:
                 # Deduct credit for paid, unpurchased pages (allows overdraft)
                 if child.price > 0 and child.page_num not in self.purchased:
@@ -709,11 +724,12 @@ class CompunetSession:
         return bytes(frame)
 
     def _cmd_buy(self, params):
-        """LIFE/EXTEND command ('X') — extend life of owned content.
+        """LIFE/EXTEND command ('X') — extend life or activate link.
+
+        For type 'L' pages: streams the linked program via MODEM_INIT_DOWNLOAD format.
+        For other pages: extend life (original behaviour).
 
         Params: entry_index (2 ASCII digits) + extension (up to 4 ASCII digits).
-        Server validates ownership and adds extension to page life.
-        Returns $00 byte (consumed by C64 client as success indicator).
         """
         self.last_response_type = RESP_ACK
         if len(params) < 2:
@@ -732,6 +748,10 @@ class CompunetSession:
             return bytes([0x00])
 
         child = visible_children[entry_idx]
+
+        # Type 'L' — link: handled by _cmd_dir, BUY just returns ACK
+        if child.page_type == 'L':
+            return bytes([0x00])
 
         # Check ownership
         if child.author != self.user_id:
