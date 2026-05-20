@@ -418,8 +418,10 @@ def admin_partyline():
         return denied
 
     api_key = config.get('COMPUNET_API_KEY')
-    api_url = config.get('COMPUNET_API_URL', 'http://localhost:6403')
-    ws_url = api_url.replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/partyline'
+    ws_url = config.get('PARTYLINE_WS_URL', '')
+    if not ws_url:
+        api_url = config.get('COMPUNET_API_URL', 'http://localhost:6403')
+        ws_url = api_url.replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/partyline'
     return render_template('admin_partyline.html', api_key=api_key, ws_url=ws_url,
                            user_id=session['user_id'])
 
