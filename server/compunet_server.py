@@ -784,7 +784,7 @@ class CompunetSession:
 
             child.life += extend_by
             self._save_user()
-            self.directory._save_directory()
+            self._save_directory()
             log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
                      self.user_id, child.page_num, child.title, extend_by, child.life)
 
@@ -806,7 +806,7 @@ class CompunetSession:
                     parent.children.remove(child)
                 if child.page_num in self.directory.pages:
                     del self.directory.pages[child.page_num]
-                self.directory._save_directory()
+                self._save_directory()
                 log.info('DELETE: page %d ("%s") removed (life=0)', child.page_num, child.title)
 
             self._save_user()
