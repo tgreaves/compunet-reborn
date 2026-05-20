@@ -27,7 +27,8 @@
       "author": "JUNGLE",
       "price": 0,
       "life": 30,
-      "frames": ["frame-1.seq"]
+      "frames": ["frame-1.seq"],
+      "directory": "jungle/graphics/directory.json"
     },
     {
       "page_num": 602,
@@ -36,7 +37,8 @@
       "author": "JUNGLE",
       "price": 0,
       "life": 30,
-      "frames": ["frame-1.seq"]
+      "frames": ["frame-1.seq"],
+      "directory": "jungle/music/directory.json"
     },
     {
       "page_num": 603,
@@ -54,7 +56,8 @@
       "author": "JUNGLE",
       "price": 0,
       "life": 30,
-      "frames": ["frame-1.seq"]
+      "frames": ["frame-1.seq"],
+      "directory": "jungle/demos/directory.json"
     },
     {
       "page_num": 612,
