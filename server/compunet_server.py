@@ -2292,23 +2292,17 @@ async def tcp_handler(reader, writer):
                     # Any non-COM packet during upload = frame data chunk
                     log.info('TCP: upload chunk token=$%02X seq=$%02X payload=%d bytes',
                              token, seq, len(payload))
-                    is_program_upload = session.pending_send.get('type') == 'P'
-                    if is_program_upload:
-                        # Program uploads: accumulate all chunks into a single bytearray
-                        if not session.pending_send['frames']:
-                            session.pending_send['frames'].append(bytearray())
-                        session.pending_send['frames'][0].extend(payload)
-                    else:
-                        session.pending_send['frames'].append(bytes(payload))
-                    # ACK only the final chunk (< 100 bytes = partial = last)
-                    # Client calls L96D2 once after all bytes sent
+                    # Accumulate chunks into current frame buffer
+                    if '_current_frame' not in session.pending_send:
+                        session.pending_send['_current_frame'] = bytearray()
+                    session.pending_send['_current_frame'].extend(payload)
+                    # Final chunk (< 100 bytes) = end of this frame
                     if len(payload) < 100:
-                        if is_program_upload:
-                            log.info('UPLOAD: program received (%d bytes), sending ACK',
-                                     len(session.pending_send['frames'][0]))
-                        else:
-                            log.info('UPLOAD: final chunk received (%d total chunks), sending ACK',
-                                     len(session.pending_send['frames']))
+                        frame_data = bytes(session.pending_send['_current_frame'])
+                        session.pending_send['frames'].append(frame_data)
+                        session.pending_send['_current_frame'] = bytearray()
+                        log.info('UPLOAD: frame %d complete (%d bytes)',
+                                 len(session.pending_send['frames']), len(frame_data))
                         await asyncio.sleep(0.5)
                         ack_data = bytes([RESP_ACK]) + b'\x00' * 10
                         ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
