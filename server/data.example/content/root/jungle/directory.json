@@ -48,16 +48,6 @@
       "frames": ["frame-1.seq"]
     },
     {
-      "page_num": 605,
-      "title": "MYJUNGLE",
-      "type": "T",
-      "author": "TEST",
-      "price": 4.0,
-      "life": 4,
-      "frames": ["frame-1.seq"],
-      "directory": "jungle/myjungle/directory.json"
-    },
-    {
       "page_num": 612,
       "title": "ASH AND DAVE",
       "type": "T",
