@@ -761,11 +761,60 @@ class CompunetSession:
                      self.user_id, child.page_num, child.author)
             return bytes([0x00])
 
+        # Calculate storage cost: frames × extension_days
+        num_frames = len(child.frames) if child.frames else 1
+        storage_cost = num_frames * extend_by
+
+        # Deduct from free storage first, overflow to credit
+        user = self._users.get(self.user_id, {})
+        self._check_storage_reset(user)
+        free_remaining = self._get_free_storage_remaining(user)
+
+        if storage_cost <= free_remaining:
+            user['free_storage_used'] = user.get('free_storage_used', 0) + storage_cost
+            log.info('EXTEND: cost=%d units from free storage (remaining=%d)',
+                     storage_cost, 2000 - user['free_storage_used'])
+        else:
+            # Use all remaining free storage, overflow to credit
+            from_free = free_remaining
+            from_credit = storage_cost - from_free
+            user['free_storage_used'] = user.get('free_storage_used', 0) + from_free
+            self.credit -= from_credit
+            log.info('EXTEND: cost=%d units (%d from free, %.2f from credit)',
+                     storage_cost, from_free, from_credit)
+
         # Extend life
         child.life += extend_by
+        self._save_user()
         log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
                  self.user_id, child.page_num, child.title, extend_by, child.life)
         return bytes([0x00])
+
+    def _get_quarter_start(self):
+        """Return the start date of the current calendar quarter."""
+        import datetime
+        now = datetime.date.today()
+        if now.month <= 3:
+            return datetime.date(now.year, 1, 1)
+        elif now.month <= 6:
+            return datetime.date(now.year, 4, 1)
+        elif now.month <= 9:
+            return datetime.date(now.year, 7, 1)
+        else:
+            return datetime.date(now.year, 10, 1)
+
+    def _check_storage_reset(self, user):
+        """Reset free storage if we've entered a new quarter."""
+        import datetime
+        current_qs = self._get_quarter_start().isoformat()
+        if user.get('storage_quarter_start', '') != current_qs:
+            user['free_storage_used'] = 0
+            user['storage_quarter_start'] = current_qs
+
+    def _get_free_storage_remaining(self, user):
+        """Return remaining free storage units for this quarter."""
+        self._check_storage_reset(user)
+        return max(0, 2000 - user.get('free_storage_used', 0))
 
     def _save_user(self):
         """Persist user state to users.json."""
@@ -778,6 +827,9 @@ class CompunetSession:
             if mem_user.get('last_login_date'):
                 users[self.user_id]['last_login_date'] = mem_user['last_login_date']
                 users[self.user_id]['last_login_time'] = mem_user.get('last_login_time', '')
+            if 'free_storage_used' in mem_user:
+                users[self.user_id]['free_storage_used'] = mem_user['free_storage_used']
+                users[self.user_id]['storage_quarter_start'] = mem_user.get('storage_quarter_start', '')
             with open(users_file, 'w') as f:
                 json.dump(users, f, indent=2)
 
@@ -1782,8 +1834,8 @@ class CompunetSession:
         user_pages = [p for p in self.directory.pages.values() if p.author == self.user_id]
         pages_count = len(user_pages)
         near_death = len([p for p in user_pages if 0 < p.life < 5])
-        storage_used = sum(len(p.frames) * p.life for p in user_pages if p.life > 0)
-        free_storage = max(0, 2000 - storage_used)
+        self._check_storage_reset(user)
+        free_storage = self._get_free_storage_remaining(user)
 
         # Next quarter start date
         month = now.month
