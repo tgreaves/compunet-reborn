@@ -18,6 +18,12 @@
 * Dev:
 	* Partyline demo disassembly (partyline_demo.s) added to client/c64/vintage/.
 	* Partyline source in client/c64/src/partyline/ with build system.
+	* server/data/ now tracked in git (except mail, votes, jungle subdirs).
+	* Removed placeholder content (NEWS, CHAT, VIP, etc.) — clean slate.
+	* Added DEMOS jump-off directory to Jungle.
+	* PARTYLINE_WS_URL env var for configuring browser WebSocket endpoint.
+	* partyline.py added to server Dockerfile.
+	* Partyline design documented in docs/partyline.md.
 	* Partyline design documented in docs/partyline.md.
 
 # 0.2-beta (2026-05-19)
