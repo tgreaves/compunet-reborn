@@ -810,6 +810,7 @@ class CompunetSession:
 
             self._save_user()
 
+        self.dir_displayed = False
         return bytes([0x00])
 
     def _get_quarter_start(self):
