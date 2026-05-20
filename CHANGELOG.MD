@@ -7,6 +7,8 @@
 	* Partyline directory with "JOIN PARTYLINE" L-type entry added.
 	* Fixed multi-frame upload corruption: packet chunks now accumulated properly.
 	* Free storage tracking: 2000 units/quarter, EXTEND uses free storage first then credit.
+	* EXTEND supports negative values to reduce LIFE (refunds storage). Life=0 deletes page.
+	* Admins can EXTEND/reduce any content (not just their own).
 * Partyline:
 	* Full multi-user chat system implemented (server/partyline.py).
 	* C64 client: draws UI frame, sends/receives messages via ACIA, scrolling chat.

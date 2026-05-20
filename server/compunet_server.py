@@ -755,39 +755,61 @@ class CompunetSession:
         if child.page_type == 'L':
             return bytes([0x00])
 
-        # Check ownership
-        if child.author != self.user_id:
+        # Check ownership (admins can modify any content)
+        if child.author != self.user_id and not self.is_admin:
             log.info('EXTEND DENIED: user=%s is not author of page %d (author=%s)',
                      self.user_id, child.page_num, child.author)
             return bytes([0x00])
 
-        # Calculate storage cost: frames × extension_days
         num_frames = len(child.frames) if child.frames else 1
-        storage_cost = num_frames * extend_by
 
-        # Deduct from free storage first, overflow to credit
-        user = self._users.get(self.user_id, {})
-        self._check_storage_reset(user)
-        free_remaining = self._get_free_storage_remaining(user)
+        if extend_by > 0:
+            # Positive extend: deduct from free storage first, overflow to credit
+            storage_cost = num_frames * extend_by
+            user = self._users.get(self.user_id, {})
+            self._check_storage_reset(user)
+            free_remaining = self._get_free_storage_remaining(user)
 
-        if storage_cost <= free_remaining:
-            user['free_storage_used'] = user.get('free_storage_used', 0) + storage_cost
-            log.info('EXTEND: cost=%d units from free storage (remaining=%d)',
-                     storage_cost, 2000 - user['free_storage_used'])
-        else:
-            # Use all remaining free storage, overflow to credit
-            from_free = free_remaining
-            from_credit = storage_cost - from_free
-            user['free_storage_used'] = user.get('free_storage_used', 0) + from_free
-            self.credit -= from_credit
-            log.info('EXTEND: cost=%d units (%d from free, %.2f from credit)',
-                     storage_cost, from_free, from_credit)
+            if storage_cost <= free_remaining:
+                user['free_storage_used'] = user.get('free_storage_used', 0) + storage_cost
+                log.info('EXTEND: cost=%d units from free storage (remaining=%d)',
+                         storage_cost, 2000 - user['free_storage_used'])
+            else:
+                from_free = free_remaining
+                from_credit = storage_cost - from_free
+                user['free_storage_used'] = user.get('free_storage_used', 0) + from_free
+                self.credit -= from_credit
+                log.info('EXTEND: cost=%d units (%d from free, %.2f from credit)',
+                         storage_cost, from_free, from_credit)
 
-        # Extend life
-        child.life += extend_by
-        self._save_user()
-        log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
-                 self.user_id, child.page_num, child.title, extend_by, child.life)
+            child.life += extend_by
+            self._save_user()
+            log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
+                     self.user_id, child.page_num, child.title, extend_by, child.life)
+
+        elif extend_by < 0:
+            # Negative extend: reduce life, refund storage
+            actual_reduction = min(abs(extend_by), child.life)
+            refund = num_frames * actual_reduction
+            user = self._users.get(self.user_id, {})
+            self._check_storage_reset(user)
+            user['free_storage_used'] = max(0, user.get('free_storage_used', 0) - refund)
+            child.life -= actual_reduction
+            log.info('REDUCE: user=%s page=%d ("%s") reduced_by=%d new_life=%d refund=%d',
+                     self.user_id, child.page_num, child.title, actual_reduction, child.life, refund)
+
+            # If life reaches 0, delete the page
+            if child.life <= 0:
+                parent = self.current_page
+                if child in parent.children:
+                    parent.children.remove(child)
+                if child.page_num in self.directory.pages:
+                    del self.directory.pages[child.page_num]
+                self.directory._save_directory()
+                log.info('DELETE: page %d ("%s") removed (life=0)', child.page_num, child.title)
+
+            self._save_user()
+
         return bytes([0x00])
 
     def _get_quarter_start(self):
