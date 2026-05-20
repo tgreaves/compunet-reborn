@@ -6,9 +6,8 @@ services:
       dockerfile: server/Dockerfile
     ports:
       - "6400:6400"
+      - "6403:6403"
       - "6502:6502"
-    expose:
-      - "6403"
     volumes:
       - ./server/cfg:/app/cfg
       - ./server/data:/app/data
