@@ -1,0 +1,71 @@
+{
+  "header": "jungle/header.seq",
+  "pages": [
+    {
+      "page_num": 607,
+      "title": "RULES",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 99,
+      "frames": ["frame-1.seq", "frame-2.seq", "frame-3.seq", "frame-4.seq"]
+    },
+    {
+      "page_num": 699,
+      "title": "THE ZOO",
+      "type": "T",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "frames": ["frame-1.seq"],
+      "directory": "jungle/the-zoo/directory.json"
+    },
+    {
+      "page_num": 601,
+      "title": "GRAPHICS",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 30,
+      "frames": ["frame-1.seq"]
+    },
+    {
+      "page_num": 602,
+      "title": "MUSIC",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 30,
+      "frames": ["frame-1.seq"]
+    },
+    {
+      "page_num": 603,
+      "title": "GAMES",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 30,
+      "frames": ["frame-1.seq"]
+    },
+    {
+      "page_num": 605,
+      "title": "MYJUNGLE",
+      "type": "T",
+      "author": "TEST",
+      "price": 4.0,
+      "life": 4,
+      "frames": ["frame-1.seq"],
+      "directory": "jungle/myjungle/directory.json"
+    },
+    {
+      "page_num": 612,
+      "title": "ASH AND DAVE",
+      "type": "T",
+      "author": "ASH+DAVE",
+      "price": 0,
+      "life": 99,
+      "frames": ["frame-1.seq"],
+      "directory": "jungle/ash-and-dave/directory.json"
+    }
+  ]
+}

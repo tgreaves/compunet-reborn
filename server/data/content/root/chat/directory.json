@@ -1,0 +1,26 @@
+{
+  "pages": [
+    {
+      "page_num": 402,
+      "title": "GENERAL",
+      "type": "T",
+      "author": "SYSTEM",
+      "price": 0,
+      "life": 30,
+      "frames": [
+        "frame-1.seq"
+      ]
+    },
+    {
+      "page_num": 403,
+      "title": "HELP DESK",
+      "type": "T",
+      "author": "SYSTEM",
+      "price": 0,
+      "life": 30,
+      "frames": [
+        "frame-1.seq"
+      ]
+    }
+  ]
+}

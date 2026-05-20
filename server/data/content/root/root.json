@@ -1,0 +1,115 @@
+{
+  "header": "header.seq",
+  "shortcuts": {
+    "F1": "JUNGLE",
+    "F3": "PARTY"
+  },
+  "pages": [
+    {
+      "page_num": 101,
+      "title": "NEWS",
+      "type": "T",
+      "author": "EDITOR",
+      "price": 0,
+      "life": 7,
+      "frames": [
+        "frame-1.seq",
+        "frame-2.seq"
+      ],
+      "directory": "news/directory.json"
+    },
+    {
+      "page_num": 201,
+      "title": "PAID TEXT",
+      "type": "T",
+      "author": "TEST",
+      "price": 1.5,
+      "life": 30,
+      "frames": [
+        "frame-1.seq",
+        "frame-2.seq"
+      ]
+    },
+    {
+      "page_num": 301,
+      "title": "VIP",
+      "type": "T",
+      "author": "SYS",
+      "price": 50.0,
+      "life": 99,
+      "frames": [
+        "frame-1.seq"
+      ]
+    },
+    {
+      "page_num": 401,
+      "title": "CHAT",
+      "type": "T",
+      "author": "SYSTEM",
+      "price": 0,
+      "life": 30,
+      "frames": [
+        "frame-1.seq"
+      ],
+      "directory": "chat/directory.json"
+    },
+    {
+      "page_num": 501,
+      "title": "REVIEWS",
+      "type": "T",
+      "author": "ADMIN",
+      "price": 0,
+      "life": 14,
+      "frames": [
+        "frame-1.seq"
+      ]
+    },
+    {
+      "page_num": 502,
+      "title": "FOO",
+      "type": "T",
+      "author": "TEST",
+      "price": 5.0,
+      "life": 3,
+      "frames": [
+        "frame-1.seq"
+      ],
+      "directory": "foo/directory.json"
+    },
+    {
+      "page_num": 503,
+      "title": "WANG",
+      "type": "T",
+      "author": "TEST",
+      "price": 0.0001,
+      "life": 0,
+      "frames": [
+        "frame-1.seq",
+        "frame-2.seq"
+      ]
+    },
+    {
+      "page_num": 600,
+      "title": "JUNGLE",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 99,
+      "keyword": "JUNGLE",
+      "frames": [
+        "frame-1.seq"
+      ],
+      "directory": "jungle/directory.json"
+    },
+    {
+      "page_num": 900,
+      "title": "PARTYLINE",
+      "type": "D",
+      "author": "SYSTEM",
+      "price": 0,
+      "life": 0,
+      "keyword": "PARTYLINE",
+      "directory": "partyline/directory.json"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pages": [
+    {
+      "page_num": 504,
+      "title": "HELLO",
+      "type": "T",
+      "author": "TEST",
+      "price": 3.0,
+      "life": 5,
+      "frames": [
+        "frame-1.seq"
+      ]
+    },
+    {
+      "page_num": 604,
+      "title": "FOO",
+      "type": "T",
+      "author": "TEST",
+      "price": 2.0,
+      "life": 2,
+      "frames": [
+        "frame-1.seq"
+      ]
+    }
+  ]
+}
