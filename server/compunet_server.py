@@ -451,8 +451,9 @@ class CompunetSession:
     def _goto_page(self, page_num):
         """Navigate to a page by number.
 
-        GOTO always returns a directory response (client parses it as 6-part).
-        For pages with frames: navigate to their parent directory.
+        GOTO always returns a directory response — the client parses the
+        response as a 6-part directory (L_A358). Sending frame data crashes.
+        For frame pages: navigate to their parent directory.
         For directories: navigate into them.
         """
         page = self.directory.pages.get(page_num)
@@ -463,13 +464,11 @@ class CompunetSession:
         self.dir_page_offset = 0
         if page.has_subdir():
             self.current_page = page
-            return self._make_dir_response()
         elif page.parent:
             self.current_page = page.parent
-            return self._make_dir_response()
         else:
             self.current_page = page
-            return self._make_dir_response()
+        return self._make_dir_response()
 
     def handle_goto(self, page_num):
         """Handle GOTO for WebSocket clients."""
