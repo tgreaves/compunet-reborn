@@ -28,9 +28,12 @@ $(PRG): $(BIN)
 	@cat $(BIN) >> $(PRG)
 	@echo "Created $(PRG) ($$(wc -c < $(PRG)) bytes, SYS 33184, v$(VERSION))"
 
+WEBSITE_STATIC = ../../../website/static
+
 $(D64): $(PRG)
 	$(C1541) -format "compunet,cr" d64 $(D64) -write $(PRG) compunet
-	@echo "Created $(D64)"
+	@cp $(D64) $(WEBSITE_STATIC)/compunet-reborn.d64
+	@echo "Created $(D64) (copied to website/static/)"
 
 $(BIN): $(OBJ) $(CFG)
 	$(LD65) -C $(CFG) $(OBJ) -o $(BIN)
