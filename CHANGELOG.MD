@@ -29,6 +29,7 @@
 	* server/data/ now tracked in git (except mail, votes, jungle subdirs).
 	* Removed placeholder content (NEWS, CHAT, VIP, etc.) — clean slate.
 	* Added DEMOS jump-off directory to Jungle.
+	* D64 download now hosted from website (copied during build, no GitHub link).
 	* PARTYLINE_WS_URL env var for configuring browser WebSocket endpoint.
 	* partyline.py added to server Dockerfile.
 	* Partyline design documented in docs/partyline.md.
