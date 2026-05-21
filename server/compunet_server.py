@@ -449,24 +449,27 @@ class CompunetSession:
         return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
 
     def _goto_page(self, page_num):
-        """Navigate to a page by number."""
+        """Navigate to a page by number.
+
+        GOTO always returns a directory response (client parses it as 6-part).
+        For pages with frames: navigate to their parent directory.
+        For directories: navigate into them.
+        """
         page = self.directory.pages.get(page_num)
         if page is None:
             return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
 
-        self.current_page = page
         self.selected_entry = 0
         self.dir_page_offset = 0
         if page.has_subdir():
+            self.current_page = page
             return self._make_dir_response()
-        elif page.frames:
-            if page.parent:
-                self.current_page = page.parent
-            self.show_page = page
-            self.show_frame_index = 0
-            return self._send_current_frame()
+        elif page.parent:
+            self.current_page = page.parent
+            return self._make_dir_response()
         else:
-            return self._make_error(ascii_to_petscii('NO CONTENT'))
+            self.current_page = page
+            return self._make_dir_response()
 
     def handle_goto(self, page_num):
         """Handle GOTO for WebSocket clients."""

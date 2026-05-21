@@ -1,5 +1,8 @@
 # 0.4-beta (2026-05-21)
 
+* Server:
+	* Fixed GOTO crash on frame pages (must always return directory response).
+
 # 0.3-beta (2026-05-20)
 
 * Client:
