@@ -1,9 +1,15 @@
 # 0.4-beta (2026-05-21)
 
+* Client:
+	* Removed legacy disk drive check for voting on P/A type pages.
+	* Partyline client: silent *PING keepalive handling.
 * Server:
 	* Fixed GOTO crash when targeting frame pages (always returns directory response).
 	* Invalid GOTO now reloads current directory instead of crashing.
 	* Client idle timeout extended from 10 to 20 minutes.
+* Partyline:
+	* Added *PING keepalive (every 60s idle) to prevent NAT/firewall drops.
+	* Added logging for commands, messages, and keepalive activity.
 
 # 0.3-beta (2026-05-20)
 

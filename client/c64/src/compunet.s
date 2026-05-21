@@ -4276,19 +4276,22 @@ L_A279:
     PLA
     STA $8033
     RTS
-    .byte $20, $9B, $A7, $AD, $86, $02, $8D, $0A, $C0, $4E       ; $A29D  ........N
-    PLP
-    CPY #$A2
-    ORA ($A0,X)
-    PHP
+; --- VOTE handler ($A29D) ---
+; Saves screen state, clears type flag, calls vote subroutine, restores.
+    JSR L_A79B                          ; save screen state
+    LDA $0286                           ; save current text colour
+    STA $C00A
+    LSR $C028                           ; clear vote type flag
+    LDX #$01
+    LDY #$08
     STX $2B
     STX $C00D
     STY $2C
     STY $C00E
-    JSR L_B6DA
-    LDA $C00A
+    JSR L_B6DA                          ; vote subroutine
+    LDA $C00A                           ; restore text colour
     STA $0286
-    JMP L_A7A6
+    JMP L_A7A6                          ; return to main loop
     .byte $A9, $45, $8D, $00, $C1, $A0, $01, $20, $84, $A7, $20, .lobyte(L96D2), .hibyte(L96D2), $B0, $CA, $20; $A2C3 .E..... .. .... 
     .byte $21, $81, $20, .lobyte(L96C0), .hibyte(L96C0), $A9, $0E, $8D, $20, $D0, $20, $86, $AC, $68, $68, $20; $A2D3 !. ..... . ..hh 
     .byte $48, $81, $A9, $93, $4C, $D2, $FF, $20, $9B, $A7, $AD, $86, $02, $8D, $0A, $C0; $A2E3 H...L.. ........
@@ -5904,23 +5907,26 @@ L_B313:
     BCC L_B330
 L_B32D:
     JMP L_A72D
+; --- Vote type check ($B330) ---
+; Checks page type to determine vote eligibility.
+; T, C: vote allowed directly. P, A, &: conditional (disk check). S: blocked.
 L_B330:
-    LDY $C111
-    LSR $C028
-    CPY #$54
-    BEQ L_B361
-    CPY #$43
-    BEQ L_B361
-    CPY #$26
-    BEQ L_B352
-    CPY #$50
-    BEQ L_B352
-    CPY #$41
-    BEQ L_B352
-    CPY #$53
-    BNE L_B313
+    LDY $C111                           ; get page type character
+    LSR $C028                           ; clear type-S flag
+    CPY #$54                            ; type 'T' (text)?
+    BEQ L_B361                          ; yes → vote allowed
+    CPY #$43                            ; type 'C'?
+    BEQ L_B361                          ; yes → vote allowed
+    CPY #$26                            ; type '&'?
+    BEQ L_B352                          ; yes → conditional (needs disk)
+    CPY #$50                            ; type 'P' (program)?
+    BEQ L_B352                          ; yes → conditional (needs disk)
+    CPY #$41                            ; type 'A'?
+    BEQ L_B352                          ; yes → conditional (needs disk)
+    CPY #$53                            ; type 'S' (sequential)?
+    BNE L_B313                          ; unknown type → skip
     SEC
-    ROR $C028
+    ROR $C028                           ; set $C028 bit 7 = vote blocked for type S
 L_B352:
     LDX $C03B
     STX $C04C
@@ -6384,21 +6390,26 @@ L_B6D0:
     TYA
     CLC
     JMP L96C9
+; --- Vote subroutine ($B6DA) ---
+; Checks if voting is allowed, prompts for score, sends to server.
+; $C028 bit 7: set = type S (no vote). $C01B bit 7: set = P/A voting allowed.
 L_B6DA:
-    JSR L_ADB6
-    ROR $C01B
+    SEC                                 ; ;--- MODIFIED: skip disk check, always allow P/A votes
+    NOP
+    NOP
+    ROR $C01B                           ; bit 7 = 1 (always "present")
     JSR L_AC86
     LDX #$C7
     LDY #$B7
-    JSR L_AD71
-    BCC L_B6ED
-    RTS
+    JSR L_AD71                          ; print "VOTE (1-9)?" prompt
+    BCC L_B6ED                          ; if input received, continue
+    RTS                                 ; user cancelled
 L_B6ED:
-    STY $19
-    BIT $C028
-    BMI L_B76E
-    BIT $C01B
-    BPL L_B76E
+    STY $19                             ; save score
+    BIT $C028                           ; type S flag?
+    BMI L_B76E                          ; yes → can't vote on S-type
+    BIT $C01B                           ; disk present flag?
+    BPL L_B76E                          ; no → can't vote on P/A without disk
     LDA $19
     LDX #$1E
     LDY #$80

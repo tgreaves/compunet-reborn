@@ -350,6 +350,21 @@ poll_receive:
     STA rx_line_len
     RTS
 
+    ; Check for *PING keepalive (silently discard)
+    LDA rx_line_len
+    CMP #$05
+    BNE @not_ping
+    LDA rx_line_buf
+    CMP #$2A                    ; '*'
+    BNE @not_ping
+    LDA rx_line_buf+1
+    CMP #$50                    ; 'P'
+    BNE @not_ping
+    LDA #$00
+    STA rx_line_len
+    RTS
+
+@not_ping:
 @not_exit:
     ; Display the received line in chat area
     JSR display_rx_line
