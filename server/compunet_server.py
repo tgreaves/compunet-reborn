@@ -181,7 +181,7 @@ class CompunetPage:
     def type_string(self):
         """Generate the type suffix shown in directory listings."""
         s = self.page_type
-        if self.size > 0:
+        if self.page_type != 'L' and self.size > 0:
             s += str(self.size)
         if self.has_subdir():
             s += '+'
