@@ -22,10 +22,14 @@ client/c64/127.0.0.1:*
 # Secrets
 .env
 
-# Live user and server data (use .example copies for dev setup)
+# Live user and server data
 server/cfg/users.json
 server/cfg/pending.json
-server/data/
+
+# Dynamic server data (not tracked)
+server/data/mail/
+server/data/votes.json
+server/data/content/root/jungle/*/
 
 # Virtual environments
 server/venv/
@@ -41,3 +45,4 @@ client/c64/logs/
 
 # Local scripts
 transfer-repo.sh
+client/c64/src/partyline/build/

@@ -555,7 +555,7 @@ DIR  EDITR  SAVE  LEAVE  BUY  SHOW  ACCNT  BACK  GOTO  HELP  LIFE  MAIL  PRINT  
 |---------|----------|
 | ACCNT   | Display account details |
 | BACK    | Go to parent directory |
-| BUY     | Download program or show chargeable text |
+| BUY     | Download program, show chargeable text, or activate link |
 | DIR     | Enter sub-directory beneath highlighted entry |
 | EDITR   | Access the Editor while online |
 | GOTO    | Jump to a page number or keyword |
@@ -591,12 +591,48 @@ Each directory entry has a letter suffix indicating its type:
 | T      | Text pages (read with SHOW) |
 | P      | Program (download with BUY) |
 | PP     | Protected program (requires modem as dongle) |
-| L      | Link to external system |
+| L      | Link (executable download via MODEM_INIT_DOWNLOAD) |
 | S      | Sequential file (word processor format) |
 | D      | Directory only (no content, use DIR) |
 | +      | Has a sub-directory beneath it |
 
 Numbers after the letter indicate size (K for programs, pages for text).
+
+### Type 'L' Links — MODEM_INIT_DOWNLOAD
+
+When the user presses BUY on a type 'L' entry, the client sends a 'D' command
+(SHOW) with the entry index. The server responds with executable code in the
+MODEM_INIT_DOWNLOAD format. The client displays "LINKING" and downloads the
+code into RAM, then executes it.
+
+**BUY flow for type L (client side):**
+1. Client checks type at screen column 25 — type L/P/S trigger BUY flow
+2. Client sends 'D' command with entry index
+3. Server responds with MODEM_INIT_DOWNLOAD data stream
+4. Client calls ROMCALL_05 (MODEM_INIT_DOWNLOAD at $810F)
+5. Downloaded code executes via JMP ($001F)
+6. RTS returns to terminal (caller's return address is on stack)
+
+**MODEM_INIT_DOWNLOAD data format:**
+
+```
+Byte 0:   discarded
+Byte 1:   discarded
+Byte 2:   exec address lo → $1F
+Byte 3:   exec address hi → $20
+Byte 4:   load address lo → $1D
+Byte 5:   load address hi → $1E
+Byte 6:   discarded
+Byte 7:   discarded
+Byte 8+:  code bytes (stored sequentially at load address until end-of-stream)
+```
+
+After loading, the client jumps to the exec address via `JMP ($001F)`.
+The downloaded program has full C64 access and can communicate with the
+server via the ACIA. RTS returns to the terminal.
+
+**Safe load addresses:** $2000-$7FFF (BASIC RAM area, not used by terminal).
+Avoid $C000+ (protocol workspace), $A000+ (terminal code), $8000+ (ROM).
 
 ### The Editor
 

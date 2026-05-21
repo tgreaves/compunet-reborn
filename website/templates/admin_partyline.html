@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Partyline — Admin — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>PARTYLINE</h1>
+
+<div id="partyline-container">
+    <div id="chat-area"></div>
+    <div id="input-area">
+        <input type="text" id="msg-input" placeholder="Type message or *command..." autocomplete="off">
+        <button id="send-btn">SEND</button>
+    </div>
+    <p class="hint" id="status">Connecting...</p>
+</div>
+
+<p style="margin-top: 24px;"><a href="{{ url_for('admin_users') }}">&lt; BACK TO ADMIN</a></p>
+
+<style>
+#partyline-container {
+    border: 2px solid var(--c64-blue);
+    background: var(--c64-white);
+    padding: 0;
+    max-width: 600px;
+}
+#chat-area {
+    height: 300px;
+    overflow-y: auto;
+    padding: 12px;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    line-height: 1.6;
+    border-bottom: 2px solid var(--c64-blue);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+#input-area {
+    display: flex;
+    padding: 8px;
+    gap: 8px;
+}
+#msg-input {
+    flex: 1;
+    max-width: none;
+    text-transform: none;
+}
+#send-btn {
+    padding: 10px 16px;
+}
+#status {
+    padding: 4px 12px;
+    margin: 0;
+}
+.chat-system { color: var(--c64-green); }
+.chat-user { color: var(--c64-blue); }
+.chat-msg { color: var(--c64-black); }
+</style>
+
+<script>
+(function() {
+    const chatArea = document.getElementById('chat-area');
+    const msgInput = document.getElementById('msg-input');
+    const sendBtn = document.getElementById('send-btn');
+    const status = document.getElementById('status');
+    const apiKey = '{{ api_key }}';
+    const wsUrl = '{{ ws_url }}';
+
+    let ws = null;
+
+    function connect() {
+        ws = new WebSocket(wsUrl + '?user_id={{ user_id }}&token=' + encodeURIComponent(apiKey));
+        ws.onopen = function() {
+            status.textContent = 'Connected to Partyline';
+            status.style.color = 'var(--c64-green)';
+        };
+        ws.onmessage = function(e) {
+            appendMessage(e.data);
+        };
+        ws.onclose = function() {
+            status.textContent = 'Disconnected';
+            status.style.color = 'var(--c64-red)';
+        };
+        ws.onerror = function() {
+            status.textContent = 'Connection error';
+            status.style.color = 'var(--c64-red)';
+        };
+    }
+
+    function appendMessage(text) {
+        const line = document.createElement('div');
+        if (text.includes('has entered') || text.includes('has left') || text.includes('calls you')) {
+            line.className = 'chat-system';
+        } else if (text.endsWith(':')) {
+            line.className = 'chat-user';
+        } else {
+            line.className = 'chat-msg';
+        }
+        line.textContent = text;
+        chatArea.appendChild(line);
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function send() {
+        const text = msgInput.value.trim();
+        if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(text);
+        msgInput.value = '';
+    }
+
+    sendBtn.addEventListener('click', send);
+    msgInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') send();
+    });
+
+    connect();
+})();
+</script>
+{% endblock %}

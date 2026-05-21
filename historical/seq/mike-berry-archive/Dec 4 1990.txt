@@ -1,0 +1,288 @@
+                            4 Dec 1990
+                                      
+                           WITH   nome
+                                      
+                                       
+ Well it's nice to be back at the old
+desk again. The place has changed a
+bit since November '89 & I hardly
+had time to look around last week. I
+see Ken and Aidan have cleaned the
+floor & scrubbed the graffiti off the
+walls. There's a new fridge (I'll keep
+my whipping cream in that): and
+Bonzo's kennel in the corner has had a
+lick of paint. The waste-basket is
+full of discarded logos from Gizmo &
+Zoggo, and there's a framed Dicey logo
+on the wall captioned "This is how it
+should be done."  And TJ's very special
+basket chair with the hole in the seat
+still sags when one sits in it. I
+suppose that's TJ's camp bed over there.
+        Oh well: on with the dance.
+                            4 Dec 1990
+                                      
+                           WITH   nome
+                                      
+                                       
+ZUTIL5  NoPalReset2    T2, P2    GNOME
+                                       
+Someone seems to have put up an update
+of this program that checks your Amiga
+has booted in PAL mode & resets if not.
+The original version had a teensy little
+feature in it, believed to cause trouble
+& even accused of corrupting hard disks.
+This one obeys all the CBM rules.
+
+JUMBLE  HELP! LEAD NEEDED        -ICC
+                                       
+Dicey asks for a printer lead. Well I
+have a spare I'll send him. It'll set
+off his Celtic Barbarian haircut very
+nicely, wrapped round his forehead.
+
+ And that was all up to 1am last night.
+                            4 Dec 1990
+                                      
+                           WITH   nome
+                                      
+                                       
+547686  JAM NOV'90         T11   GNOME
+                                       
+A review of the new Amiga "club mag".
+This is issue 3. It's a monthly, only
+available by subscription. See this
+review for info on ordering. This mag is
+produced on a very tight budget, in
+black & white, and NO games!. See if you
+think you'd like to take it.
+
+CLIQ    OBERON ANYONE?      T    PETROL
+                                       
+Ian asks is anyone knows anything about
+a new program language Oberon, said to
+be a successor to Modula-2. He's read
+something about it in the foreign press.
+I think it's a plot to distract our
+attention from the Gulf. (Only joking!)
+                            4 Dec 1990
+                                      
+                           WITH   nome
+                                      
+                                       
+ Hmmm...odd that. Failed to connect
+twice at 7pm. Had a stream of garbage
+sent to my modem, then HOST ERROR and
+FAILED TO CONNECT. Never mind. I told
+Jason & I'm sure he'll find out what's
+up & put it right. If you can read this,
+then he succeeded! Good man, Jc!!
+
+547690  NOON.SMUS.LZH  P62, T    BONZO
+        SONIX.SMUS.LZH P50, T    BONZO
+        DREAM.SMUS.LZH P201, T   BONZO
+                                       
+ Bonzo has put up 3 pieces of music for
+your delight. He's tired of using
+Soundtracker & now he's busy with Sonix.
+ NOON is "atmospheric & the best he's
+uploaded since Ivory Towers.
+                             more >>>
+                            4 Dec 1990
+                                      
+                           WITH   nome
+                                      
+                                       
+ SONIX is "full of atmosphere & great
+instruments".
+ DREAM is 5 minutes of superb music &
+a lot of samples, by Alvin Starr.
+
+ Read his instruction texts, then try
+them out. I shall. Bonzo's stuff is
+always worth hearing. Give the man a
+good vote. (I have to say that, as
+he's coming in later to take over from
+me.)
+
+ Break now for sandwiches & a snifter.
+                            4 Dec 1990
+                                      
+                           WITH   nome
+                                      
+                                       
+ I'd get on better at this job if I
+didn't keep getting phone calls from
+friends. I LIKE calls, but sometimes
+one would like to postpone them for an
+hour or two.
+
+ Bonzo has been busy again....
+
+543275  RUNNER.SMUS.LZH P110, T  BONZO
+547690  VIRUS.SMUS.LZH  P71,  T  BONZO
+546715  CAR.LZH         P109, T2 BONZO
+                                       
+ Runner was composed by Soundmachine, &
+he says "you can imagine someone belting
+along to the beat of the tune".
+ Virus "has a lovely flowing rythm and
+only 3 insutuments."
+                             more >>>
+                            4 Dec 1990
+                                      
+                           WITH   nome
+                                      
+                                       
+ CAR is a PD racing game with
+"unbelievable speed". There's a lot
+of text all about it which you should
+certainly read.  In fact all Bonzo's
+uploads are well documented. That's
+how I'm able to tell you about them!
+
+ Yes I know I'm bloody idle, but I
+really can't afford the online time to
+download each item & try it. Wish I
+could.
+
+ Seeya after 9pm for my final session.
+                            4 Dec 1990
+                                      
+                           WITH   nome
+                                      
+                                       
+547709  BREAKOUT     P68,  T     AIDAN
+        ATARTREK     P24,  T     AIDAN
+                                       
+ These are ST games, so I've a good
+excuse this time for not trying them.
+The names more of less speak for
+themselves. Atartrek is a version of
+the classic StarTrek game.
+
+547714  XBIOS.LZH    P64         AIDAN
+                                       
+ Another ST offering. No documentation
+uploaded, but probably in the archive.
+I dunno what it does, but a BIOS is the
+input/output past of an operating
+system. Over to you, ST owners.
+                            4 Dec 1990
+                                      
+                           WITH   nome
+                                      
+                                       
+547699  ME TOO             T     AIDAN
+                                       
+Seems Aidan also had a touch of the
+dreaded lurgy while trying to log on.
+Oh well. The net has been darned good
+for a while, and the odd hiccup is
+nothing to worry about so long as they
+can fix it as fast as tonight. Once
+again, thanks Jason!
+
+                                   
+That's the lot to 9pm. Did you see the
+connection between my page names?
+ They're all organ stops. I like
+organs.
+
+              Over to Bonzo. Byeeeeee
+
+                                  Gnome
+                                        
+                                        
+   !     !           !  !     !    !    
+                                        
+                                        
+                                        
+                                        
+ REVIEW COMPUNET REVIEW         AUTHOR  
+    TUE TUE UPLDS/REVIEW                
+                                        
+    TUE TUE UPLDS/REVIEW T14   -EDITOR- 
+   TUE1 MORE REVIEW      T     -EDITOR- 
+ 547334 YOU HAVE A GO!   T3+   TJ       
+ 547650 GNOME FIRST TURN T     GNOME    
+ 547651 BONZO FOLLOWS ON T     BONZO    
+ 547685 TREMULANT        T2    GNOME    
+ 547689 FLUE             T     GNOME    
+ 547699 GAMBA            T2+   GNOME    
+ 547708 DIAPASON         T2    GNOME    
+ 547717 BOURDON          T2    GNOME    
+                                        
+                               <<<<>>>> 
+  NIGHTLY CNET: SUN F1  MON F2  WED F3
+     REVIEWS  : THU F4  FRI F5  SAT F6
+                                        
+                                        
+   !     !           !  !     !    !    
+                                        
+                                        
+                                        
+                                        
+ REVIEW COMPUNET REVIEW        VOTE/NUM 
+    TUE TUE UPLDS/REVIEW                
+                                        
+    TUE TUE UPLDS/REVIEW T14     8/37   
+   TUE1 MORE REVIEW      T       9/15   
+ 547334 YOU HAVE A GO!   T3+     9/3    
+ 547650 GNOME FIRST TURN T       9/3    
+ 547651 BONZO FOLLOWS ON T       9/3    
+ 547685 TREMULANT        T2      9/4    
+ 547689 FLUE             T       9/3    
+ 547699 GAMBA            T2+     9/3    
+ 547708 DIAPASON         T2      9/2    
+ 547717 BOURDON          T2       -     
+                                        
+                               <<<<>>>> 
+  NIGHTLY CNET: SUN F1  MON F2  WED F3
+     REVIEWS  : THU F4  FRI F5  SAT F6
+
+  NEW UPLOADS  AT  21: 1
+
+ NFLASH HELP!LEAD NEEDED T    -ICC    
+ JUMBLE HELP!LEAD NEEDED T    -ICC    
+  JUNG1 HELP!LEAD NEEDED T    -ICC    
+ 547669 --- J            T    KAISER  
+ 547669 --- K            T    KAISER  
+ 547669 --- L            T3   KAISER  
+ 547669 --- M            T    KAISER  
+ 547669 --- N            T    KAISER  
+ 547657 --- O TO Z       T    KAISER  
+   CLIQ OBERON  ANYONE?  T    PETROL  
+    TUE TREMULANT        T2   GNOME   
+ FREDRV JAM              T    GNOME   
+ 547686 JAM  NOV '90     T11  GNOME   
+    TUE FLUE             T    GNOME   
+ 528557 *****MORE******  T    BONZO   
+ 547690 NOON.SMUS.LZH    P62  BONZO   
+ 547691 NOON TEXT        T    BONZO   
+ 547690 SONIX.SMUS.LZH   P50  BONZO   
+ 547693 SONIX TEXT       T    BONZO   
+ 547690 DREAM.SMUS.LZH   P201 BONZO   
+ 547695 DREAM TEXT       T    BONZO   
+
+ 543275 RUNNER.SMUS.LZH  P120 BONZO   
+    TUE GAMBA            T2   GNOME   
+ 547698 RUNNER TEXT      T    BONZO   
+ 547690 VIRUS.SMUS.LZH   P71  BONZO   
+ 547701 VIRAL TEXT!      T    BONZO   
+ 546715 CAR.LZH          P109 BONZO   
+ 547683 --- O            T    KAISER  
+ 547703 CAR TEXT         T2   BONZO   
+ 547683 --- P            T6   KAISER  
+ 547683 --- R            T2   KAISER  
+    TUE DIAPASON         T2   GNOME   
+ 546922 ***** MORE ***** T    AIDAN   
+ 547709 BREAKOUT         T    AIDAN   
+ 547710 BREAKOUT.LZH     P68  AIDAN   
+ 547709 ATARTREK         T    AIDAN   
+ 547712 ATARTREK.LZH     P24  AIDAN   
+ 547638 XBIOS.LZH        P64  AIDAN   
+ 547699 ME TOO           T    AIDAN   
+

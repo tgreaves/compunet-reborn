@@ -37,6 +37,7 @@ import glob
 import logging
 import secrets
 from pathlib import Path
+import partyline
 
 try:
     import websockets
@@ -180,7 +181,7 @@ class CompunetPage:
     def type_string(self):
         """Generate the type suffix shown in directory listings."""
         s = self.page_type
-        if self.size > 0:
+        if self.page_type != 'L' and self.size > 0:
             s += str(self.size)
         if self.has_subdir():
             s += '+'
@@ -514,6 +515,22 @@ class CompunetSession:
 
         if self.selected_entry < len(visible_children):
             child = visible_children[self.selected_entry]
+            if child.page_type == 'L' and child.frames:
+                # Type L: send MODEM_INIT_DOWNLOAD format for the linked program
+                log.info('LINK: user=%s activating link page %d "%s" (%d bytes)',
+                         self.user_id, child.page_num, child.title, len(child.frames[0]))
+                prg_data = child.frames[0]
+                load_addr = 0x2000
+                exec_addr = 0x2000
+                header = bytes([
+                    0x00, 0x00,
+                    exec_addr & 0xFF, (exec_addr >> 8) & 0xFF,
+                    load_addr & 0xFF, (load_addr >> 8) & 0xFF,
+                    0x00, 0x00,
+                ])
+                self.last_response_type = RESP_FRAME
+                self._enter_partyline = True
+                return header + prg_data
             if child.frames:
                 # Deduct credit for paid, unpurchased pages (allows overdraft)
                 if child.price > 0 and child.page_num not in self.purchased:
@@ -709,11 +726,12 @@ class CompunetSession:
         return bytes(frame)
 
     def _cmd_buy(self, params):
-        """LIFE/EXTEND command ('X') — extend life of owned content.
+        """LIFE/EXTEND command ('X') — extend life or activate link.
+
+        For type 'L' pages: streams the linked program via MODEM_INIT_DOWNLOAD format.
+        For other pages: extend life (original behaviour).
 
         Params: entry_index (2 ASCII digits) + extension (up to 4 ASCII digits).
-        Server validates ownership and adds extension to page life.
-        Returns $00 byte (consumed by C64 client as success indicator).
         """
         self.last_response_type = RESP_ACK
         if len(params) < 2:
@@ -733,17 +751,94 @@ class CompunetSession:
 
         child = visible_children[entry_idx]
 
-        # Check ownership
-        if child.author != self.user_id:
+        # Type 'L' — link: handled by _cmd_dir, BUY just returns ACK
+        if child.page_type == 'L':
+            return bytes([0x00])
+
+        # Check ownership (admins can modify any content)
+        if child.author != self.user_id and not self.is_admin:
             log.info('EXTEND DENIED: user=%s is not author of page %d (author=%s)',
                      self.user_id, child.page_num, child.author)
             return bytes([0x00])
 
-        # Extend life
-        child.life += extend_by
-        log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
-                 self.user_id, child.page_num, child.title, extend_by, child.life)
+        num_frames = len(child.frames) if child.frames else 1
+
+        if extend_by > 0:
+            # Positive extend: deduct from free storage first, overflow to credit
+            storage_cost = num_frames * extend_by
+            user = self._users.get(self.user_id, {})
+            self._check_storage_reset(user)
+            free_remaining = self._get_free_storage_remaining(user)
+
+            if storage_cost <= free_remaining:
+                user['free_storage_used'] = user.get('free_storage_used', 0) + storage_cost
+                log.info('EXTEND: cost=%d units from free storage (remaining=%d)',
+                         storage_cost, 2000 - user['free_storage_used'])
+            else:
+                from_free = free_remaining
+                from_credit = storage_cost - from_free
+                user['free_storage_used'] = user.get('free_storage_used', 0) + from_free
+                self.credit -= from_credit
+                log.info('EXTEND: cost=%d units (%d from free, %.2f from credit)',
+                         storage_cost, from_free, from_credit)
+
+            child.life += extend_by
+            self._save_user()
+            self._save_directory()
+            log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
+                     self.user_id, child.page_num, child.title, extend_by, child.life)
+
+        elif extend_by < 0:
+            # Negative extend: reduce life, refund storage
+            actual_reduction = min(abs(extend_by), child.life)
+            refund = num_frames * actual_reduction
+            user = self._users.get(self.user_id, {})
+            self._check_storage_reset(user)
+            user['free_storage_used'] = max(0, user.get('free_storage_used', 0) - refund)
+            child.life -= actual_reduction
+            log.info('REDUCE: user=%s page=%d ("%s") reduced_by=%d new_life=%d refund=%d',
+                     self.user_id, child.page_num, child.title, actual_reduction, child.life, refund)
+
+            # If life reaches 0, delete the page
+            if child.life <= 0:
+                parent = self.current_page
+                if child in parent.children:
+                    parent.children.remove(child)
+                if child.page_num in self.directory.pages:
+                    del self.directory.pages[child.page_num]
+                log.info('DELETE: page %d ("%s") removed (life=0)', child.page_num, child.title)
+
+            self._save_user()
+            self._save_directory()
+
+        self.dir_displayed = False
         return bytes([0x00])
+
+    def _get_quarter_start(self):
+        """Return the start date of the current calendar quarter."""
+        import datetime
+        now = datetime.date.today()
+        if now.month <= 3:
+            return datetime.date(now.year, 1, 1)
+        elif now.month <= 6:
+            return datetime.date(now.year, 4, 1)
+        elif now.month <= 9:
+            return datetime.date(now.year, 7, 1)
+        else:
+            return datetime.date(now.year, 10, 1)
+
+    def _check_storage_reset(self, user):
+        """Reset free storage if we've entered a new quarter."""
+        import datetime
+        current_qs = self._get_quarter_start().isoformat()
+        if user.get('storage_quarter_start', '') != current_qs:
+            user['free_storage_used'] = 0
+            user['storage_quarter_start'] = current_qs
+
+    def _get_free_storage_remaining(self, user):
+        """Return remaining free storage units for this quarter."""
+        self._check_storage_reset(user)
+        return max(0, 2000 - user.get('free_storage_used', 0))
 
     def _save_user(self):
         """Persist user state to users.json."""
@@ -756,6 +851,9 @@ class CompunetSession:
             if mem_user.get('last_login_date'):
                 users[self.user_id]['last_login_date'] = mem_user['last_login_date']
                 users[self.user_id]['last_login_time'] = mem_user.get('last_login_time', '')
+            if 'free_storage_used' in mem_user:
+                users[self.user_id]['free_storage_used'] = mem_user['free_storage_used']
+                users[self.user_id]['storage_quarter_start'] = mem_user.get('storage_quarter_start', '')
             with open(users_file, 'w') as f:
                 json.dump(users, f, indent=2)
 
@@ -1157,9 +1255,9 @@ class CompunetSession:
         price_str = rest[0:8].decode('latin-1').strip()
         lifetime_str = rest[8:].decode('latin-1').strip() if len(rest) > 8 else '0'
 
-        # Parse price: strip leading zeros, format as X.XX
+        # Parse price: round to 2 decimal places (only valid precision)
         try:
-            price = float(price_str)
+            price = round(float(price_str), 2)
         except ValueError:
             price = 0.0
 
@@ -1760,8 +1858,8 @@ class CompunetSession:
         user_pages = [p for p in self.directory.pages.values() if p.author == self.user_id]
         pages_count = len(user_pages)
         near_death = len([p for p in user_pages if 0 < p.life < 5])
-        storage_used = sum(len(p.frames) * p.life for p in user_pages if p.life > 0)
-        free_storage = max(0, 2000 - storage_used)
+        self._check_storage_reset(user)
+        free_storage = self._get_free_storage_remaining(user)
 
         # Next quarter start date
         month = now.month
@@ -2224,6 +2322,15 @@ async def tcp_handler(reader, writer):
                                 await writer.wait_closed()
                                 return
 
+                            # Enter partyline mode after LINK download
+                            if getattr(session, '_enter_partyline', False):
+                                session._enter_partyline = False
+                                log.info('TCP: entering partyline mode for user=%s', session.user_id)
+                                await asyncio.sleep(1.0)
+                                await partyline.handle_session(reader, writer, session.user_id)
+                                log.info('TCP: exited partyline mode, resuming X.25 for user=%s', session.user_id)
+                                continue
+
                 elif token == 0x40 and session._program_download_pending:
                     # Client confirms download proceed — send program data
                     program_data = session._program_download_data
@@ -2261,23 +2368,17 @@ async def tcp_handler(reader, writer):
                     # Any non-COM packet during upload = frame data chunk
                     log.info('TCP: upload chunk token=$%02X seq=$%02X payload=%d bytes',
                              token, seq, len(payload))
-                    is_program_upload = session.pending_send.get('type') == 'P'
-                    if is_program_upload:
-                        # Program uploads: accumulate all chunks into a single bytearray
-                        if not session.pending_send['frames']:
-                            session.pending_send['frames'].append(bytearray())
-                        session.pending_send['frames'][0].extend(payload)
-                    else:
-                        session.pending_send['frames'].append(bytes(payload))
-                    # ACK only the final chunk (< 100 bytes = partial = last)
-                    # Client calls L96D2 once after all bytes sent
+                    # Accumulate chunks into current frame buffer
+                    if '_current_frame' not in session.pending_send:
+                        session.pending_send['_current_frame'] = bytearray()
+                    session.pending_send['_current_frame'].extend(payload)
+                    # Final chunk (< 100 bytes) = end of this frame
                     if len(payload) < 100:
-                        if is_program_upload:
-                            log.info('UPLOAD: program received (%d bytes), sending ACK',
-                                     len(session.pending_send['frames'][0]))
-                        else:
-                            log.info('UPLOAD: final chunk received (%d total chunks), sending ACK',
-                                     len(session.pending_send['frames']))
+                        frame_data = bytes(session.pending_send['_current_frame'])
+                        session.pending_send['frames'].append(frame_data)
+                        session.pending_send['_current_frame'] = bytearray()
+                        log.info('UPLOAD: frame %d complete (%d bytes)',
+                                 len(session.pending_send['frames']), len(frame_data))
                         await asyncio.sleep(0.5)
                         ack_data = bytes([RESP_ACK]) + b'\x00' * 10
                         ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
@@ -2582,6 +2683,28 @@ async def api_consume_pending(request):
     return aiohttp_web.json_response(entry)
 
 
+async def api_ws_partyline(request):
+    """WebSocket endpoint for admin partyline access."""
+    # Auth via query param (WebSocket can't use headers easily)
+    api_key = os.environ.get('COMPUNET_API_KEY', '')
+    token = request.query.get('token', '')
+    if not api_key or token != api_key:
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    user_id = request.query.get('user_id', 'ADMIN').upper()
+    ws = aiohttp_web.WebSocketResponse()
+    if not ws.can_prepare(request):
+        log.warning('WebSocket partyline: cannot prepare (missing upgrade headers)')
+        return aiohttp_web.json_response({'error': 'WebSocket upgrade required'}, status=400)
+    await ws.prepare(request)
+    log.info('WebSocket partyline client connected: user=%s', user_id)
+    try:
+        await partyline.handle_web_session(ws, user_id)
+    except Exception as e:
+        log.error('WebSocket partyline error: %s', e)
+    log.info('WebSocket partyline client disconnected: user=%s', user_id)
+    return ws
+
+
 # ============================================================
 # Main
 # ============================================================
@@ -2606,6 +2729,7 @@ async def main():
         app.router.add_post('/api/pending', api_create_pending)
         app.router.add_get('/api/pending/{token}', api_get_pending)
         app.router.add_delete('/api/pending/{token}', api_consume_pending)
+        app.router.add_get('/ws/partyline', api_ws_partyline)
         runner = aiohttp_web.AppRunner(app)
         await runner.setup()
         site = aiohttp_web.TCPSite(runner, '0.0.0.0', API_PORT)

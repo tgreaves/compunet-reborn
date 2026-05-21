@@ -1,0 +1,205 @@
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+ Another TUE, another GnomeReview.....
+
+ Here's your starter for the evening.
+ It comes with a roll & a glass of
+ water, to stop you teasing the
+ waitress.
+
+ I'm reading a book called "Hooligan"
+by Colin Dunne. It has some very nice
+phrases. One chapter starts, "Gray's Inn
+Road runs from the lawyers' offices of
+Holborn to the massage parlours of
+King's Cross, thus linking the
+traditional professions of the rip-off
+and the strip-off."    and .....
+"The sky was that very hard pale blue
+that you find in the eyes of girls who
+marry rich men."
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+549307  (Various)          T
+                                       
+Discussions are here, about how to
+wire up a BT phone jack to an American
+modem. Top-Cat advocates trial & error
+since only 2 wires are used for voice.
+Gizmo adds his 2p worth, and DJP2 comes
+to the rescue with a diagram. He knows,
+since he went through a lot of hassle
+to get it right. I agree with Tc that
+an extension may use 2, 3 or even 4
+wires depending on its age/purpose.
+
+549384  Amiga Digitizing   D   TWINKLES
+                                       
+Boris is starting a help dir for this
+subject. If you have some useful tips,
+or questions, why not upload them?
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+549382  Amiga 2000 Quirk   T   TWINKLES
+                                       
+Boris is getting some weird colour
+effects on starting up his 2000 (with
+modified startup), and wants to know if
+they're normal & whether there's a fix
+for it. If you can help him, let's
+have an upload with details.
+
+
+549354  No Dicey?           T   .STEVE.
+                                       
+Steve explains Dicey's temporary absence
+ Seems its feeding time at the zoo.
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+529762  Amiga Format Feb   T17   GNOME
+                                       
+Review of the latest issue. The cover
+disk is excellent this time, with a
+variety of stuff of interest to
+programmers, a mediocre shooting game
+and a promising text adventure.
+
+
+
+  Ok then. That's all at 6-30pm
+
+           More when it happens.
+
+
+ Pssst!  Feedback is online tonight!
+
+
+                                  Gn.
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+549187  Supramodem     T2     FEEDBACK
+                                       
+Our Editor uploads some info, supplied
+by DJP2 (Dave) for the Supramodem, and
+comments.
+
+524640  Book Reviews (etc)  T   BONZO
+                                       
+Bonzo has uploaded headings for some
+review dirs he's starting. And at
+549393  Rock N Roll         T3  BONZO
+puts up a review of an interesting
+book. Here's his quote...
+This book offers a fascinating insight
+into the music-industry....the stars
+themselves, who helped to pioneer it;
+the people behind the scenes who helpe
+to mould it
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+549397  Light Corridor     T2    BONZO
+                                       
+Bonzo reviews "a 3D tennis game in a
+moving corridoor." "Repetive & boring."
+No way could he recommend it.  But he
+says the 3D is brilliant.  Well I should
+have said this is for the Amiga...a
+logical deduction since it's in the
+Amiganet area. I'm not stupid you know.
+
+TODAY  Latest L.A. News    T  FEEDBACK
+                                        
+Peter tells us the latest Local Access
+news, which aint very much but at least
+the cable has been laid & some tech
+problems are being worked on. But at the
+Prestel end not much seems be
+hapening. Well it's something forwards.
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+ There's a gale blowing round my home
+& rather worrying sounds from my loft.
+Hope the tiles aren't lifting. Also
+I've had several cases of lost phone
+connection over the past 3 days. May
+be the weather, but I suspect the BT
+probs at Cnet haven't been fully zapped.
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+549208  XXXWorld.tos       P48   AIDAN
+549208  Moonboink.lzh    T,P5    AIDAN
+547132  Longnose.lzh     T,P4    AIDAN
+                                       
+ Some more demos for the ST from Aidan.
+Best thing is for you to run along &
+read the texts. I'm running a bit
+behind shcedule, having been distracted
+by a long phone call. (x x x)
+
+545839  Relife again    T,P5     GW9
+                                       
+Graham has put up an enhanced auto-life
+util for the Amiga software. This is the
+same as his previous Relifer but can
+do more dirs at a stroke. Thanks Graham!
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+242991  Disk software 4 sale  T  .STEVE.
+242289  Modem for sale        T  .STEVE.
+242289  BB Host S/W           T  .STEVE.
+242289  COM-IN-64             T  .STEVE.
+                                       
+ Hard & software for sale at good
+prices. The last one (COM-IN 64) is two
+circuit boards that plug inbto your C64
+& radio for sending/receiving morse,
+tty etc on the 64.
+
+549403  Early Logon Prob      T  BONZO
+                                       
+Seems Bonzo also had logon probs with
+dropped lines. I find it can happen any
+time of the night, though perhaps more
+in the early evening. I think it's BT.
+                            8 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+ And that's it from me tonight. Bonzo
+takes over next. have fun, and please
+give him some stuff to review. He
+says he doesn't get much to do.
+
+
+            Seeya
+
+
+                                Gnome

@@ -1,0 +1,13 @@
+{
+  "pages": [
+    {
+      "page_num": 901,
+      "title": "JOIN PARTYLINE",
+      "type": "L",
+      "author": "SYSTEM",
+      "price": 0,
+      "life": 0,
+      "frames": ["partyline.prg"]
+    }
+  ]
+}

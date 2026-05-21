@@ -1775,6 +1775,23 @@ L8E7A:
     JSR CLEAR_STATUS
     CMP #$0D
     BEQ L8EA3
+    CMP #$14                            ; DEL/backspace?
+    BNE @not_del
+    CPX #$00
+    BEQ L8E7A                           ; nothing to delete
+    DEX
+    LDA #$20                            ; erase underscore cursor
+    JSR KERNAL_CHROUT
+    LDA #$9D                            ; cursor left
+    JSR KERNAL_CHROUT
+    LDA #$9D                            ; cursor left (over the *)
+    JSR KERNAL_CHROUT
+    LDA #$20                            ; erase *
+    JSR KERNAL_CHROUT
+    LDA #$9D                            ; cursor left
+    JSR KERNAL_CHROUT
+    JMP L8E7A
+@not_del:
     CPX #$06
     BEQ L8E7A
     STA $C109,X                         ; KERNAL_CHROUT
@@ -3988,7 +4005,6 @@ L9FE1:
 ; TERMINAL CODE
 ; =================================================================
 
-L_A983 = $A983
 ; --- ROM Jump Table Equates (for terminal code) ---
 ROMCALL_00      = $8100   ; MAIN_INIT
 ROMCALL_01      = $8103   ; SCREEN_DRAW_INIT
@@ -5006,12 +5022,14 @@ L_A8EC:
     JSR L96D2
     JMP L_A7A6
     .byte $56, $4F, $54, $45, $20, $28, $31, $2D, $39, $29, $3F, $20, $00, $56, $4F, $54; $A96D VOTE (1-9)? .VOT
-    .byte $49, $4E, $47, $20                                     ; $A97D ING 
-    JSR $5400
-    .byte $43, $41, $4C, $50, $53                                ; $A984 CALPS
+    .byte $49, $4E, $47, $20                                     ; $A97D "ING "
+    .byte $20, $00                                               ; $A981 space + null terminator
+; --- Type table for SHOW handler ---
+; X=0-2 (T,C,A): download/display. X=3-5 (L,P,S): "PLEASE USE BUY"
+L_A983:
+    .byte $54, $43, $41, $4C, $50, $53                           ; $A983 "TCALPS"
 L_A989:
-    .byte $4C, $09                                               ; $A989 L.
-    PHP
+    .byte $4C, $09, $08                                          ; $A989
     BIT $C000
     BPL L_A9A2
     LDY #$19

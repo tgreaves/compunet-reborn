@@ -1,3 +1,39 @@
+# 0.3-beta (2026-05-20)
+
+* Client:
+	* Fixed backspace not working on login password field.
+* Server:
+	* Type 'L' (link) directory entries: BUY triggers MODEM_INIT_DOWNLOAD to stream executable code to client.
+	* Partyline directory with "JOIN PARTYLINE" L-type entry added.
+	* Fixed multi-frame upload corruption: packet chunks now accumulated properly.
+	* Free storage tracking: 2000 units/quarter, EXTEND uses free storage first then credit.
+	* EXTEND supports negative values to reduce LIFE (refunds storage). Life=0 deletes page.
+	* Admins can EXTEND/reduce any content (not just their own).
+	* Fixed EXTEND causing navigation into child directory on reload.
+	* Fixed EXTEND not persisting updated life to directory JSON.
+	* Fixed negative EXTEND not persisting reduced life.
+	* Upload prices now rounded to 2 decimal places (prevents invalid fractional values).
+* Partyline:
+	* Full multi-user chat system implemented (server/partyline.py).
+	* C64 client: draws UI frame, sends/receives messages via ACIA, scrolling chat.
+	* Commands: *help, *alias, *who, *enter, *dice, *call, *quit.
+	* Room system: users start in lobby, can create/join rooms with *enter.
+	* Cursor up/down scrollback through 114 lines of chat history.
+	* History buffer at $3000 (not included in download binary for speed).
+	* Web admin partyline client at /admin/partyline (WebSocket-based).
+	* PETSCII-to-ASCII conversion for C64 text input.
+	* Loads at $2000 (safe RAM area, avoids terminal workspace).
+* Dev:
+	* Partyline demo disassembly (partyline_demo.s) added to client/c64/vintage/.
+	* Partyline source in client/c64/src/partyline/ with build system.
+	* server/data/ now tracked in git (except mail, votes, jungle subdirs).
+	* Removed placeholder content (NEWS, CHAT, VIP, etc.) — clean slate.
+	* Added DEMOS jump-off directory to Jungle.
+	* D64 download now hosted from website (copied during build, no GitHub link).
+	* PARTYLINE_WS_URL env var for configuring browser WebSocket endpoint.
+	* partyline.py added to server Dockerfile.
+	* Partyline design documented in docs/partyline.md.
+
 # 0.2-beta (2026-05-19)
 
 * Client:

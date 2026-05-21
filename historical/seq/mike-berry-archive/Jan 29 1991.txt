@@ -1,0 +1,177 @@
+                           29 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+ I've been reading books again, & this
+week it's "The Road to Gandolfo" by
+Robert Ludlum, from the public library.
+He writes well: usually blood 'n thunder
+stuff, but this one is a comedy. Here's
+bits from the start of Chap.12
+
+ He let himself into Annie's hotel
+suite. "If that's not you Sam, I've got
+a problem," she called from the bedroom.
+ "It's me. All your problems are happy
+ones."
+"I like those kind."
+ Annie was sitting up reading a paper-
+back. "It's a marvellous history of
+Henry the Eighth's wives. That man was a
+monster!"
+ "Not really. A lot of his problems were
+geopolitical."
+
+ "In his crotch they were!"
+ "That's more historically sound than
+you may think. How about a drink?"
+
+Annie says, later....
+ "The operator said there was a call for
+you from General Hawkins in Washington.
+I think the rank & city made him
+nervous, so I told him not to worry: I'd
+talk to the old fart. He liked that."
+                                   
+              WARNING              
+ If, like me, you have terminal software
+you can set to always show AUTHOR first,
+you can overlook a priced upload. And if
+you're on the Amiga, beware. The current
+version (and previous) doesn't ask "BUY
+FOR \xxx ?" as on the C64. You can
+download a \50 text frame without ever
+knowing it til it appears on your
+ACCNT or BILLS later. If this happens,
+have a word with ADMIN & it can be
+"adjusted".  Thanks Jason!          Gn
+                           29 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+459191  TTY PROCOCOLS      T2    PETROL
+                                       
+This is techy stuff for those interested
+or involved in comms (programmers &
+BBS enthusiasts). Ian supplies some
+overall info about Xmodem, Ymodem etc
+& goes on (at 550664) to provide some
+Seq files which are specifications I've
+not yet looked at (but I will).
+
+TODAY   ON THE MOVE        T3   FEEDBACK
+                                       
+Peter tells us the days of the C64 are
+over (sob) and he's shifting some dirs
+around & renaming others to be C64
+specific. Previously, if something
+wasn't obviously 16-bit you could assume
+it was C64. This will change.
+                           29 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+BYTES   NEWSBYTES 24 JAN   T7    JASON
+                                       
+Jc gives us the latest from the public
+service news about the computer world.
+Go take a look, and vote. He does a
+lot of work for us does Jc.
+
+and at
+
+550670  NEWSBYTES INDEX    T     JASON
+                                       
+we see a series of indexes (indices?)
+for Newsbytes, covering a multitude
+of topics & extending into 550671
+                           29 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+550689  NOSTALGIA CORNER   T     Gnome
+                                       
+I'm starting an area for re-uploads from
+the past: nearly all taken from my C64
+archive disks. Some items will be by
+other people, some by me. And some may
+be by unknown authors cause I've
+forgotten who did them. If you know who
+did, put a frame behind the item (or
+send me a mbx to tell me).
+
+ and that's it for the 6pm scan.
+
+ I'll have me din-dins now (as Ken says)
+& be back for the 7pm scan.
+ Almost forgot Tuesday (the day, not
+Review) as I didn't set my alarm clock.
+Woke up at 12:30pm !  Funny sort of day.
+                           29 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+TODAY   NEW BYTES!         T   FEEDBACK
+                                       
+Peter draws out attention to the latest
+Newsbytes upload I mentioned above. He
+wants us to let us know what we think
+of this new format/arrangement whereby
+the news is handed to us on a plate.
+Go & have a look - then let Feedback or
+Jason know your feelings.
+
+550655  CHARGED FRAMES      T   FEEDBACK
+                                       
+Peter points out that if you
+accidentally downloaded a charged frame
+& want it credited, you'll need a good
+explanation. And under this upload is
+my reply. I agree with Peter.
+                           29 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+550694  NO - NOT OVER      T    FEEDBACK
+                                       
+Peter corrects my quoting him as saying
+the C64 is over. Well..... I'm not the
+only one to distort what someone has
+said, Peter. However, it was not
+intentional and I thought I was
+reporting the general drift of his
+upload. And at .......
+
+550701  COMING BACK!       T    KEN
+ Ken says a government department are
+ordering C64s cause they're less trouble
+than some other makes.
+                           29 Jan 1991
+                                      
+                           WITH   nome
+                                      
+                                       
+(Mail)  PAH! - COPYCAT!    T   FEEDBACK
+                                       
+Peter corrects my "GOTO XFER" tip for
+the ZigZak interface,
+
+Well it aint COPYCAT cause that's 7
+characters, and XFER doesn't exist.
+I can't find the bugger!  Maybe Peter
+will tell us just what the GOTO is now?
+
+
+That seems to be all. Have fun.
+
+Bonzo hasn't appeared in the office, yet
+but I think I heard the screech of
+brakes outside. Hope he's not been
+flattened.
+                              Gn.
