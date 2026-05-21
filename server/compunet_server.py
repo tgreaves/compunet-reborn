@@ -425,7 +425,7 @@ class CompunetSession:
         """GOTO command ('L') — navigate by page number or keyword."""
         self.last_response_type = None
         if not params:
-            return self._make_error(ascii_to_petscii('NO DESTINATION'))
+            return self._make_dir_response()
 
         target = params.decode('ascii', errors='replace').strip()
         log.info('GOTO: target="%s"', target)
@@ -446,7 +446,8 @@ class CompunetSession:
             if page.keyword and page.keyword.upper() == target.upper():
                 return self._goto_page(page.page_num)
 
-        return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
+        # Not found — reload current directory (error responses crash GOTO)
+        return self._make_dir_response()
 
     def _goto_page(self, page_num):
         """Navigate to a page by number.
@@ -458,7 +459,7 @@ class CompunetSession:
         """
         page = self.directory.pages.get(page_num)
         if page is None:
-            return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
+            return self._make_dir_response()
 
         self.selected_entry = 0
         self.dir_page_offset = 0
@@ -2191,9 +2192,9 @@ async def tcp_handler(reader, writer):
         
         while True:
             try:
-                data = await asyncio.wait_for(reader.read(256), timeout=600.0)
+                data = await asyncio.wait_for(reader.read(256), timeout=1200.0)
             except asyncio.TimeoutError:
-                log.info('TCP: idle timeout (10 minutes)')
+                log.info('TCP: idle timeout (20 minutes)')
                 break
             if not data:
                 log.info('TCP: connection closed by client')

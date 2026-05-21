@@ -2,6 +2,8 @@
 
 * Server:
 	* Fixed GOTO crash when targeting frame pages (always returns directory response).
+	* Invalid GOTO now reloads current directory instead of crashing.
+	* Client idle timeout extended from 10 to 20 minutes.
 
 # 0.3-beta (2026-05-20)
 
