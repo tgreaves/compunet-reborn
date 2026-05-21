@@ -2137,7 +2137,24 @@ async def tcp_handler(reader, writer):
                 
                 ident_received = True
                 rx_buffer.clear()
-                
+
+                # Check client version (field[1] = "{hash}/100")
+                field1 = fields[1].decode('ascii', errors='ignore').strip() if len(fields) > 1 else ''
+                client_hash = field1.split('/')[0] if '/' in field1 else ''
+                client_version_path = os.path.join(CFG_DIR, 'client_version.txt')
+                if os.path.exists(client_version_path):
+                    expected_hash = open(client_version_path).read().strip().upper()
+                    if not client_hash or client_hash.upper() != expected_hash:
+                        log.warning('TCP: client version mismatch: got=%r expected=%s',
+                                    client_hash, expected_hash)
+                        # Send error message and close
+                        msg = b'*PLEASE DOWNLOAD LATEST CLIENT\x0d'
+                        writer.write(msg)
+                        await writer.drain()
+                        await asyncio.sleep(3.0)
+                        writer.close()
+                        return
+
                 # Send MOTD (if present) before *CON
                 # Each line must start with '*' to activate client display.
                 # The motd.txt already has '*' borders so lines are sent as-is.

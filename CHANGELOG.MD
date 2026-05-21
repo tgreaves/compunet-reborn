@@ -3,10 +3,12 @@
 * Client:
 	* Removed legacy disk drive check for voting on P/A type pages.
 	* Partyline client: silent *PING keepalive handling.
+	* Client version check: git commit hash sent in CNET identification field[1].
 * Server:
 	* Fixed GOTO crash when targeting frame pages (always returns directory response).
 	* Invalid GOTO now reloads current directory instead of crashing.
 	* Client idle timeout extended from 10 to 20 minutes.
+	* Client version verification: rejects outdated clients with "PLEASE DOWNLOAD LATEST CLIENT".
 * Partyline:
 	* Added *PING keepalive (every 60s idle) to prevent NAT/firewall drops.
 	* Added logging for commands, messages, and keepalive activity.
