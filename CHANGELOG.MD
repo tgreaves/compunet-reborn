@@ -1,3 +1,8 @@
+# 0.4.1-beta (2026-05-22)
+
+* Client:
+	* Put back disk drive check (was breaking UPLOADs)
+
 # 0.4-beta (2026-05-22)
 
 * Client:
