@@ -264,7 +264,12 @@ async def handle_session(reader, writer, user_id):
             try:
                 line = await read_line(reader)
             except asyncio.TimeoutError:
-                # Send a keepalive or just continue waiting
+                # Send keepalive to prevent NAT/firewall dropping the connection
+                logger.debug("Partyline PING keepalive sent to %s", user_id)
+                try:
+                    await send_line(_users[user_id]["writer"], "*PING")
+                except (ConnectionResetError, BrokenPipeError, OSError):
+                    break
                 continue
             except (ConnectionResetError, BrokenPipeError, OSError):
                 logger.info("User %s disconnected", user_id)
@@ -279,6 +284,7 @@ async def handle_session(reader, writer, user_id):
                 parts = line[1:].split(' ', 1)
                 cmd = parts[0].lower()
                 args = parts[1] if len(parts) > 1 else ""
+                logger.info("Partyline cmd from %s: *%s %s", user_id, cmd, args)
 
                 if cmd == "help":
                     await _cmd_help(writer, user_id)
@@ -300,6 +306,7 @@ async def handle_session(reader, writer, user_id):
                     await send_line(writer, "")
             else:
                 # Chat message — broadcast to room
+                logger.info("Partyline msg from %s [%s]: %s", user_id, _users[user_id]["room"], line)
                 name = display_name(user_id)
                 room = _users[user_id]["room"]
                 await send_line(writer, f"{name}:")

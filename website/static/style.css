@@ -172,7 +172,8 @@ input[type="email"]:focus {
     border-color: var(--c64-light-blue);
 }
 
-input[type="email"] {
+input[type="email"],
+input.mixed-case {
     text-transform: none;
 }
 

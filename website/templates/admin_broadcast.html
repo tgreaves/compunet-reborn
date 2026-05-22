@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Broadcast — Admin — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>SEND BROADCAST</h1>
+
+<form method="post">
+    <div class="form-group">
+        <label for="subject">SUBJECT</label>
+        <input type="text" id="subject" name="subject" class="mixed-case" value="{{ subject or '' }}" style="max-width:800px;font-family:'Courier New',Courier,monospace;font-size:14px;">
+    </div>
+
+    <div class="form-group">
+        <label for="body">BODY (MARKDOWN)</label>
+        <textarea id="body" name="body" rows="20" style="width:100%;max-width:800px;font-family:'Courier New',Courier,monospace;font-size:14px;padding:12px;border:2px solid var(--c64-blue);line-height:1.5;">{{ body or '' }}</textarea>
+        <p class="hint">Supports Markdown: **bold**, *italic*, [links](url), # headings, - lists</p>
+    </div>
+
+    <div class="form-group">
+        <label>SEND TO</label>
+        <select name="test_mode" style="font-family:var(--font-pixel);font-size:10px;padding:8px;border:2px solid var(--c64-blue);">
+            <option value="test">ADMINS ONLY (TEST)</option>
+            <option value="all">ALL SUBSCRIBERS</option>
+        </select>
+        <p class="hint">Test sends to admin accounts only. All Subscribers sends to everyone.</p>
+    </div>
+
+    <button type="submit">SEND BROADCAST</button>
+</form>
+
+<p style="margin-top: 24px;"><a href="{{ url_for('admin_users') }}">&lt; BACK TO ADMIN</a></p>
+{% endblock %}

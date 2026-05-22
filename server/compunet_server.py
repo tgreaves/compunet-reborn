@@ -425,7 +425,7 @@ class CompunetSession:
         """GOTO command ('L') — navigate by page number or keyword."""
         self.last_response_type = None
         if not params:
-            return self._make_error(ascii_to_petscii('NO DESTINATION'))
+            return self._make_dir_response()
 
         target = params.decode('ascii', errors='replace').strip()
         log.info('GOTO: target="%s"', target)
@@ -446,27 +446,30 @@ class CompunetSession:
             if page.keyword and page.keyword.upper() == target.upper():
                 return self._goto_page(page.page_num)
 
-        return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
+        # Not found — reload current directory (error responses crash GOTO)
+        return self._make_dir_response()
 
     def _goto_page(self, page_num):
-        """Navigate to a page by number."""
+        """Navigate to a page by number.
+
+        GOTO always returns a directory response — the client parses the
+        response as a 6-part directory (L_A358). Sending frame data crashes.
+        For frame pages: navigate to their parent directory.
+        For directories: navigate into them.
+        """
         page = self.directory.pages.get(page_num)
         if page is None:
-            return self._make_error(ascii_to_petscii('PAGE NOT FOUND'))
+            return self._make_dir_response()
 
-        self.current_page = page
         self.selected_entry = 0
         self.dir_page_offset = 0
         if page.has_subdir():
-            return self._make_dir_response()
-        elif page.frames:
-            if page.parent:
-                self.current_page = page.parent
-            self.show_page = page
-            self.show_frame_index = 0
-            return self._send_current_frame()
+            self.current_page = page
+        elif page.parent:
+            self.current_page = page.parent
         else:
-            return self._make_error(ascii_to_petscii('NO CONTENT'))
+            self.current_page = page
+        return self._make_dir_response()
 
     def handle_goto(self, page_num):
         """Handle GOTO for WebSocket clients."""
@@ -2134,7 +2137,24 @@ async def tcp_handler(reader, writer):
                 
                 ident_received = True
                 rx_buffer.clear()
-                
+
+                # Check client version (field[1] = "{hash}/100")
+                field1 = fields[1].decode('ascii', errors='ignore').strip() if len(fields) > 1 else ''
+                client_hash = field1.split('/')[0] if '/' in field1 else ''
+                client_version_path = os.path.join(CFG_DIR, 'client_version.txt')
+                if os.path.exists(client_version_path):
+                    expected_hash = open(client_version_path).read().strip().upper()
+                    if not client_hash or client_hash.upper() != expected_hash:
+                        log.warning('TCP: client version mismatch: got=%r expected=%s',
+                                    client_hash, expected_hash)
+                        # Send error message and close
+                        msg = b'*PLEASE DOWNLOAD LATEST CLIENT\x0d'
+                        writer.write(msg)
+                        await writer.drain()
+                        await asyncio.sleep(3.0)
+                        writer.close()
+                        return
+
                 # Send MOTD (if present) before *CON
                 # Each line must start with '*' to activate client display.
                 # The motd.txt already has '*' borders so lines are sent as-is.
@@ -2189,9 +2209,9 @@ async def tcp_handler(reader, writer):
         
         while True:
             try:
-                data = await asyncio.wait_for(reader.read(256), timeout=600.0)
+                data = await asyncio.wait_for(reader.read(256), timeout=1200.0)
             except asyncio.TimeoutError:
-                log.info('TCP: idle timeout (10 minutes)')
+                log.info('TCP: idle timeout (20 minutes)')
                 break
             if not data:
                 log.info('TCP: connection closed by client')
@@ -2454,6 +2474,7 @@ def _api_user_public(user_id, user_data):
         'account_type': user_data.get('account_type', 'BASIC'),
         'credit': user_data.get('credit', 0.0),
         'admin': user_data.get('admin', False),
+        'subscribed': user_data.get('subscribed', True),
     }
 
 
@@ -2683,6 +2704,95 @@ async def api_consume_pending(request):
     return aiohttp_web.json_response(entry)
 
 
+async def api_broadcast(request):
+    """Send a broadcast email to subscribers."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    subject = body.get('subject', '').strip()
+    html_body = body.get('body', '').strip()
+    test_mode = body.get('test_mode', False)
+
+    if not subject or not html_body:
+        return aiohttp_web.json_response({'error': 'subject and body required'}, status=400)
+
+    # Collect recipient emails
+    async with _lock_users:
+        users = _api_load_users()
+
+    recipients = []
+    for uid, data in users.items():
+        email = data.get('email', '')
+        if not email:
+            continue
+        if test_mode:
+            if data.get('admin', False):
+                recipients.append(email)
+        else:
+            if data.get('subscribed', True):
+                recipients.append(email)
+
+    # Load public subscribers
+    subscribers_file = os.path.join(CFG_DIR, 'subscribers.json')
+    if not test_mode and os.path.exists(subscribers_file):
+        with open(subscribers_file, 'r') as f:
+            subs = json.load(f)
+        for sub in subs.get('subscribers', []):
+            if sub.get('email'):
+                recipients.append(sub['email'])
+
+    if not recipients:
+        return aiohttp_web.json_response({'error': 'no recipients'}, status=400)
+
+    # Send via Postmark broadcast stream
+    import aiohttp as aiohttp_client
+    postmark_key = os.environ.get('POSTMARK_API_KEY', '')
+    email_from = os.environ.get('EMAIL_FROM', 'noreply@compunet.live')
+
+    if not postmark_key:
+        log.warning('BROADCAST: POSTMARK_API_KEY not set')
+        return aiohttp_web.json_response({
+            'status': 'dry_run', 'recipients': len(recipients)
+        })
+
+    sent = 0
+    errors = []
+    async with aiohttp_client.ClientSession() as session:
+        for email in recipients:
+            payload = {
+                'From': email_from,
+                'To': email,
+                'Subject': subject,
+                'HtmlBody': html_body,
+                'MessageStream': 'broadcast',
+            }
+            async with session.post(
+                'https://api.postmarkapp.com/email',
+                headers={
+                    'X-Postmark-Server-Token': postmark_key,
+                    'Content-Type': 'application/json',
+                },
+                json=payload
+            ) as resp:
+                if resp.status == 200:
+                    sent += 1
+                else:
+                    err_text = await resp.text()
+                    errors.append(f'{email}: {resp.status} {err_text[:100]}')
+                    log.error('BROADCAST: failed to send to %s: %s', email, err_text[:200])
+
+    log.info('BROADCAST: sent=%d errors=%d test_mode=%s subject="%s"',
+             sent, len(errors), test_mode, subject)
+    return aiohttp_web.json_response({
+        'status': 'sent', 'sent': sent, 'errors': len(errors),
+        'test_mode': test_mode
+    })
+
+
 async def api_ws_partyline(request):
     """WebSocket endpoint for admin partyline access."""
     # Auth via query param (WebSocket can't use headers easily)
@@ -2729,6 +2839,7 @@ async def main():
         app.router.add_post('/api/pending', api_create_pending)
         app.router.add_get('/api/pending/{token}', api_get_pending)
         app.router.add_delete('/api/pending/{token}', api_consume_pending)
+        app.router.add_post('/api/broadcast', api_broadcast)
         app.router.add_get('/ws/partyline', api_ws_partyline)
         runner = aiohttp_web.AppRunner(app)
         await runner.setup()

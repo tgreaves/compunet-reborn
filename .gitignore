@@ -25,6 +25,7 @@ client/c64/127.0.0.1:*
 # Live user and server data
 server/cfg/users.json
 server/cfg/pending.json
+server/cfg/subscribers.json
 
 # Dynamic server data (not tracked)
 server/data/mail/

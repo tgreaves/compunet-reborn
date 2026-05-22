@@ -1,3 +1,23 @@
+# 0.4-beta (2026-05-22)
+
+* Client:
+	* Removed legacy disk drive check for voting on P/A type pages.
+	* Partyline client: silent *PING keepalive handling.
+	* Client version check: git commit hash sent in CNET identification field[1].
+* Server:
+	* Fixed GOTO crash when targeting frame pages (always returns directory response).
+	* Invalid GOTO now reloads current directory instead of crashing.
+	* Client idle timeout extended from 10 to 20 minutes.
+	* Client version verification: rejects outdated clients with "PLEASE DOWNLOAD LATEST CLIENT".
+* Website:
+	* Admin broadcast page: compose in Markdown, sends as HTML via Postmark broadcast stream.
+	* Test mode sends to admin users only; all mode sends to all subscribers.
+	* Display name field on registration now allows mixed case.
+	* Broadcast editor uses readable monospace font.
+* Partyline:
+	* Added *PING keepalive (every 60s idle) to prevent NAT/firewall drops.
+	* Added logging for commands, messages, and keepalive activity.
+
 # 0.3-beta (2026-05-20)
 
 * Client:

@@ -1008,8 +1008,14 @@ Params: ASCII string — either numeric page number or keyword
 
 Server resolves numeric targets via page number lookup, or matches against
 page `keyword` fields for named navigation (e.g. "GOTO JUNGLE" → page 600).
-Response: directory listing if target has children, frame if target has content,
-or error if not found.
+
+**Response is ALWAYS a 6-part directory listing.** The client's GOTO handler
+(L_A358) always parses the response as a directory. Sending frame data will
+crash the client.
+
+- Target is a directory: navigate into it, return its directory listing.
+- Target is a frame page: navigate to its parent directory, return parent listing.
+- Target not found: return error.
 
 ### VOTE Command
 
