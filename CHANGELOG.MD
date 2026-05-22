@@ -1,4 +1,4 @@
-# 0.4-beta (2026-05-21)
+# 0.4-beta (2026-05-22)
 
 * Client:
 	* Removed legacy disk drive check for voting on P/A type pages.
