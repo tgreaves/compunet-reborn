@@ -2714,11 +2714,11 @@ async def api_broadcast(request):
         return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
 
     subject = body.get('subject', '').strip()
-    html_body = body.get('html_body', '').strip()
+    html_body = body.get('body', '').strip()
     test_mode = body.get('test_mode', False)
 
     if not subject or not html_body:
-        return aiohttp_web.json_response({'error': 'subject and html_body required'}, status=400)
+        return aiohttp_web.json_response({'error': 'subject and body required'}, status=400)
 
     # Collect recipient emails
     async with _lock_users:

@@ -420,17 +420,21 @@ def admin_broadcast():
     if request.method == 'GET':
         return render_template('admin_broadcast.html')
 
+    import markdown as md
+
     subject = request.form.get('subject', '').strip()
-    html_body = request.form.get('html_body', '').strip()
+    body = request.form.get('body', '').strip()
     test_mode = request.form.get('test_mode', 'test') == 'test'
 
-    if not subject or not html_body:
+    if not subject or not body:
         flash('Subject and body are required.', 'error')
-        return render_template('admin_broadcast.html', subject=subject, html_body=html_body)
+        return render_template('admin_broadcast.html', subject=subject, body=body)
+
+    html_body = md.markdown(body)
 
     resp = _api_post('/api/broadcast', {
         'subject': subject,
-        'html_body': html_body,
+        'body': html_body,
         'test_mode': test_mode,
     })
 
@@ -441,7 +445,7 @@ def admin_broadcast():
     else:
         flash(f'Broadcast failed: {resp.json().get("error", "unknown")}', 'error')
 
-    return render_template('admin_broadcast.html', subject=subject, html_body=html_body)
+    return render_template('admin_broadcast.html', subject=subject, body=body)
 
 
 @app.route('/admin/partyline')

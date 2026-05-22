@@ -6,12 +6,13 @@
 <form method="post">
     <div class="form-group">
         <label for="subject">SUBJECT</label>
-        <input type="text" id="subject" name="subject" value="{{ subject or '' }}">
+        <input type="text" id="subject" name="subject" class="mixed-case" value="{{ subject or '' }}" style="max-width:800px;font-family:'Courier New',Courier,monospace;font-size:14px;">
     </div>
 
     <div class="form-group">
-        <label for="html_body">BODY (HTML)</label>
-        <textarea id="html_body" name="html_body" rows="15" style="width:100%;max-width:600px;font-family:var(--font-pixel);font-size:10px;padding:10px;border:2px solid var(--c64-blue);">{{ html_body or '' }}</textarea>
+        <label for="body">BODY (MARKDOWN)</label>
+        <textarea id="body" name="body" rows="20" style="width:100%;max-width:800px;font-family:'Courier New',Courier,monospace;font-size:14px;padding:12px;border:2px solid var(--c64-blue);line-height:1.5;">{{ body or '' }}</textarea>
+        <p class="hint">Supports Markdown: **bold**, *italic*, [links](url), # headings, - lists</p>
     </div>
 
     <div class="form-group">
