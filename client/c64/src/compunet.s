@@ -6394,10 +6394,8 @@ L_B6D0:
 ; Checks if voting is allowed, prompts for score, sends to server.
 ; $C028 bit 7: set = type S (no vote). $C01B bit 7: set = P/A voting allowed.
 L_B6DA:
-    SEC                                 ; ;--- MODIFIED: skip disk check, always allow P/A votes
-    NOP
-    NOP
-    ROR $C01B                           ; bit 7 = 1 (always "present")
+    JSR L_ADB6                          ; check disk drive presence (carry=present)
+    ROR $C01B                           ; store result: bit 7 = disk present
     JSR L_AC86
     LDX #$C7
     LDY #$B7
