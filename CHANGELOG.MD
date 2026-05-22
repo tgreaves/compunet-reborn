@@ -9,6 +9,8 @@
 	* Invalid GOTO now reloads current directory instead of crashing.
 	* Client idle timeout extended from 10 to 20 minutes.
 	* Client version verification: rejects outdated clients with "PLEASE DOWNLOAD LATEST CLIENT".
+* Website:
+	* Admin broadcast page: send newsletters to all subscribers or admins only (test mode).
 * Partyline:
 	* Added *PING keepalive (every 60s idle) to prevent NAT/firewall drops.
 	* Added logging for commands, messages, and keepalive activity.

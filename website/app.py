@@ -411,6 +411,39 @@ def admin_delete_pending(token):
     return redirect(url_for('admin_users'))
 
 
+@app.route('/admin/broadcast', methods=['GET', 'POST'])
+def admin_broadcast():
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    if request.method == 'GET':
+        return render_template('admin_broadcast.html')
+
+    subject = request.form.get('subject', '').strip()
+    html_body = request.form.get('html_body', '').strip()
+    test_mode = request.form.get('test_mode', 'test') == 'test'
+
+    if not subject or not html_body:
+        flash('Subject and body are required.', 'error')
+        return render_template('admin_broadcast.html', subject=subject, html_body=html_body)
+
+    resp = _api_post('/api/broadcast', {
+        'subject': subject,
+        'html_body': html_body,
+        'test_mode': test_mode,
+    })
+
+    if resp.status_code == 200:
+        result = resp.json()
+        mode = 'TEST' if result.get('test_mode') else 'ALL'
+        flash(f'Broadcast sent ({mode}): {result.get("sent", 0)} delivered, {result.get("errors", 0)} errors.', 'success')
+    else:
+        flash(f'Broadcast failed: {resp.json().get("error", "unknown")}', 'error')
+
+    return render_template('admin_broadcast.html', subject=subject, html_body=html_body)
+
+
 @app.route('/admin/partyline')
 def admin_partyline():
     denied = _require_admin()
