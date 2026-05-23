@@ -25,6 +25,7 @@ The client and server must always behave like the original Compunet system. All 
 ## Client Rules
 
 1. The client must ALWAYS be rebuilt after any change to `client/c64/src/compunet.s`. Build with `make` in `client/c64/src/`. The output is `client/c64/compunet-reborn.prg`.
+2. The client embeds a hash of `compunet.s` at build time and the server verifies it matches `server/cfg/client_version.txt`. The build script (`gen_version.py`) derives both from the source file content, so they stay in sync automatically. The hash only changes when the client source changes — server-only commits don't require a client rebuild. When client code changes: `make clean && make` in `client/c64/src/`, then commit source + binaries + `server/cfg/client_version.txt` together.
 
 ## Server Rules
 

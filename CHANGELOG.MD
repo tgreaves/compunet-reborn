@@ -8,6 +8,9 @@
 	* NMI ring buffer pointers now correctly initialized to zero.
 	* TX routine polls TDRE before writing (was blind-writing with fixed delay).
 	* NMI handler simplified: no IRQ toggling (prevents nested NMI on real hardware).
+* Dev:
+	* Client version check now uses a hash of `compunet.s` source instead of git
+	  commit hash. Server-only changes no longer force a client rebuild.
 * Server:
 	* Fixed upload field parsing: server was reading 8-byte price field but client
 	  sends 6 bytes (NNN.NN) + 3-byte lifetime (NNN). The 2-byte overlap caused

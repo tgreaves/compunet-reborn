@@ -1,17 +1,20 @@
-"""Generate build/version.inc and build/ident.inc from VERSION + git hash.
+"""Generate build/version.inc and build/ident.inc from VERSION file.
 
 version.inc: exactly 37 bytes: zero padding + version string.
   Fills the fixed region from $806F to $8093 (inclusive).
   Format: [padding zeros] $0D [" COMPUNET REBORN  " + version + spaces] $0D $00
 
-ident.inc: CNET identification string with git commit hash in field[5].
+ident.inc: CNET identification string with content hash in field[1].
+  The hash is derived from compunet.s source — changes only when client code changes.
   Also writes server/cfg/client_version.txt for server-side verification.
 """
 import os
+import hashlib
 import subprocess
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 version_file = os.path.join(script_dir, '..', '..', '..', 'VERSION')
+source_file = os.path.join(script_dir, 'compunet.s')
 out_file = os.path.join(script_dir, 'build', 'version.inc')
 ident_file = os.path.join(script_dir, 'build', 'ident.inc')
 client_version_file = os.path.join(script_dir, '..', '..', '..', 'server', 'cfg', 'client_version.txt')
@@ -20,14 +23,9 @@ TOTAL_BYTES = 37
 
 version = open(version_file).read().strip()
 
-# Get git short hash
-try:
-    git_hash = subprocess.check_output(
-        ['git', 'rev-parse', '--short', 'HEAD'],
-        cwd=script_dir, stderr=subprocess.DEVNULL
-    ).decode().strip()
-except (subprocess.CalledProcessError, FileNotFoundError):
-    git_hash = 'unknown'
+# Generate a 6-char hash from the client source file
+# This only changes when client code actually changes
+source_hash = hashlib.sha256(open(source_file, 'rb').read()).hexdigest()[:6].upper()
 
 # --- version.inc ---
 label = ' COMPUNET REBORN  ' + version.upper() + ' '
@@ -55,9 +53,8 @@ with open(out_file, 'w') as f:
 # --- ident.inc ---
 # CNET identification: "C CNET\r{hash6}/100\rADP\rNO\rRUN\r"
 # Field[1] must be exactly 10 chars to maintain binary size.
-# Use 6 chars of git hash + "/100" = 10 chars (same as "322500/100").
-hash6 = git_hash[:6].upper()
-ident_str = 'C CNET\r' + hash6 + '/100\rADP\rNO\rRUN\r'
+# Use 6 chars of source hash + "/100" = 10 chars.
+ident_str = 'C CNET\r' + source_hash + '/100\rADP\rNO\rRUN\r'
 ident_bytes = []
 for ch in ident_str:
     if ch == '\r':
@@ -66,7 +63,7 @@ for ch in ident_str:
         ident_bytes.append(ord(ch))
 
 ident_lines = []
-ident_lines.append('; CNET identification string (generated — git hash in field[1])')
+ident_lines.append('; CNET identification string (generated — source hash in field[1])')
 ident_lines.append('    .byte $%02X                            ; length (%d bytes)' % (len(ident_bytes), len(ident_bytes)))
 ident_hex = ', '.join('$%02X' % b for b in ident_bytes)
 ident_lines.append('    .byte %s' % ident_hex)
@@ -76,8 +73,8 @@ with open(ident_file, 'w') as f:
 
 # --- client_version.txt ---
 with open(client_version_file, 'w') as f:
-    f.write(hash6.lower() + '\n')
+    f.write(source_hash.lower() + '\n')
 
 print('Generated %s: v%s (%d padding + %d string = %d bytes)' %
       (out_file, version, padding_needed, len(string_bytes), TOTAL_BYTES))
-print('Generated %s: hash=%s (%d bytes ident)' % (ident_file, git_hash, len(ident_bytes)))
+print('Generated %s: source_hash=%s (%d bytes ident)' % (ident_file, source_hash, len(ident_bytes)))
