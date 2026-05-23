@@ -6,5 +6,6 @@ frozenlist==1.8.0
 idna==3.15
 multidict==6.7.1
 propcache==0.5.2
+markdown>=3.5
 websockets==16.0
 yarl==1.23.0

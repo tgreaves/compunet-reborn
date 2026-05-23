@@ -22,6 +22,10 @@
 	  sends 6 bytes (NNN.NN) + 3-byte lifetime (NNN). The 2-byte overlap caused
 	  lifetime digits to bleed into price (e.g. price 0 parsed as 0.01) and
 	  lifetime to lose its leading digits (e.g. 999 parsed as 9).
+	* Mail auto-expiry: read messages hidden from inbox after 2 days (soft delete,
+	  files remain on disk).
+	* Email notification: users receive a real email (via Postmark) when they get
+	  new in-game mail. Template at `server/cfg/mail-notification.md`.
 
 # 0.4.1-beta (2026-05-22)
 
