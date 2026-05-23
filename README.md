@@ -43,9 +43,8 @@ The official live instance of this project is running at [https://compunet.live/
 The client works on the C64 Ultimate's built-in SwiftLink-to-TCP bridge:
 
 1. Configure the Ultimate: Modem Interface → ACIA / SwiftLink, DE00/NMI
-2. Enable Command Interface in Advanced Settings
-3. Load `compunet-reborn.d64` and run as above
-4. At the phone number prompt, enter `vme.compunet.live:6400`
+2. Load `compunet-reborn.d64` and run as above
+3. At the phone number prompt, enter `vme.compunet.live:6400`
 
 ### Automated Testing
 
