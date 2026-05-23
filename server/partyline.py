@@ -101,6 +101,7 @@ async def read_line(reader):
         data = await asyncio.wait_for(reader.read(1), timeout=60.0)
         if not data:
             raise ConnectionResetError("Client disconnected")
+        logger.debug("Partyline RX byte: $%02X", data[0])
         if data == CR:
             break
         buf.extend(data)
@@ -306,14 +307,18 @@ async def handle_session(reader, writer, user_id):
                     await send_line(writer, "")
             else:
                 # Chat message — broadcast to room
+                # Split long lines into 35-char chunks (client chat width)
                 logger.info("Partyline msg from %s [%s]: %s", user_id, _users[user_id]["room"], line)
                 name = display_name(user_id)
                 room = _users[user_id]["room"]
+                chunks = [line[i:i+35] for i in range(0, len(line), 35)]
                 await send_line(writer, f"{name}:")
-                await send_line(writer, line)
+                for chunk in chunks:
+                    await send_line(writer, chunk)
                 await send_line(writer, "")
                 await broadcast_room(room, f"{name}:", exclude=user_id)
-                await broadcast_room(room, line, exclude=user_id)
+                for chunk in chunks:
+                    await broadcast_room(room, chunk, exclude=user_id)
                 await broadcast_room(room, "", exclude=user_id)
 
     except (ConnectionResetError, BrokenPipeError, OSError):

@@ -8,6 +8,12 @@
 	* NMI ring buffer pointers now correctly initialized to zero.
 	* TX routine polls TDRE before writing (was blind-writing with fixed delay).
 	* NMI handler simplified: no IRQ toggling (prevents nested NMI on real hardware).
+* Partyline:
+	* Fixed long messages being truncated: server now splits messages longer than
+	  35 chars into multiple display lines.
+	* Fixed *PING keepalive appearing on screen (check was unreachable dead code).
+	* Fixed multi-line input: first RETURN pads to 35-char boundary so each
+	  visual line displays separately under one name header.
 * Dev:
 	* Client version check now uses a hash of `compunet.s` source instead of git
 	  commit hash. Server-only changes no longer force a client rebuild.
