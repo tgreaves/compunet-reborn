@@ -1,3 +1,11 @@
+# 0.5-beta (2026-05-23)
+
+* Server:
+	* Fixed upload field parsing: server was reading 8-byte price field but client
+	  sends 6 bytes (NNN.NN) + 3-byte lifetime (NNN). The 2-byte overlap caused
+	  lifetime digits to bleed into price (e.g. price 0 parsed as 0.01) and
+	  lifetime to lose its leading digits (e.g. 999 parsed as 9).
+
 # 0.4.1-beta (2026-05-22)
 
 * Client:

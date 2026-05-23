@@ -1255,8 +1255,8 @@ class CompunetSession:
 
     def _cmd_upload_content(self, title, page_type, rest):
         """Handle content UPLOAD — store metadata for frame upload."""
-        price_str = rest[0:8].decode('latin-1').strip()
-        lifetime_str = rest[8:].decode('latin-1').strip() if len(rest) > 8 else '0'
+        price_str = rest[0:6].decode('latin-1').strip()
+        lifetime_str = rest[6:9].decode('latin-1').strip() if len(rest) > 6 else '0'
 
         # Parse price: round to 2 decimal places (only valid precision)
         try:
@@ -1285,7 +1285,7 @@ class CompunetSession:
         # No EOS — client proceeds immediately to send frame data after L96D2
         self.last_response_type = RESP_ACK
         data = bytearray()
-        data.extend(ascii_to_petscii(price_str.ljust(8)[:8]))
+        data.extend(ascii_to_petscii(price_str.ljust(6)[:6]))
         data.append(0x1E)
         log.info('UPLOAD: validation response %d bytes: %s', len(data), data.hex())
         return bytes(data)
