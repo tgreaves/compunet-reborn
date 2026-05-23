@@ -1,5 +1,13 @@
 # 0.5-beta (2026-05-23)
 
+* Client:
+	* Fixed C64 Ultimate compatibility: AT commands were sent in PETSCII ($C1$D4)
+	  instead of ASCII ($41$54). The Ultimate's SwiftLink bridge requires ASCII.
+	* ACIA initialization no longer de-asserts RTS during setup (broke bridge
+	  handshake on hardware with RTS flow control enabled).
+	* NMI ring buffer pointers now correctly initialized to zero.
+	* TX routine polls TDRE before writing (was blind-writing with fixed delay).
+	* NMI handler simplified: no IRQ toggling (prevents nested NMI on real hardware).
 * Server:
 	* Fixed upload field parsing: server was reading 8-byte price field but client
 	  sends 6 bytes (NNN.NN) + 3-byte lifetime (NNN). The 2-byte overlap caused
