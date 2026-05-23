@@ -1715,12 +1715,10 @@ L8DA4:
     LDX #.lobyte(L8D19)
     LDY #.hibyte(L8D19)
     JSR PRINT_STRING                    ; Print "DIALLING"
-    ; ;--- MODIFIED: Init ACIA here (after phone input, before dial) ---
     JSR ACIA_INIT
-    ; Hayes AT dial via ACIA driver
     JSR ACIA_DIAL
     BCS L8E1C                           ; C=1 = failed
-    JSR ACIA_PROTO_CONNECT              ; Polling-based handshake (replaces L96D5)
+    JSR ACIA_PROTO_CONNECT              ; Polling-based handshake
     BCC L8E1F                           ; C=0 = success
 L8E1C:
     JMP PROTO_DISPATCH_TABLE
@@ -6752,35 +6750,37 @@ L_B9E5:
 ; Called from MODEM_CHECK trampoline
 ; =================================================================
 ACIA_INIT:
-    ; Reset ACIA
-    LDA #$00
-    STA ACIA_CMD
-    ; Configure: 19200 baud, 8N1, 1 stop bit
-    LDA #$1F
-    STA ACIA_CTRL
-    ; Enable DTR + RX interrupt (NMI)
-    LDA #$09
-    STA ACIA_CMD
     ; Clear ring buffer and upload buffer
     LDA #$00
     STA NMI_BUF_TAIL
     STA NMI_BUF_HEAD
     STA UPLOAD_POS
     ; Copy NMI handler to $CF00 (always-visible RAM)
-    ; NMI can fire when $01=$37 (BASIC ROM at $A000-$BFFF)
-    ; so the handler MUST be below $A000 or in I/O-visible RAM
     LDX #(NMI_HANDLER_END - NMI_HANDLER - 1)
 @copy_nmi:
     LDA NMI_HANDLER,X
     STA $CF00,X
     DEX
     BPL @copy_nmi
+    ; Save original NMI vector to $CFFC for chaining
+    LDA NMI_VECTOR
+    STA $CFFC
+    LDA NMI_VECTOR+1
+    STA $CFFD
     ; Install NMI vector pointing to $CF00
     SEI
     LDA #$00
     STA NMI_VECTOR
     LDA #$CF
     STA NMI_VECTOR+1
+    ; Configure ACIA: 19200 baud, 8N1, DTR active, RTS low, RX NMI enabled
+    ; Write CMD=$09 first (never de-assert RTS — bridge uses RTS handshake)
+    LDA #$1F
+    STA ACIA_CTRL
+    LDA #$09
+    STA ACIA_CMD
+    ; Read status to clear any pending interrupt
+    LDA ACIA_STATUS
     CLI
     RTS
 
@@ -6793,17 +6793,14 @@ NMI_HANDLER:
     PHA
     TXA
     PHA
-    LDA ACIA_STATUS                     ; Read status (acknowledges NMI)
-    LDA ACIA_CMD
-    ORA #$02                            ; Disable RX IRQ (bit 1)
-    STA ACIA_CMD
-    LDA ACIA_DATA                       ; Read received byte
+    LDA ACIA_STATUS                     ; Check if ACIA has data
+    AND #$08                            ; RDRF set?
+    BEQ @not_acia                       ; No — just RTI
+    LDA ACIA_DATA                       ; Read data (clears RDRF + IRQ)
     LDX NMI_BUF_TAIL
     STA NMI_BUF,X                      ; Store in ring buffer
     INC NMI_BUF_TAIL                   ; Advance tail
-    LDA ACIA_CMD
-    AND #$FD                            ; Re-enable RX IRQ (clear bit 1)
-    STA ACIA_CMD
+@not_acia:
     PLA
     TAX
     PLA
@@ -6893,22 +6890,13 @@ ACIA_REG_READ:
 ; Transmits with delay (same interface as original)
 ; =================================================================
 ACIA_WAIT_READY:
-    STA ACIA_DATA
-    PHA                                 ; Preserve A
-    TYA
-    PHA                                 ; Preserve Y
-    LDY #$FF
-@wdly:
-    DEY
-    BNE @wdly
-    ; Re-arm NMI edge detection (VICE quirk: TX kills NMI)
-    LDA #$01
-    STA ACIA_CMD                        ; Disable RX IRQ
-    LDA #$09
-    STA ACIA_CMD                        ; Re-enable (re-arms edge)
+    PHA
+@tx_wait:
+    LDA ACIA_STATUS
+    AND #$10                            ; TDRE — transmit data register empty?
+    BEQ @tx_wait
     PLA
-    TAY                                 ; Restore Y
-    PLA                                 ; Restore A
+    STA ACIA_DATA
     RTS
 
 ; =================================================================
@@ -6918,14 +6906,14 @@ ACIA_WAIT_READY:
 ; Returns: C=0 success, C=1 failure
 ; =================================================================
 ACIA_DIAL:
-    ; Send "ATDT"
-    LDA #'A'
+    ; Send "ATDT" in ASCII (bridge expects ASCII AT commands)
+    LDA #$41                            ; 'A' ASCII
     JSR ACIA_WAIT_READY
-    LDA #'T'
+    LDA #$54                            ; 'T' ASCII
     JSR ACIA_WAIT_READY
-    LDA #'D'
+    LDA #$44                            ; 'D' ASCII
     JSR ACIA_WAIT_READY
-    LDA #'T'
+    LDA #$54                            ; 'T' ASCII
     JSR ACIA_WAIT_READY
     ; Send phone number digits
     LDY #$00
@@ -6952,14 +6940,8 @@ ACIA_DIAL:
 @send_cr:
     LDA #$0D
     JSR ACIA_WAIT_READY
-    ; Re-arm NMI edge detection after TX burst
-    LDA #$01
-    STA ACIA_CMD                        ; Disable RX IRQ
-    LDA #$09
-    STA ACIA_CMD                        ; Re-enable (re-arms NMI edge)
-    ; Wait for "CONNECT" response — poll for CR
+    ; Wait for "CONNECT" response — poll for CR via NMI buffer
 @wait_resp:
-    LDA ACIA_STATUS                     ; Poke VICE to check socket
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
     BEQ @wait_resp
@@ -7021,18 +7003,18 @@ ACIA_PROTO_CONNECT:
     LDY #.hibyte(L9E59)
     JSR PRINT_STRING
 
+    ; Flush any bytes received during dial/setup (bridge echo etc)
+    LDA NMI_BUF_TAIL
+    STA NMI_BUF_HEAD
+
     ; --- Step 1: Wait for handshake bytes from server ---
     ; Server sends 12 x $20 after connection. Poll until we get at least one.
     LDX #$00                            ; Timeout counter hi
     LDY #$00                            ; Timeout counter lo
 @wait_handshake:
-    LDA ACIA_STATUS                     ; Poke VICE to check socket
-    AND #$08                            ; RDRF?
-    BNE @got_handshake
-    ; Check NMI buffer too
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
-    BNE @got_handshake_buf
+    BNE @got_handshake
     ; Timeout check
     INY
     BNE @wait_handshake
@@ -7043,32 +7025,20 @@ ACIA_PROTO_CONNECT:
     RTS
 
 @got_handshake:
-    LDA ACIA_DATA                       ; Read and discard handshake byte
-    JMP @drain_handshake
-@got_handshake_buf:
-    INC NMI_BUF_HEAD                    ; Discard from buffer
-@drain_handshake:
-    ; Drain remaining handshake bytes (brief pause then flush)
+    ; Drain all handshake bytes from NMI buffer (brief pause then flush)
     LDY #$00
 @drain_loop:
-    LDA ACIA_STATUS
-    AND #$08
-    BEQ @check_buf_drain
-    LDA ACIA_DATA                       ; Discard
-    JMP @drain_loop
-@check_buf_drain:
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
-    BEQ @drain_pause
-    INC NMI_BUF_HEAD
-    JMP @drain_loop
-@drain_pause:
-    ; Brief delay to let remaining bytes arrive
+    BNE @drain_got
     INY
     BNE @drain_loop
-    ; Final flush
-    LDA NMI_BUF_TAIL
-    STA NMI_BUF_HEAD
+    JMP @drain_done
+@drain_got:
+    INC NMI_BUF_HEAD
+    LDY #$00
+    JMP @drain_loop
+@drain_done:
 
     ; --- Step 2: Send CNET identification ---
     LDY #$00
@@ -7091,7 +7061,6 @@ ACIA_PROTO_CONNECT:
     LDX #$00                            ; Timeout hi
     LDY #$00                            ; Timeout lo
 @wait_con:
-    LDA ACIA_STATUS                     ; Poke VICE to trigger NMI
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
     BNE @got_con_byte
@@ -7246,15 +7215,6 @@ ACIA_SEND_PACKET:
 @seq_ok:
     STX $C20E
 
-    ; --- Re-arm NMI after TX and settle ---
-    ; TX can kill NMI edge detection in VICE. Re-arm explicitly
-    ; and wait briefly for edge to re-establish.
-    LDA ACIA_STATUS                     ; Read status (clears pending IRQ)
-    LDA #$01
-    STA ACIA_CMD                        ; Disable RX IRQ
-    LDA #$09
-    STA ACIA_CMD                        ; Re-enable (re-arms NMI edge)
-
     RTS
 
 ; --- Send byte with stuffing + update CRC ---
@@ -7405,12 +7365,6 @@ ACIA_UPLOAD_BYTE:
     LDX #$20
 @upload_seq_ok:
     STX $C20E
-    ; --- Post-TX re-arm ---
-    LDA ACIA_STATUS
-    LDA #$01
-    STA ACIA_CMD
-    LDA #$09
-    STA ACIA_CMD
 @nothing:
     RTS
 

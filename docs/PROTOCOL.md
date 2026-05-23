@@ -1522,10 +1522,11 @@ The connection flow over TCP (direct, no tcpser):
 
 ```
 VICE SwiftLink (raw TCP) ←→ Compunet Server (port 6400)
+C64 Ultimate SwiftLink bridge ←→ Compunet Server (port 6400)
 ```
 
-1. VICE opens TCP connection to 127.0.0.1:6400
-2. C64 sends `ATDT127.0.0.1:6400\r` via ACIA
+1. TCP connection established (VICE: direct socket; Ultimate: bridge dials via ATDT)
+2. C64 sends `ATDT<host>:<port>\r` via ACIA (ASCII, not PETSCII)
 3. Server auto-detects Hayes AT command, responds `CONNECT 1200\r`
 4. Server sends 12 spaces (handshake ready signal)
 5. C64 sends CNET identification string
@@ -1535,9 +1536,13 @@ VICE SwiftLink (raw TCP) ←→ Compunet Server (port 6400)
 9. Server sends ACK packet (X.25 framed)
 10. C64 enters terminal code at $A005
 
-The server also supports legacy tcpser connections (auto-detected: if the
-first byte is `$20` instead of `A`/`$C1`, the server skips Hayes handling
-and proceeds directly with the X.25 handshake).
+On the C64 Ultimate, the SwiftLink bridge intercepts the ATDT command and
+establishes the TCP connection itself, then passes data through transparently.
+The AT command must be ASCII ($41 $54 $44 $54, not PETSCII $C1 $D4 $C4 $D4).
+
+The server also supports raw X.25 connections (auto-detected: if no data arrives
+within 5 seconds, the server skips Hayes handling and proceeds directly with the
+X.25 handshake).
 
 ### Multi-Packet Response Delivery
 

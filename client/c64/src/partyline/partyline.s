@@ -323,26 +323,27 @@ poll_receive:
     RTS
 
 @rx_line_complete:
-    ; Check for *EXIT sentinel
-    LDA rx_line_len
-    CMP #$05                    ; "*EXIT" = 5 chars
-    BNE @not_exit
+    ; Check for * prefix (sentinel commands)
     LDA rx_line_buf
     CMP #$2A                    ; '*'
-    BNE @not_exit
+    BNE @not_sentinel
+
+    ; Check for *EXIT
+    LDA rx_line_len
+    CMP #$05                    ; "*EXIT" or "*PING" = 5 chars
+    BNE @not_sentinel
     LDA rx_line_buf+1
-    CMP #$45                    ; 'E'
-    BNE @not_exit
+    CMP #$45                    ; 'E' (EXIT)
+    BNE @check_ping
     LDA rx_line_buf+2
     CMP #$58                    ; 'X'
-    BNE @not_exit
+    BNE @not_sentinel
     LDA rx_line_buf+3
     CMP #$49                    ; 'I'
-    BNE @not_exit
+    BNE @not_sentinel
     LDA rx_line_buf+4
     CMP #$54                    ; 'T'
-    BNE @not_exit
-
+    BNE @not_sentinel
     ; Got *EXIT — set exit flag
     LDA #$01
     STA exit_flag
@@ -350,22 +351,15 @@ poll_receive:
     STA rx_line_len
     RTS
 
-    ; Check for *PING keepalive (silently discard)
-    LDA rx_line_len
-    CMP #$05
-    BNE @not_ping
-    LDA rx_line_buf
-    CMP #$2A                    ; '*'
-    BNE @not_ping
-    LDA rx_line_buf+1
-    CMP #$50                    ; 'P'
-    BNE @not_ping
+@check_ping:
+    CMP #$50                    ; 'P' (PING)
+    BNE @not_sentinel
+    ; Got *PING — silently discard
     LDA #$00
     STA rx_line_len
     RTS
 
-@not_ping:
-@not_exit:
+@not_sentinel:
     ; Display the received line in chat area
     JSR display_rx_line
     ; Reset rx line buffer
@@ -637,6 +631,26 @@ poll_keyboard:
     ; Mark that RETURN was pressed
     LDA #$01
     STA last_was_return
+
+    ; Pad buffer with spaces to next INPUT_WIDTH boundary
+    ; So the next line aligns at a 35-char chunk for display
+    LDX tx_buf_len
+@pad_loop:
+    CPX #TX_BUF_SIZE
+    BCS @pad_done
+    LDA #$20                    ; space
+    STA tx_buf,X
+    INX
+    TXA
+    SEC
+@pad_mod:
+    SBC #INPUT_WIDTH
+    BCS @pad_mod
+    CLC
+    ADC #INPUT_WIDTH            ; A = X mod INPUT_WIDTH
+    BNE @pad_loop               ; keep padding until on boundary
+    STX tx_buf_len
+@pad_done:
 
     ; Move to next input row
     JSR erase_input_cursor

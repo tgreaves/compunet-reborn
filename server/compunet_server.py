@@ -36,7 +36,10 @@ import re
 import glob
 import logging
 import secrets
+import datetime
 from pathlib import Path
+import markdown
+import aiohttp
 import partyline
 
 try:
@@ -819,7 +822,6 @@ class CompunetSession:
 
     def _get_quarter_start(self):
         """Return the start date of the current calendar quarter."""
-        import datetime
         now = datetime.date.today()
         if now.month <= 3:
             return datetime.date(now.year, 1, 1)
@@ -832,7 +834,6 @@ class CompunetSession:
 
     def _check_storage_reset(self, user):
         """Reset free storage if we've entered a new quarter."""
-        import datetime
         current_qs = self._get_quarter_start().isoformat()
         if user.get('storage_quarter_start', '') != current_qs:
             user['free_storage_used'] = 0
@@ -959,13 +960,28 @@ class CompunetSession:
         return self._make_mail_response()
 
     def _load_mail(self):
-        """Load mail metadata for the current user."""
+        """Load mail metadata for the current user, excluding expired messages."""
         mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
         if os.path.exists(mail_file):
             with open(mail_file, 'r') as f:
                 data = json.load(f)
-            return data.get('messages', [])
+            return self._filter_expired_mail(data.get('messages', []))
         return []
+
+    def _filter_expired_mail(self, messages):
+        """Exclude messages read more than 2 days ago."""
+        cutoff = datetime.datetime.now() - datetime.timedelta(days=2)
+        result = []
+        for msg in messages:
+            if msg.get('read') and msg.get('read_date'):
+                try:
+                    read_dt = datetime.datetime.strptime(msg['read_date'], '%Y-%m-%d')
+                    if read_dt < cutoff:
+                        continue
+                except ValueError:
+                    pass
+            result.append(msg)
+        return result
 
     def _make_mail_response(self):
         """Build mailbox listing as 6-part directory response."""
@@ -984,7 +1000,6 @@ class CompunetSession:
         # Part 3: field definitions (stored at $D580+)
         # Format: [field_id_nibble] '=' [value] $0D ... $00
         # Field 3 ($D588) = DATE, Field 4 ($D5A8) = TIME
-        import datetime
         now = datetime.datetime.now()
         date_str = now.strftime('%d-%m-%y')
         time_str = now.strftime('%H:%M')
@@ -1002,7 +1017,6 @@ class CompunetSession:
         # Stored at $D400. SEND screen reads from $D40B (offset 11).
         # Prints CR-separated lines at col 10 for FROM/DATE/TIME fields.
         # First 11 bytes must be padding to align offset correctly.
-        import datetime
         now = datetime.datetime.now()
         users = self._load_users()
         real_name = users.get(self.user_id, {}).get('name', self.user_id)
@@ -1097,8 +1111,10 @@ class CompunetSession:
             actual_index = offset + selected
             self.mail_show_msg = actual_index
             self.mail_frame_index = 0
-            # Mark as read
+            # Mark as read with timestamp for auto-expiry
             self.mail_messages[actual_index]['read'] = True
+            if not self.mail_messages[actual_index].get('read_date'):
+                self.mail_messages[actual_index]['read_date'] = datetime.datetime.now().strftime('%Y-%m-%d')
             self._save_mail()
             return self._send_mail_frame()
         else:
@@ -1255,8 +1271,8 @@ class CompunetSession:
 
     def _cmd_upload_content(self, title, page_type, rest):
         """Handle content UPLOAD — store metadata for frame upload."""
-        price_str = rest[0:8].decode('latin-1').strip()
-        lifetime_str = rest[8:].decode('latin-1').strip() if len(rest) > 8 else '0'
+        price_str = rest[0:6].decode('latin-1').strip()
+        lifetime_str = rest[6:9].decode('latin-1').strip() if len(rest) > 6 else '0'
 
         # Parse price: round to 2 decimal places (only valid precision)
         try:
@@ -1285,7 +1301,7 @@ class CompunetSession:
         # No EOS — client proceeds immediately to send frame data after L96D2
         self.last_response_type = RESP_ACK
         data = bytearray()
-        data.extend(ascii_to_petscii(price_str.ljust(8)[:8]))
+        data.extend(ascii_to_petscii(price_str.ljust(6)[:6]))
         data.append(0x1E)
         log.info('UPLOAD: validation response %d bytes: %s', len(data), data.hex())
         return bytes(data)
@@ -1321,7 +1337,6 @@ class CompunetSession:
 
     def _complete_mail_send(self, send):
         """Deliver mail to recipients."""
-        import datetime
         now = datetime.datetime.now()
         mail_dir = MAIL_DIR
         users = self._load_users()
@@ -1372,6 +1387,12 @@ class CompunetSession:
 
         log.info('MAIL: delivered from %s to %s subject="%s" frames=%d',
                  self.user_id, send['to'], send['subject'], len(send['frames']))
+
+        for dest_id in send['to']:
+            if dest_id in users:
+                asyncio.get_event_loop().create_task(
+                    _send_mail_notification(dest_id, self.user_id, send['subject'], users))
+
         return b''
 
     def _complete_content_upload(self, send):
@@ -1738,7 +1759,6 @@ class CompunetSession:
 
     def _make_who_frame(self):
         """Build the WHO page — directory response with user list in header."""
-        import datetime
         self.last_response_type = RESP_DIR
         self.dir_displayed = True
         now = datetime.datetime.now()
@@ -1807,7 +1827,6 @@ class CompunetSession:
         Returns raw frame data for L89D0 (FRAME_BUF_READ) to consume.
         Template at server/content/templates/welcome.seq with placeholders.
         """
-        import datetime
         self.last_response_type = RESP_FRAME
 
         # Update last login
@@ -1831,7 +1850,8 @@ class CompunetSession:
         if os.path.exists(mail_file):
             with open(mail_file, 'r') as f:
                 inbox = json.load(f)
-            mail_waiting = any(not m.get('read', True) for m in inbox.get('messages', []))
+            visible = self._filter_expired_mail(inbox.get('messages', []))
+            mail_waiting = any(not m.get('read', True) for m in visible)
 
         # Pillarbox mail indicator (6 lines of graphic or equivalent spaces)
         if mail_waiting:
@@ -2444,6 +2464,51 @@ def _api_load_pending():
         with open(pending_file, 'r') as f:
             return json.load(f)
     return {}
+
+
+async def _send_mail_notification(recipient_id, sender_id, subject, users):
+    """Send email notification when a user receives in-game mail."""
+    recipient = users.get(recipient_id, {})
+    email = recipient.get('email')
+    if not email:
+        return
+    api_key = os.environ.get('POSTMARK_API_KEY')
+    if not api_key:
+        return
+    template_path = os.path.join(CFG_DIR, 'mail-notification.md')
+    if not os.path.exists(template_path):
+        return
+
+    recipient_name = recipient.get('name', recipient_id)
+    sender_name = users.get(sender_id, {}).get('name', sender_id)
+    email_from = os.environ.get('EMAIL_FROM', 'noreply@compunet.live')
+
+    template = open(template_path).read()
+    body_md = (template
+               .replace('{{recipient_name}}', recipient_name)
+               .replace('{{sender_name}}', sender_name)
+               .replace('{{sender_id}}', sender_id)
+               .replace('{{subject}}', subject))
+    body_html = markdown.markdown(body_md)
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            resp = await session.post('https://api.postmarkapp.com/email',
+                headers={'X-Postmark-Server-Token': api_key,
+                         'Content-Type': 'application/json'},
+                json={
+                    'From': email_from,
+                    'To': email,
+                    'Subject': f'New mail on Compunet from {sender_id}',
+                    'HtmlBody': body_html,
+                    'MessageStream': 'outbound'
+                })
+            if resp.status == 200:
+                log.info('MAIL: notification sent to %s (%s)', recipient_id, email)
+            else:
+                log.warning('MAIL: notification failed for %s: %s', recipient_id, await resp.text())
+    except Exception as e:
+        log.warning('MAIL: notification error for %s: %s', recipient_id, e)
 
 
 def _api_save_pending(pending):

@@ -1,3 +1,32 @@
+# 0.5-beta (2026-05-23)
+
+* Client:
+	* Fixed C64 Ultimate compatibility: AT commands were sent in PETSCII ($C1$D4)
+	  instead of ASCII ($41$54). The Ultimate's SwiftLink bridge requires ASCII.
+	* ACIA initialization no longer de-asserts RTS during setup (broke bridge
+	  handshake on hardware with RTS flow control enabled).
+	* NMI ring buffer pointers now correctly initialized to zero.
+	* TX routine polls TDRE before writing (was blind-writing with fixed delay).
+	* NMI handler simplified: no IRQ toggling (prevents nested NMI on real hardware).
+* Partyline:
+	* Fixed long messages being truncated: server now splits messages longer than
+	  35 chars into multiple display lines.
+	* Fixed *PING keepalive appearing on screen (check was unreachable dead code).
+	* Fixed multi-line input: first RETURN pads to 35-char boundary so each
+	  visual line displays separately under one name header.
+* Dev:
+	* Client version check now uses a hash of `compunet.s` source instead of git
+	  commit hash. Server-only changes no longer force a client rebuild.
+* Server:
+	* Fixed upload field parsing: server was reading 8-byte price field but client
+	  sends 6 bytes (NNN.NN) + 3-byte lifetime (NNN). The 2-byte overlap caused
+	  lifetime digits to bleed into price (e.g. price 0 parsed as 0.01) and
+	  lifetime to lose its leading digits (e.g. 999 parsed as 9).
+	* Mail auto-expiry: read messages hidden from inbox after 2 days (soft delete,
+	  files remain on disk).
+	* Email notification: users receive a real email (via Postmark) when they get
+	  new in-game mail. Template at `server/cfg/mail-notification.md`.
+
 # 0.4.1-beta (2026-05-22)
 
 * Client:

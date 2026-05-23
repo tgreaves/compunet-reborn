@@ -138,7 +138,7 @@ for (( i=0; i<${#local_pass}; i++ )); do
     char="${local_pass:$i:1}"
     echo "keybuf $char" | nc -q 1 127.0.0.1 $MONITOR_PORT >/dev/null 2>&1 \
         || echo "keybuf $char" | nc -w 1 127.0.0.1 $MONITOR_PORT >/dev/null 2>&1
-    sleep 0.2
+    sleep 0.1
 done
 send_keybuf ""
 

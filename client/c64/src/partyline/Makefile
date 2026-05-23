@@ -4,14 +4,16 @@ CFG = partyline.cfg
 OBJ = build/partyline.o
 BIN = build/partyline.bin
 
-SERVER_DATA = ../../../server/data.example/content/root/partyline
+SERVER_DATA_EXAMPLE = ../../../../server/data.example/content/root/partyline
+SERVER_DATA = ../../../../server/data/content/root/partyline/join-partyline
 
 .PHONY: all clean
 
 all: $(TARGET)
-	@mkdir -p $(SERVER_DATA)
-	cp $(TARGET) $(SERVER_DATA)/partyline.prg
-	@echo "Copied to $(SERVER_DATA)/partyline.prg"
+	@mkdir -p $(SERVER_DATA_EXAMPLE)
+	cp $(TARGET) $(SERVER_DATA_EXAMPLE)/partyline.prg
+	@echo "Copied to $(SERVER_DATA_EXAMPLE)/partyline.prg"
+	@if [ -d $(SERVER_DATA) ]; then cp $(TARGET) $(SERVER_DATA)/partyline.prg; echo "Copied to $(SERVER_DATA)/partyline.prg"; fi
 
 $(TARGET): $(BIN)
 	@# The binary is raw code at $C000. No PRG header needed for server streaming.

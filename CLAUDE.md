@@ -16,10 +16,16 @@ The client and server must always behave like the original Compunet system. All 
 
 1. When investigating client behaviour, check `client/c64/src/compunet.s` source directly — do not disassemble the PRG binary.
 2. The user can run VICE monitor commands (breakpoints, memory dumps, register inspection) to debug client-side issues at runtime.
+3. The C64 Ultimate has a remote debug stream with the following commands:
+   - `m` — memory view (`m` | `m c000` | `m c000 c100`)
+   - `h` — hunt memory (`h c000 c100 4a 30 00`)
+   - `f` — fill memory (`f c000 c100 00`)
+   - `d` — disassemble (`d` | `d c000` | `d c000 c100`)
 
 ## Client Rules
 
 1. The client must ALWAYS be rebuilt after any change to `client/c64/src/compunet.s`. Build with `make` in `client/c64/src/`. The output is `client/c64/compunet-reborn.prg`.
+2. The client embeds a hash of `compunet.s` at build time and the server verifies it matches `server/cfg/client_version.txt`. The build script (`gen_version.py`) derives both from the source file content, so they stay in sync automatically. The hash only changes when the client source changes — server-only commits don't require a client rebuild. When client code changes: `make clean && make` in `client/c64/src/`, then commit source + binaries + `server/cfg/client_version.txt` together.
 
 ## Server Rules
 
