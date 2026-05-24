@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Guide — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>USER GUIDE</h1>
+
+<p>Compunet is an interactive computer network for the Commodore 64. This guide covers navigation, uploading, mail, and the commands available to you.</p>
+
+<h2>LOGGING ON</h2>
+<ol>
+    <li>Load and run the client (see <a href="{{ url_for('connect') }}">Connect</a> page)</li>
+    <li>Type <code>CONNECT</code> at the ready prompt</li>
+    <li>Enter your User ID and password (press RETURN after each)</li>
+    <li>The system sends terminal software (&ldquo;LINKING&rdquo;) &mdash; this takes a few seconds</li>
+    <li>A personal information screen appears with the directory duckshoot</li>
+</ol>
+
+<h2>THE DUCKSHOOT</h2>
+<p>The duckshoot is the command menu at the bottom of the screen. Use <strong>cursor left/right</strong> to scroll through available commands, then press <strong>RETURN</strong> to select.</p>
+<p>Different commands are available depending on where you are in the system (directory, editor, mail, etc.).</p>
+
+<h2>DIRECTORIES</h2>
+<p>Compunet is organised as directories arranged in a tree structure. Each entry may contain text to read, a program to download, and/or a further sub-directory.</p>
+
+<div class="info-box">
+    <h3>DIRECTORY ENTRIES</h3>
+    <p>Each entry shows a letter code indicating its type:</p>
+    <ul>
+        <li><strong>T</strong> &mdash; Text pages (use SHOW to read)</li>
+        <li><strong>P</strong> &mdash; Program (use BUY to download)</li>
+        <li><strong>D</strong> &mdash; Directory-only entry (use DIR to enter)</li>
+        <li><strong>+</strong> after the type &mdash; has a sub-directory beneath it</li>
+    </ul>
+    <p>A number after the letter indicates how many pages/KB the entry contains.</p>
+</div>
+
+<p>Use <strong>cursor up/down</strong> to highlight an entry with a blue bar. The columns show PRICE, LIFE (days remaining), AUTHOR, and VOTE score &mdash; toggle <strong>F7/F8</strong> to see all columns.</p>
+
+<h2>GETTING AROUND</h2>
+<table class="download-table">
+    <tr><td><strong>DIR</strong></td><td>Go deeper &mdash; view the sub-directory beneath a highlighted entry</td></tr>
+    <tr><td><strong>BACK</strong></td><td>Go up &mdash; return to the parent directory</td></tr>
+    <tr><td><strong>GOTO</strong></td><td>Jump directly to a page number from anywhere</td></tr>
+    <tr><td><strong>SHOW</strong></td><td>Read text pages of the highlighted entry</td></tr>
+    <tr><td><strong>BUY</strong></td><td>Download a program or view priced content</td></tr>
+</table>
+
+<h2>READING PAGES</h2>
+<p>Highlight a text entry (T) and select <strong>SHOW</strong>. The first page appears. If there are multiple pages:</p>
+<ul>
+    <li><strong>MORE</strong> &mdash; next page</li>
+    <li><strong>ALL</strong> &mdash; show all pages rapidly</li>
+    <li><strong>FINISH</strong> &mdash; return to directory</li>
+</ul>
+
+<h2>DOWNLOADING PROGRAMS</h2>
+<ol>
+    <li>Ensure your disk drive is connected and switched on</li>
+    <li>Highlight the program entry (P) and select <strong>BUY</strong></li>
+    <li>Downloading takes about 10 seconds per KB</li>
+    <li>When complete, you are asked <code>SAVE FILENAME?</code></li>
+    <li>Press RETURN to save under the existing name</li>
+</ol>
+
+<h2>COURIER (ELECTRONIC MAIL)</h2>
+<p>Courier is Compunet's mail system. If you have unread mail, a red pillarbox appears on your personal information page at login, or the word <strong>MAIL</strong> appears in red on the next directory you visit.</p>
+
+<h3>READING MAIL</h3>
+<ol>
+    <li>Select <strong>MAIL</strong> from the duckshoot</li>
+    <li>Highlight the letter and select <strong>SHOW</strong></li>
+    <li>Read mail is automatically removed after 2 days</li>
+</ol>
+
+<h3>SENDING MAIL</h3>
+<ol>
+    <li>Have your message ready in the Editor</li>
+    <li>Select <strong>MAIL</strong>, then <strong>SEND</strong></li>
+    <li>Type the title of your letter</li>
+    <li>Type the recipient's User ID (up to 5 recipients)</li>
+    <li>Press RETURN twice after the last ID</li>
+    <li>Find your page in the Editor and select <strong>SEND</strong></li>
+    <li>Select <strong>FINISH</strong> when done</li>
+</ol>
+
+<h2>THE JUNGLE</h2>
+<p>The Jungle is where users upload their own content &mdash; text, graphics, and programs. To upload:</p>
+<ol>
+    <li>Navigate to an appropriate directory with space</li>
+    <li>Select <strong>UPLD</strong></li>
+    <li>Enter: title, type (T/P), price (0 for free), and LIFE (days to keep it online)</li>
+    <li>For text: find your page in the Editor and select SEND</li>
+    <li>For programs: use SEND (if already in memory) or LOAD first</li>
+    <li>Select <strong>FINISH</strong> when done</li>
+</ol>
+
+<h2>PARTYLINE</h2>
+<p>Partyline is Compunet's live multi-user chat. Access it from the main directory. Type your message and press <strong>RETURN twice</strong> to send. Commands start with <code>*</code>:</p>
+<ul>
+    <li><code>*help</code> &mdash; show help</li>
+    <li><code>*who</code> &mdash; list users online</li>
+    <li><code>*alias NAME</code> &mdash; set a nickname</li>
+    <li><code>*enter ROOM</code> &mdash; join/create a room</li>
+    <li><code>*dice N</code> &mdash; roll N-sided dice</li>
+    <li><code>*quit</code> &mdash; leave partyline</li>
+</ul>
+
+<h2>DIRECTORY COMMANDS</h2>
+<table class="download-table">
+    <tr><td><strong>ACCNT</strong></td><td>Display your account details</td></tr>
+    <tr><td><strong>BACK</strong></td><td>Go to the parent directory</td></tr>
+    <tr><td><strong>BUY</strong></td><td>Download a program or access priced content</td></tr>
+    <tr><td><strong>DIR</strong></td><td>Enter a sub-directory</td></tr>
+    <tr><td><strong>EDITR</strong></td><td>Enter the page Editor</td></tr>
+    <tr><td><strong>GOTO</strong></td><td>Jump to a specific page number</td></tr>
+    <tr><td><strong>LEAVE</strong></td><td>Disconnect from Compunet</td></tr>
+    <tr><td><strong>LIFE</strong></td><td>Extend the life of your uploaded content</td></tr>
+    <tr><td><strong>MAIL</strong></td><td>Access your mailbox</td></tr>
+    <tr><td><strong>SHOW</strong></td><td>Read text pages</td></tr>
+    <tr><td><strong>UCAT</strong></td><td>List your uploaded content</td></tr>
+    <tr><td><strong>UPLD</strong></td><td>Upload text or programs</td></tr>
+    <tr><td><strong>VOTE</strong></td><td>Rate content (1&ndash;9)</td></tr>
+</table>
+
+<h2>THE EDITOR</h2>
+<p>The Editor is a full-screen page creator with Commodore graphics and colours. It can be used both on-line (select <strong>EDITR</strong> from the directory duckshoot) and off-line (type <code>EDITOR</code> at the BASIC prompt before connecting).</p>
+
+<p>Every page you SHOW on Compunet is automatically stored in your Editor, so you can re-read, save or print it later. The Editor holds 10&ndash;15 pages; as more go in, earlier pages are lost unless saved.</p>
+
+<div class="info-box">
+    <h3>OFFLINE EDITOR</h3>
+    <p>To use the Editor off-line, type <code>EDITOR</code> (or <code>SHIFT+E</code>) at the BASIC prompt. This gives a white page with a blue border and duckshoot. Prepare pages off-line, then connect and upload them &mdash; saves time online.</p>
+</div>
+
+<h3>EDITOR COMMANDS</h3>
+<table class="download-table">
+    <tr><td><strong>EDIT</strong></td><td>Start writing/drawing on the current page</td></tr>
+    <tr><td><strong>NEW</strong></td><td>Create a fresh blank page</td></tr>
+    <tr><td><strong>LAST / NEXT</strong></td><td>Navigate between pages in the Editor</td></tr>
+    <tr><td><strong>COPY</strong></td><td>Make a copy of the current page</td></tr>
+    <tr><td><strong>ERASE</strong></td><td>Delete the current page</td></tr>
+    <tr><td><strong>FREE</strong></td><td>Show how much space is left in the Editor</td></tr>
+    <tr><td><strong>GET</strong></td><td>Load Editor frames from disk</td></tr>
+    <tr><td><strong>PUT</strong></td><td>Save the current page to disk</td></tr>
+    <tr><td><strong>STORE</strong></td><td>Save all Editor contents to disk</td></tr>
+    <tr><td><strong>PRINT</strong></td><td>Print the current page to a compatible printer</td></tr>
+    <tr><td><strong>RETURN</strong></td><td>Exit the Editor (back to Compunet if on-line, or BASIC if off-line)</td></tr>
+</table>
+
+<h2>TIPS</h2>
+<div class="info-box">
+    <h3>KEYBOARD SHORTCUTS</h3>
+    <ul>
+        <li><strong>F7/F8</strong> &mdash; Toggle directory column display (Price, Life, Author, Vote)</li>
+        <li><strong>Cursor Up/Down</strong> &mdash; Highlight directory entries</li>
+        <li><strong>Cursor Left/Right</strong> &mdash; Scroll duckshoot commands</li>
+        <li><strong>RETURN</strong> &mdash; Execute highlighted command</li>
+        <li><strong>RUN/STOP</strong> &mdash; In Partyline, sends *quit</li>
+    </ul>
+</div>
+{% endblock %}

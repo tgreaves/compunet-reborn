@@ -117,6 +117,11 @@ def connect():
     return render_template('connect.html')
 
 
+@app.route('/guide')
+def guide():
+    return render_template('guide.html')
+
+
 # ============================================================
 # Registration
 # ============================================================

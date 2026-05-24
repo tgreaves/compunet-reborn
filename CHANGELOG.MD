@@ -1,3 +1,28 @@
+# 0.6-beta (2026-05-24)
+
+* Client:
+	* New self-extracting PRG: `LOAD "COMPUNET",8` then `RUN` — no SYS command
+	  needed. Decompresses and starts automatically via exomizer.
+	* Auto-connect "live" variant: connects to vme.compunet.live:6400 without
+	  prompting for a phone number. Available as PRG and D64.
+	* D64 now contains SFX version as primary file ("COMPUNET"), live auto-connect
+	  ("COMPUNET-LIVE"), and raw PRG ("COMPUNET-RAW").
+* Website:
+	* Refreshed design: dark theme with modern retro aesthetic. Clean body font,
+	  pixel font for headings, C64 colour palette accents.
+	* Connect page: download links for live PRG/D64, instructions for VICE and
+	  C64 Ultimate, simplified connect flow (no phone number needed).
+	* New Guide page: full user guide covering navigation, mail, uploads,
+	  partyline, editor, and all duckshoot commands.
+	* Trailer video embedded on home page.
+* Dev:
+	* `server/data/content/` no longer tracked by git. Prevents `git pull` from
+	  overwriting live content on production. Use `server/data.example/` as template
+	  for fresh installs.
+	* Build system generates SFX PRG via exomizer alongside raw PRG/D64.
+	* Auto-connect build variant (`-D AUTO_CONNECT`) skips phone number prompt.
+	* CRT_ENTRY trampoline added for SFX/cartridge entry (resets CPU state).
+
 # 0.5-beta (2026-05-23)
 
 * Client:

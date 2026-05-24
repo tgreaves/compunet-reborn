@@ -27,10 +27,10 @@ server/cfg/users.json
 server/cfg/pending.json
 server/cfg/subscribers.json
 
-# Dynamic server data (not tracked)
+# Dynamic server data (not tracked — use data.example/ for templates)
 server/data/mail/
 server/data/votes.json
-server/data/content/root/jungle/*/
+server/data/content/
 
 # Virtual environments
 server/venv/

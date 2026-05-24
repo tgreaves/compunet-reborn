@@ -3,14 +3,27 @@
 {% block content %}
 <h1>HOW TO CONNECT</h1>
 
-<p>Compunet Reborn runs on a real (or emulated) Commodore 64 with a SwiftLink-compatible serial interface. The easiest way to get started is with the VICE emulator.</p>
+<p>Compunet Reborn runs on a real (or emulated) Commodore 64 with a SwiftLink-compatible serial interface.</p>
 
-<h2>PREREQUISITES</h2>
-<ol>
-    <li>VICE C64 emulator (x64sc) — <a href="https://vice-emu.sourceforge.io/">download here</a></li>
-    <li>The Compunet Reborn D64 disk image — <a href="{{ url_for('static', filename='compunet-reborn.d64') }}">download here</a></li>
-    <li>A registered account — <a href="{{ url_for('register') }}">register here</a></li>
-</ol>
+<h2>SUPPORTED HARDWARE</h2>
+<ul>
+    <li><strong>VICE C64 emulator</strong> (x64sc) — <a href="https://vice-emu.sourceforge.io/">download here</a></li>
+    <li><strong>C64 Ultimate</strong> (Ultimate 64, Ultimate-II+) — uses the built-in SwiftLink-to-TCP bridge</li>
+    <li><strong>Real C64 + SwiftLink</strong> with a WiFi modem</li>
+</ul>
+
+<h2>DOWNLOAD</h2>
+<p>A registered account is required — <a href="{{ url_for('register') }}">register here</a>.</p>
+<table class="download-table">
+    <tr>
+        <td><a href="{{ url_for('static', filename='compunet-reborn-live.d64') }}">compunet-reborn-live.d64</a></td>
+        <td>D64 disk image</td>
+    </tr>
+    <tr>
+        <td><a href="{{ url_for('static', filename='compunet-reborn-live.prg') }}">compunet-reborn-live.prg</a></td>
+        <td>PRG file — drag into VICE or load via C64 Ultimate file browser (no LOAD command needed)</td>
+    </tr>
+</table>
 
 <h2>VICE SETUP</h2>
 <ol>
@@ -24,15 +37,28 @@
             <li>IP232: <strong>Unchecked</strong></li>
         </ul>
     </li>
-    <li>Attach <code>compunet-reborn.d64</code> to drive 8</li>
 </ol>
 
-<h2>CONNECTING</h2>
+<h2>C64 ULTIMATE SETUP</h2>
 <ol>
-    <li>Load the client: <code>LOAD "COMPUNET",8,1</code></li>
-    <li>Type <code>SYS 33184</code></li>
+    <li>Configure: Modem Interface &rarr; ACIA / SwiftLink, DE00/NMI</li>
+</ol>
+
+<h2>CONNECTING (D64)</h2>
+<ol>
+    <li>Attach the D64 to drive 8</li>
+    <li>Type <code>LOAD "COMPUNET",8</code></li>
+    <li>Type <code>RUN</code></li>
     <li>Type <code>CONNECT</code></li>
-    <li>Enter any number at the phone number prompt (the connection is configured in VICE settings)</li>
+    <li>Enter your User ID and password</li>
+    <li>The duckshoot menu appears &mdash; you're in!</li>
+</ol>
+
+<h2>CONNECTING (PRG)</h2>
+<ol>
+    <li>In VICE: drag the PRG file into the emulator window, or use File &rarr; Smart Attach</li>
+    <li>On C64 Ultimate: select the PRG in the file browser and choose Run</li>
+    <li>Type <code>CONNECT</code></li>
     <li>Enter your User ID and password</li>
     <li>The duckshoot menu appears &mdash; you're in!</li>
 </ol>

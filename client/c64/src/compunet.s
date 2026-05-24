@@ -1678,9 +1678,26 @@ L8D52:
     STA VIC_BGCOL0
     LDA $8014
     STA $0286
+.ifdef AUTO_CONNECT
+    ; Skip "INPUT PHONE NUMBER" display in auto-connect mode
+.else
     LDX #.lobyte(L8CEA)
     LDY #.hibyte(L8CEA)
     JSR PRINT_STRING                    ; PRINT_STRING
+.endif
+
+.ifdef AUTO_CONNECT
+    ; Skip phone number input — use hardcoded server address
+    LDX #$00
+@copy_addr:
+    LDA auto_connect_addr+1,X
+    STA L9FF0+1,X
+    INX
+    CPX auto_connect_addr
+    BNE @copy_addr
+    STX L9FF0                           ; store length
+    JMP L8DA4
+.else
     LDY #$01
     LDA L9FF0
     BEQ L8D78
@@ -1711,6 +1728,7 @@ L8D9B:
     STA L9FF0,X
     DEX
     BNE L8D9B
+.endif
 L8DA4:
     LDX #.lobyte(L8D19)
     LDY #.hibyte(L8D19)
@@ -7633,3 +7651,42 @@ ACIA_PROCESS_CMD:
     LDA #$0D                            ; CR — exits field reading
     SEC
     RTS
+
+; =================================================================
+; CRT_ENTRY — Entry point for CRT/SFX (resets CPU state before MAIN_INIT)
+; =================================================================
+CRT_ENTRY:
+    SEI
+    LDX #$FF
+    TXS
+    CLD
+    ; Clear SFX decruncher at $00FD-$01BA
+    LDA #$00
+    LDX #$BD                    ; clear $00FD + $BD bytes = $00FD-$01B9
+@clr_decr:
+    STA $00FC,X
+    DEX
+    BNE @clr_decr
+    ; Clear $0200-$7FFF (SFX data + BASIC area)
+    STA $FB
+    LDA #$02
+    STA $FC
+    LDA #$00
+    TAY
+@clr_page:
+    STA ($FB),Y
+    INY
+    BNE @clr_page
+    INC $FC
+    LDX $FC
+    CPX #$80
+    BNE @clr_page
+    JMP $8160
+
+.ifdef AUTO_CONNECT
+; Hardcoded server address for auto-connect builds
+; Format: [length] [address bytes in PETSCII]
+auto_connect_addr:
+    .byte 22                            ; length
+    .byte "vme.compunet.live:6400"
+.endif

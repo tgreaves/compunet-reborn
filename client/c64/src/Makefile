@@ -1,8 +1,11 @@
 # Compunet Reborn — Build System
-# Single combined source file → PRG + D64
 # Usage: make
-# Output: ../compunet-reborn.prg, ../compunet-reborn.d64
-#   LOAD "COMPUNET",8,1 : SYS 33184
+# Output:
+#   ../compunet-reborn.prg          (raw PRG, SYS 33184)
+#   ../compunet-reborn-sfx.prg     (self-extracting, LOAD + RUN)
+#   ../compunet-reborn.d64          (D64: SFX + live + raw)
+#   ../compunet-reborn-live.prg    (auto-connect to vme.compunet.live:6400)
+#   ../compunet-reborn-live.d64    (D64: live version only)
 
 CA65 = ca65
 LD65 = ld65
@@ -12,28 +15,55 @@ VERSION_FILE = ../../../VERSION
 VERSION := $(shell cat $(VERSION_FILE) 2>/dev/null || echo "0.0")
 
 PRG = ../compunet-reborn.prg
+SFX_PRG = ../compunet-reborn-sfx.prg
+LIVE_PRG = ../compunet-reborn-live.prg
 D64 = ../compunet-reborn.d64
+LIVE_D64 = ../compunet-reborn-live.d64
 BIN = build/compunet.bin
+LIVE_BIN = build/compunet_live.bin
 OBJ = build/compunet.o
+LIVE_OBJ = build/compunet_live.o
 SRC = compunet.s
 CFG = compunet.cfg
 VERSION_INC = build/version.inc
 
+WEBSITE_STATIC = ../../../website/static
+
 .PHONY: all clean
 
-all: $(PRG) $(D64)
+all: $(PRG) $(SFX_PRG) $(LIVE_PRG) $(D64) $(LIVE_D64)
 
 $(PRG): $(BIN)
 	@printf '\x00\x80' > $(PRG)
 	@cat $(BIN) >> $(PRG)
 	@echo "Created $(PRG) ($$(wc -c < $(PRG)) bytes, SYS 33184, v$(VERSION))"
 
-WEBSITE_STATIC = ../../../website/static
+$(SFX_PRG): $(PRG)
+	exomizer sfx 0xCDB4 $(PRG) -o $(SFX_PRG) -x1 -q
+	@echo "Created $(SFX_PRG) ($$(wc -c < $(SFX_PRG)) bytes, LOAD + RUN)"
 
-$(D64): $(PRG)
-	$(C1541) -format "compunet,cr" d64 $(D64) -write $(PRG) compunet
+$(LIVE_PRG): $(LIVE_BIN)
+	@printf '\x00\x80' > $(LIVE_PRG)
+	@cat $(LIVE_BIN) >> $(LIVE_PRG)
+	exomizer sfx 0xCDB4 $(LIVE_PRG) -o $(LIVE_PRG) -x1 -q
+	@echo "Created $(LIVE_PRG) ($$(wc -c < $(LIVE_PRG)) bytes, auto-connect)"
+
+$(LIVE_BIN): $(LIVE_OBJ) $(CFG)
+	$(LD65) -C $(CFG) $(LIVE_OBJ) -o $(LIVE_BIN)
+
+$(LIVE_OBJ): $(SRC) $(VERSION_INC) | build
+	$(CA65) -t c64 -D AUTO_CONNECT $(SRC) -o $(LIVE_OBJ)
+
+$(D64): $(SFX_PRG) $(LIVE_PRG) $(PRG)
+	$(C1541) -format "compunet,cr" d64 $(D64) -write $(SFX_PRG) compunet -write $(LIVE_PRG) "compunet-live" -write $(PRG) "compunet-raw"
 	@cp $(D64) $(WEBSITE_STATIC)/compunet-reborn.d64
 	@echo "Created $(D64) (copied to website/static/)"
+
+$(LIVE_D64): $(LIVE_PRG)
+	$(C1541) -format "compunet,cr" d64 $(LIVE_D64) -write $(LIVE_PRG) compunet
+	@cp $(LIVE_PRG) $(WEBSITE_STATIC)/compunet-reborn-live.prg
+	@cp $(LIVE_D64) $(WEBSITE_STATIC)/compunet-reborn-live.d64
+	@echo "Created $(LIVE_D64) (copied to website/static/)"
 
 $(BIN): $(OBJ) $(CFG)
 	$(LD65) -C $(CFG) $(OBJ) -o $(BIN)
@@ -48,4 +78,4 @@ build:
 	mkdir -p build
 
 clean:
-	rm -rf build $(PRG) $(D64)
+	rm -rf build $(PRG) $(SFX_PRG) $(LIVE_PRG) $(D64) $(LIVE_D64)
