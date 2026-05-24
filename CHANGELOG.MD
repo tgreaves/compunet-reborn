@@ -5,11 +5,17 @@
 	  needed. Decompresses and starts automatically via exomizer.
 	* D64 now contains SFX version as primary file ("COMPUNET") and raw PRG as
 	  secondary ("COMPUNET-RAW") for advanced users.
+* Website:
+	* Refreshed design: dark theme with modern retro aesthetic. Clean body font,
+	  pixel font for headings, C64 colour palette accents.
+	* Connect page updated with download links for live PRG/D64, instructions
+	  for VICE and C64 Ultimate, simplified connect flow.
 * Dev:
 	* `server/data/content/` no longer tracked by git. Prevents `git pull` from
 	  overwriting live content on production. Use `server/data.example/` as template
 	  for fresh installs.
 	* Build system generates SFX PRG via exomizer alongside raw PRG/D64.
+	* Auto-connect build variant (`-D AUTO_CONNECT`) skips phone number prompt.
 	* CRT_ENTRY trampoline added for SFX/cartridge entry (resets CPU state).
 
 # 0.5-beta (2026-05-23)
