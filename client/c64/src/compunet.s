@@ -7633,3 +7633,35 @@ ACIA_PROCESS_CMD:
     LDA #$0D                            ; CR — exits field reading
     SEC
     RTS
+
+; =================================================================
+; CRT_ENTRY — Entry point for CRT/SFX (resets CPU state before MAIN_INIT)
+; =================================================================
+CRT_ENTRY:
+    SEI
+    LDX #$FF
+    TXS
+    CLD
+    ; Clear SFX decruncher at $00FD-$01BA
+    LDA #$00
+    LDX #$BD                    ; clear $00FD + $BD bytes = $00FD-$01B9
+@clr_decr:
+    STA $00FC,X
+    DEX
+    BNE @clr_decr
+    ; Clear $0200-$7FFF (SFX data + BASIC area)
+    STA $FB
+    LDA #$02
+    STA $FC
+    LDA #$00
+    TAY
+@clr_page:
+    STA ($FB),Y
+    INY
+    BNE @clr_page
+    INC $FC
+    LDX $FC
+    CPX #$80
+    BNE @clr_page
+    JMP $8160
+

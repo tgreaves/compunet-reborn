@@ -1,3 +1,17 @@
+# 0.6-beta (2026-05-24)
+
+* Client:
+	* New self-extracting PRG: `LOAD "COMPUNET",8` then `RUN` — no SYS command
+	  needed. Decompresses and starts automatically via exomizer.
+	* D64 now contains SFX version as primary file ("COMPUNET") and raw PRG as
+	  secondary ("COMPUNET-RAW") for advanced users.
+* Dev:
+	* `server/data/content/` no longer tracked by git. Prevents `git pull` from
+	  overwriting live content on production. Use `server/data.example/` as template
+	  for fresh installs.
+	* Build system generates SFX PRG via exomizer alongside raw PRG/D64.
+	* CRT_ENTRY trampoline added for SFX/cartridge entry (resets CPU state).
+
 # 0.5-beta (2026-05-23)
 
 * Client:

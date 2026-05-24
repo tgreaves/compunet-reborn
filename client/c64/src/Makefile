@@ -1,8 +1,9 @@
 # Compunet Reborn — Build System
-# Single combined source file → PRG + D64
+# Single combined source file → PRG + SFX + D64
 # Usage: make
-# Output: ../compunet-reborn.prg, ../compunet-reborn.d64
-#   LOAD "COMPUNET",8,1 : SYS 33184
+# Output: ../compunet-reborn.prg      (raw PRG, SYS 33184)
+#         ../compunet-reborn-sfx.prg  (self-extracting, LOAD + RUN)
+#         ../compunet-reborn.d64      (D64 with both)
 
 CA65 = ca65
 LD65 = ld65
@@ -12,6 +13,7 @@ VERSION_FILE = ../../../VERSION
 VERSION := $(shell cat $(VERSION_FILE) 2>/dev/null || echo "0.0")
 
 PRG = ../compunet-reborn.prg
+SFX_PRG = ../compunet-reborn-sfx.prg
 D64 = ../compunet-reborn.d64
 BIN = build/compunet.bin
 OBJ = build/compunet.o
@@ -19,19 +21,23 @@ SRC = compunet.s
 CFG = compunet.cfg
 VERSION_INC = build/version.inc
 
+WEBSITE_STATIC = ../../../website/static
+
 .PHONY: all clean
 
-all: $(PRG) $(D64)
+all: $(PRG) $(SFX_PRG) $(D64)
 
 $(PRG): $(BIN)
 	@printf '\x00\x80' > $(PRG)
 	@cat $(BIN) >> $(PRG)
 	@echo "Created $(PRG) ($$(wc -c < $(PRG)) bytes, SYS 33184, v$(VERSION))"
 
-WEBSITE_STATIC = ../../../website/static
+$(SFX_PRG): $(PRG)
+	exomizer sfx 0xCDB4 $(PRG) -o $(SFX_PRG) -x1 -q
+	@echo "Created $(SFX_PRG) ($$(wc -c < $(SFX_PRG)) bytes, LOAD + RUN)"
 
-$(D64): $(PRG)
-	$(C1541) -format "compunet,cr" d64 $(D64) -write $(PRG) compunet
+$(D64): $(SFX_PRG) $(PRG)
+	$(C1541) -format "compunet,cr" d64 $(D64) -write $(SFX_PRG) compunet -write $(PRG) "compunet-raw"
 	@cp $(D64) $(WEBSITE_STATIC)/compunet-reborn.d64
 	@echo "Created $(D64) (copied to website/static/)"
 
@@ -48,4 +54,4 @@ build:
 	mkdir -p build
 
 clean:
-	rm -rf build $(PRG) $(D64)
+	rm -rf build $(PRG) $(SFX_PRG) $(D64)

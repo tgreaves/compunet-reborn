@@ -33,7 +33,7 @@ The official live instance of this project is running at [https://compunet.live/
 5. Enable ACIA RS232 interface emulation, set Device to Serial 3
 6. Serial 3 settings: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
 7. Attach `client/c64/compunet-reborn.d64` to drive 8
-8. `LOAD "COMPUNET",8,1` then `SYS 33184`
+8. `LOAD "COMPUNET",8` then `RUN`
 9. Type `CONNECT`, enter any number at the phone number prompt
 10. Login with TEST/TEST
 11. Duckshoot menu appears!
