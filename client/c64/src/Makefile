@@ -38,14 +38,16 @@ $(PRG): $(BIN)
 	@cat $(BIN) >> $(PRG)
 	@echo "Created $(PRG) ($$(wc -c < $(PRG)) bytes, SYS 33184, v$(VERSION))"
 
+CRT_ENTRY_ADDR = $(shell python3 -c "d=open('$(BIN)','rb').read();import sys;i=d.find(b'\x78\xa2\xff\x9a\xd8');print(f'0x{0x8000+i:04X}') if i>=0 else sys.exit(1)")
+
 $(SFX_PRG): $(PRG)
-	exomizer sfx 0xCDB4 $(PRG) -o $(SFX_PRG) -x1 -q
-	@echo "Created $(SFX_PRG) ($$(wc -c < $(SFX_PRG)) bytes, LOAD + RUN)"
+	exomizer sfx $(CRT_ENTRY_ADDR) $(PRG) -o $(SFX_PRG) -x1 -q
+	@echo "Created $(SFX_PRG) ($$(wc -c < $(SFX_PRG)) bytes, LOAD + RUN, entry=$(CRT_ENTRY_ADDR))"
 
 $(LIVE_PRG): $(LIVE_BIN)
 	@printf '\x00\x80' > $(LIVE_PRG)
 	@cat $(LIVE_BIN) >> $(LIVE_PRG)
-	exomizer sfx 0xCDB4 $(LIVE_PRG) -o $(LIVE_PRG) -x1 -q
+	exomizer sfx $(CRT_ENTRY_ADDR) $(LIVE_PRG) -o $(LIVE_PRG) -x1 -q
 	@echo "Created $(LIVE_PRG) ($$(wc -c < $(LIVE_PRG)) bytes, auto-connect)"
 
 $(LIVE_BIN): $(LIVE_OBJ) $(CFG)
