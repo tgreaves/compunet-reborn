@@ -6924,6 +6924,9 @@ ACIA_WAIT_READY:
 ; Returns: C=0 success, C=1 failure
 ; =================================================================
 ACIA_DIAL:
+    ; Disable RX NMI during transmission to prevent byte loss
+    LDA #$01                            ; DTR active, RX IRQ disabled
+    STA ACIA_CMD
     ; Send "ATDT" in ASCII (bridge expects ASCII AT commands)
     LDA #$41                            ; 'A' ASCII
     JSR ACIA_WAIT_READY
@@ -6958,6 +6961,9 @@ ACIA_DIAL:
 @send_cr:
     LDA #$0D
     JSR ACIA_WAIT_READY
+    ; Re-enable RX NMI to receive bridge response
+    LDA #$09                            ; DTR active, RX IRQ enabled
+    STA ACIA_CMD
     ; Wait for "CONNECT" response — poll for CR via NMI buffer
 @wait_resp:
     LDA NMI_BUF_HEAD

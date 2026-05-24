@@ -1,3 +1,11 @@
+# 0.6.1-beta (2026-05-24)
+
+* Client:
+	* Fixed intermittent byte loss during ATDT on C64 Ultimate: RX NMI now
+	  disabled during transmission to prevent NMI handler interfering with TX.
+* Dev:
+	* Makefile auto-detects CRT_ENTRY address (no longer hardcoded).
+
 # 0.6-beta (2026-05-24)
 
 * Client:
