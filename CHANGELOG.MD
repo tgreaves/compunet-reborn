@@ -13,6 +13,8 @@
 * Website:
 	* Admin panel: EDITOR checkbox on user edit page.
 	* Admin panel: Audit Log page with pagination (50 events/page).
+	* Admin notification email when a new user completes registration
+	  (templated via `server/cfg/new-user-notification.md`).
 * Content:
 	* New PETSCII COMPUNET logo header for root directory (extracted from
 	  welcome frame artwork).

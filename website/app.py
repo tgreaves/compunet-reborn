@@ -68,25 +68,29 @@ def _api_consume_pending(token):
         headers=_api_headers())
 
 
-def _send_email(to, subject, body_text):
+def _send_email(to, subject, body_text=None, body_html=None):
     """Send email via Postmark. Returns True on success."""
     postmark_key = config.get('POSTMARK_API_KEY')
     if not postmark_key:
         app.logger.warning('POSTMARK_API_KEY not set — email not sent to %s', to)
-        app.logger.info('Email would be: subject=%s body=%s', subject, body_text)
+        app.logger.info('Email would be: subject=%s body=%s', subject, body_text or body_html)
         return True  # Pretend success in dev mode
+    payload = {
+        'From': config.get('EMAIL_FROM', 'noreply@compunet.live'),
+        'To': to,
+        'Subject': subject,
+    }
+    if body_html:
+        payload['HtmlBody'] = body_html
+    if body_text:
+        payload['TextBody'] = body_text
     resp = requests.post(
         'https://api.postmarkapp.com/email',
         headers={
             'X-Postmark-Server-Token': postmark_key,
             'Content-Type': 'application/json',
         },
-        json={
-            'From': config.get('EMAIL_FROM', 'noreply@compunet.live'),
-            'To': to,
-            'Subject': subject,
-            'TextBody': body_text,
-        },
+        json=payload,
     )
     if resp.status_code == 200:
         return True
@@ -96,6 +100,34 @@ def _send_email(to, subject, body_text):
 
 def _hash_password(password):
     return hashlib.sha256(password.upper().encode('utf-8')).hexdigest()
+
+
+def _notify_admins_new_user(entry):
+    """Send email to all admin users notifying them of a new registration."""
+    resp = _api_get('/api/users')
+    if resp.status_code != 200:
+        return
+    users = resp.json().get('users', [])
+    admin_emails = [u['email'] for u in users if u.get('admin') and u.get('email')]
+    date = time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())
+    template_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'cfg', 'new-user-notification.md')
+    try:
+        template = open(template_path).read()
+    except OSError:
+        template = 'New user: {{user_id}} ({{name}}, {{email}}) registered on {{date}}.'
+    import markdown
+    body_md = (template
+               .replace('{{user_id}}', entry.get('user_id', ''))
+               .replace('{{name}}', entry.get('name', ''))
+               .replace('{{email}}', entry.get('email', ''))
+               .replace('{{date}}', date))
+    body_html = markdown.markdown(body_md)
+    for email in admin_emails:
+        _send_email(
+            to=email,
+            subject=f'Compunet Reborn — New user registered: {entry["user_id"]}',
+            body_html=body_html,
+        )
 
 
 # ============================================================
@@ -206,6 +238,7 @@ def verify(token):
     })
 
     if resp.status_code == 201:
+        _notify_admins_new_user(entry)
         return render_template('verify.html', user_id=entry['user_id'])
     elif resp.status_code == 409:
         flash('That User ID was taken while your verification was pending.', 'error')
