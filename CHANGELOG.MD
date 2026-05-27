@@ -1,6 +1,10 @@
 # 0.6.3-beta (2026-05-27)
 
 * Client:
+	* Fixed auto-connect reconnect failure on C64 Ultimate: `auto_connect_addr`
+	  data was placed after CRT_ENTRY, overlapping into the NMI ring buffer at
+	  $CE00. After the first connection, received data corrupted the hostname
+	  for subsequent dials. Moved data before CRT_ENTRY.
 	* Fixed intermittent CPU JAM ($0008) on Windows VICE: SFX decompressor left
 	  dirty zero-page locations ($9E,$9F,$A7,$A8,$AE,$AF) and residue on the stack
 	  page. CRT_ENTRY now clears both zero-page decompressor state and the full

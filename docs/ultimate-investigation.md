@@ -236,30 +236,20 @@ TCP connection established successfully. Server receives connection and sends X.
 handshake (12x $20). Client receives handshake data in NMI buffer (yellow border
 debug indicator). Full login sequence not yet tested (debug hangs still in place).
 
-## Known Limitation: Reconnect on Ultimate
+## Fixed: Reconnect on Ultimate
 
-After LEAVE, the Ultimate's bridge captures the server's goodbye frame data
-("GOODBYE!") into its AT command buffer. On the next CONNECT, the bridge sends
-a corrupted hostname to DNS (e.g. "vme.atdtvme.atdtvme." or "oodbye!" prefix).
+The auto-connect reconnect failure was caused by `auto_connect_addr` data being
+placed AFTER CRT_ENTRY in the binary, causing it to extend into the NMI ring
+buffer at $CE00. After the first connection, received protocol data overwrote
+the hostname, corrupting subsequent ATDT commands.
 
-Root cause: the bridge returns to AT command mode after TCP disconnects, and any
-bytes still in transit from the server's goodbye frame are interpreted as AT command
-data. The bridge accumulates this until it sees a valid ATDT, prepending the stale
-data to the hostname.
+The DNS lookups showed corrupted hostnames ("vme.atdtvme.atdtvme.", "oodbye!")
+which were actually NMI buffer data that had overwritten the hostname bytes.
 
-This ONLY affects the auto-connect client (no delay between ACIA_INIT and ATDT).
-The manual client works because typing the hostname introduces enough delay for
-the bridge's buffer to clear.
+Fix: moved `auto_connect_addr` before CRT_ENTRY, ensuring it stays below $CE00.
 
-Attempted fixes that didn't work:
-- DTR drop in ACIA_INIT (bridge ignores or locks up the Ultimate menu)
-- ATH (hang up) before ATDT (bridge ignores)
-- Bare CR before ATDT (breaks VICE — server sees CR as first byte)
-
-Possible future solutions:
-- Server stops sending goodbye frame on LEAVE (avoids polluting bridge buffer)
-- UCI path (bypasses modem bridge entirely)
-- User reloads the PRG between sessions (workaround)
+The earlier observations about "goodbye frame polluting the bridge buffer" were
+a red herring — it was our own NMI buffer overwriting the hostname in RAM.
 
 ## Next Steps
 

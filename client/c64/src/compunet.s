@@ -7682,6 +7682,14 @@ ACIA_PROCESS_CMD:
     SEC
     RTS
 
+.ifdef AUTO_CONNECT
+; Hardcoded server address for auto-connect builds
+; MUST be placed before NMI_BUF ($CE00) to avoid buffer overlap
+auto_connect_addr:
+    .byte 22                            ; length
+    .byte "vme.compunet.live:6400"
+.endif
+
 ; =================================================================
 ; CRT_ENTRY — Entry point for CRT/SFX (resets CPU state before MAIN_INIT)
 ; =================================================================
@@ -7720,10 +7728,3 @@ CRT_ENTRY:
     BNE @clr_page
     JMP $8160
 
-.ifdef AUTO_CONNECT
-; Hardcoded server address for auto-connect builds
-; Format: [length] [address bytes in PETSCII]
-auto_connect_addr:
-    .byte 22                            ; length
-    .byte "vme.compunet.live:6400"
-.endif

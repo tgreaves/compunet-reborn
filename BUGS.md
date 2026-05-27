@@ -9,8 +9,8 @@ Behaviours inherited from the original client ROM that are quirky but not bugs.
 
 # Known Limitations
 
-* **C64 Ultimate: auto-connect reconnect fails** — After LEAVE, the auto-connect
-  client cannot reconnect without reloading the PRG. The Ultimate's SwiftLink
-  bridge captures the server's goodbye frame into its AT command buffer, corrupting
-  the next ATDT hostname. The manual client (type hostname) is not affected as the
-  typing delay allows the bridge buffer to clear. See docs/ultimate-investigation.md.
+* **VICE: reconnect after LEAVE fails** — After LEAVE, both SFX and auto-connect
+  clients cannot reconnect in the same session (returns to READY after "Dialling").
+  VICE's SwiftLink emulation does not re-establish the TCP socket after the
+  connection is closed. Workaround: reload the PRG. The manual LOAD+SYS client
+  is also affected. Root cause is in VICE's socket lifecycle management.
