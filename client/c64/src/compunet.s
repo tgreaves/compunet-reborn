@@ -1734,21 +1734,22 @@ L8DA4:
     LDY #.hibyte(L8D19)
     JSR PRINT_STRING                    ; Print "DIALLING"
     JSR ACIA_INIT
-    ; Wait for ACIA to become ready (TDRE set = socket connected in VICE)
-    ; Without this, auto-connect races ahead before VICE connects the socket.
-@acia_settle:
+    ; Wait for ACIA TDRE (socket connected) with timeout
+    ; Windows VICE may not connect the socket immediately.
+    LDX #$00
+    LDY #$00
+@tdre_wait:
     LDA ACIA_STATUS
-    AND #$10                            ; TDRE?
-    BEQ @acia_settle
-    ; Brief settle (~200ms) for socket to fully establish
-    LDA $A2
-    CLC
-    ADC #$0C
-    STA $02
-@settle_wait:
-    LDA $A2
-    CMP $02
-    BNE @settle_wait
+    AND #$10
+    BNE @tdre_ok
+    INY
+    BNE @tdre_wait
+    INX
+    CPX #$40                            ; ~4 second timeout
+    BNE @tdre_wait
+    SEC                                 ; timeout = failure
+    BCS L8E1C
+@tdre_ok:
     JSR ACIA_DIAL
     BCS L8E1C                           ; C=1 = failed
     JSR ACIA_PROTO_CONNECT              ; Polling-based handshake
@@ -6976,11 +6977,22 @@ ACIA_DIAL:
     ; Flush buffer — discard any echo received during TX
     LDA NMI_BUF_TAIL
     STA NMI_BUF_HEAD
-    ; Wait for "CONNECT" response — poll for CR via NMI buffer
+    ; Wait for "CONNECT" response — poll for CR via NMI buffer (with timeout)
+    LDX #$00
+    LDY #$00
 @wait_resp:
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
-    BEQ @wait_resp
+    BNE @got_resp_byte
+    ; Timeout check
+    INY
+    BNE @wait_resp
+    INX
+    CPX #$80                            ; ~8 second timeout
+    BNE @wait_resp
+    SEC                                 ; Timeout — failure
+    RTS
+@got_resp_byte:
     TAX
     LDA NMI_BUF,X
     INC NMI_BUF_HEAD
@@ -7670,6 +7682,14 @@ ACIA_PROCESS_CMD:
     SEC
     RTS
 
+.ifdef AUTO_CONNECT
+; Hardcoded server address for auto-connect builds
+; MUST be placed before NMI_BUF ($CE00) to avoid buffer overlap
+auto_connect_addr:
+    .byte 22                            ; length
+    .byte "vme.compunet.live:6400"
+.endif
+
 ; =================================================================
 ; CRT_ENTRY — Entry point for CRT/SFX (resets CPU state before MAIN_INIT)
 ; =================================================================
@@ -7678,13 +7698,20 @@ CRT_ENTRY:
     LDX #$FF
     TXS
     CLD
-    ; Clear SFX decruncher at $00FD-$01BA
+    ; Clear zero-page locations used by exomizer decompressor
     LDA #$00
-    LDX #$BD                    ; clear $00FD + $BD bytes = $00FD-$01B9
-@clr_decr:
-    STA $00FC,X
+    STA $9E
+    STA $9F
+    STA $A7
+    STA $A8
+    STA $AE
+    STA $AF
+    ; Clear stack page ($0100-$01FF)
+    TAX
+@clr_stack:
+    STA $0100,X
     DEX
-    BNE @clr_decr
+    BNE @clr_stack
     ; Clear $0200-$7FFF (SFX data + BASIC area)
     STA $FB
     LDA #$02
@@ -7701,10 +7728,3 @@ CRT_ENTRY:
     BNE @clr_page
     JMP $8160
 
-.ifdef AUTO_CONNECT
-; Hardcoded server address for auto-connect builds
-; Format: [length] [address bytes in PETSCII]
-auto_connect_addr:
-    .byte 22                            ; length
-    .byte "vme.compunet.live:6400"
-.endif

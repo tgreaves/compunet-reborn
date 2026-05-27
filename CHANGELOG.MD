@@ -45,6 +45,22 @@
 	* `vice_test.sh` updated for SFX auto-connect client (no SYS or IP needed).
 	  Usage: `./vice_test.sh <username> <password> [--restart-server]`
 
+# 0.6.3-beta (2026-05-27)
+
+* Client:
+	* Fixed auto-connect reconnect failure on C64 Ultimate: `auto_connect_addr`
+	  data was placed after CRT_ENTRY, overlapping into the NMI ring buffer at
+	  $CE00. After the first connection, received data corrupted the hostname
+	  for subsequent dials. Moved data before CRT_ENTRY.
+	* Fixed intermittent CPU JAM ($0008) on Windows VICE: SFX decompressor left
+	  dirty zero-page locations ($9E,$9F,$A7,$A8,$AE,$AF) and residue on the stack
+	  page. CRT_ENTRY now clears both zero-page decompressor state and the full
+	  stack page ($0100-$01FF).
+	* Fixed "stuck on Dialling" on reconnect: ACIA_DIAL @wait_resp now has an ~8
+	  second timeout. Returns to prompt on failure instead of hanging forever.
+	* ACIA_WAIT_READY TDRE poll has ~4 second timeout for Windows VICE where the
+	  socket may not be established immediately.
+
 # 0.6.2-beta (2026-05-27)
 
 * Client:
