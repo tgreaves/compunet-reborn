@@ -12,6 +12,9 @@
 	  partyline, page read, download, vote, password reset) logged to
 	  `server/data/audit.jsonl`. All events include client IP address.
 	* Email from address now shows "Compunet Reborn" as friendly name.
+	* Fixed UCAT: SHOW now works on entries (price field must be first column
+	  for client's free/paid check). LIFE reloads UCAT instead of previous DIR.
+	* Pre-response delay reduced from 500ms to 250ms.
 * Partyline:
 	* Fixed case handling: uppercase/lowercase now preserved correctly in messages.
 	* Fixed *QUIT: *EXIT sentinel was being PETSCII-converted, client couldn't match.

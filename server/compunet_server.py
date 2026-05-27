@@ -458,6 +458,7 @@ class CompunetSession:
     def _cmd_goto(self, params):
         """GOTO command ('L') — navigate by page number or keyword."""
         self.last_response_type = None
+        self._ucat_active = False
         if not params:
             return self._make_dir_response()
 
@@ -642,6 +643,8 @@ class CompunetSession:
         else:
             log.info('P cmd: dir_displayed=%s params=%s (not entering subdir)',
                      self.dir_displayed, params.hex() if params else 'none')
+        if getattr(self, '_ucat_active', False):
+            return self._cmd_ucat()
         return self._make_dir_response()
     
     def _cmd_more(self, params):
@@ -902,6 +905,7 @@ class CompunetSession:
 
     def _cmd_back(self):
         """BACK command - go to previous page, or parent directory if on first page."""
+        self._ucat_active = False
         if self.mail_mode:
             if self.mail_show_msg is not None:
                 self.mail_show_msg = None
@@ -1578,10 +1582,10 @@ class CompunetSession:
         data.extend(ascii_to_petscii('  YOUR UPLOADS'))
         data.append(0x00)
 
-        # Part 5: column headers
-        data.extend(ascii_to_petscii('LIFE'))
-        data.append(0x2C)
+        # Part 5: column headers (PRICE must be first — client checks field 1 for SHOW)
         data.extend(ascii_to_petscii('PRICE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('LIFE'))
         data.append(0x2C)
         data.extend(ascii_to_petscii('VOTE'))
         data.append(0x2C)
@@ -1604,12 +1608,12 @@ class CompunetSession:
                 title_field = page.title[:18].ljust(18) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
-                # Column 1: LIFE
-                data.extend(ascii_to_petscii(str(page.life)))
-                data.append(0x2C)
-                # Column 2: PRICE
+                # Column 1: PRICE (must be first — client checks this for SHOW)
                 price_str = '{:.2f}'.format(page.price) if page.price > 0 else ''
                 data.extend(ascii_to_petscii(price_str))
+                data.append(0x2C)
+                # Column 2: LIFE
+                data.extend(ascii_to_petscii(str(page.life)))
                 data.append(0x2C)
                 # Column 3: VOTE
                 vote_str = str(page.vote) if page.vote > 0 else ''
@@ -1619,6 +1623,7 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(str(page.page_num)))
                 data.append(0x0D)
 
+        self._ucat_active = True
         log.info('UCAT: user=%s pages=%d', self.user_id, len(user_pages))
         return bytes(data)
     
@@ -2381,8 +2386,8 @@ async def tcp_handler(reader, writer):
                         async with _lock_content:
                             cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
-                            log.info('CMD: pre-response delay 500ms starting')
-                            await asyncio.sleep(0.5)
+                            log.info('CMD: pre-response delay 250ms starting')
+                            await asyncio.sleep(0.25)
                             log.info('CMD: sending %d bytes in %d-byte chunks', len(cmd_response), 100)
                             MAX_PAYLOAD = 100
                             offset = 0
