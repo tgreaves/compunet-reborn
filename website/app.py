@@ -76,7 +76,7 @@ def _send_email(to, subject, body_text=None, body_html=None):
         app.logger.info('Email would be: subject=%s body=%s', subject, body_text or body_html)
         return True  # Pretend success in dev mode
     payload = {
-        'From': config.get('EMAIL_FROM', 'noreply@compunet.live'),
+        'From': config.get('EMAIL_FROM', 'Compunet Reborn <noreply@compunet.live>'),
         'To': to,
         'Subject': subject,
     }

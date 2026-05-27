@@ -74,9 +74,27 @@ def display_name(user_id):
     return user_id
 
 
+def _ascii_to_petscii(text):
+    """Convert ASCII text to PETSCII for C64 display (lowercase mode)."""
+    result = bytearray()
+    for ch in text:
+        b = ord(ch)
+        if 0x41 <= b <= 0x5A:       # ASCII uppercase → PETSCII uppercase ($C1-$DA)
+            result.append(b + 0x80)
+        elif 0x61 <= b <= 0x7A:     # ASCII lowercase → PETSCII lowercase ($41-$5A)
+            result.append(b - 0x20)
+        else:
+            result.append(b)
+    return bytes(result)
+
+
 async def send_line(writer, text):
     """Send one CR-terminated line to a client."""
-    writer.write(text.encode('ascii', errors='replace') + CR)
+    if text.startswith('*'):
+        # Protocol sentinels (*EXIT, *PING) sent as raw ASCII
+        writer.write(text.encode('ascii', errors='replace') + CR)
+    else:
+        writer.write(_ascii_to_petscii(text) + CR)
     await writer.drain()
 
 
@@ -105,7 +123,9 @@ async def read_line(reader):
         if data == CR:
             break
         buf.extend(data)
-    # Convert PETSCII to ASCII: $C1-$DA = uppercase A-Z, $41-$5A = lowercase a-z
+    # Convert PETSCII to ASCII (C64 lowercase mode):
+    # $C1-$DA = uppercase on screen → ASCII uppercase A-Z
+    # $41-$5A = lowercase on screen → ASCII lowercase a-z
     result = []
     for b in buf:
         if 0xC1 <= b <= 0xDA:
@@ -241,6 +261,7 @@ async def _cmd_quit(writer, user_id):
     # Remove user from state before broadcasting
     del _users[user_id]
     await broadcast_room(room, f"{name} has left partyline")
+    await broadcast_room(room, "")
     # Send exit sentinel to client
     await send_line(writer, "*EXIT")
     logger.info("User %s quit partyline", user_id)
@@ -261,11 +282,17 @@ async def handle_session(reader, writer, user_id):
         await broadcast_room("lobby", "", exclude=user_id)
 
         # Main loop
+        idle_pings = 0
         while user_id in _users:
             try:
                 line = await read_line(reader)
+                idle_pings = 0  # Reset on any received data
             except asyncio.TimeoutError:
                 # Send keepalive to prevent NAT/firewall dropping the connection
+                idle_pings += 1
+                if idle_pings > 20:
+                    logger.info("User %s exceeded max idle pings, disconnecting", user_id)
+                    break
                 logger.debug("Partyline PING keepalive sent to %s", user_id)
                 try:
                     await send_line(_users[user_id]["writer"], "*PING")
@@ -330,6 +357,7 @@ async def handle_session(reader, writer, user_id):
             name = display_name(user_id)
             del _users[user_id]
             await broadcast_room(room, f"{name} has left partyline")
+            await broadcast_room(room, "")
             logger.info("User %s removed from partyline (cleanup)", user_id)
 
 

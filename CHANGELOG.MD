@@ -9,7 +9,14 @@
 	  any user (replaces hardcoded "JUNGLE" author check). Set in the Jungle's
 	  directory.json.
 	* Audit/event log: key events (signup, connect, upload, extend, mail send/read,
-	  partyline) logged to `server/data/audit.jsonl`.
+	  partyline, page read, download, vote, password reset) logged to
+	  `server/data/audit.jsonl`. All events include client IP address.
+	* Email from address now shows "Compunet Reborn" as friendly name.
+* Partyline:
+	* Fixed case handling: uppercase/lowercase now preserved correctly in messages.
+	* Fixed *QUIT: *EXIT sentinel was being PETSCII-converted, client couldn't match.
+	* Blank line after "has left partyline" message.
+	* Max idle ping limit (20): disconnects ghost sessions instead of pinging forever.
 * Website:
 	* Admin panel: EDITOR checkbox on user edit page.
 	* Admin panel: Audit Log page with pagination (50 events/page), now shows IP.

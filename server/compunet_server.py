@@ -2534,7 +2534,7 @@ async def _send_mail_notification(recipient_id, sender_id, subject, users):
 
     recipient_name = recipient.get('name', recipient_id)
     sender_name = users.get(sender_id, {}).get('name', sender_id)
-    email_from = os.environ.get('EMAIL_FROM', 'noreply@compunet.live')
+    email_from = os.environ.get('EMAIL_FROM', 'Compunet Reborn <noreply@compunet.live>')
 
     template = open(template_path).read()
     body_md = (template
