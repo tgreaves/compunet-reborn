@@ -383,7 +383,7 @@ class CompunetSession:
         self.is_admin = user.get('admin', False)
         self.is_editor = user.get('editor', False)
         log.info('Login OK: %s (credit=%.2f, purchased=%s)', user_id, self.credit, self.purchased)
-        audit_log('connect', user=user_id)
+        audit_log('connect', user=user_id, ip=self.client_ip)
         return self._make_welcome_frame(user)
     
     def handle_command(self, data):
@@ -2109,6 +2109,7 @@ async def tcp_handler(reader, writer):
     
     directory = CompunetDirectory()
     session = CompunetSession(directory)
+    session.client_ip = addr[0] if addr else ''
     x25 = X25Connection()
     
     try:
@@ -2689,7 +2690,7 @@ async def api_create_user(request):
         _api_save_users(users)
 
     log.info('API: created user %s', user_id)
-    audit_log('signup', user=user_id)
+    audit_log('signup', user=user_id, ip=request.remote)
     return aiohttp_web.json_response(
         _api_user_public(user_id, users[user_id]), status=201)
 

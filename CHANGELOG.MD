@@ -12,9 +12,13 @@
 	  partyline) logged to `server/data/audit.jsonl`.
 * Website:
 	* Admin panel: EDITOR checkbox on user edit page.
-	* Admin panel: Audit Log page with pagination (50 events/page).
+	* Admin panel: Audit Log page with pagination (50 events/page), now shows IP.
 	* Admin notification email when a new user completes registration
 	  (templated via `server/cfg/new-user-notification.md`).
+	* Password reset via email: user enters email address, receives a 24-hour
+	  tokenised reset link (template at `server/cfg/password-reset.md`).
+	* "Forgot password?" link on login page.
+	* All audit events now include client IP address.
 * Content:
 	* New PETSCII COMPUNET logo header for root directory (extracted from
 	  welcome frame artwork).

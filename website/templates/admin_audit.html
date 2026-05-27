@@ -11,6 +11,7 @@
             <th>TIME</th>
             <th>EVENT</th>
             <th>USER</th>
+            <th>IP</th>
             <th>DETAILS</th>
         </tr>
     </thead>
@@ -20,9 +21,10 @@
             <td>{{ entry.time }}</td>
             <td>{{ entry.event }}</td>
             <td>{{ entry.get('user', '') }}</td>
+            <td>{{ entry.get('ip', '') }}</td>
             <td>
                 {% for key, val in entry.items() %}
-                    {% if key not in ('time', 'event', 'user') %}
+                    {% if key not in ('time', 'event', 'user', 'ip') %}
                         {{ key }}={{ val }}{% if not loop.last %}, {% endif %}
                     {% endif %}
                 {% endfor %}

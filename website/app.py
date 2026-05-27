@@ -98,6 +98,26 @@ def _send_email(to, subject, body_text=None, body_html=None):
     return False
 
 
+AUDIT_LOG_PATH = os.path.join(os.path.dirname(__file__), '..', 'server', 'data', 'audit.jsonl')
+
+def _audit_event(event, user=None, **details):
+    """Append an event to the shared audit log."""
+    import datetime
+    entry = {
+        'time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'event': event,
+    }
+    if user:
+        entry['user'] = user
+    entry.update(details)
+    try:
+        os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
+        with open(AUDIT_LOG_PATH, 'a') as f:
+            f.write(json.dumps(entry) + '\n')
+    except OSError:
+        app.logger.warning('Failed to write audit log entry: %s', entry)
+
+
 def _hash_password(password):
     return hashlib.sha256(password.upper().encode('utf-8')).hexdigest()
 
@@ -524,24 +544,113 @@ def admin_audit():
 # Password Reset
 # ============================================================
 
+RESETS_FILE = os.path.join(os.path.dirname(__file__), '..', 'server', 'cfg', 'password-resets.json')
+
+
+def _load_resets():
+    if os.path.exists(RESETS_FILE):
+        with open(RESETS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def _save_resets(resets):
+    os.makedirs(os.path.dirname(RESETS_FILE), exist_ok=True)
+    with open(RESETS_FILE, 'w') as f:
+        json.dump(resets, f, indent=2)
+
+
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'GET':
         return render_template('forgot_password.html')
 
     email = request.form.get('email', '').strip()
-    # Look up user by email — we need email stored in users.json for this.
-    # For now: show generic "if account exists" message regardless.
-    # TODO: Add email field to users.json and /api/users lookup by email
+    if not email:
+        flash('Please enter your email address.', 'error')
+        return render_template('forgot_password.html')
+
+    # Always show the same message (don't reveal if account exists)
     flash('If an account with that email exists, a reset link has been sent.', 'info')
+
+    # Look up user by email
+    resp = _api_get('/api/users')
+    if resp.status_code == 200:
+        users = resp.json().get('users', [])
+        matching = [u for u in users if u.get('email', '').lower() == email.lower()]
+        if matching:
+            user = matching[0]
+            user_id = user['user_id']
+            token = hashlib.sha256(
+                f'{user_id}{time.time()}{os.urandom(16).hex()}'.encode()
+            ).hexdigest()[:32]
+            resets = _load_resets()
+            resets[token] = {
+                'user_id': user_id,
+                'created': time.time(),
+            }
+            _save_resets(resets)
+
+            reset_url = f'{config.get("WEBSITE_BASE_URL", "http://localhost:6464")}/reset-password/{token}'
+            template_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'cfg', 'password-reset.md')
+            try:
+                template = open(template_path).read()
+            except OSError:
+                template = 'Reset your password: {{reset_url}}'
+            import markdown
+            body_md = (template
+                       .replace('{{name}}', user.get('name', user_id))
+                       .replace('{{user_id}}', user_id)
+                       .replace('{{reset_url}}', reset_url))
+            body_html = markdown.markdown(body_md)
+            _send_email(
+                to=email,
+                subject='Compunet Reborn — Password Reset',
+                body_html=body_html,
+            )
+            _audit_event('password_reset_request', user=user_id, ip=request.remote_addr)
+
     return render_template('forgot_password.html')
 
 
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
-    # TODO: Implement with token-based reset flow
-    flash('Password reset is not yet implemented.', 'info')
-    return redirect(url_for('login'))
+    resets = _load_resets()
+    entry = resets.get(token)
+
+    if not entry:
+        flash('Invalid or expired reset link.', 'error')
+        return redirect(url_for('forgot_password'))
+
+    if time.time() - entry.get('created', 0) > 86400:
+        del resets[token]
+        _save_resets(resets)
+        flash('Reset link has expired. Please request a new one.', 'error')
+        return redirect(url_for('forgot_password'))
+
+    if request.method == 'GET':
+        return render_template('reset_password.html', token=token, user_id=entry['user_id'])
+
+    password = request.form.get('password', '').upper().strip()
+    confirm = request.form.get('confirm_password', '').upper().strip()
+
+    if not PASSWORD_RE.match(password):
+        flash('Password must be 1-6 characters, A-Z and 0-9 only.', 'error')
+        return render_template('reset_password.html', token=token, user_id=entry['user_id'])
+    if password != confirm:
+        flash('Passwords do not match.', 'error')
+        return render_template('reset_password.html', token=token, user_id=entry['user_id'])
+
+    resp = _api_put(f'/api/users/{entry["user_id"]}', {'password': password})
+    if resp.status_code == 200:
+        del resets[token]
+        _save_resets(resets)
+        _audit_event('password_reset', user=entry['user_id'], ip=request.remote_addr)
+        flash('Password reset successfully. You can now log in.', 'success')
+        return redirect(url_for('login'))
+    else:
+        flash('Password reset failed. Please try again.', 'error')
+        return render_template('reset_password.html', token=token, user_id=entry['user_id'])
 
 
 # ============================================================
