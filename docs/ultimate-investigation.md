@@ -236,10 +236,22 @@ TCP connection established successfully. Server receives connection and sends X.
 handshake (12x $20). Client receives handshake data in NMI buffer (yellow border
 debug indicator). Full login sequence not yet tested (debug hangs still in place).
 
+## Fixed: Reconnect on Ultimate
+
+The auto-connect reconnect failure was caused by `auto_connect_addr` data being
+placed AFTER CRT_ENTRY in the binary, causing it to extend into the NMI ring
+buffer at $CE00. After the first connection, received protocol data overwrote
+the hostname, corrupting subsequent ATDT commands.
+
+The DNS lookups showed corrupted hostnames ("vme.atdtvme.atdtvme.", "oodbye!")
+which were actually NMI buffer data that had overwritten the hostname bytes.
+
+Fix: moved `auto_connect_addr` before CRT_ENTRY, ensuring it stays below $CE00.
+
+The earlier observations about "goodbye frame polluting the bridge buffer" were
+a red herring — it was our own NMI buffer overwriting the hostname in RAM.
+
 ## Next Steps
 
-- Remove debug hangs and test full connection flow (CNET ident → *CON → login).
-- Address stack corruption issue (Ultimate firmware writes to stack page during TCP
-  operations) — may need to avoid RTS in the connect path.
-- Test on VICE to confirm no regression.
-- Consider implementing UCI path as a future alternative for Ultimate-native support.
+- Consider implementing UCI path as an alternative to modem emulation (would bypass
+  all ACIA/NMI issues entirely, but requires Ultimate-specific code).
