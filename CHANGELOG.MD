@@ -13,6 +13,9 @@
 * Website:
 	* Admin panel: EDITOR checkbox on user edit page.
 	* Admin panel: Audit Log page with pagination (50 events/page).
+* Content:
+	* New PETSCII COMPUNET logo header for root directory (extracted from
+	  welcome frame artwork).
 * Dev:
 	* `vice_test.sh` updated for SFX auto-connect client (no SYS or IP needed).
 	  Usage: `./vice_test.sh <username> <password> [--restart-server]`

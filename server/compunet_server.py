@@ -579,6 +579,8 @@ class CompunetSession:
                              child.price, self.credit)
                 self.show_page = child
                 self.show_frame_index = 0
+                audit_log('read', user=self.user_id, page=child.page_num,
+                          title=child.title, type=child.page_type)
                 return self._send_current_frame()
             elif child.has_subdir():
                 self.current_page = child
@@ -687,6 +689,8 @@ class CompunetSession:
                 header = bytes([0x00, 0x00, 0x00, 0x00, load_lo, load_hi, size_lo, size_hi])
                 self._program_download_pending = True
                 self._program_download_data = program_bytes
+                self._download_page_num = self.show_page.page_num
+                self._download_title = self.show_page.title
                 log.info('PROGRAM: page=%d "%s" load=$%02X%02X size=%d bytes (%dK), header sent',
                          self.show_page.page_num, self.show_page.title,
                          load_hi, load_lo, size, (size + 1023) // 1024)
@@ -949,6 +953,8 @@ class CompunetSession:
             votes[page_key] = {}
         votes[page_key][self.user_id] = score
         self._save_votes(votes)
+        audit_log('vote', user=self.user_id, page=page.page_num,
+                  title=page.title, score=score)
 
         avg = round(sum(votes[page_key].values()) / len(votes[page_key]))
         page.vote = avg
@@ -2420,6 +2426,9 @@ async def tcp_handler(reader, writer):
                     session._program_download_pending = False
                     session._program_download_data = None
                     log.info('DOWNLOAD: proceed received, sending %d bytes of program data', len(program_data))
+                    audit_log('download', user=session.user_id,
+                              page=getattr(session, '_download_page_num', 0),
+                              title=getattr(session, '_download_title', ''))
                     await asyncio.sleep(0.5)
                     MAX_PAYLOAD = 100
                     offset = 0
