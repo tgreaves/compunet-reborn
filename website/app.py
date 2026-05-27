@@ -174,6 +174,28 @@ def guide():
     return render_template('guide.html')
 
 
+@app.route('/contact', methods=['GET', 'POST'])
+def contact():
+    if request.method == 'GET':
+        return render_template('contact.html')
+
+    name = request.form.get('name', '').strip()
+    email = request.form.get('email', '').strip()
+    message = request.form.get('message', '').strip()
+
+    if not name or not email or not message:
+        flash('Please fill in all fields.', 'error')
+        return render_template('contact.html')
+
+    _send_email(
+        to='admin@compunet.live',
+        subject=f'Compunet Reborn — Contact from {name}',
+        body_text=f'From: {name} <{email}>\n\n{message}',
+    )
+    flash('Message sent! We\'ll get back to you soon.', 'success')
+    return render_template('contact.html')
+
+
 # ============================================================
 # Registration
 # ============================================================

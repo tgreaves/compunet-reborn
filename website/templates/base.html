@@ -14,6 +14,7 @@
                 <a href="{{ url_for('about') }}">ABOUT</a>
                 <a href="{{ url_for('connect') }}">CONNECT</a>
                 <a href="{{ url_for('guide') }}">GUIDE</a>
+                <a href="{{ url_for('contact') }}">CONTACT</a>
                 {% if session.get('user_id') %}
                     <a href="{{ url_for('account') }}">ACCOUNT</a>
                     {% if session.get('user_id') == 'ADMIN' %}

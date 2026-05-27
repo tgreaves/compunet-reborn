@@ -28,6 +28,8 @@
 	* Admin panel: Audit Log page with pagination (50 events/page), now shows IP.
 	* Admin notification email when a new user completes registration
 	  (templated via `server/cfg/new-user-notification.md`).
+	* Contact page: form sends email to admin@compunet.live, links to
+	  Courier mail on Compunet and Compunet Corner on Facebook.
 	* Password reset via email: user enters email address, receives a 24-hour
 	  tokenised reset link (template at `server/cfg/password-reset.md`).
 	* "Forgot password?" link on login page.

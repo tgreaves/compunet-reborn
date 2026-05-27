@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Contact — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>CONTACT</h1>
+
+<p>Got a question, suggestion, or just want to say hello? Get in touch!</p>
+
+<h2>SEND A MESSAGE</h2>
+
+<form method="POST">
+    <div class="form-group">
+        <label for="name">YOUR NAME</label>
+        <input type="text" id="name" name="name" required>
+    </div>
+
+    <div class="form-group">
+        <label for="email">YOUR EMAIL</label>
+        <input type="email" id="email" name="email" required>
+    </div>
+
+    <div class="form-group">
+        <label for="message">MESSAGE</label>
+        <textarea id="message" name="message" rows="6" required style="width:100%; max-width:400px; padding:12px 16px; background-color:var(--c64-surface); border:2px solid var(--c64-surface-light); border-radius:var(--radius); color:var(--c64-white); font-family:var(--font-body); font-size:15px;"></textarea>
+    </div>
+
+    <button type="submit">SEND</button>
+</form>
+
+<h2>OTHER WAYS TO REACH US</h2>
+
+<div class="info-box">
+    <h3>ON COMPUNET</h3>
+    <p>Already connected? Send a Courier mail to <strong>ADMIN</strong> from within Compunet itself.</p>
+</div>
+
+<div class="info-box">
+    <h3>FACEBOOK</h3>
+    <p>Join the community at <a href="https://www.facebook.com/groups/252161858214514">Compunet Corner</a> on Facebook — chat with other former (and current!) Compunet users.</p>
+</div>
+{% endblock %}
