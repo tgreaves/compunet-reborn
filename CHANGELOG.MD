@@ -17,6 +17,9 @@
 	* Fixed *QUIT: *EXIT sentinel was being PETSCII-converted, client couldn't match.
 	* Blank line after "has left partyline" message.
 	* Max idle ping limit (20): disconnects ghost sessions instead of pinging forever.
+	* Admin/editor commands: *kick, *ban, *unban. Bans persisted to
+	  `cfg/partyline-bans.json`. Banned users rejected on entry.
+	* ADMIN user cannot be kicked or banned.
 * Website:
 	* Admin panel: EDITOR checkbox on user edit page.
 	* Admin panel: Audit Log page with pagination (50 events/page), now shows IP.
