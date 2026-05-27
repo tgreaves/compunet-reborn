@@ -236,10 +236,32 @@ TCP connection established successfully. Server receives connection and sends X.
 handshake (12x $20). Client receives handshake data in NMI buffer (yellow border
 debug indicator). Full login sequence not yet tested (debug hangs still in place).
 
+## Known Limitation: Reconnect on Ultimate
+
+After LEAVE, the Ultimate's bridge captures the server's goodbye frame data
+("GOODBYE!") into its AT command buffer. On the next CONNECT, the bridge sends
+a corrupted hostname to DNS (e.g. "vme.atdtvme.atdtvme." or "oodbye!" prefix).
+
+Root cause: the bridge returns to AT command mode after TCP disconnects, and any
+bytes still in transit from the server's goodbye frame are interpreted as AT command
+data. The bridge accumulates this until it sees a valid ATDT, prepending the stale
+data to the hostname.
+
+This ONLY affects the auto-connect client (no delay between ACIA_INIT and ATDT).
+The manual client works because typing the hostname introduces enough delay for
+the bridge's buffer to clear.
+
+Attempted fixes that didn't work:
+- DTR drop in ACIA_INIT (bridge ignores or locks up the Ultimate menu)
+- ATH (hang up) before ATDT (bridge ignores)
+- Bare CR before ATDT (breaks VICE — server sees CR as first byte)
+
+Possible future solutions:
+- Server stops sending goodbye frame on LEAVE (avoids polluting bridge buffer)
+- UCI path (bypasses modem bridge entirely)
+- User reloads the PRG between sessions (workaround)
+
 ## Next Steps
 
-- Remove debug hangs and test full connection flow (CNET ident → *CON → login).
-- Address stack corruption issue (Ultimate firmware writes to stack page during TCP
-  operations) — may need to avoid RTS in the connect path.
-- Test on VICE to confirm no regression.
-- Consider implementing UCI path as a future alternative for Ultimate-native support.
+- Consider implementing UCI path as an alternative to modem emulation (would bypass
+  all ACIA/NMI issues entirely, but requires Ultimate-specific code).

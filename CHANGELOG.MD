@@ -2,9 +2,13 @@
 
 * Client:
 	* Fixed intermittent CPU JAM ($0008) on Windows VICE: SFX decompressor left
-	  residue on the stack page ($01BA-$01FF) which corrupted RTS return addresses
-	  during deep call stacks (e.g. directory rendering). CRT_ENTRY now clears the
-	  full stack page ($0100-$01FF).
+	  dirty zero-page locations ($9E,$9F,$A7,$A8,$AE,$AF) and residue on the stack
+	  page. CRT_ENTRY now clears both zero-page decompressor state and the full
+	  stack page ($0100-$01FF).
+	* Fixed "stuck on Dialling" on reconnect: ACIA_DIAL @wait_resp now has an ~8
+	  second timeout. Returns to prompt on failure instead of hanging forever.
+	* ACIA_WAIT_READY TDRE poll has ~4 second timeout for Windows VICE where the
+	  socket may not be established immediately.
 
 # 0.6.2-beta (2026-05-27)
 
