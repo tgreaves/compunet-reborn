@@ -40,6 +40,18 @@
       "life": 0,
       "keyword": "PARTYLINE",
       "directory": "partyline/directory.json"
+    },
+    {
+      "page_num": 800,
+      "title": "WHO IS ONLINE?",
+      "type": "T",
+      "author": "SYSTEM",
+      "price": 0,
+      "life": 0,
+      "frames": [
+        "frame-1.seq"
+      ],
+      "dynamic": "who"
     }
   ]
 }

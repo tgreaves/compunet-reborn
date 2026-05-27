@@ -15,6 +15,10 @@
 	* Fixed UCAT: SHOW now works on entries (price field must be first column
 	  for client's free/paid check). LIFE reloads UCAT instead of previous DIR.
 	* Pre-response delay reduced from 500ms to 250ms.
+	* WHO IS ONLINE? (page 800): dynamic page showing connected users with
+	  partyline indicator (*). Regenerated on each view.
+	* `dynamic` flag in directory JSON for server-generated pages.
+	* Page title slugs now strip filesystem-unsafe characters (?, !, etc.).
 * Partyline:
 	* Fixed case handling: uppercase/lowercase now preserved correctly in messages.
 	* Fixed *QUIT: *EXIT sentinel was being PETSCII-converted, client couldn't match.

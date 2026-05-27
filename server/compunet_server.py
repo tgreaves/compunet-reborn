@@ -98,6 +98,59 @@ ROOT_DIR = os.path.join(CONTENT_DIR, 'root')
 MAIL_DIR = os.path.join(DATA_DIR, 'mail')
 VOTES_PATH = os.path.join(DATA_DIR, 'votes.json')
 
+# Active session tracking
+_online_users = set()  # user IDs currently logged in
+
+WHO_PAGE_DIR = os.path.join(ROOT_DIR, 'who-is-online')  # slug of "WHO IS ONLINE?"
+WHO_PAGE_NUM = 800
+
+
+def _regenerate_who_frame():
+    """Regenerate the WHO IS ONLINE frame SEQ file from current sessions."""
+    import partyline as pl
+    os.makedirs(WHO_PAGE_DIR, exist_ok=True)
+
+    users = sorted(_online_users)
+    partyline_users = set(pl._users.keys()) if hasattr(pl, '_users') else set()
+
+    frame = bytearray()
+    # Frame init (same prefix as NEWS frame)
+    frame.append(0x00)  # frame flags
+    frame.append(0x06)  # repeat space...
+    frame.append(0x0F)  # ...15 times (clear line)
+    frame.append(0x8E)  # uppercase mode
+    frame.append(0x0D)  # CR
+    frame.append(0x1F)  # blue text
+    frame.extend(ascii_to_petscii('  CURRENTLY ON COMPUNET'))
+    frame.append(0x0D)
+    frame.append(0x0D)
+
+    # 3 columns, 13 chars each
+    col_width = 13
+    cols = 3
+    row_count = (len(users) + cols - 1) // cols
+
+    for row in range(row_count):
+        line = ''
+        for col in range(cols):
+            idx = row + col * row_count
+            if idx < len(users):
+                uid = users[idx]
+                star = '*' if uid in partyline_users else ' '
+                entry = ' ' + uid + star
+                line += entry.ljust(col_width)
+        frame.extend(ascii_to_petscii(line.rstrip()))
+        frame.append(0x0D)
+
+    # Footer
+    frame.append(0x0D)
+    frame.extend(ascii_to_petscii('  * CURRENTLY ON PARTYLINE'))
+    frame.append(0x0D)
+
+    with open(os.path.join(WHO_PAGE_DIR, 'frame-1.seq'), 'wb') as f:
+        f.write(bytes(frame))
+
+
 # Protocol constants
 RESP_ACK = 0x41       # 'A' - acknowledge/proceed
 RESP_LINKING = 0x4C   # 'L' - linking required
@@ -122,7 +175,6 @@ CMD_BUY = 0x58        # 'X'
 _lock_users = asyncio.Lock()
 _lock_content = asyncio.Lock()
 _lock_mail = asyncio.Lock()
-_online_users = set()
 
 # PETSCII helpers
 PETSCII_RETURN = 0x0D
@@ -256,9 +308,16 @@ class CompunetDirectory:
             with open(adverts_path, 'r') as f:
                 self.global_adverts = json.load(f).get('adverts', [])
 
+    @staticmethod
+    def _make_slug(title):
+        """Convert a page title to a filesystem-safe directory slug."""
+        slug = title.lower().replace(' ', '-')
+        slug = re.sub(r'[^a-z0-9\-]', '', slug)
+        return slug.strip('-') or 'untitled'
+
     def _build_flat_page(self, node, parent, base_dir):
         """Build a page from flat JSON node, resolving paths from its folder."""
-        page_slug = node['title'].lower().replace(' ', '-')
+        page_slug = self._make_slug(node['title'])
         page_dir = os.path.join(base_dir, page_slug)
 
         page = CompunetPage(
@@ -273,6 +332,7 @@ class CompunetDirectory:
         )
         page.parent = parent
         page._dir_path = page_dir
+        page.dynamic = node.get('dynamic', None)
         self.pages[page.page_num] = page
 
         # Load frames from page folder
@@ -384,6 +444,7 @@ class CompunetSession:
         self.is_editor = user.get('editor', False)
         log.info('Login OK: %s (credit=%.2f, purchased=%s)', user_id, self.credit, self.purchased)
         audit_log('connect', user=user_id, ip=self.client_ip)
+        _online_users.add(user_id)
         return self._make_welcome_frame(user)
     
     def handle_command(self, data):
@@ -580,6 +641,14 @@ class CompunetSession:
                              child.price, self.credit)
                 self.show_page = child
                 self.show_frame_index = 0
+                # Dynamic pages: regenerate content on each view
+                if getattr(child, 'dynamic', None) == 'who':
+                    _regenerate_who_frame()
+                    # Reload frame from disk
+                    frame_path = os.path.join(WHO_PAGE_DIR, 'frame-1.seq')
+                    if os.path.exists(frame_path):
+                        with open(frame_path, 'rb') as f:
+                            child.frames = [f.read()]
                 audit_log('read', user=self.user_id, page=child.page_num,
                           title=child.title, type=child.page_type)
                 return self._send_current_frame()
@@ -1461,7 +1530,7 @@ class CompunetSession:
         next_page_num = max(all_pages) + 1 if all_pages else 1000
 
         # Create page folder
-        page_slug = send['title'].lower().replace(' ', '-')
+        page_slug = CompunetDirectory._make_slug(send['title'])
         parent_dir = getattr(self.current_page, '_dir_path', ROOT_DIR)
         page_dir = os.path.join(parent_dir, page_slug)
         os.makedirs(page_dir, exist_ok=True)
@@ -2498,6 +2567,8 @@ async def tcp_handler(reader, writer):
         except (ConnectionResetError, BrokenPipeError, OSError):
             pass
         log.info('TCP client disconnected: %s', addr)
+        if session.user_id and session.user_id in _online_users:
+            _online_users.discard(session.user_id)
 
 
 # ============================================================
