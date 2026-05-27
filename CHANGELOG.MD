@@ -1,3 +1,13 @@
+# 0.6.2-beta (2026-05-27)
+
+* Client:
+	* Fixed intermittent "stuck on Dialling" in VICE auto-connect client: removed
+	  NMI disable during TX (was setting RTS high which blocked VICE socket),
+	  added TDRE poll + 200ms settle delay before dialling to wait for socket
+	  readiness.
+* Dev:
+	* Build hash override: `make HASH=xxxxxx` for testing against a specific server.
+
 # 0.6.1-beta (2026-05-24)
 
 * Client:

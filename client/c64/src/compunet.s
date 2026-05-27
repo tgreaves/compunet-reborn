@@ -1734,6 +1734,21 @@ L8DA4:
     LDY #.hibyte(L8D19)
     JSR PRINT_STRING                    ; Print "DIALLING"
     JSR ACIA_INIT
+    ; Wait for ACIA to become ready (TDRE set = socket connected in VICE)
+    ; Without this, auto-connect races ahead before VICE connects the socket.
+@acia_settle:
+    LDA ACIA_STATUS
+    AND #$10                            ; TDRE?
+    BEQ @acia_settle
+    ; Brief settle (~200ms) for socket to fully establish
+    LDA $A2
+    CLC
+    ADC #$0C
+    STA $02
+@settle_wait:
+    LDA $A2
+    CMP $02
+    BNE @settle_wait
     JSR ACIA_DIAL
     BCS L8E1C                           ; C=1 = failed
     JSR ACIA_PROTO_CONNECT              ; Polling-based handshake
@@ -6924,9 +6939,6 @@ ACIA_WAIT_READY:
 ; Returns: C=0 success, C=1 failure
 ; =================================================================
 ACIA_DIAL:
-    ; Disable RX NMI during transmission to prevent byte loss
-    LDA #$01                            ; DTR active, RX IRQ disabled
-    STA ACIA_CMD
     ; Send "ATDT" in ASCII (bridge expects ASCII AT commands)
     LDA #$41                            ; 'A' ASCII
     JSR ACIA_WAIT_READY
@@ -6961,9 +6973,9 @@ ACIA_DIAL:
 @send_cr:
     LDA #$0D
     JSR ACIA_WAIT_READY
-    ; Re-enable RX NMI to receive bridge response
-    LDA #$09                            ; DTR active, RX IRQ enabled
-    STA ACIA_CMD
+    ; Flush buffer — discard any echo received during TX
+    LDA NMI_BUF_TAIL
+    STA NMI_BUF_HEAD
     ; Wait for "CONNECT" response — poll for CR via NMI buffer
 @wait_resp:
     LDA NMI_BUF_HEAD

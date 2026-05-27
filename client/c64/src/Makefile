@@ -1,5 +1,6 @@
 # Compunet Reborn — Build System
 # Usage: make
+#        make HASH=6fc715   (override client hash for testing against a specific server)
 # Output:
 #   ../compunet-reborn.prg          (raw PRG, SYS 33184)
 #   ../compunet-reborn-sfx.prg     (self-extracting, LOAD + RUN)
@@ -73,8 +74,11 @@ $(BIN): $(OBJ) $(CFG)
 $(OBJ): $(SRC) $(VERSION_INC) | build
 	$(CA65) -t c64 $(SRC) -o $(OBJ)
 
+# Usage: make HASH=6fc715   (override client hash for testing against a specific server)
+HASH_ARG = $(if $(HASH),--hash=$(HASH),)
+
 $(VERSION_INC): $(VERSION_FILE) | build
-	python3 gen_version.py
+	python3 gen_version.py $(HASH_ARG)
 
 build:
 	mkdir -p build

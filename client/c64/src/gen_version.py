@@ -25,7 +25,14 @@ version = open(version_file).read().strip()
 
 # Generate a 6-char hash from the client source file
 # This only changes when client code actually changes
-source_hash = hashlib.sha256(open(source_file, 'rb').read()).hexdigest()[:6].upper()
+# Override with --hash=XXXX argument for testing against a specific server version
+import sys
+source_hash = ''
+for arg in sys.argv[1:]:
+    if arg.startswith('--hash='):
+        source_hash = arg.split('=', 1)[1].upper()
+if not source_hash:
+    source_hash = hashlib.sha256(open(source_file, 'rb').read()).hexdigest()[:6].upper()
 
 # --- version.inc ---
 label = ' COMPUNET REBORN  ' + version.upper() + ' '
