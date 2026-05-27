@@ -1,15 +1,15 @@
 #!/bin/bash
 # Compunet Reborn — Automated VICE test launcher
-# Launches x64sc with the client PRG, injects keystrokes to automate login.
+# Launches x64sc with the SFX client, injects keystrokes to automate login.
+# VICE autostart handles LOAD + RUN; this script sends CONNECT + credentials.
 # Leaves remote monitor open on port 6510 for debug sessions.
 #
-# Usage: ./test.sh <ip_address> <username> <password> [--restart-server]
+# Usage: ./vice_test.sh <username> <password> [--restart-server]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PRG="$SCRIPT_DIR/client/c64/compunet-reborn.prg"
-D64="$SCRIPT_DIR/client/c64/compunet-reborn.d64"
+D64="$SCRIPT_DIR/client/c64/compunet-reborn-live.d64"
 MONITOR_PORT=6510
 VICE=x64sc
 
@@ -26,14 +26,13 @@ for arg in "$@"; do
     fi
 done
 
-if [ ${#args[@]} -ne 3 ]; then
-    echo "Usage: $0 <ip_address> <username> <password> [--restart-server]"
+if [ ${#args[@]} -ne 2 ]; then
+    echo "Usage: $0 <username> <password> [--restart-server]"
     exit 1
 fi
 
-IP_ADDRESS="${args[0]}"
-USERNAME="${args[1]}"
-PASSWORD="${args[2]}"
+USERNAME="${args[0]}"
+PASSWORD="${args[1]}"
 
 # --- Preflight checks ---
 
@@ -42,6 +41,8 @@ if [ ! -f "$D64" ]; then
     echo "Build it first: make -C client/c64/src/"
     exit 1
 fi
+
+PRG="$D64"
 
 if ! command -v "$VICE" &>/dev/null; then
     echo "Error: $VICE not found in PATH"
@@ -66,8 +67,7 @@ fi
 # --- Launch VICE ---
 
 echo "Launching $VICE with remote monitor on port $MONITOR_PORT..."
-echo "  PRG:      $PRG"
-echo "  Server:   $IP_ADDRESS"
+echo "  D64:      $D64"
 echo "  Username: $USERNAME"
 
 $VICE \
@@ -109,28 +109,24 @@ send_keybuf() {
 
 # --- Inject login sequence ---
 # All keystrokes sent via remote monitor for consistent behaviour.
+# Uses the live (auto-connect) D64 — no phone number needed.
 
-# Step 1: SYS 33184 (after PRG loads and READY. prompt appears)
+# Step 1: RUN (VICE autostart loads but doesn't RUN for ,8 loads)
 sleep 3
-echo "Sending: SYS 33184"
-send_keybuf "SYS 33184"
+echo "Sending: RUN"
+send_keybuf "RUN"
 
-# Step 2: CONNECT command (after SYS 33184 returns to READY.)
-sleep 3
+# Step 2: Wait for decompression + CONNECT (auto-connect dials automatically)
+sleep 7
 echo "Sending: CONNECT"
 send_keybuf "CONNECT"
 
-# Step 3: IP address (phone number prompt)
-sleep 2
-echo "Sending: $IP_ADDRESS"
-send_keybuf "$IP_ADDRESS"
-
-# Step 4: Username
-sleep 7
+# Step 3: Username (wait for LINKING + welcome screen)
+sleep 8
 echo "Sending: $USERNAME"
 send_keybuf "$USERNAME"
 
-# Step 5: Password (sent char-by-char as the input routine drains the buffer quickly)
+# Step 4: Password (sent char-by-char as the input routine drains the buffer quickly)
 sleep 1
 echo "Sending: $PASSWORD"
 local_pass=$(echo "$PASSWORD" | tr '[:upper:]' '[:lower:]')
@@ -138,7 +134,7 @@ for (( i=0; i<${#local_pass}; i++ )); do
     char="${local_pass:$i:1}"
     echo "keybuf $char" | nc -q 1 127.0.0.1 $MONITOR_PORT >/dev/null 2>&1 \
         || echo "keybuf $char" | nc -w 1 127.0.0.1 $MONITOR_PORT >/dev/null 2>&1
-    sleep 0.1
+    sleep 0.02
 done
 send_keybuf ""
 

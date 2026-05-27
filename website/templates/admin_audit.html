@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — Admin — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>AUDIT LOG</h1>
+
+<p>Recent system events (newest first). Page {{ page }} of {{ total_pages }}.</p>
+
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>TIME</th>
+            <th>EVENT</th>
+            <th>USER</th>
+            <th>DETAILS</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in entries %}
+        <tr>
+            <td>{{ entry.time }}</td>
+            <td>{{ entry.event }}</td>
+            <td>{{ entry.get('user', '') }}</td>
+            <td>
+                {% for key, val in entry.items() %}
+                    {% if key not in ('time', 'event', 'user') %}
+                        {{ key }}={{ val }}{% if not loop.last %}, {% endif %}
+                    {% endif %}
+                {% endfor %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if not entries %}
+<p>No audit events recorded yet.</p>
+{% endif %}
+
+<div style="margin-top: 24px;">
+    {% if page > 1 %}
+        <a href="{{ url_for('admin_audit', page=page-1) }}" class="btn">&lt; NEWER</a>
+    {% endif %}
+    {% if page < total_pages %}
+        <a href="{{ url_for('admin_audit', page=page+1) }}" class="btn">OLDER &gt;</a>
+    {% endif %}
+</div>
+
+<p style="margin-top: 24px;"><a href="{{ url_for('admin_users') }}">&lt; BACK TO ADMIN</a></p>
+{% endblock %}

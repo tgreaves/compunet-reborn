@@ -360,6 +360,8 @@ def admin_edit_user(user_id):
     if account_type:
         updates['account_type'] = account_type
 
+    updates['editor'] = 'editor' in request.form
+
     if updates:
         resp = _api_put(f'/api/users/{user_id}', updates)
         if resp.status_code == 200:
@@ -466,6 +468,23 @@ def admin_partyline():
         ws_url = api_url.replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/partyline'
     return render_template('admin_partyline.html', api_key=api_key, ws_url=ws_url,
                            user_id=session['user_id'])
+
+
+@app.route('/admin/audit')
+def admin_audit():
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    page = int(request.args.get('page', 1))
+    per_page = 50
+    resp = _api_get(f'/api/audit?page={page}&per_page={per_page}')
+    data = resp.json() if resp.status_code == 200 else {}
+    entries = data.get('entries', [])
+    total = data.get('total', 0)
+    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+    return render_template('admin_audit.html', entries=entries,
+                           page=page, total_pages=total_pages)
 
 
 # ============================================================

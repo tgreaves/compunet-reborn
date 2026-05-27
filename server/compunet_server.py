@@ -67,6 +67,25 @@ if os.path.exists(_env_file):
             _key, _val = _line.split('=', 1)
             os.environ.setdefault(_key.strip(), _val.strip())
 
+# Audit log
+AUDIT_LOG_PATH = os.path.join(os.path.dirname(__file__), 'data', 'audit.jsonl')
+
+def audit_log(event, user=None, **details):
+    """Append an event to the audit log (JSON-lines format)."""
+    entry = {
+        'time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'event': event,
+    }
+    if user:
+        entry['user'] = user
+    entry.update(details)
+    try:
+        os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
+        with open(AUDIT_LOG_PATH, 'a') as f:
+            f.write(json.dumps(entry) + '\n')
+    except OSError:
+        log.warning('Failed to write audit log entry: %s', entry)
+
 # Server configuration
 WS_PORT = 6502
 TCP_PORT = 6400
@@ -279,6 +298,8 @@ class CompunetDirectory:
                 page.shortcuts = sub_data.get('shortcuts', None)
                 if sub_data.get('header'):
                     page.header = sub_data['header']
+                if sub_data.get('open_upload'):
+                    page.open_upload = True
                 for child_data in sub_data.get('pages', []):
                     child = self._build_flat_page(child_data, page, sub_base_dir)
                     page.children.append(child)
@@ -309,6 +330,7 @@ class CompunetSession:
         self.user_id = None
         self.authenticated = False
         self.is_admin = False
+        self.is_editor = False
         self.current_page = directory.root
         self.selected_entry = 0
         self.credit = 0.0
@@ -359,7 +381,9 @@ class CompunetSession:
         self.credit = user.get('credit', 0.0)
         self.purchased = set(user.get('purchased', []))
         self.is_admin = user.get('admin', False)
+        self.is_editor = user.get('editor', False)
         log.info('Login OK: %s (credit=%.2f, purchased=%s)', user_id, self.credit, self.purchased)
+        audit_log('connect', user=user_id)
         return self._make_welcome_frame(user)
     
     def handle_command(self, data):
@@ -409,10 +433,17 @@ class CompunetSession:
     
     def _can_upload_here(self):
         """Check if current user can upload/create DIRs in the current page."""
-        if self.is_admin:
+        if self.is_admin or self.is_editor:
             return True
-        author = self.current_page.author
-        return author == 'JUNGLE' or author == self.user_id
+        if self.current_page.author == self.user_id:
+            return True
+        # Check if this page or any ancestor has open_upload set
+        page = self.current_page
+        while page is not None:
+            if getattr(page, 'open_upload', False):
+                return True
+            page = page.parent
+        return False
 
     def _pick_advert(self):
         """Pick a random advert for the current directory."""
@@ -761,11 +792,13 @@ class CompunetSession:
         if child.page_type == 'L':
             return bytes([0x00])
 
-        # Check ownership (admins can modify any content)
-        if child.author != self.user_id and not self.is_admin:
-            log.info('EXTEND DENIED: user=%s is not author of page %d (author=%s)',
-                     self.user_id, child.page_num, child.author)
-            return bytes([0x00])
+        # Positive extend: any user can extend anyone's content
+        # Negative extend: only owner, admin, or editor
+        if extend_by < 0:
+            if child.author != self.user_id and not self.is_admin and not self.is_editor:
+                log.info('EXTEND DENIED: user=%s cannot reduce page %d (author=%s)',
+                         self.user_id, child.page_num, child.author)
+                return bytes([0x00])
 
         num_frames = len(child.frames) if child.frames else 1
 
@@ -793,6 +826,8 @@ class CompunetSession:
             self._save_directory()
             log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
                      self.user_id, child.page_num, child.title, extend_by, child.life)
+            audit_log('extend', user=self.user_id, page=child.page_num,
+                      title=child.title, extend_by=extend_by, new_life=child.life)
 
         elif extend_by < 0:
             # Negative extend: reduce life, refund storage
@@ -1112,6 +1147,10 @@ class CompunetSession:
             self.mail_show_msg = actual_index
             self.mail_frame_index = 0
             # Mark as read with timestamp for auto-expiry
+            if not self.mail_messages[actual_index].get('read'):
+                audit_log('mail_read', user=self.user_id,
+                          from_user=self.mail_messages[actual_index].get('from', ''),
+                          subject=self.mail_messages[actual_index].get('subject', ''))
             self.mail_messages[actual_index]['read'] = True
             if not self.mail_messages[actual_index].get('read_date'):
                 self.mail_messages[actual_index]['read_date'] = datetime.datetime.now().strftime('%Y-%m-%d')
@@ -1247,6 +1286,7 @@ class CompunetSession:
 
         log.info('MAIL SEND: from=%s to=%s subject="%s" type=%s',
                  self.user_id, dest_ids, subject, msg_type)
+        audit_log('mail_send', user=self.user_id, to=dest_ids, subject=subject)
 
         self.pending_send = {
             'mode': 'mail',
@@ -1462,6 +1502,8 @@ class CompunetSession:
         log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
                  next_page_num, send['title'], self.user_id,
                  len(send['frames']), send['price'], send['lifetime'])
+        audit_log('upload', user=self.user_id, title=send['title'],
+                  page=next_page_num, type=send['type'])
         return b''
 
     def _save_directory(self):
@@ -2366,6 +2408,7 @@ async def tcp_handler(reader, writer):
                             if getattr(session, '_enter_partyline', False):
                                 session._enter_partyline = False
                                 log.info('TCP: entering partyline mode for user=%s', session.user_id)
+                                audit_log('partyline', user=session.user_id)
                                 await asyncio.sleep(1.0)
                                 await partyline.handle_session(reader, writer, session.user_id)
                                 log.info('TCP: exited partyline mode, resuming X.25 for user=%s', session.user_id)
@@ -2539,6 +2582,7 @@ def _api_user_public(user_id, user_data):
         'account_type': user_data.get('account_type', 'BASIC'),
         'credit': user_data.get('credit', 0.0),
         'admin': user_data.get('admin', False),
+        'editor': user_data.get('editor', False),
         'subscribed': user_data.get('subscribed', True),
     }
 
@@ -2636,6 +2680,7 @@ async def api_create_user(request):
         _api_save_users(users)
 
     log.info('API: created user %s', user_id)
+    audit_log('signup', user=user_id)
     return aiohttp_web.json_response(
         _api_user_public(user_id, users[user_id]), status=201)
 
@@ -2672,6 +2717,8 @@ async def api_update_user(request):
                     {'error': 'credit must be a number'}, status=400)
         if 'account_type' in body:
             users[user_id]['account_type'] = body['account_type'].upper().strip()
+        if 'editor' in body:
+            users[user_id]['editor'] = bool(body['editor'])
 
         _api_save_users(users)
 
@@ -2880,6 +2927,28 @@ async def api_ws_partyline(request):
     return ws
 
 
+async def api_get_audit(request):
+    """GET /api/audit — return audit log entries with pagination."""
+    page = int(request.query.get('page', '1'))
+    per_page = int(request.query.get('per_page', '50'))
+    if not os.path.exists(AUDIT_LOG_PATH):
+        return aiohttp_web.json_response({'entries': [], 'total': 0})
+    all_entries = []
+    with open(AUDIT_LOG_PATH, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    all_entries.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    total = len(all_entries)
+    all_entries.reverse()
+    start = (page - 1) * per_page
+    entries = all_entries[start:start + per_page]
+    return aiohttp_web.json_response({'entries': entries, 'total': total})
+
+
 # ============================================================
 # Main
 # ============================================================
@@ -2905,6 +2974,7 @@ async def main():
         app.router.add_get('/api/pending/{token}', api_get_pending)
         app.router.add_delete('/api/pending/{token}', api_consume_pending)
         app.router.add_post('/api/broadcast', api_broadcast)
+        app.router.add_get('/api/audit', api_get_audit)
         app.router.add_get('/ws/partyline', api_ws_partyline)
         runner = aiohttp_web.AppRunner(app)
         await runner.setup()

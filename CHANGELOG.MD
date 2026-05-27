@@ -1,3 +1,22 @@
+# 0.7-beta (2026-05-27)
+
+* Server:
+	* New EDITOR user role: can upload to any directory and modify any content
+	  (same privileges as ADMIN for content management).
+	* EXTEND permissions relaxed: any user can positively extend anyone's content
+	  (costs their own storage/credit). Only owner, admin, or editor can reduce life.
+	* `open_upload` flag in directory JSON: marks a subtree as open for uploads by
+	  any user (replaces hardcoded "JUNGLE" author check). Set in the Jungle's
+	  directory.json.
+	* Audit/event log: key events (signup, connect, upload, extend, mail send/read,
+	  partyline) logged to `server/data/audit.jsonl`.
+* Website:
+	* Admin panel: EDITOR checkbox on user edit page.
+	* Admin panel: Audit Log page with pagination (50 events/page).
+* Dev:
+	* `vice_test.sh` updated for SFX auto-connect client (no SYS or IP needed).
+	  Usage: `./vice_test.sh <username> <password> [--restart-server]`
+
 # 0.6.2-beta (2026-05-27)
 
 * Client:
