@@ -7678,13 +7678,13 @@ CRT_ENTRY:
     LDX #$FF
     TXS
     CLD
-    ; Clear SFX decruncher at $00FD-$01BA
+    ; Clear stack page and SFX decruncher residue ($0100-$01FF)
     LDA #$00
-    LDX #$BD                    ; clear $00FD + $BD bytes = $00FD-$01B9
-@clr_decr:
-    STA $00FC,X
+    TAX
+@clr_stack:
+    STA $0100,X
     DEX
-    BNE @clr_decr
+    BNE @clr_stack
     ; Clear $0200-$7FFF (SFX data + BASIC area)
     STA $FB
     LDA #$02

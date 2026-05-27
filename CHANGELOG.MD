@@ -1,3 +1,11 @@
+# 0.6.3-beta (2026-05-27)
+
+* Client:
+	* Fixed intermittent CPU JAM ($0008) on Windows VICE: SFX decompressor left
+	  residue on the stack page ($01BA-$01FF) which corrupted RTS return addresses
+	  during deep call stacks (e.g. directory rendering). CRT_ENTRY now clears the
+	  full stack page ($0100-$01FF).
+
 # 0.6.2-beta (2026-05-27)
 
 * Client:
