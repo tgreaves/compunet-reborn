@@ -22,6 +22,9 @@ services:
     ports:
       - "6464:6464"
     volumes:
+      - ./website/templates:/app/templates
+      - ./website/static:/app/static
+      - ./website/app.py:/app/app.py:ro
       - ./.env:/app/.env:ro
     environment:
       - COMPUNET_API_URL=http://compunet-server:6403

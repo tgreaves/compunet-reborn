@@ -46,6 +46,8 @@
 * Dev:
 	* `vice_test.sh` updated for SFX auto-connect client (no SYS or IP needed).
 	  Usage: `./vice_test.sh <username> <password> [--restart-server]`
+	* Website templates, static files, and app.py volume-mounted in Docker.
+	  Template/CSS changes deploy with just `git pull` + container restart (no rebuild).
 
 # 0.6.4-beta (2026-05-28)
 
