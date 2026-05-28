@@ -1,4 +1,4 @@
-# 0.7-beta (2026-05-27)
+# 0.7-beta (2026-05-28)
 
 * Server:
 	* New EDITOR user role: can upload to any directory and modify any content
