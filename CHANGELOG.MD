@@ -47,6 +47,26 @@
 	* `vice_test.sh` updated for SFX auto-connect client (no SYS or IP needed).
 	  Usage: `./vice_test.sh <username> <password> [--restart-server]`
 
+# 0.6.4-beta (2026-05-28)
+
+* Client:
+	* Moved NMI ring buffer from $CE00 to $C500: eliminates overlap with
+	  CRT_ENTRY and auto_connect_addr which grow toward end of ACIA segment.
+	  Fixes Ultimate reconnect crash (hostname corruption) permanently.
+	* ACIA_INIT now forces $00=$2F/$01=$37 (correct DDR/port) before
+	  configuring ACIA. Fixes intermittent I/O invisibility on some VICE
+	  configurations where processor port was left in wrong state.
+	* Makefile: live PRG now uses its own entry point detection
+	  (LIVE_CRT_ENTRY_ADDR) — was using wrong address from non-live binary,
+	  causing jump into hostname data instead of CRT_ENTRY.
+	* @wait_resp timeout increased from ~0.5s to ~8s (was racing with
+	  server's 500ms response delay).
+* Known limitation:
+	* Windows VICE auto-connect intermittently fails to receive server
+	  response. VICE's SwiftLink emulation doesn't deliver TCP data to
+	  the ACIA under certain timing conditions. Workaround: use SFX manual
+	  client (compunet-reborn-sfx.prg) and enter vme.compunet.live:6400.
+
 # 0.6.3-beta (2026-05-27)
 
 * Client:
