@@ -1,3 +1,10 @@
+# 0.7.1-beta (2026-05-28)
+
+* Partyline:
+	* Fixed: client not displaying any received text. NMI ring buffer was moved
+	  to $C500 in the main client but the partyline client still read from $CE00.
+	* Restored PETSCII conversion on send (with raw ASCII for protocol sentinels).
+
 # 0.7-beta (2026-05-28)
 
 * Server:

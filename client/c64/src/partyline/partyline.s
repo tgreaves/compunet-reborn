@@ -27,7 +27,7 @@ ACIA_DATA       = $DE00
 ACIA_STATUS     = $DE01
 
 ; --- NMI Ring Buffer ---
-NMI_BUF         = $CE00         ; 256-byte ring buffer
+NMI_BUF         = $C500         ; 256-byte ring buffer (must match compunet.s)
 NMI_BUF_TAIL    = $029B         ; Write pointer (NMI advances)
 NMI_BUF_HEAD    = $029C         ; Read pointer (we advance)
 
