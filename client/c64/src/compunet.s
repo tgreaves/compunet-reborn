@@ -63,7 +63,7 @@ PROTO_PKT_HDR   = $C203   ; Packet header buffer (6 bytes)
 PROTO_FLAGS     = $8038   ; Protocol state flags
 
 ; --- NMI Ring Buffer ---
-NMI_BUF         = $CE00   ; 256-byte ring buffer
+NMI_BUF         = $C500   ; 256-byte ring buffer (must not overlap ACIA segment)
 NMI_BUF_TAIL    = $029B   ; Write pointer (NMI handler advances)
 NMI_BUF_HEAD    = $029C   ; Read pointer (main code advances)
 
@@ -6784,6 +6784,11 @@ L_B9E5:
 ; Called from MODEM_CHECK trampoline
 ; =================================================================
 ACIA_INIT:
+    ; Ensure I/O is visible (fix corrupted DDR/port on some VICE configs)
+    LDA #$2F
+    STA $00
+    LDA #$37
+    STA $01
     ; Clear ring buffer and upload buffer
     LDA #$00
     STA NMI_BUF_TAIL
@@ -6978,17 +6983,23 @@ ACIA_DIAL:
     LDA NMI_BUF_TAIL
     STA NMI_BUF_HEAD
     ; Wait for "CONNECT" response — poll for CR via NMI buffer (with timeout)
+    LDA #$00
+    STA $02                             ; outer counter (page 0 temp)
     LDX #$00
     LDY #$00
 @wait_resp:
+    LDA ACIA_STATUS                     ; Poke VICE to check socket
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
     BNE @got_resp_byte
-    ; Timeout check
+    ; Timeout check (~8 seconds: 8 * 256 * 256 * ~15 cycles)
     INY
     BNE @wait_resp
     INX
-    CPX #$80                            ; ~8 second timeout
+    BNE @wait_resp
+    INC $02
+    LDA $02
+    CMP #$08
     BNE @wait_resp
     SEC                                 ; Timeout — failure
     RTS
@@ -7713,10 +7724,16 @@ CRT_ENTRY:
     DEX
     BNE @clr_stack
     ; Clear $0200-$7FFF (SFX data + BASIC area)
+    ; Preserve NMI vector at $0318/$0319 (KERNAL default $FE47)
+    ; to prevent crash if SwiftLink fires NMI during clear
+    LDA #$47
+    STA $0318
+    LDA #$FE
+    STA $0319
+    LDA #$00
     STA $FB
     LDA #$02
     STA $FC
-    LDA #$00
     TAY
 @clr_page:
     STA ($FB),Y
