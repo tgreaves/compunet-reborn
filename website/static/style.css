@@ -354,6 +354,31 @@ pre {
     font-size: 13px;
 }
 
+/* Setup columns */
+.setup-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.setup-col {
+    background-color: var(--c64-surface);
+    border: 1px solid var(--c64-surface-light);
+    border-radius: var(--radius);
+    padding: 20px;
+}
+
+.setup-col h3 {
+    margin-bottom: 16px;
+}
+
+@media (max-width: 600px) {
+    .setup-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Admin table */
 .admin-table {
     width: 100%;

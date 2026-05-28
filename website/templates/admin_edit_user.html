@@ -38,6 +38,12 @@
         <p class="hint">BASIC, GOLD, or ADMIN</p>
     </div>
 
+    <div class="form-group">
+        <label for="editor">EDITOR</label>
+        <input type="checkbox" id="editor" name="editor" {% if user.editor %}checked{% endif %}>
+        <p class="hint">Can upload to any directory and modify any content</p>
+    </div>
+
     <button type="submit">SAVE CHANGES</button>
 </form>
 

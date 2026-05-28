@@ -1,3 +1,54 @@
+# 0.7-beta (2026-05-27)
+
+* Server:
+	* New EDITOR user role: can upload to any directory and modify any content
+	  (same privileges as ADMIN for content management).
+	* EXTEND permissions relaxed: any user can positively extend anyone's content
+	  (costs their own storage/credit). Only owner, admin, or editor can reduce life.
+	* `open_upload` flag in directory JSON: marks a subtree as open for uploads by
+	  any user (replaces hardcoded "JUNGLE" author check). Set in the Jungle's
+	  directory.json.
+	* Audit/event log: key events (signup, connect, upload, extend, mail send/read,
+	  partyline, page read, download, vote, password reset) logged to
+	  `server/data/audit.jsonl`. All events include client IP address.
+	* Email from address now shows "Compunet Reborn" as friendly name.
+	* Fixed UCAT: SHOW now works on entries (price field must be first column
+	  for client's free/paid check). LIFE reloads UCAT instead of previous DIR.
+	* Pre-response delay reduced from 500ms to 250ms.
+	* WHO IS ONLINE? (page 800): dynamic page showing connected users with
+	  partyline indicator (*). Regenerated on each view.
+	* `dynamic` flag in directory JSON for server-generated pages.
+	* Page title slugs now strip filesystem-unsafe characters (?, !, etc.).
+* Partyline:
+	* Fixed case handling: uppercase/lowercase now preserved correctly in messages.
+	* Fixed *QUIT: *EXIT sentinel was being PETSCII-converted, client couldn't match.
+	* Blank line after "has left partyline" message.
+	* Max idle ping limit (20): disconnects ghost sessions instead of pinging forever.
+	* Admin/editor commands: *kick, *ban, *unban. Bans persisted to
+	  `cfg/partyline-bans.json`. Banned users rejected on entry.
+	* ADMIN user cannot be kicked or banned.
+* Website:
+	* Admin panel: EDITOR checkbox on user edit page.
+	* Admin panel: Audit Log page with pagination (50 events/page), now shows IP.
+	* Admin notification email when a new user completes registration
+	  (templated via `server/cfg/new-user-notification.md`).
+	* Contact page: form sends email to admin@compunet.live, links to
+	  Courier mail on Compunet and Compunet Corner on Facebook.
+	* Password reset via email: user enters email address, receives a 24-hour
+	  tokenised reset link (template at `server/cfg/password-reset.md`).
+	* "Forgot password?" link on login page.
+	* All audit events now include client IP address.
+	* Connect page: two-column VICE/Ultimate setup, step-by-step screenshots,
+	  Windows VICE workaround callout, SFX manual client download added.
+* Content:
+	* New PETSCII COMPUNET logo header for root directory (extracted from
+	  welcome frame artwork).
+* Dev:
+	* `vice_test.sh` updated for SFX auto-connect client (no SYS or IP needed).
+	  Usage: `./vice_test.sh <username> <password> [--restart-server]`
+	* Website templates, static files, and app.py volume-mounted in Docker.
+	  Template/CSS changes deploy with just `git pull` + container restart (no rebuild).
+
 # 0.6.4-beta (2026-05-28)
 
 * Client:

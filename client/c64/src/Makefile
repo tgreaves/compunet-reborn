@@ -43,6 +43,7 @@ CRT_ENTRY_ADDR = $(shell python3 -c "d=open('$(BIN)','rb').read();import sys;i=d
 
 $(SFX_PRG): $(PRG)
 	exomizer sfx $(CRT_ENTRY_ADDR) $(PRG) -o $(SFX_PRG) -x1 -q
+	@cp $(SFX_PRG) $(WEBSITE_STATIC)/compunet-reborn-sfx.prg
 	@echo "Created $(SFX_PRG) ($$(wc -c < $(SFX_PRG)) bytes, LOAD + RUN, entry=$(CRT_ENTRY_ADDR))"
 
 LIVE_CRT_ENTRY_ADDR = $(shell python3 -c "d=open('$(LIVE_BIN)','rb').read();import sys;i=d.find(b'\x78\xa2\xff\x9a\xd8');addr=0x8000+i;print(f'0x{addr:04X}');sys.exit(1) if addr+80>0xD000 else None" 2>/dev/null || (echo "ERROR: LIVE CRT_ENTRY too close to end of segment" >&2; exit 1))

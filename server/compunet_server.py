@@ -67,6 +67,25 @@ if os.path.exists(_env_file):
             _key, _val = _line.split('=', 1)
             os.environ.setdefault(_key.strip(), _val.strip())
 
+# Audit log
+AUDIT_LOG_PATH = os.path.join(os.path.dirname(__file__), 'data', 'audit.jsonl')
+
+def audit_log(event, user=None, **details):
+    """Append an event to the audit log (JSON-lines format)."""
+    entry = {
+        'time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'event': event,
+    }
+    if user:
+        entry['user'] = user
+    entry.update(details)
+    try:
+        os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
+        with open(AUDIT_LOG_PATH, 'a') as f:
+            f.write(json.dumps(entry) + '\n')
+    except OSError:
+        log.warning('Failed to write audit log entry: %s', entry)
+
 # Server configuration
 WS_PORT = 6502
 TCP_PORT = 6400
@@ -78,6 +97,59 @@ CONTENT_DIR = os.path.join(DATA_DIR, 'content')
 ROOT_DIR = os.path.join(CONTENT_DIR, 'root')
 MAIL_DIR = os.path.join(DATA_DIR, 'mail')
 VOTES_PATH = os.path.join(DATA_DIR, 'votes.json')
+
+# Active session tracking
+_online_users = set()  # user IDs currently logged in
+
+WHO_PAGE_DIR = os.path.join(ROOT_DIR, 'who-is-online')  # slug of "WHO IS ONLINE?"
+WHO_PAGE_NUM = 800
+
+
+def _regenerate_who_frame():
+    """Regenerate the WHO IS ONLINE frame SEQ file from current sessions."""
+    import partyline as pl
+    os.makedirs(WHO_PAGE_DIR, exist_ok=True)
+
+    users = sorted(_online_users)
+    partyline_users = set(pl._users.keys()) if hasattr(pl, '_users') else set()
+
+    frame = bytearray()
+    # Frame init (same prefix as NEWS frame)
+    frame.append(0x00)  # frame flags
+    frame.append(0x06)  # repeat space...
+    frame.append(0x0F)  # ...15 times (clear line)
+    frame.append(0x8E)  # uppercase mode
+    frame.append(0x0D)  # CR
+    frame.append(0x1F)  # blue text
+    frame.extend(ascii_to_petscii('  CURRENTLY ON COMPUNET'))
+    frame.append(0x0D)
+    frame.append(0x0D)
+
+    # 3 columns, 13 chars each
+    col_width = 13
+    cols = 3
+    row_count = (len(users) + cols - 1) // cols
+
+    for row in range(row_count):
+        line = ''
+        for col in range(cols):
+            idx = row + col * row_count
+            if idx < len(users):
+                uid = users[idx]
+                star = '*' if uid in partyline_users else ' '
+                entry = ' ' + uid + star
+                line += entry.ljust(col_width)
+        frame.extend(ascii_to_petscii(line.rstrip()))
+        frame.append(0x0D)
+
+    # Footer
+    frame.append(0x0D)
+    frame.extend(ascii_to_petscii('  * CURRENTLY ON PARTYLINE'))
+    frame.append(0x0D)
+
+    with open(os.path.join(WHO_PAGE_DIR, 'frame-1.seq'), 'wb') as f:
+        f.write(bytes(frame))
+
 
 # Protocol constants
 RESP_ACK = 0x41       # 'A' - acknowledge/proceed
@@ -103,7 +175,6 @@ CMD_BUY = 0x58        # 'X'
 _lock_users = asyncio.Lock()
 _lock_content = asyncio.Lock()
 _lock_mail = asyncio.Lock()
-_online_users = set()
 
 # PETSCII helpers
 PETSCII_RETURN = 0x0D
@@ -237,9 +308,16 @@ class CompunetDirectory:
             with open(adverts_path, 'r') as f:
                 self.global_adverts = json.load(f).get('adverts', [])
 
+    @staticmethod
+    def _make_slug(title):
+        """Convert a page title to a filesystem-safe directory slug."""
+        slug = title.lower().replace(' ', '-')
+        slug = re.sub(r'[^a-z0-9\-]', '', slug)
+        return slug.strip('-') or 'untitled'
+
     def _build_flat_page(self, node, parent, base_dir):
         """Build a page from flat JSON node, resolving paths from its folder."""
-        page_slug = node['title'].lower().replace(' ', '-')
+        page_slug = self._make_slug(node['title'])
         page_dir = os.path.join(base_dir, page_slug)
 
         page = CompunetPage(
@@ -254,6 +332,7 @@ class CompunetDirectory:
         )
         page.parent = parent
         page._dir_path = page_dir
+        page.dynamic = node.get('dynamic', None)
         self.pages[page.page_num] = page
 
         # Load frames from page folder
@@ -279,6 +358,8 @@ class CompunetDirectory:
                 page.shortcuts = sub_data.get('shortcuts', None)
                 if sub_data.get('header'):
                     page.header = sub_data['header']
+                if sub_data.get('open_upload'):
+                    page.open_upload = True
                 for child_data in sub_data.get('pages', []):
                     child = self._build_flat_page(child_data, page, sub_base_dir)
                     page.children.append(child)
@@ -309,6 +390,7 @@ class CompunetSession:
         self.user_id = None
         self.authenticated = False
         self.is_admin = False
+        self.is_editor = False
         self.current_page = directory.root
         self.selected_entry = 0
         self.credit = 0.0
@@ -359,7 +441,10 @@ class CompunetSession:
         self.credit = user.get('credit', 0.0)
         self.purchased = set(user.get('purchased', []))
         self.is_admin = user.get('admin', False)
+        self.is_editor = user.get('editor', False)
         log.info('Login OK: %s (credit=%.2f, purchased=%s)', user_id, self.credit, self.purchased)
+        audit_log('connect', user=user_id, ip=self.client_ip)
+        _online_users.add(user_id)
         return self._make_welcome_frame(user)
     
     def handle_command(self, data):
@@ -409,10 +494,17 @@ class CompunetSession:
     
     def _can_upload_here(self):
         """Check if current user can upload/create DIRs in the current page."""
-        if self.is_admin:
+        if self.is_admin or self.is_editor:
             return True
-        author = self.current_page.author
-        return author == 'JUNGLE' or author == self.user_id
+        if self.current_page.author == self.user_id:
+            return True
+        # Check if this page or any ancestor has open_upload set
+        page = self.current_page
+        while page is not None:
+            if getattr(page, 'open_upload', False):
+                return True
+            page = page.parent
+        return False
 
     def _pick_advert(self):
         """Pick a random advert for the current directory."""
@@ -427,6 +519,7 @@ class CompunetSession:
     def _cmd_goto(self, params):
         """GOTO command ('L') — navigate by page number or keyword."""
         self.last_response_type = None
+        self._ucat_active = False
         if not params:
             return self._make_dir_response()
 
@@ -548,6 +641,16 @@ class CompunetSession:
                              child.price, self.credit)
                 self.show_page = child
                 self.show_frame_index = 0
+                # Dynamic pages: regenerate content on each view
+                if getattr(child, 'dynamic', None) == 'who':
+                    _regenerate_who_frame()
+                    # Reload frame from disk
+                    frame_path = os.path.join(WHO_PAGE_DIR, 'frame-1.seq')
+                    if os.path.exists(frame_path):
+                        with open(frame_path, 'rb') as f:
+                            child.frames = [f.read()]
+                audit_log('read', user=self.user_id, page=child.page_num,
+                          title=child.title, type=child.page_type)
                 return self._send_current_frame()
             elif child.has_subdir():
                 self.current_page = child
@@ -609,6 +712,8 @@ class CompunetSession:
         else:
             log.info('P cmd: dir_displayed=%s params=%s (not entering subdir)',
                      self.dir_displayed, params.hex() if params else 'none')
+        if getattr(self, '_ucat_active', False):
+            return self._cmd_ucat()
         return self._make_dir_response()
     
     def _cmd_more(self, params):
@@ -656,6 +761,8 @@ class CompunetSession:
                 header = bytes([0x00, 0x00, 0x00, 0x00, load_lo, load_hi, size_lo, size_hi])
                 self._program_download_pending = True
                 self._program_download_data = program_bytes
+                self._download_page_num = self.show_page.page_num
+                self._download_title = self.show_page.title
                 log.info('PROGRAM: page=%d "%s" load=$%02X%02X size=%d bytes (%dK), header sent',
                          self.show_page.page_num, self.show_page.title,
                          load_hi, load_lo, size, (size + 1023) // 1024)
@@ -761,11 +868,13 @@ class CompunetSession:
         if child.page_type == 'L':
             return bytes([0x00])
 
-        # Check ownership (admins can modify any content)
-        if child.author != self.user_id and not self.is_admin:
-            log.info('EXTEND DENIED: user=%s is not author of page %d (author=%s)',
-                     self.user_id, child.page_num, child.author)
-            return bytes([0x00])
+        # Positive extend: any user can extend anyone's content
+        # Negative extend: only owner, admin, or editor
+        if extend_by < 0:
+            if child.author != self.user_id and not self.is_admin and not self.is_editor:
+                log.info('EXTEND DENIED: user=%s cannot reduce page %d (author=%s)',
+                         self.user_id, child.page_num, child.author)
+                return bytes([0x00])
 
         num_frames = len(child.frames) if child.frames else 1
 
@@ -793,6 +902,8 @@ class CompunetSession:
             self._save_directory()
             log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
                      self.user_id, child.page_num, child.title, extend_by, child.life)
+            audit_log('extend', user=self.user_id, page=child.page_num,
+                      title=child.title, extend_by=extend_by, new_life=child.life)
 
         elif extend_by < 0:
             # Negative extend: reduce life, refund storage
@@ -863,6 +974,7 @@ class CompunetSession:
 
     def _cmd_back(self):
         """BACK command - go to previous page, or parent directory if on first page."""
+        self._ucat_active = False
         if self.mail_mode:
             if self.mail_show_msg is not None:
                 self.mail_show_msg = None
@@ -914,6 +1026,8 @@ class CompunetSession:
             votes[page_key] = {}
         votes[page_key][self.user_id] = score
         self._save_votes(votes)
+        audit_log('vote', user=self.user_id, page=page.page_num,
+                  title=page.title, score=score)
 
         avg = round(sum(votes[page_key].values()) / len(votes[page_key]))
         page.vote = avg
@@ -1112,6 +1226,10 @@ class CompunetSession:
             self.mail_show_msg = actual_index
             self.mail_frame_index = 0
             # Mark as read with timestamp for auto-expiry
+            if not self.mail_messages[actual_index].get('read'):
+                audit_log('mail_read', user=self.user_id,
+                          from_user=self.mail_messages[actual_index].get('from', ''),
+                          subject=self.mail_messages[actual_index].get('subject', ''))
             self.mail_messages[actual_index]['read'] = True
             if not self.mail_messages[actual_index].get('read_date'):
                 self.mail_messages[actual_index]['read_date'] = datetime.datetime.now().strftime('%Y-%m-%d')
@@ -1247,6 +1365,7 @@ class CompunetSession:
 
         log.info('MAIL SEND: from=%s to=%s subject="%s" type=%s',
                  self.user_id, dest_ids, subject, msg_type)
+        audit_log('mail_send', user=self.user_id, to=dest_ids, subject=subject)
 
         self.pending_send = {
             'mode': 'mail',
@@ -1411,7 +1530,7 @@ class CompunetSession:
         next_page_num = max(all_pages) + 1 if all_pages else 1000
 
         # Create page folder
-        page_slug = send['title'].lower().replace(' ', '-')
+        page_slug = CompunetDirectory._make_slug(send['title'])
         parent_dir = getattr(self.current_page, '_dir_path', ROOT_DIR)
         page_dir = os.path.join(parent_dir, page_slug)
         os.makedirs(page_dir, exist_ok=True)
@@ -1462,6 +1581,8 @@ class CompunetSession:
         log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
                  next_page_num, send['title'], self.user_id,
                  len(send['frames']), send['price'], send['lifetime'])
+        audit_log('upload', user=self.user_id, title=send['title'],
+                  page=next_page_num, type=send['type'])
         return b''
 
     def _save_directory(self):
@@ -1530,10 +1651,10 @@ class CompunetSession:
         data.extend(ascii_to_petscii('  YOUR UPLOADS'))
         data.append(0x00)
 
-        # Part 5: column headers
-        data.extend(ascii_to_petscii('LIFE'))
-        data.append(0x2C)
+        # Part 5: column headers (PRICE must be first — client checks field 1 for SHOW)
         data.extend(ascii_to_petscii('PRICE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('LIFE'))
         data.append(0x2C)
         data.extend(ascii_to_petscii('VOTE'))
         data.append(0x2C)
@@ -1556,12 +1677,12 @@ class CompunetSession:
                 title_field = page.title[:18].ljust(18) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
-                # Column 1: LIFE
-                data.extend(ascii_to_petscii(str(page.life)))
-                data.append(0x2C)
-                # Column 2: PRICE
+                # Column 1: PRICE (must be first — client checks this for SHOW)
                 price_str = '{:.2f}'.format(page.price) if page.price > 0 else ''
                 data.extend(ascii_to_petscii(price_str))
+                data.append(0x2C)
+                # Column 2: LIFE
+                data.extend(ascii_to_petscii(str(page.life)))
                 data.append(0x2C)
                 # Column 3: VOTE
                 vote_str = str(page.vote) if page.vote > 0 else ''
@@ -1571,6 +1692,7 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(str(page.page_num)))
                 data.append(0x0D)
 
+        self._ucat_active = True
         log.info('UCAT: user=%s pages=%d', self.user_id, len(user_pages))
         return bytes(data)
     
@@ -2061,6 +2183,7 @@ async def tcp_handler(reader, writer):
     
     directory = CompunetDirectory()
     session = CompunetSession(directory)
+    session.client_ip = addr[0] if addr else ''
     x25 = X25Connection()
     
     try:
@@ -2332,8 +2455,8 @@ async def tcp_handler(reader, writer):
                         async with _lock_content:
                             cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
-                            log.info('CMD: pre-response delay 500ms starting')
-                            await asyncio.sleep(0.5)
+                            log.info('CMD: pre-response delay 250ms starting')
+                            await asyncio.sleep(0.25)
                             log.info('CMD: sending %d bytes in %d-byte chunks', len(cmd_response), 100)
                             MAX_PAYLOAD = 100
                             offset = 0
@@ -2366,6 +2489,7 @@ async def tcp_handler(reader, writer):
                             if getattr(session, '_enter_partyline', False):
                                 session._enter_partyline = False
                                 log.info('TCP: entering partyline mode for user=%s', session.user_id)
+                                audit_log('partyline', user=session.user_id)
                                 await asyncio.sleep(1.0)
                                 await partyline.handle_session(reader, writer, session.user_id)
                                 log.info('TCP: exited partyline mode, resuming X.25 for user=%s', session.user_id)
@@ -2377,6 +2501,9 @@ async def tcp_handler(reader, writer):
                     session._program_download_pending = False
                     session._program_download_data = None
                     log.info('DOWNLOAD: proceed received, sending %d bytes of program data', len(program_data))
+                    audit_log('download', user=session.user_id,
+                              page=getattr(session, '_download_page_num', 0),
+                              title=getattr(session, '_download_title', ''))
                     await asyncio.sleep(0.5)
                     MAX_PAYLOAD = 100
                     offset = 0
@@ -2440,6 +2567,8 @@ async def tcp_handler(reader, writer):
         except (ConnectionResetError, BrokenPipeError, OSError):
             pass
         log.info('TCP client disconnected: %s', addr)
+        if session.user_id and session.user_id in _online_users:
+            _online_users.discard(session.user_id)
 
 
 # ============================================================
@@ -2481,7 +2610,7 @@ async def _send_mail_notification(recipient_id, sender_id, subject, users):
 
     recipient_name = recipient.get('name', recipient_id)
     sender_name = users.get(sender_id, {}).get('name', sender_id)
-    email_from = os.environ.get('EMAIL_FROM', 'noreply@compunet.live')
+    email_from = os.environ.get('EMAIL_FROM', 'Compunet Reborn <noreply@compunet.live>')
 
     template = open(template_path).read()
     body_md = (template
@@ -2539,6 +2668,7 @@ def _api_user_public(user_id, user_data):
         'account_type': user_data.get('account_type', 'BASIC'),
         'credit': user_data.get('credit', 0.0),
         'admin': user_data.get('admin', False),
+        'editor': user_data.get('editor', False),
         'subscribed': user_data.get('subscribed', True),
     }
 
@@ -2636,6 +2766,7 @@ async def api_create_user(request):
         _api_save_users(users)
 
     log.info('API: created user %s', user_id)
+    audit_log('signup', user=user_id, ip=request.remote)
     return aiohttp_web.json_response(
         _api_user_public(user_id, users[user_id]), status=201)
 
@@ -2672,6 +2803,8 @@ async def api_update_user(request):
                     {'error': 'credit must be a number'}, status=400)
         if 'account_type' in body:
             users[user_id]['account_type'] = body['account_type'].upper().strip()
+        if 'editor' in body:
+            users[user_id]['editor'] = bool(body['editor'])
 
         _api_save_users(users)
 
@@ -2880,6 +3013,28 @@ async def api_ws_partyline(request):
     return ws
 
 
+async def api_get_audit(request):
+    """GET /api/audit — return audit log entries with pagination."""
+    page = int(request.query.get('page', '1'))
+    per_page = int(request.query.get('per_page', '50'))
+    if not os.path.exists(AUDIT_LOG_PATH):
+        return aiohttp_web.json_response({'entries': [], 'total': 0})
+    all_entries = []
+    with open(AUDIT_LOG_PATH, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    all_entries.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    total = len(all_entries)
+    all_entries.reverse()
+    start = (page - 1) * per_page
+    entries = all_entries[start:start + per_page]
+    return aiohttp_web.json_response({'entries': entries, 'total': total})
+
+
 # ============================================================
 # Main
 # ============================================================
@@ -2905,6 +3060,7 @@ async def main():
         app.router.add_get('/api/pending/{token}', api_get_pending)
         app.router.add_delete('/api/pending/{token}', api_consume_pending)
         app.router.add_post('/api/broadcast', api_broadcast)
+        app.router.add_get('/api/audit', api_get_audit)
         app.router.add_get('/ws/partyline', api_ws_partyline)
         runner = aiohttp_web.AppRunner(app)
         await runner.setup()

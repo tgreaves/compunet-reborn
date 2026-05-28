@@ -68,25 +68,29 @@ def _api_consume_pending(token):
         headers=_api_headers())
 
 
-def _send_email(to, subject, body_text):
+def _send_email(to, subject, body_text=None, body_html=None):
     """Send email via Postmark. Returns True on success."""
     postmark_key = config.get('POSTMARK_API_KEY')
     if not postmark_key:
         app.logger.warning('POSTMARK_API_KEY not set — email not sent to %s', to)
-        app.logger.info('Email would be: subject=%s body=%s', subject, body_text)
+        app.logger.info('Email would be: subject=%s body=%s', subject, body_text or body_html)
         return True  # Pretend success in dev mode
+    payload = {
+        'From': config.get('EMAIL_FROM', 'Compunet Reborn <noreply@compunet.live>'),
+        'To': to,
+        'Subject': subject,
+    }
+    if body_html:
+        payload['HtmlBody'] = body_html
+    if body_text:
+        payload['TextBody'] = body_text
     resp = requests.post(
         'https://api.postmarkapp.com/email',
         headers={
             'X-Postmark-Server-Token': postmark_key,
             'Content-Type': 'application/json',
         },
-        json={
-            'From': config.get('EMAIL_FROM', 'noreply@compunet.live'),
-            'To': to,
-            'Subject': subject,
-            'TextBody': body_text,
-        },
+        json=payload,
     )
     if resp.status_code == 200:
         return True
@@ -94,8 +98,56 @@ def _send_email(to, subject, body_text):
     return False
 
 
+AUDIT_LOG_PATH = os.path.join(os.path.dirname(__file__), '..', 'server', 'data', 'audit.jsonl')
+
+def _audit_event(event, user=None, **details):
+    """Append an event to the shared audit log."""
+    import datetime
+    entry = {
+        'time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'event': event,
+    }
+    if user:
+        entry['user'] = user
+    entry.update(details)
+    try:
+        os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
+        with open(AUDIT_LOG_PATH, 'a') as f:
+            f.write(json.dumps(entry) + '\n')
+    except OSError:
+        app.logger.warning('Failed to write audit log entry: %s', entry)
+
+
 def _hash_password(password):
     return hashlib.sha256(password.upper().encode('utf-8')).hexdigest()
+
+
+def _notify_admins_new_user(entry):
+    """Send email to all admin users notifying them of a new registration."""
+    resp = _api_get('/api/users')
+    if resp.status_code != 200:
+        return
+    users = resp.json().get('users', [])
+    admin_emails = [u['email'] for u in users if u.get('admin') and u.get('email')]
+    date = time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())
+    template_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'cfg', 'new-user-notification.md')
+    try:
+        template = open(template_path).read()
+    except OSError:
+        template = 'New user: {{user_id}} ({{name}}, {{email}}) registered on {{date}}.'
+    import markdown
+    body_md = (template
+               .replace('{{user_id}}', entry.get('user_id', ''))
+               .replace('{{name}}', entry.get('name', ''))
+               .replace('{{email}}', entry.get('email', ''))
+               .replace('{{date}}', date))
+    body_html = markdown.markdown(body_md)
+    for email in admin_emails:
+        _send_email(
+            to=email,
+            subject=f'Compunet Reborn — New user registered: {entry["user_id"]}',
+            body_html=body_html,
+        )
 
 
 # ============================================================
@@ -120,6 +172,28 @@ def connect():
 @app.route('/guide')
 def guide():
     return render_template('guide.html')
+
+
+@app.route('/contact', methods=['GET', 'POST'])
+def contact():
+    if request.method == 'GET':
+        return render_template('contact.html')
+
+    name = request.form.get('name', '').strip()
+    email = request.form.get('email', '').strip()
+    message = request.form.get('message', '').strip()
+
+    if not name or not email or not message:
+        flash('Please fill in all fields.', 'error')
+        return render_template('contact.html')
+
+    _send_email(
+        to='admin@compunet.live',
+        subject=f'Compunet Reborn — Contact from {name}',
+        body_text=f'From: {name} <{email}>\n\n{message}',
+    )
+    flash('Message sent! We\'ll get back to you soon.', 'success')
+    return render_template('contact.html')
 
 
 # ============================================================
@@ -206,6 +280,7 @@ def verify(token):
     })
 
     if resp.status_code == 201:
+        _notify_admins_new_user(entry)
         return render_template('verify.html', user_id=entry['user_id'])
     elif resp.status_code == 409:
         flash('That User ID was taken while your verification was pending.', 'error')
@@ -360,6 +435,8 @@ def admin_edit_user(user_id):
     if account_type:
         updates['account_type'] = account_type
 
+    updates['editor'] = 'editor' in request.form
+
     if updates:
         resp = _api_put(f'/api/users/{user_id}', updates)
         if resp.status_code == 200:
@@ -468,9 +545,42 @@ def admin_partyline():
                            user_id=session['user_id'])
 
 
+@app.route('/admin/audit')
+def admin_audit():
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    page = int(request.args.get('page', 1))
+    per_page = 50
+    resp = _api_get(f'/api/audit?page={page}&per_page={per_page}')
+    data = resp.json() if resp.status_code == 200 else {}
+    entries = data.get('entries', [])
+    total = data.get('total', 0)
+    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+    return render_template('admin_audit.html', entries=entries,
+                           page=page, total_pages=total_pages)
+
+
 # ============================================================
 # Password Reset
 # ============================================================
+
+RESETS_FILE = os.path.join(os.path.dirname(__file__), '..', 'server', 'cfg', 'password-resets.json')
+
+
+def _load_resets():
+    if os.path.exists(RESETS_FILE):
+        with open(RESETS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def _save_resets(resets):
+    os.makedirs(os.path.dirname(RESETS_FILE), exist_ok=True)
+    with open(RESETS_FILE, 'w') as f:
+        json.dump(resets, f, indent=2)
+
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -478,18 +588,91 @@ def forgot_password():
         return render_template('forgot_password.html')
 
     email = request.form.get('email', '').strip()
-    # Look up user by email — we need email stored in users.json for this.
-    # For now: show generic "if account exists" message regardless.
-    # TODO: Add email field to users.json and /api/users lookup by email
+    if not email:
+        flash('Please enter your email address.', 'error')
+        return render_template('forgot_password.html')
+
+    # Always show the same message (don't reveal if account exists)
     flash('If an account with that email exists, a reset link has been sent.', 'info')
+
+    # Look up user by email
+    resp = _api_get('/api/users')
+    if resp.status_code == 200:
+        users = resp.json().get('users', [])
+        matching = [u for u in users if u.get('email', '').lower() == email.lower()]
+        if matching:
+            user = matching[0]
+            user_id = user['user_id']
+            token = hashlib.sha256(
+                f'{user_id}{time.time()}{os.urandom(16).hex()}'.encode()
+            ).hexdigest()[:32]
+            resets = _load_resets()
+            resets[token] = {
+                'user_id': user_id,
+                'created': time.time(),
+            }
+            _save_resets(resets)
+
+            reset_url = f'{config.get("WEBSITE_BASE_URL", "http://localhost:6464")}/reset-password/{token}'
+            template_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'cfg', 'password-reset.md')
+            try:
+                template = open(template_path).read()
+            except OSError:
+                template = 'Reset your password: {{reset_url}}'
+            import markdown
+            body_md = (template
+                       .replace('{{name}}', user.get('name', user_id))
+                       .replace('{{user_id}}', user_id)
+                       .replace('{{reset_url}}', reset_url))
+            body_html = markdown.markdown(body_md)
+            _send_email(
+                to=email,
+                subject='Compunet Reborn — Password Reset',
+                body_html=body_html,
+            )
+            _audit_event('password_reset_request', user=user_id, ip=request.remote_addr)
+
     return render_template('forgot_password.html')
 
 
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
-    # TODO: Implement with token-based reset flow
-    flash('Password reset is not yet implemented.', 'info')
-    return redirect(url_for('login'))
+    resets = _load_resets()
+    entry = resets.get(token)
+
+    if not entry:
+        flash('Invalid or expired reset link.', 'error')
+        return redirect(url_for('forgot_password'))
+
+    if time.time() - entry.get('created', 0) > 86400:
+        del resets[token]
+        _save_resets(resets)
+        flash('Reset link has expired. Please request a new one.', 'error')
+        return redirect(url_for('forgot_password'))
+
+    if request.method == 'GET':
+        return render_template('reset_password.html', token=token, user_id=entry['user_id'])
+
+    password = request.form.get('password', '').upper().strip()
+    confirm = request.form.get('confirm_password', '').upper().strip()
+
+    if not PASSWORD_RE.match(password):
+        flash('Password must be 1-6 characters, A-Z and 0-9 only.', 'error')
+        return render_template('reset_password.html', token=token, user_id=entry['user_id'])
+    if password != confirm:
+        flash('Passwords do not match.', 'error')
+        return render_template('reset_password.html', token=token, user_id=entry['user_id'])
+
+    resp = _api_put(f'/api/users/{entry["user_id"]}', {'password': password})
+    if resp.status_code == 200:
+        del resets[token]
+        _save_resets(resets)
+        _audit_event('password_reset', user=entry['user_id'], ip=request.remote_addr)
+        flash('Password reset successfully. You can now log in.', 'success')
+        return redirect(url_for('login'))
+    else:
+        flash('Password reset failed. Please try again.', 'error')
+        return render_template('reset_password.html', token=token, user_id=entry['user_id'])
 
 
 # ============================================================

@@ -9,10 +9,44 @@ Web clients connect via WebSocket and use a queue-based adapter.
 """
 
 import asyncio
+import json
 import logging
+import os
 import random
 
 logger = logging.getLogger(__name__)
+
+# Ban list
+CFG_DIR = os.path.join(os.path.dirname(__file__), 'cfg')
+BANS_FILE = os.path.join(CFG_DIR, 'partyline-bans.json')
+
+
+def _load_bans():
+    if os.path.exists(BANS_FILE):
+        with open(BANS_FILE, 'r') as f:
+            return json.load(f)
+    return []
+
+
+def _save_bans(bans):
+    os.makedirs(os.path.dirname(BANS_FILE), exist_ok=True)
+    with open(BANS_FILE, 'w') as f:
+        json.dump(bans, f, indent=2)
+
+
+def _is_banned(user_id):
+    return user_id.upper() in [b.upper() for b in _load_bans()]
+
+
+def _is_privileged(user_id):
+    """Check if user has admin or editor flag."""
+    users_file = os.path.join(CFG_DIR, 'users.json')
+    if not os.path.exists(users_file):
+        return False
+    with open(users_file, 'r') as f:
+        users = json.load(f)
+    user = users.get(user_id, {})
+    return user.get('admin', False) or user.get('editor', False)
 
 # Global state: connected partyline users
 # {user_id: {"writer": writer, "alias": None, "room": "lobby"}}
@@ -74,9 +108,27 @@ def display_name(user_id):
     return user_id
 
 
+def _ascii_to_petscii(text):
+    """Convert ASCII text to PETSCII for C64 display (lowercase mode)."""
+    result = bytearray()
+    for ch in text:
+        b = ord(ch)
+        if 0x41 <= b <= 0x5A:       # ASCII uppercase → PETSCII uppercase ($C1-$DA)
+            result.append(b + 0x80)
+        elif 0x61 <= b <= 0x7A:     # ASCII lowercase → PETSCII lowercase ($41-$5A)
+            result.append(b - 0x20)
+        else:
+            result.append(b)
+    return bytes(result)
+
+
 async def send_line(writer, text):
     """Send one CR-terminated line to a client."""
-    writer.write(text.encode('ascii', errors='replace') + CR)
+    if text.startswith('*'):
+        # Protocol sentinels (*EXIT, *PING) sent as raw ASCII
+        writer.write(text.encode('ascii', errors='replace') + CR)
+    else:
+        writer.write(_ascii_to_petscii(text) + CR)
     await writer.drain()
 
 
@@ -105,7 +157,9 @@ async def read_line(reader):
         if data == CR:
             break
         buf.extend(data)
-    # Convert PETSCII to ASCII: $C1-$DA = uppercase A-Z, $41-$5A = lowercase a-z
+    # Convert PETSCII to ASCII (C64 lowercase mode):
+    # $C1-$DA = uppercase on screen → ASCII uppercase A-Z
+    # $41-$5A = lowercase on screen → ASCII lowercase a-z
     result = []
     for b in buf:
         if 0xC1 <= b <= 0xDA:
@@ -234,6 +288,103 @@ async def _cmd_call(writer, user_id, args):
     await send_line(writer, "")
 
 
+async def _cmd_kick(writer, user_id, args):
+    """Kick a user from partyline (ADMIN/EDITOR only)."""
+    if not _is_privileged(user_id):
+        await send_line(writer, "Permission denied.")
+        await send_line(writer, "")
+        return
+    target = args.strip().upper()
+    if not target:
+        await send_line(writer, "Usage: *kick USER")
+        await send_line(writer, "")
+        return
+    if target == user_id:
+        await send_line(writer, "You can't kick yourself.")
+        await send_line(writer, "")
+        return
+    if target == 'ADMIN':
+        await send_line(writer, "ADMIN cannot be kicked.")
+        await send_line(writer, "")
+        return
+    if target not in _users:
+        await send_line(writer, f"{target} is not in partyline.")
+        await send_line(writer, "")
+        return
+    target_room = _users[target]["room"]
+    target_writer = _users[target]["writer"]
+    del _users[target]
+    await send_line(target_writer, "You have been kicked from partyline.")
+    await send_line(target_writer, "*EXIT")
+    await broadcast_room(target_room, f"{target} was kicked from partyline")
+    await broadcast_room(target_room, "")
+    await send_line(writer, f"Kicked {target}.")
+    await send_line(writer, "")
+    from compunet_server import audit_log
+    audit_log('partyline_kick', user=user_id, target=target)
+    logger.info("User %s kicked %s from partyline", user_id, target)
+
+
+async def _cmd_ban(writer, user_id, args):
+    """Ban a user from partyline (ADMIN/EDITOR only)."""
+    if not _is_privileged(user_id):
+        await send_line(writer, "Permission denied.")
+        await send_line(writer, "")
+        return
+    target = args.strip().upper()
+    if not target:
+        await send_line(writer, "Usage: *ban USER")
+        await send_line(writer, "")
+        return
+    if target == user_id:
+        await send_line(writer, "You can't ban yourself.")
+        await send_line(writer, "")
+        return
+    if target == 'ADMIN':
+        await send_line(writer, "ADMIN cannot be banned.")
+        await send_line(writer, "")
+        return
+    bans = _load_bans()
+    if target.upper() not in [b.upper() for b in bans]:
+        bans.append(target)
+        _save_bans(bans)
+    # Kick if currently online
+    if target in _users:
+        target_room = _users[target]["room"]
+        target_writer = _users[target]["writer"]
+        del _users[target]
+        await send_line(target_writer, "You have been banned from partyline.")
+        await send_line(target_writer, "*EXIT")
+        await broadcast_room(target_room, f"{target} has been banned from partyline")
+        await broadcast_room(target_room, "")
+    await send_line(writer, f"Banned {target}.")
+    await send_line(writer, "")
+    from compunet_server import audit_log
+    audit_log('partyline_ban', user=user_id, target=target)
+    logger.info("User %s banned %s from partyline", user_id, target)
+
+
+async def _cmd_unban(writer, user_id, args):
+    """Unban a user from partyline (ADMIN/EDITOR only)."""
+    if not _is_privileged(user_id):
+        await send_line(writer, "Permission denied.")
+        await send_line(writer, "")
+        return
+    target = args.strip().upper()
+    if not target:
+        await send_line(writer, "Usage: *unban USER")
+        await send_line(writer, "")
+        return
+    bans = _load_bans()
+    bans = [b for b in bans if b.upper() != target.upper()]
+    _save_bans(bans)
+    await send_line(writer, f"Unbanned {target}.")
+    await send_line(writer, "")
+    from compunet_server import audit_log
+    audit_log('partyline_unban', user=user_id, target=target)
+    logger.info("User %s unbanned %s from partyline", user_id, target)
+
+
 async def _cmd_quit(writer, user_id):
     """Handle user quitting partyline."""
     name = display_name(user_id)
@@ -241,6 +392,7 @@ async def _cmd_quit(writer, user_id):
     # Remove user from state before broadcasting
     del _users[user_id]
     await broadcast_room(room, f"{name} has left partyline")
+    await broadcast_room(room, "")
     # Send exit sentinel to client
     await send_line(writer, "*EXIT")
     logger.info("User %s quit partyline", user_id)
@@ -249,6 +401,13 @@ async def _cmd_quit(writer, user_id):
 async def handle_session(reader, writer, user_id):
     """Handle a partyline session. Returns when user quits."""
     logger.info("User %s entering partyline", user_id)
+
+    # Check ban list
+    if _is_banned(user_id):
+        logger.info("User %s is banned from partyline", user_id)
+        await send_line(writer, "You are banned from partyline.")
+        await send_line(writer, "*EXIT")
+        return
 
     # Register user
     _users[user_id] = {"writer": writer, "alias": None, "room": "lobby"}
@@ -261,11 +420,17 @@ async def handle_session(reader, writer, user_id):
         await broadcast_room("lobby", "", exclude=user_id)
 
         # Main loop
+        idle_pings = 0
         while user_id in _users:
             try:
                 line = await read_line(reader)
+                idle_pings = 0  # Reset on any received data
             except asyncio.TimeoutError:
                 # Send keepalive to prevent NAT/firewall dropping the connection
+                idle_pings += 1
+                if idle_pings > 20:
+                    logger.info("User %s exceeded max idle pings, disconnecting", user_id)
+                    break
                 logger.debug("Partyline PING keepalive sent to %s", user_id)
                 try:
                     await send_line(_users[user_id]["writer"], "*PING")
@@ -299,6 +464,12 @@ async def handle_session(reader, writer, user_id):
                     await _cmd_dice(writer, user_id, args)
                 elif cmd == "call":
                     await _cmd_call(writer, user_id, args)
+                elif cmd == "kick":
+                    await _cmd_kick(writer, user_id, args)
+                elif cmd == "ban":
+                    await _cmd_ban(writer, user_id, args)
+                elif cmd == "unban":
+                    await _cmd_unban(writer, user_id, args)
                 elif cmd == "quit":
                     await _cmd_quit(writer, user_id)
                     return
@@ -330,6 +501,7 @@ async def handle_session(reader, writer, user_id):
             name = display_name(user_id)
             del _users[user_id]
             await broadcast_room(room, f"{name} has left partyline")
+            await broadcast_room(room, "")
             logger.info("User %s removed from partyline (cleanup)", user_id)
 
 
