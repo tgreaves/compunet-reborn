@@ -43,6 +43,7 @@ CRT_ENTRY_ADDR = $(shell python3 -c "d=open('$(BIN)','rb').read();import sys;i=d
 
 $(SFX_PRG): $(PRG)
 	exomizer sfx $(CRT_ENTRY_ADDR) $(PRG) -o $(SFX_PRG) -x1 -q
+	@cp $(SFX_PRG) $(WEBSITE_STATIC)/compunet-reborn-sfx.prg
 	@echo "Created $(SFX_PRG) ($$(wc -c < $(SFX_PRG)) bytes, LOAD + RUN, entry=$(CRT_ENTRY_ADDR))"
 
 $(LIVE_PRG): $(LIVE_BIN)

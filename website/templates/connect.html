@@ -16,56 +16,73 @@
 <p>A registered account is required — <a href="{{ url_for('register') }}">register here</a>.</p>
 <table class="download-table">
     <tr>
-        <td><a href="{{ url_for('static', filename='compunet-reborn-live.d64') }}">compunet-reborn-live.d64</a></td>
-        <td>D64 disk image</td>
+        <td><a href="{{ url_for('static', filename='compunet-reborn-live.prg') }}">compunet-reborn-live.prg</a></td>
+        <td>Auto-connects to Compunet (recommended)</td>
     </tr>
     <tr>
-        <td><a href="{{ url_for('static', filename='compunet-reborn-live.prg') }}">compunet-reborn-live.prg</a></td>
-        <td>PRG file — drag into VICE or load via C64 Ultimate file browser (no LOAD command needed)</td>
+        <td><a href="{{ url_for('static', filename='compunet-reborn-sfx.prg') }}">compunet-reborn-sfx.prg</a></td>
+        <td>Manual connection (enter server address when prompted)</td>
     </tr>
 </table>
 
-<h2>VICE SETUP</h2>
+<div class="flash flash-info">
+    <strong>&#9888; WINDOWS VICE USERS:</strong> If you experience connection issues with the auto-connect client, use <code>compunet-reborn-sfx.prg</code> instead. Enter <code>vme.compunet.live:6400</code> at the phone number prompt.
+</div>
+
+<h2>SETUP</h2>
+<div class="setup-columns">
+    <div class="setup-col">
+        <h3>VICE</h3>
+        <ol>
+            <li>Go to Settings &rarr; Peripheral Devices &rarr; RS232</li>
+            <li>Enable <code>ACIA RS232 interface emulation</code></li>
+            <li>Set Device to <code>Serial 3</code></li>
+            <li>In the RS232 devices section for Serial 3, set:
+                <ul>
+                    <li>Host: <code>vme.compunet.live:6400</code></li>
+                    <li>Baud: <code>1200</code></li>
+                    <li>IP232: <strong>Unchecked</strong></li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+    <div class="setup-col">
+        <h3>C64 ULTIMATE</h3>
+        <ol>
+            <li>Go to the Ultimate menu</li>
+            <li>Configure: Modem Interface &rarr; ACIA / SwiftLink, DE00/NMI</li>
+            <li>Ensure Command Interface is Enabled</li>
+        </ol>
+    </div>
+</div>
+
+<h2>CONNECTING</h2>
 <ol>
-    <li>Go to Settings &rarr; Peripheral Devices &rarr; RS232</li>
-    <li>Enable <code>ACIA RS232 interface emulation</code></li>
-    <li>Set Device to <code>Serial 3</code></li>
-    <li>In the RS232 devices section for Serial 3, set:
-        <ul>
-            <li>Host: <code>vme.compunet.live:6400</code></li>
-            <li>Baud: <code>1200</code></li>
-            <li>IP232: <strong>Unchecked</strong></li>
-        </ul>
+    <li>In VICE: drag the PRG file into the emulator window, or use File &rarr; Smart Attach. If VICE does not RUN automatically (with flashing bars showing the decompression), type <code>RUN</code>.</li>
+    <li>On C64 Ultimate: select the PRG in the file browser and choose Run</li>
+    <li>Wait for the client to finish decompressing (flashing bars visible)
+        <div class="walkthrough" style="margin: 12px 0;">
+            <img src="{{ url_for('static', filename='decompressing-screenshot.png') }}" alt="Decompression in progress" width="50%">
+        </div>
+    </li>
+    <li>Type <code>CONNECT</code>
+        <div class="walkthrough" style="margin: 12px 0;">
+            <img src="{{ url_for('static', filename='connect-screenshot.png') }}" alt="Type CONNECT at the prompt" width="50%">
+        </div>
+    </li>
+    <li><em>(If using manual SFX client)</em>: Enter the connection details for Compunet Reborn: <code>vme.compunet.live:6400</code>
+        <div class="walkthrough" style="margin: 12px 0;">
+            <img src="{{ url_for('static', filename='phone-number-screenshot.png') }}" alt="Enter server address" width="50%">
+        </div>
+    </li>
+    <li>Enter your User ID and password</li>
+    <li>The welcome screen appears &mdash; you're in!
+        <div class="walkthrough" style="margin: 12px 0;">
+            <img src="{{ url_for('static', filename='welcome-screenshot.png') }}" alt="Welcome screen" width="50%">
+        </div>
     </li>
 </ol>
 
-<h2>C64 ULTIMATE SETUP</h2>
-<ol>
-    <li>Configure: Modem Interface &rarr; ACIA / SwiftLink, DE00/NMI</li>
-</ol>
-
-<h2>CONNECTING (D64)</h2>
-<ol>
-    <li>Attach the D64 to drive 8</li>
-    <li>Type <code>LOAD "COMPUNET",8</code></li>
-    <li>Type <code>RUN</code></li>
-    <li>Type <code>CONNECT</code></li>
-    <li>Enter your User ID and password</li>
-    <li>The duckshoot menu appears &mdash; you're in!</li>
-</ol>
-
-<h2>CONNECTING (PRG)</h2>
-<ol>
-    <li>In VICE: drag the PRG file into the emulator window, or use File &rarr; Smart Attach</li>
-    <li>On C64 Ultimate: select the PRG in the file browser and choose Run</li>
-    <li>Type <code>CONNECT</code></li>
-    <li>Enter your User ID and password</li>
-    <li>The duckshoot menu appears &mdash; you're in!</li>
-</ol>
-
-<h2>TIPS</h2>
-<div class="info-box">
-    <h3>NAVIGATION</h3>
-    <p>Use the duckshoot (bottom menu) to navigate. Cursor left/right scrolls commands. RETURN selects. F7/F8 cycles directory columns.</p>
-</div>
+<h2>USING COMPUNET</h2>
+<p>Once connected, see the <a href="{{ url_for('guide') }}">User Guide</a> for how to navigate, send mail, upload content, and use Partyline.</p>
 {% endblock %}

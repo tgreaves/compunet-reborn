@@ -38,6 +38,8 @@
 	  tokenised reset link (template at `server/cfg/password-reset.md`).
 	* "Forgot password?" link on login page.
 	* All audit events now include client IP address.
+	* Connect page: two-column VICE/Ultimate setup, step-by-step screenshots,
+	  Windows VICE workaround callout, SFX manual client download added.
 * Content:
 	* New PETSCII COMPUNET logo header for root directory (extracted from
 	  welcome frame artwork).
