@@ -124,11 +124,7 @@ def _ascii_to_petscii(text):
 
 async def send_line(writer, text):
     """Send one CR-terminated line to a client."""
-    if text.startswith('*'):
-        # Protocol sentinels (*EXIT, *PING) sent as raw ASCII
-        writer.write(text.encode('ascii', errors='replace') + CR)
-    else:
-        writer.write(_ascii_to_petscii(text) + CR)
+    writer.write(text.encode('ascii', errors='replace') + CR)
     await writer.drain()
 
 
