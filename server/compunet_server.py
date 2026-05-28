@@ -630,6 +630,13 @@ class CompunetSession:
                 self.last_response_type = RESP_FRAME
                 self._enter_partyline = True
                 return header + prg_data
+            # Dynamic pages: regenerate content on each view
+            if getattr(child, 'dynamic', None) == 'who':
+                _regenerate_who_frame()
+                frame_path = os.path.join(WHO_PAGE_DIR, 'frame-1.seq')
+                if os.path.exists(frame_path):
+                    with open(frame_path, 'rb') as f:
+                        child.frames = [f.read()]
             if child.frames:
                 # Deduct credit for paid, unpurchased pages (allows overdraft)
                 if child.price > 0 and child.page_num not in self.purchased:
@@ -641,14 +648,6 @@ class CompunetSession:
                              child.price, self.credit)
                 self.show_page = child
                 self.show_frame_index = 0
-                # Dynamic pages: regenerate content on each view
-                if getattr(child, 'dynamic', None) == 'who':
-                    _regenerate_who_frame()
-                    # Reload frame from disk
-                    frame_path = os.path.join(WHO_PAGE_DIR, 'frame-1.seq')
-                    if os.path.exists(frame_path):
-                        with open(frame_path, 'rb') as f:
-                            child.frames = [f.read()]
                 audit_log('read', user=self.user_id, page=child.page_num,
                           title=child.title, type=child.page_type)
                 return self._send_current_frame()
