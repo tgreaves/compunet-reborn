@@ -41,6 +41,7 @@ from pathlib import Path
 import markdown
 import aiohttp
 import partyline
+import terminal
 
 try:
     import websockets
@@ -90,6 +91,7 @@ def audit_log(event, user=None, **details):
 WS_PORT = 6502
 TCP_PORT = 6400
 API_PORT = 6403
+TERM_PORT = 6401
 SERVER_DIR = os.path.dirname(__file__)
 CFG_DIR = os.path.join(SERVER_DIR, 'cfg')
 DATA_DIR = os.path.join(SERVER_DIR, 'data')
@@ -3045,6 +3047,9 @@ async def main():
     tcp_server = await asyncio.start_server(tcp_handler, '0.0.0.0', TCP_PORT)
     log.info('TCP server on port %d', TCP_PORT)
 
+    term_server = await asyncio.start_server(terminal.terminal_handler, '0.0.0.0', TERM_PORT)
+    log.info('PETSCII terminal on port %d', TERM_PORT)
+
     if aiohttp_web:
         app = aiohttp_web.Application()
         app.router.add_get('/api/health', api_health)
@@ -3077,10 +3082,11 @@ async def main():
         _version = 'unknown'
     log.info('Compunet server v%s ready.', _version)
 
-    async with ws_server, tcp_server:
+    async with ws_server, tcp_server, term_server:
         await asyncio.gather(
             ws_server.serve_forever(),
             tcp_server.serve_forever(),
+            term_server.serve_forever(),
         )
 
 
