@@ -238,7 +238,11 @@ class TerminalSession:
         await self.send_text('    COMPUNET REBORN\r\r')
         await self.send_text('    PETSCII TERMINAL ACCESS\r\r')
         await self.send(COL_CYAN)
-        await self.send_text('  Visit compunet.live for registration.\r\r\r')
+        await self.send_text('  Visit compunet.live for registration.\r\r')
+        await self.send(COL_WHITE)
+        await self.send_text('  PETSCII OK if you see a block: ')
+        await self.send(RVS_ON + b'\x20' + RVS_OFF)
+        await self.send(CR + CR)
 
         # User ID
         await self.send(COL_WHITE)
@@ -386,12 +390,26 @@ class TerminalSession:
 
     # --- Directory rendering ---
 
-    async def render_directory(self):
-        """Draw the full directory screen."""
-        await self.send(CLR)
-        await self.send(COL_BLUE)
+    # Border PETSCII bytes (unshifted charset)
+    B_THICK_V = b'\x7d'    # ┃ thick vertical
+    B_THIN_V = b'\x62'     # │ thin vertical
+    B_THICK_H = b'\x63'    # ━ thick horizontal
+    B_THIN_H = b'\x60'     # ─ thin horizontal
+    B_TEE_L = b'\x75'      # ╠ T-junction (frame top left)
+    B_TEE_R = b'\xab'      # ├ T-right (entry top left)
+    B_CROSS = b'\x7b'      # ┼ cross (entry top col 30)
+    B_CORNER_TR = b'\x69'  # ╮ top-right corner
+    B_CORNER_BL = b'\x6a'  # ╰ bottom-left corner
+    B_CORNER_BR = b'\xab'  # ╮ bottom-right corner
+    B_TEE_DOWN = b'\xb2'   # ┬ T-down (frame top col 30)
+    B_TEE_UP = b'\xb1'     # ┴ T-up (bottom col 30)
+    B_TEE_ENTRY_R = b'\xb3'  # ┤ (entry top right)
 
-        # Header
+    async def render_directory(self):
+        """Draw the full directory screen with borders matching C64 client."""
+        await self.send(CLR)
+
+        # Header (rows 0-4)
         page = self.current_page
         header_file = getattr(page, 'header', None)
         ancestor = page
@@ -405,55 +423,134 @@ class TerminalSession:
             if os.path.exists(header_path):
                 await self.send(UPPERCASE)
                 with open(header_path, 'rb') as f:
-                    frame_data = b'\x00\x00\x00\x00' + f.read()  # Add dummy header
+                    frame_data = b'\x00\x00\x00\x00' + f.read()
                 await self.send(expand_frame(frame_data))
 
-        # Switch to shifted charset for text rendering
-        await self.send(LOWERCASE)
+        # Row 6: frame top border
+        await self.cursor_to(6, 0)
+        await self.send(UPPERCASE)
+        await self.send(COL_WHITE)
+        await self.send(self.B_TEE_L + self.B_THICK_H * 28 + self.B_THIN_H +
+                        self.B_TEE_DOWN + self.B_THIN_H * 8 + self.B_CORNER_TR)
 
-        # Breadcrumb
+        # Row 7: status line
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        await self.send(UPPERCASE)
+        await self.send(self.B_THICK_V)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        await self.send_text('    1 ')
+        await self.send(COL_BLUE)
+        await self.send_text('*** COMPUNET ***')
+        await self.send(COL_WHITE)
+        spaces = 29 - 6 - 16  # 7 spaces to fill remaining width
+        await self.send(b'\x20' * spaces)
+        await self.send(UPPERCASE)
+        await self.send(self.B_THICK_V)
+        await self.send(b'\x20' * 8)
+        await self.send(self.B_THICK_V)
+
+        # Row 8: breadcrumb + column header
+        await self.send(LOWERCASE)
+        await self.send(UPPERCASE)
+        await self.send(self.B_THICK_V)
+        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         breadcrumb = f'  {page.page_num} {page.title}'
-        await self.send_text(breadcrumb[:38] + '\r')
-
-        # Column header
+        await self.send_text(breadcrumb[:29].ljust(29))
+        await self.send(UPPERCASE)
+        await self.send(self.B_THIN_V)
+        await self.send(LOWERCASE)
         cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE']
-        await self.send(COL_CYAN)
-        await self.send_text('  ' + cols[self.dir_column].ljust(36) + '\r')
+        await self.send_text(cols[self.dir_column].ljust(8)[:8])
+        await self.send(UPPERCASE)
+        await self.send(self.B_THIN_V)
 
-        # Entries
+        # Row 9: entry area top border
+        await self.send(self.B_TEE_R + self.B_THICK_H * 29 + self.B_CROSS +
+                        self.B_THICK_H * 8 + self.B_TEE_ENTRY_R)
+
+        # Rows 10-20: entries (11 rows)
+        await self.send(LOWERCASE)
         visible = page.children[self.dir_offset:self.dir_offset + 11]
-        for i, child in enumerate(visible):
-            if i == self.dir_cursor:
-                await self.send(RVS_ON)
+        self.entries_row = 10
+        for i in range(11):
+            if i < len(visible):
+                child = visible[i]
+                # Page number + title
+                page_num_str = str(child.page_num)
+                title = child.title[:18].ljust(18)
+                type_str = child.type_string()[:5].ljust(5)
+                content = f'{page_num_str:3s}   {title}{type_str}'[:29]
+
+                # Column value
+                if self.dir_column == 0:
+                    col_val = '{:.2f}'.format(child.price) if child.price > 0 else ''
+                elif self.dir_column == 1:
+                    col_val = str(child.life) if child.life > 0 else ''
+                elif self.dir_column == 2:
+                    col_val = child.author[:8]
+                else:
+                    col_val = str(child.vote) if child.vote > 0 else ''
+                col_val = col_val[:8].ljust(8)
+
+                if i == self.dir_cursor:
+                    await self.send(COL_WHITE)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THICK_V)
+                    await self.send(LOWERCASE)
+                    await self.send(RVS_ON)
+                    await self.send_text(content.ljust(29))
+                    await self.send(RVS_OFF)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THIN_V)
+                    await self.send(LOWERCASE)
+                    await self.send(RVS_ON)
+                    await self.send_text(col_val)
+                    await self.send(RVS_OFF)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THIN_V)
+                else:
+                    await self.send(COL_WHITE)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THICK_V)
+                    await self.send(LOWERCASE)
+                    await self.send(COL_BLUE)
+                    await self.send_text(content.ljust(29))
+                    await self.send(COL_WHITE)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THIN_V)
+                    await self.send(LOWERCASE)
+                    await self.send(COL_BLUE)
+                    await self.send_text(col_val)
+                    await self.send(COL_WHITE)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THICK_V)
+            else:
+                # Empty row
                 await self.send(COL_WHITE)
-            else:
-                await self.send(RVS_OFF)
-                await self.send(COL_BLUE)
+                await self.send(UPPERCASE)
+                await self.send(self.B_THICK_V)
+                await self.send(LOWERCASE)
+                await self.send(b'\x20' * 29)
+                await self.send(UPPERCASE)
+                await self.send(self.B_THIN_V)
+                await self.send(b'\x20' * 8)
+                await self.send(self.B_THICK_V)
 
-            title = child.title[:20].ljust(20)
-            type_str = child.type_string()[:4].ljust(4)
+        # Row 21: bottom border
+        await self.send(UPPERCASE)
+        await self.send(COL_WHITE)
+        await self.send(self.B_CORNER_BL + self.B_THIN_H * 29 + self.B_TEE_UP)
+        await self.send(LOWERCASE)
+        await self.send_text('<F7)(F8>')
+        await self.send(UPPERCASE)
+        await self.send(b'\xab')  # corner
 
-            # Column value
-            if self.dir_column == 0:
-                col_val = '{:.2f}'.format(child.price) if child.price > 0 else ''
-            elif self.dir_column == 1:
-                col_val = str(child.life) if child.life > 0 else ''
-            elif self.dir_column == 2:
-                col_val = child.author[:8]
-            else:
-                col_val = str(child.vote) if child.vote > 0 else ''
-
-            line = f' {title}{type_str}{col_val[:8]}'
-            await self.send_text(line[:40] + '\r')
-
-        await self.send(RVS_OFF)
-
-        # Pad remaining entry rows
-        for _ in range(11 - len(visible)):
-            await self.send(CR)
-
-        # Adverts
+        # Rows 22-23: adverts
+        await self.send(LOWERCASE)
+        await self.cursor_to(22, 0)
         await self.send(COL_YELLOW)
         advert = ''
         if self.directory.global_adverts:
@@ -461,12 +558,16 @@ class TerminalSession:
             advert = random.choice(self.directory.global_adverts)
         if advert:
             lines = advert.split('\n')
-            for line in lines[:2]:
-                await self.send_text(line[:40] + '\r')
+            for i, line in enumerate(lines[:2]):
+                text = line[:40]
+                await self.send_text(text)
+                if len(text) < 40:
+                    await self.send(CR)
         else:
             await self.send(CR + CR)
 
-        # Duckshoot
+        # Row 24: duckshoot
+        await self.cursor_to(24, 0)
         await self.render_duckshoot()
 
     async def render_duckshoot(self):
@@ -480,6 +581,7 @@ class TerminalSession:
         n = len(commands)
         if n == 0:
             return
+        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
 
         # Build 39 chars from commands wrapping circularly
@@ -489,7 +591,7 @@ class TerminalSession:
         while len(chars) < 39:
             idx = (self.duck_pos + offset) % n
             cmd = commands[idx]
-            padded = cmd.ljust(6)[:6]
+            padded = cmd.center(6)[:6]
             is_selected = (offset == 0)
             for ch in padded:
                 if len(chars) >= 39:
@@ -512,6 +614,42 @@ class TerminalSession:
             out.extend(RVS_OFF)
         await self.send(bytes(out))
 
+    async def redraw_column(self):
+        """Redraw just the column header and column values (F7/F8 toggle)."""
+        # Column header at row 8, col 31
+        await self.cursor_to(8, 31)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE']
+        await self.send_text(cols[self.dir_column].ljust(8)[:8])
+
+        # Column values for each visible entry
+        page = self.current_page
+        visible = page.children[self.dir_offset:self.dir_offset + 11]
+        for i in range(11):
+            await self.cursor_to(self.entries_row + i, 31)
+            if i < len(visible):
+                child = visible[i]
+                if self.dir_column == 0:
+                    col_val = '{:.2f}'.format(child.price) if child.price > 0 else ''
+                elif self.dir_column == 1:
+                    col_val = str(child.life) if child.life > 0 else ''
+                elif self.dir_column == 2:
+                    col_val = child.author[:8]
+                else:
+                    col_val = str(child.vote) if child.vote > 0 else ''
+                col_val = col_val[:8].ljust(8)
+                if i == self.dir_cursor:
+                    await self.send(COL_WHITE)
+                    await self.send(RVS_ON)
+                    await self.send_text(col_val)
+                    await self.send(RVS_OFF)
+                else:
+                    await self.send(COL_BLUE)
+                    await self.send_text(col_val)
+            else:
+                await self.send(b'\x20' * 8)
+
     async def redraw_entry(self, idx):
         """Redraw a single directory entry line at the given index."""
         page = self.current_page
@@ -522,15 +660,11 @@ class TerminalSession:
         await self.cursor_to(row, 0)
 
         child = visible[idx]
-        if idx == self.dir_cursor:
-            await self.send(RVS_ON)
-            await self.send(COL_WHITE)
-        else:
-            await self.send(RVS_OFF)
-            await self.send(COL_BLUE)
+        page_num_str = str(child.page_num)
+        title = child.title[:18].ljust(18)
+        type_str = child.type_string()[:5].ljust(5)
+        content = f'{page_num_str:3s}   {title}{type_str}'[:29]
 
-        title = child.title[:20].ljust(20)
-        type_str = child.type_string()[:4].ljust(4)
         if self.dir_column == 0:
             col_val = '{:.2f}'.format(child.price) if child.price > 0 else ''
         elif self.dir_column == 1:
@@ -539,10 +673,40 @@ class TerminalSession:
             col_val = child.author[:8]
         else:
             col_val = str(child.vote) if child.vote > 0 else ''
+        col_val = col_val[:8].ljust(8)
 
-        line = f' {title}{type_str}{col_val[:8]}'
-        await self.send_text(line[:40].ljust(40))
-        await self.send(RVS_OFF)
+        if idx == self.dir_cursor:
+            await self.send(COL_WHITE)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THICK_V)
+            await self.send(LOWERCASE)
+            await self.send(RVS_ON)
+            await self.send_text(content.ljust(29))
+            await self.send(RVS_OFF)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THIN_V)
+            await self.send(LOWERCASE)
+            await self.send(RVS_ON)
+            await self.send_text(col_val)
+            await self.send(RVS_OFF)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THIN_V)
+        else:
+            await self.send(COL_WHITE)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THICK_V)
+            await self.send(LOWERCASE)
+            await self.send(COL_BLUE)
+            await self.send_text(content.ljust(29))
+            await self.send(COL_WHITE)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THIN_V)
+            await self.send(LOWERCASE)
+            await self.send(COL_BLUE)
+            await self.send_text(col_val)
+            await self.send(COL_WHITE)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THICK_V)
 
     def _get_duckshoot(self):
         if self.mode == 'frame':
@@ -565,12 +729,24 @@ class TerminalSession:
         # Switch back to shifted charset for duckshoot text
         await self.send(LOWERCASE)
 
-        # Show frame duckshoot
         has_more = self.show_frame_idx < len(self.show_page.frames) - 1
-        self.mode = 'frame'
-        self.duck_pos = 0
-        await self.send(CR)
-        await self.render_duckshoot()
+        self._saved_duck_pos = self.duck_pos
+        await self.cursor_to(24, 0)
+
+        if len(self.show_page.frames) == 1:
+            # Single frame — just wait for any key then return to directory
+            await self.send(COL_WHITE)
+            await self.send_text('PRESS ANY KEY')
+            await self.read_key()
+            self.mode = 'directory'
+            self.show_page = None
+            self.duck_pos = self._saved_duck_pos
+            await self.render_directory()
+        else:
+            # Multi-frame — show MORE/FINISH duckshoot
+            self.mode = 'frame'
+            self.duck_pos = 0
+            await self.render_duckshoot()
 
     # --- Command execution ---
 
@@ -606,7 +782,6 @@ class TerminalSession:
                     self.current_page = child
                     self.dir_cursor = 0
                     self.dir_offset = 0
-                    self.duck_pos = 0
             await self.render_directory()
 
         elif cmd == 'BACK':
@@ -614,7 +789,6 @@ class TerminalSession:
                 self.current_page = self.current_page.parent
                 self.dir_cursor = 0
                 self.dir_offset = 0
-                self.duck_pos = 0
             await self.render_directory()
 
         elif cmd == 'GOTO':
@@ -660,13 +834,13 @@ class TerminalSession:
             else:
                 self.mode = 'directory'
                 self.show_page = None
-                self.duck_pos = 0
+                self.duck_pos = getattr(self, '_saved_duck_pos', 0)
                 await self.render_directory()
 
         elif cmd == 'FINISH':
             self.mode = 'directory'
             self.show_page = None
-            self.duck_pos = 0
+            self.duck_pos = getattr(self, '_saved_duck_pos', 0)
             await self.render_directory()
 
         elif cmd == 'VOTE':
@@ -772,7 +946,7 @@ class TerminalSession:
                     await self.execute_command(commands[self.duck_pos])
                 elif key == KEY_F7 or key == KEY_F8:
                     self.dir_column = (self.dir_column + (1 if key == KEY_F8 else -1)) % 4
-                    await self.render_directory()
+                    await self.redraw_column()
 
             elif self.mode == 'welcome':
                 if key == KEY_CRSR_RIGHT:
@@ -789,8 +963,11 @@ class TerminalSession:
                     commands = self._get_duckshoot()
                     cmd = commands[self.duck_pos]
                     self.mode = 'directory'
-                    self.duck_pos = 0
-                    await self.execute_command(cmd)
+                    if cmd == 'DIR':
+                        # From welcome: show root directory (don't enter a child)
+                        await self.render_directory()
+                    else:
+                        await self.execute_command(cmd)
 
             elif self.mode == 'frame':
                 if key == KEY_CRSR_RIGHT:

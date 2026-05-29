@@ -5,24 +5,29 @@
 	  (SyncTerm, CCGMS, StrikeTerm, etc.) can connect without the custom client.
 	* Full welcome screen with template rendering (user info, pages, storage,
 	  pillarbox mail indicator) — pixel-accurate match to the C64 client.
-	* Directory browsing with cursor up/down entry selection.
+	* Directory browsing with C64-accurate bordered layout: thick/thin box
+	  drawing, column separator at col 30, status line, breadcrumb, F7/F8
+	  column toggle (PRICE/LIFE/AUTHOR/VOTE).
 	* Duckshoot command bar: revolving display with selected item in centre,
 	  full C64 command set (17 commands: HELP, DIR, SHOW, BACK, GOTO, UCAT,
 	  MAIL, ACCNT, SAVE, EDITR, LEAVE, PRINT, LIFE, BUY, LOAD, UPLD, VOTE).
 	* Frame display with RLE expansion ($06/$07 codes) — correct count+1
-	  semantics matching C64 ROM behaviour.
+	  semantics matching C64 ROM behaviour. Single-frame pages show
+	  "PRESS ANY KEY" instead of duckshoot.
 	* CR suppression after full 40-char lines (prevents blank line on terminal
 	  auto-wrap, matching C64 KERNAL CHROUT behaviour).
 	* Charset mode management: uppercase/graphics ($8E) for PETSCII artwork,
 	  lowercase/uppercase ($0E) for text rendering.
 	* Auto-detect Telnet vs Raw connections (IAC negotiation for Telnet clients,
 	  $FF byte escaping).
+	* PETSCII test indicator on login screen (block character).
 	* GOTO, VOTE, MAIL (inbox listing), LIFE, WHO IS ONLINE, LEAVE commands.
 	* Shared state: terminal users appear in WHO IS ONLINE, same auth/audit system.
-	* Efficient redraw: cursor up/down only repaints two entry lines, duckshoot
-	  movement only repaints row 24.
+	* Efficient redraw: cursor up/down only repaints two entry lines, F7/F8
+	  only repaints column values, duckshoot movement only repaints row 24.
+	* Duckshoot position preserved across commands and frame view/return.
 * Server:
-	* New `server/terminal.py` module (~800 lines).
+	* New `server/terminal.py` module.
 	* Port 6401 listener added to main server event loop.
 	* Dockerfile updated: terminal.py included, port 6401 exposed.
 	* docker-compose.yml: port 6401 mapped.
