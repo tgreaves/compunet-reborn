@@ -52,6 +52,7 @@ DUCK_DIR = ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT',
             'SAVE', 'EDITR', 'LEAVE', 'PRINT', 'LIFE', 'BUY', 'LOAD', 'UPLD', 'VOTE']
 DUCK_FRAME = ['MORE', 'FINISH']
 DUCK_MAIL = ['ID', 'EDITR', 'DONE', 'SEND', 'SHOW', 'MORE']
+DUCK_UPLOAD = ['SEND', 'ABORT']
 
 # Import server components (deferred to avoid circular imports)
 _server_module = None
@@ -152,6 +153,7 @@ class TerminalSession:
         self.show_frame_idx = 0
         self.client_ip = ''
         self.telnet = False
+        self._upload_pending = None
         self.entries_row = 8  # screen row where directory entries start
 
     # --- I/O helpers ---
@@ -1090,6 +1092,387 @@ class TerminalSession:
                 crc &= 0xFFFF
         return crc
 
+    async def _cmd_upload(self):
+        """UPLD command — prompt for page details then switch to upload mode."""
+        cs = _get_server()
+        page = self.current_page
+
+        # Check if directory has space
+        if len(page.children) >= 11:
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE)
+            await self.send_text('DIRECTORY FULL'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+
+        # Check upload permission
+        can_upload = (self.user_id == page.author or
+                      cs._api_load_users().get(self.user_id, {}).get('admin') or
+                      cs._api_load_users().get(self.user_id, {}).get('editor'))
+        if not can_upload:
+            ancestor = page
+            while ancestor:
+                if getattr(ancestor, 'open_upload', False):
+                    can_upload = True
+                    break
+                ancestor = getattr(ancestor, 'parent', None)
+        if not can_upload:
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE)
+            await self.send_text('UPLOAD NOT PERMITTED'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+
+        # The new entry will appear in the next blank directory slot
+        new_idx = len(page.children)
+        entry_row = self.entries_row + new_idx
+
+        # Helper to update the preview entry in the directory
+        async def _update_preview(title='', page_type='', price=0.0, lifetime=0):
+            if new_idx >= 11:
+                return
+            await self.cursor_to(entry_row, 0)
+            await self.send(COL_CYAN)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THICK_V)
+            await self.send(LOWERCASE)
+            type_str = (page_type + str(lifetime) if page_type else '')[:5].ljust(5)
+            content = f'      {title[:18]:<18s}{type_str}'[:29]
+            await self.send_text(content)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THIN_V)
+            await self.send(LOWERCASE)
+            price_str = f'{price:.2f}' if price > 0 else ''
+            await self.send_text(price_str[:8].ljust(8))
+            await self.send(UPPERCASE)
+            await self.send(self.B_THICK_V)
+            await self.send(LOWERCASE)
+
+        # Prompt for page details on duckshoot line
+        await self.cursor_to(24, 0)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        await self.send_text('UPLOAD PAGE TITLE? '.ljust(39))
+        await self.cursor_to(24, 19)
+        title = await self.read_line(max_len=16)
+        if not title.strip():
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+        await _update_preview(title=title.strip())
+
+        await self.cursor_to(24, 0)
+        await self.send_text('PAGE TYPE (P)? '.ljust(39))
+        await self.cursor_to(24, 15)
+        page_type = await self.read_line(max_len=1)
+        if not page_type.strip():
+            page_type = 'P'
+        await _update_preview(title=title.strip(), page_type=page_type.strip())
+
+        await self.cursor_to(24, 0)
+        await self.send_text('PRICE? '.ljust(39))
+        await self.cursor_to(24, 7)
+        price_str = await self.read_line(max_len=6)
+        try:
+            price = round(float(price_str), 2) if price_str.strip() else 0.0
+        except ValueError:
+            price = 0.0
+        await _update_preview(title=title.strip(), page_type=page_type.strip(), price=price)
+
+        await self.cursor_to(24, 0)
+        await self.send_text('LIFETIME? '.ljust(39))
+        await self.cursor_to(24, 10)
+        life_str = await self.read_line(max_len=3)
+        try:
+            lifetime = int(life_str) if life_str.strip() else 0
+        except ValueError:
+            lifetime = 0
+        await _update_preview(title=title.strip(), page_type=page_type.strip(), price=price, lifetime=lifetime)
+
+        await self.cursor_to(24, 0)
+        await self.send_text('NEW ENTRY OK? (Y/N) '.ljust(39))
+        await self.cursor_to(24, 20)
+        confirm = await self.read_line(max_len=1)
+        if confirm != 'Y':
+            # Clear the preview
+            if new_idx < 11:
+                await self.cursor_to(entry_row, 0)
+                await self.send(COL_WHITE)
+                await self.send(UPPERCASE)
+                await self.send(self.B_THICK_V)
+                await self.send(LOWERCASE)
+                await self.send(b'\x20' * 29)
+                await self.send(UPPERCASE)
+                await self.send(self.B_THIN_V)
+                await self.send(b'\x20' * 8)
+                await self.send(self.B_THICK_V)
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+
+        # Store upload metadata and switch to upload mode
+        self._upload_pending = {
+            'title': title.strip(),
+            'type': page_type.strip(),
+            'price': price,
+            'lifetime': lifetime,
+        }
+
+        # Switch to upload duckshoot
+        self._saved_duck_pos = self.duck_pos
+        self.mode = 'upload'
+        self.duck_pos = 0  # SEND selected
+        await self.cursor_to(24, 0)
+        await self.render_duckshoot()
+
+    async def _cmd_upload_send(self):
+        """SEND in upload mode — receive file via XMODEM then save."""
+        import json
+        cs = _get_server()
+
+        if not self._upload_pending:
+            self.mode = 'directory'
+            await self.render_directory()
+            return
+
+        # Prompt for XMODEM transfer
+        await self.cursor_to(24, 0)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        await self.send_text('START XMODEM UPLOAD NOW...'.ljust(39))
+
+        # XMODEM receive
+        try:
+            prg_data = await self._xmodem_receive()
+        except (asyncio.TimeoutError, ConnectionResetError):
+            await self.cursor_to(24, 0)
+            await self.send_text('TRANSFER FAILED'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+
+        if not prg_data:
+            await self.cursor_to(24, 0)
+            await self.send_text('NO DATA RECEIVED'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+
+        # Save the upload using the server's content upload logic
+        send = {
+            'mode': 'upload',
+            'title': self._upload_pending['title'],
+            'type': self._upload_pending['type'],
+            'price': self._upload_pending['price'],
+            'lifetime': self._upload_pending['lifetime'],
+            'frames': [prg_data],  # Raw PRG data (load_lo, load_hi, program bytes)
+        }
+
+        # Use the server's _complete_content_upload logic directly
+        page = self.current_page
+        page_slug = cs.CompunetDirectory._make_slug(send['title'])
+        parent_dir = getattr(page, '_dir_path', cs.ROOT_DIR)
+        page_dir = os.path.join(parent_dir, page_slug)
+        os.makedirs(page_dir, exist_ok=True)
+
+        # Save PRG file
+        frame_file = f'{page_slug}.prg'
+        frame_path = os.path.join(page_dir, frame_file)
+        with open(frame_path, 'wb') as f:
+            f.write(prg_data)
+
+        # Allocate page number
+        all_pages = list(self.directory.pages.keys())
+        next_page_num = max(all_pages) + 1 if all_pages else 1000
+
+        # Calculate size in K
+        size = (len(prg_data) - 2 + 1023) // 1024 if len(prg_data) > 2 else 1
+
+        # Create page object
+        new_page = cs.CompunetPage(
+            page_num=next_page_num,
+            title=send['title'],
+            page_type=send['type'],
+            size=size,
+            author=self.user_id,
+            price=send['price'],
+            life=send['lifetime'],
+        )
+        new_page.parent = page
+        new_page._frame_files = [frame_file]
+        new_page._dir_path = page_dir
+        new_page._adverts = []
+        new_page.frames = [prg_data]
+        page.children.append(new_page)
+        self.directory.pages[next_page_num] = new_page
+
+        # Save directory JSON (reuse server's save logic)
+        import json as json_mod
+        self._save_directory_tree(cs)
+
+        cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
+                     title=send['title'], page=next_page_num, type=send['type'])
+
+        await self.cursor_to(24, 0)
+        await self.send_text('UPLOAD COMPLETE'.ljust(39))
+        await self.read_key()
+
+        self._upload_pending = None
+        self.mode = 'directory'
+        self.duck_pos = getattr(self, '_saved_duck_pos', 0)
+        await self.render_directory()
+
+    def _save_directory_tree(self, cs):
+        """Save directory tree to JSON files (same logic as CompunetSession._save_directory)."""
+        import json
+
+        def _save_dir_json(page, json_path):
+            data = {}
+            if hasattr(page, 'header') and page.header:
+                data['header'] = page.header
+            if hasattr(page, '_adverts') and page._adverts:
+                data['adverts'] = page._adverts
+            if hasattr(page, 'shortcuts') and page.shortcuts:
+                data['shortcuts'] = page.shortcuts
+            if hasattr(page, 'open_upload') and page.open_upload:
+                data['open_upload'] = True
+            pages_list = []
+            for child in page.children:
+                node = {
+                    'page_num': child.page_num,
+                    'title': child.title,
+                    'type': child.page_type,
+                    'author': child.author,
+                    'price': child.price,
+                    'life': child.life,
+                }
+                if child.keyword:
+                    node['keyword'] = child.keyword
+                frame_files = getattr(child, '_frame_files', [])
+                if frame_files:
+                    node['frames'] = frame_files
+                if child.children:
+                    child_dir = getattr(child, '_dir_path', '')
+                    dir_json_path = os.path.join(child_dir, 'directory.json')
+                    node['directory'] = os.path.relpath(dir_json_path, cs.ROOT_DIR)
+                    _save_dir_json(child, dir_json_path)
+                pages_list.append(node)
+            data['pages'] = pages_list
+            os.makedirs(os.path.dirname(json_path), exist_ok=True)
+            with open(json_path, 'w') as f:
+                json.dump(data, f, indent=2)
+
+        root_json_path = os.path.join(cs.ROOT_DIR, 'root.json')
+        _save_dir_json(self.directory.root, root_json_path)
+
+    async def _xmodem_receive(self):
+        """Receive a file via XMODEM-CRC (supports both 128-byte and 1K blocks)."""
+        SOH = 0x01  # 128-byte block
+        STX = 0x02  # 1024-byte block
+        EOT = 0x04
+        ACK = 0x06
+        NAK = 0x15
+        CAN = 0x18
+
+        # Send 'C' to request CRC mode until sender responds
+        first = None
+        for _ in range(10):
+            self.writer.write(b'C')
+            await self.writer.drain()
+            try:
+                first = await asyncio.wait_for(self.reader.read(1), timeout=3.0)
+                if first and first[0] in (SOH, STX):
+                    break
+                elif first and first[0] == EOT:
+                    self.writer.write(bytes([ACK]))
+                    await self.writer.drain()
+                    return b''
+                first = None
+            except asyncio.TimeoutError:
+                continue
+        else:
+            raise asyncio.TimeoutError("No response from sender")
+
+        # Receive blocks
+        data = bytearray()
+        expected_block = 1
+
+        while True:
+            if first:
+                hdr = first[0]
+                first = None
+            else:
+                hdr_data = await asyncio.wait_for(self.reader.read(1), timeout=10.0)
+                if not hdr_data:
+                    raise ConnectionResetError()
+                hdr = hdr_data[0]
+
+            if hdr == EOT:
+                self.writer.write(bytes([ACK]))
+                await self.writer.drain()
+                break
+            elif hdr == CAN:
+                break
+            elif hdr == SOH:
+                block_size = 128
+            elif hdr == STX:
+                block_size = 1024
+            else:
+                self.writer.write(bytes([NAK]))
+                await self.writer.drain()
+                continue
+
+            # Read: block_num(1) + complement(1) + data(block_size) + CRC(2)
+            pkt_len = 2 + block_size + 2
+            pkt = bytearray()
+            while len(pkt) < pkt_len:
+                chunk = await asyncio.wait_for(
+                    self.reader.read(pkt_len - len(pkt)), timeout=10.0)
+                if not chunk:
+                    raise ConnectionResetError()
+                pkt.extend(chunk)
+
+            block_num = pkt[0]
+            block_comp = pkt[1]
+            block_data = pkt[2:2 + block_size]
+            crc_hi = pkt[2 + block_size]
+            crc_lo = pkt[2 + block_size + 1]
+
+            # Validate block number
+            if (block_num + block_comp) & 0xFF != 0xFF:
+                self.writer.write(bytes([NAK]))
+                await self.writer.drain()
+                continue
+
+            # Validate CRC
+            crc_received = (crc_hi << 8) | crc_lo
+            crc_calc = self._xmodem_crc16(block_data)
+            if crc_received != crc_calc:
+                self.writer.write(bytes([NAK]))
+                await self.writer.drain()
+                continue
+
+            if block_num == expected_block & 0xFF:
+                data.extend(block_data)
+                expected_block += 1
+
+            self.writer.write(bytes([ACK]))
+            await self.writer.drain()
+
+        # Strip trailing SUB ($1A) padding from last block
+        while data and data[-1] == 0x1A:
+            data = data[:-1]
+
+        return bytes(data)
+
     async def _mail_show(self):
         """Show the selected mail message."""
         import json
@@ -1159,6 +1542,8 @@ class TerminalSession:
             return DUCK_FRAME
         elif self.mode == 'mail':
             return DUCK_MAIL
+        elif self.mode == 'upload':
+            return DUCK_UPLOAD
         return DUCK_DIR
 
     # --- Frame display ---
@@ -1406,6 +1791,16 @@ class TerminalSession:
             else:
                 await self.render_directory()
 
+        elif cmd == 'UPLD':
+            await self._cmd_upload()
+
+        elif cmd == 'SEND':
+            await self._cmd_upload_send()
+
+        elif cmd == 'ABORT':
+            self._upload_pending = None
+            await self.render_directory()
+
         elif cmd == 'HELP':
             cs = _get_server()
             help_path = os.path.join(os.path.dirname(__file__), 'cfg', 'help.pet')
@@ -1511,6 +1906,21 @@ class TerminalSession:
                 elif key == KEY_F7 or key == KEY_F8:
                     self.mail_column = (self.mail_column + (1 if key == KEY_F8 else -1)) % 3
                     await self.redraw_mail_column()
+
+            elif self.mode == 'upload':
+                if key == KEY_CRSR_RIGHT:
+                    commands = self._get_duckshoot()
+                    self.duck_pos = (self.duck_pos + 1) % len(commands)
+                    await self.cursor_to(24, 0)
+                    await self.render_duckshoot()
+                elif key == KEY_CRSR_LEFT:
+                    commands = self._get_duckshoot()
+                    self.duck_pos = (self.duck_pos - 1) % len(commands)
+                    await self.cursor_to(24, 0)
+                    await self.render_duckshoot()
+                elif key == KEY_RETURN:
+                    commands = self._get_duckshoot()
+                    await self.execute_command(commands[self.duck_pos])
 
             elif self.mode == 'frame':
                 if key == KEY_CRSR_RIGHT:
