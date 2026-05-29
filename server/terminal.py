@@ -51,7 +51,7 @@ KEY_RUNSTOP = 0x03
 DUCK_DIR = ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT',
             'SAVE', 'EDITR', 'LEAVE', 'PRINT', 'LIFE', 'BUY', 'LOAD', 'UPLD', 'VOTE']
 DUCK_FRAME = ['MORE', 'FINISH']
-DUCK_MAIL = ['SHOW', 'SEND', 'BACK', 'DONE']
+DUCK_MAIL = ['ID', 'EDITR', 'DONE', 'SEND', 'SHOW', 'MORE']
 
 # Import server components (deferred to avoid circular imports)
 _server_module = None
@@ -145,6 +145,7 @@ class TerminalSession:
         self.dir_cursor = 0
         self.dir_offset = 0
         self.dir_column = 0         # 0=PRICE, 1=LIFE, 2=AUTHOR, 3=VOTE
+        self.mail_column = 0        # 0=SENDER, 1=DATE, 2=STATUS
         self.duck_pos = 0
         self.mode = 'login'         # login, directory, frame, mail
         self.show_page = None
@@ -708,6 +709,451 @@ class TerminalSession:
             await self.send(UPPERCASE)
             await self.send(self.B_THICK_V)
 
+    async def redraw_mail_entry(self, idx):
+        """Redraw a single mail entry line."""
+        visible = self.mail_messages[self.mail_offset:self.mail_offset + 11]
+        if idx >= len(visible):
+            return
+        row = self.entries_row + idx
+        await self.cursor_to(row, 0)
+
+        msg = visible[idx]
+        msg_id = str(msg.get('id', ''))[:5].ljust(5)
+        subject = msg.get('subject', '')[:18].ljust(18)
+        msg_type = 'T' + str(len(msg.get('frames', [])))
+        type_str = msg_type[:5].ljust(5)
+        content = f'{msg_id} {subject}{type_str}'[:29]
+        col_val = self._mail_col_value(msg)
+
+        if idx == self.mail_cursor:
+            await self.send(COL_WHITE)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THICK_V)
+            await self.send(LOWERCASE)
+            await self.send(RVS_ON)
+            await self.send_text(content)
+            await self.send(RVS_OFF)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THIN_V)
+            await self.send(LOWERCASE)
+            await self.send(RVS_ON)
+            await self.send_text(col_val)
+            await self.send(RVS_OFF)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THIN_V)
+        else:
+            unread = not msg.get('read')
+            await self.send(COL_WHITE)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THICK_V)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE if unread else COL_BLUE)
+            await self.send_text(content)
+            await self.send(COL_WHITE)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THIN_V)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE if unread else COL_BLUE)
+            await self.send_text(col_val)
+            await self.send(COL_WHITE)
+            await self.send(UPPERCASE)
+            await self.send(self.B_THICK_V)
+
+    async def redraw_mail_column(self):
+        """Redraw the mail column header and values (F7/F8 toggle)."""
+        mail_cols = ['SENDER', 'DATE', 'STATUS']
+        # Column header at row 8, col 31
+        await self.cursor_to(8, 31)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        await self.send_text(mail_cols[self.mail_column].ljust(8)[:8])
+
+        # Column values for each visible entry
+        visible = self.mail_messages[self.mail_offset:self.mail_offset + 11]
+        for i in range(11):
+            await self.cursor_to(self.entries_row + i, 31)
+            if i < len(visible):
+                msg = visible[i]
+                col_val = self._mail_col_value(msg)
+                if i == self.mail_cursor:
+                    await self.send(COL_WHITE)
+                    await self.send(RVS_ON)
+                    await self.send_text(col_val)
+                    await self.send(RVS_OFF)
+                else:
+                    unread = not msg.get('read')
+                    await self.send(COL_WHITE if unread else COL_BLUE)
+                    await self.send_text(col_val)
+            else:
+                await self.send(b'\x20' * 8)
+
+    # --- Mail ---
+
+    def _load_mail(self):
+        """Load mail messages for the current user."""
+        import json
+        cs = _get_server()
+        mail_file = os.path.join(cs.MAIL_DIR, self.user_id + '.json')
+        if os.path.exists(mail_file):
+            with open(mail_file, 'r') as f:
+                data = json.load(f)
+            messages = data.get('messages', [])
+            # Filter expired (read > 2 days ago)
+            cutoff = datetime.datetime.now() - datetime.timedelta(days=2)
+            result = []
+            for msg in messages:
+                if msg.get('read') and msg.get('read_date'):
+                    try:
+                        read_dt = datetime.datetime.strptime(msg['read_date'], '%Y-%m-%d')
+                        if read_dt < cutoff:
+                            continue
+                    except ValueError:
+                        pass
+                result.append(msg)
+            return result
+        return []
+
+    def _mail_col_value(self, msg):
+        """Get the column value for a mail entry based on current mail_column."""
+        if self.mail_column == 0:
+            return msg.get('from', '?')[:8].ljust(8)
+        elif self.mail_column == 1:
+            date_raw = msg.get('date', '')
+            if len(date_raw) >= 10:
+                return f'{date_raw[8:10]}-{date_raw[5:7]}-{date_raw[2:4]}'.ljust(8)
+            return date_raw[:8].ljust(8)
+        else:
+            if msg.get('read'):
+                return 'READ    '
+            return 'NEW     '
+
+    async def render_mail(self):
+        """Draw the mail screen with borders matching the C64 client."""
+        cs = _get_server()
+        users = cs._api_load_users()
+        user = users.get(self.user_id, {})
+        real_name = user.get('name', self.user_id)
+
+        await self.send(CLR)
+
+        # Header (same as DIR — rows 0-5)
+        page = self.current_page
+        header_file = getattr(page, 'header', None)
+        ancestor = page
+        while ancestor and not header_file:
+            header_file = getattr(ancestor, 'header', None)
+            ancestor = getattr(ancestor, 'parent', None)
+
+        if header_file:
+            header_path = os.path.join(cs.ROOT_DIR, header_file)
+            if os.path.exists(header_path):
+                await self.send(UPPERCASE)
+                with open(header_path, 'rb') as f:
+                    frame_data = b'\x00\x00\x00\x00' + f.read()
+                await self.send(expand_frame(frame_data))
+
+        # Row 6: frame top border
+        await self.cursor_to(6, 0)
+        await self.send(UPPERCASE)
+        await self.send(COL_WHITE)
+        await self.send(self.B_TEE_L + self.B_THICK_H * 28 + self.B_THIN_H +
+                        self.B_TEE_DOWN + self.B_THIN_H * 8 + self.B_CORNER_TR)
+
+        # Row 7: user id line
+        await self.send(LOWERCASE)
+        await self.send(UPPERCASE)
+        await self.send(self.B_THICK_V)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        user_line = f' USER ID : {self.user_id}'
+        await self.send_text(user_line[:29].ljust(29))
+        await self.send(UPPERCASE)
+        await self.send(self.B_THICK_V)
+        await self.send(b'\x20' * 8)
+        await self.send(self.B_THICK_V)
+
+        # Row 8: real name + column header (SENDER)
+        await self.send(LOWERCASE)
+        await self.send(UPPERCASE)
+        await self.send(self.B_THICK_V)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        await self.send_text(real_name[:29].ljust(29))
+        await self.send(UPPERCASE)
+        await self.send(self.B_THIN_V)
+        await self.send(LOWERCASE)
+        mail_cols = ['SENDER', 'DATE', 'STATUS']
+        await self.send_text(mail_cols[self.mail_column].ljust(8)[:8])
+        await self.send(UPPERCASE)
+        await self.send(self.B_THIN_V)
+
+        # Row 9: entry area top border
+        await self.send(self.B_TEE_R + self.B_THICK_H * 29 + self.B_CROSS +
+                        self.B_THICK_H * 8 + self.B_TEE_ENTRY_R)
+
+        # Rows 10-20: mail entries (11 rows)
+        await self.send(LOWERCASE)
+        visible = self.mail_messages[self.mail_offset:self.mail_offset + 11]
+        self.entries_row = 10
+        for i in range(11):
+            if i < len(visible):
+                msg = visible[i]
+                msg_id = str(msg.get('id', ''))[:5].ljust(5)
+                subject = msg.get('subject', '')[:18].ljust(18)
+                msg_type = 'T' + str(len(msg.get('frames', [])))
+                type_str = msg_type[:5].ljust(5)
+                content = f'{msg_id} {subject}{type_str}'[:29]
+                col_val = self._mail_col_value(msg)
+
+                if i == self.mail_cursor:
+                    await self.send(COL_WHITE)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THICK_V)
+                    await self.send(LOWERCASE)
+                    await self.send(RVS_ON)
+                    await self.send_text(content)
+                    await self.send(RVS_OFF)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THIN_V)
+                    await self.send(LOWERCASE)
+                    await self.send(RVS_ON)
+                    await self.send_text(col_val)
+                    await self.send(RVS_OFF)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THIN_V)
+                else:
+                    unread = not msg.get('read')
+                    await self.send(COL_WHITE)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THICK_V)
+                    await self.send(LOWERCASE)
+                    await self.send(COL_WHITE if unread else COL_BLUE)
+                    await self.send_text(content)
+                    await self.send(COL_WHITE)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THIN_V)
+                    await self.send(LOWERCASE)
+                    await self.send(COL_WHITE if unread else COL_BLUE)
+                    await self.send_text(col_val)
+                    await self.send(COL_WHITE)
+                    await self.send(UPPERCASE)
+                    await self.send(self.B_THICK_V)
+            else:
+                await self.send(COL_WHITE)
+                await self.send(UPPERCASE)
+                await self.send(self.B_THICK_V)
+                await self.send(LOWERCASE)
+                await self.send(b'\x20' * 29)
+                await self.send(UPPERCASE)
+                await self.send(self.B_THIN_V)
+                await self.send(b'\x20' * 8)
+                await self.send(self.B_THICK_V)
+
+        # Row 21: bottom border
+        await self.send(UPPERCASE)
+        await self.send(COL_WHITE)
+        await self.send(self.B_CORNER_BL + self.B_THIN_H * 29 + self.B_TEE_UP)
+        await self.send(LOWERCASE)
+        await self.send_text('<F7)(F8>')
+        await self.send(UPPERCASE)
+        await self.send(b'\xab')
+
+        # Rows 22-23: empty
+        await self.send(LOWERCASE)
+        await self.cursor_to(22, 0)
+        await self.send(CR + CR)
+
+        # Row 24: duckshoot
+        await self.cursor_to(24, 0)
+        await self.render_duckshoot()
+
+    async def _xmodem_send(self, page):
+        """Send a program page via XMODEM-CRC protocol."""
+        cs = _get_server()
+        prg_data = page.frames[0]  # Raw PRG (first 2 bytes = load addr)
+
+        # Show status
+        await self.cursor_to(24, 0)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        filename = page.title[:16].strip().replace(' ', '-').lower()
+        await self.send_text(f'XMODEM: {filename} ({len(prg_data)}b)'.ljust(39))
+
+        # Wait for receiver to initiate (send 'C' for CRC mode or NAK for checksum)
+        try:
+            start_byte = await asyncio.wait_for(self._wait_xmodem_start(), timeout=60.0)
+        except asyncio.TimeoutError:
+            await self.cursor_to(24, 0)
+            await self.send_text('TRANSFER TIMEOUT'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+
+        use_crc = (start_byte == 0x43)  # 'C' = CRC mode
+
+        # Send data in 128-byte blocks
+        SOH = 0x01
+        EOT = 0x04
+        ACK = 0x06
+        NAK = 0x15
+        block_num = 1
+        offset = 0
+        total = len(prg_data)
+
+        while offset < total:
+            block = prg_data[offset:offset + 128]
+            if len(block) < 128:
+                block = block + bytes([0x1A] * (128 - len(block)))  # Pad with SUB
+
+            # Build packet
+            pkt = bytearray([SOH, block_num & 0xFF, (255 - block_num) & 0xFF])
+            pkt.extend(block)
+
+            if use_crc:
+                crc = self._xmodem_crc16(block)
+                pkt.append((crc >> 8) & 0xFF)
+                pkt.append(crc & 0xFF)
+            else:
+                checksum = sum(block) & 0xFF
+                pkt.append(checksum)
+
+            # Send and wait for ACK
+            retries = 10
+            while retries > 0:
+                self.writer.write(bytes(pkt))
+                await self.writer.drain()
+                try:
+                    resp = await asyncio.wait_for(self.reader.read(1), timeout=10.0)
+                    if resp and resp[0] == ACK:
+                        break
+                    elif resp and resp[0] == NAK:
+                        retries -= 1
+                    else:
+                        retries -= 1
+                except asyncio.TimeoutError:
+                    retries -= 1
+
+            if retries == 0:
+                await self.cursor_to(24, 0)
+                await self.send_text('TRANSFER FAILED'.ljust(39))
+                await self.read_key()
+                await self.cursor_to(24, 0)
+                await self.render_duckshoot()
+                return
+
+            block_num += 1
+            offset += 128
+
+        # End of transmission (receiver may NAK first EOT, resend until ACK)
+        for _ in range(5):
+            self.writer.write(bytes([EOT]))
+            await self.writer.drain()
+            try:
+                resp = await asyncio.wait_for(self.reader.read(1), timeout=10.0)
+                if resp and resp[0] == ACK:
+                    break
+            except asyncio.TimeoutError:
+                break
+
+        cs.audit_log('download', user=self.user_id, ip=self.client_ip,
+                     page=page.page_num, title=page.title)
+
+        await self.cursor_to(24, 0)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        await self.send_text('TRANSFER COMPLETE'.ljust(39))
+        await self.read_key()
+        await self.cursor_to(24, 0)
+        await self.render_duckshoot()
+
+    async def _wait_xmodem_start(self):
+        """Wait for XMODEM receiver to send 'C' (CRC) or NAK (checksum)."""
+        while True:
+            data = await asyncio.wait_for(self.reader.read(1), timeout=60.0)
+            if not data:
+                raise ConnectionResetError("Client disconnected")
+            if data[0] == 0x43 or data[0] == 0x15:  # 'C' or NAK
+                return data[0]
+
+    @staticmethod
+    def _xmodem_crc16(data):
+        """Calculate XMODEM CRC-16."""
+        crc = 0
+        for byte in data:
+            crc ^= byte << 8
+            for _ in range(8):
+                if crc & 0x8000:
+                    crc = (crc << 1) ^ 0x1021
+                else:
+                    crc <<= 1
+                crc &= 0xFFFF
+        return crc
+
+    async def _mail_show(self):
+        """Show the selected mail message."""
+        import json
+        cs = _get_server()
+        visible = self.mail_messages[self.mail_offset:self.mail_offset + 11]
+        if self.mail_cursor >= len(visible):
+            return
+        msg = visible[self.mail_cursor]
+        msg_id = msg.get('id')
+
+        # Load message frames
+        mail_dir = os.path.join(cs.MAIL_DIR, self.user_id)
+        frames = []
+        frame_idx = 0
+        while True:
+            frame_path = os.path.join(mail_dir, f'{msg_id}-{frame_idx}.seq')
+            if not os.path.exists(frame_path):
+                break
+            with open(frame_path, 'rb') as f:
+                frames.append(f.read())
+            frame_idx += 1
+
+        if not frames:
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE)
+            await self.send_text('NO MESSAGE DATA'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+
+        # Mark as read
+        msg['read'] = True
+        msg['read_date'] = datetime.datetime.now().strftime('%Y-%m-%d')
+        mail_file = os.path.join(cs.MAIL_DIR, self.user_id + '.json')
+        with open(mail_file, 'r') as f:
+            mail_data = json.load(f)
+        for m in mail_data.get('messages', []):
+            if m.get('id') == msg_id:
+                m['read'] = True
+                m['read_date'] = msg['read_date']
+                break
+        with open(mail_file, 'w') as f:
+            json.dump(mail_data, f)
+        cs.audit_log('mail_read', user=self.user_id, ip=self.client_ip, msg_id=msg_id)
+
+        # Display frames
+        for i, frame_data in enumerate(frames):
+            await self.send(CLR)
+            await self.send(UPPERCASE)
+            await self.send(expand_frame(frame_data))
+            await self.send(LOWERCASE)
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            if i < len(frames) - 1:
+                await self.send_text('MORE...')
+            else:
+                await self.send_text('PRESS ANY KEY')
+            await self.read_key()
+
+        # Return to mail listing
+        await self.render_mail()
+
     def _get_duckshoot(self):
         if self.mode == 'frame':
             return DUCK_FRAME
@@ -755,6 +1201,9 @@ class TerminalSession:
         cs = _get_server()
 
         if cmd == 'SHOW':
+            if self.mode == 'mail':
+                await self._mail_show()
+                return
             page = self.current_page
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
@@ -886,28 +1335,17 @@ class TerminalSession:
             await self.render_directory()
 
         elif cmd == 'MAIL':
-            # Simple mail listing for now
-            await self.send(CLR)
-            await self.send(COL_BLUE)
-            await self.send_text('  COURIER - MAIL\r\r')
-            mail_dir = os.path.join(cs.MAIL_DIR, self.user_id)
-            if os.path.exists(mail_dir):
-                import json
-                meta_files = sorted([f for f in os.listdir(mail_dir) if f.endswith('.json')])
-                for mf in meta_files[:11]:
-                    with open(os.path.join(mail_dir, mf)) as f:
-                        msg = json.load(f)
-                    if not msg.get('read'):
-                        await self.send(COL_WHITE)
-                    else:
-                        await self.send(COL_BLUE)
-                    await self.send_text(f"  {msg.get('from','?')}: {msg.get('subject','')[:25]}\r")
-            else:
-                await self.send_text('  NO MAIL\r')
-            await self.send(CR)
-            await self.send(COL_WHITE)
-            await self.send_text('  PRESS ANY KEY')
-            await self.read_key()
+            self.mail_messages = self._load_mail()
+            self.mail_cursor = 0
+            self.mail_offset = 0
+            self._saved_duck_pos = self.duck_pos
+            self.mode = 'mail'
+            self.duck_pos = 3  # SEND is default selected
+            await self.render_mail()
+
+        elif cmd == 'DONE':
+            self.mode = 'directory'
+            self.duck_pos = getattr(self, '_saved_duck_pos', 0)
             await self.render_directory()
 
         elif cmd == 'LIFE':
@@ -937,6 +1375,36 @@ class TerminalSession:
             await self.read_key()
             await self.cursor_to(24, 0)
             await self.render_duckshoot()
+
+        elif cmd == 'BUY':
+            page = self.current_page
+            visible = page.children[self.dir_offset:self.dir_offset + 11]
+            if self.dir_cursor < len(visible):
+                child = visible[self.dir_cursor]
+                # Deduct credit for paid pages
+                if child.price > 0:
+                    users = cs._api_load_users()
+                    user = users.get(self.user_id, {})
+                    user['credit'] = user.get('credit', 0.0) - child.price
+                    import json
+                    users_path = os.path.join(os.path.dirname(__file__), 'cfg', 'users.json')
+                    with open(users_path, 'w') as f:
+                        json.dump(users, f)
+                    cs.audit_log('buy', user=self.user_id, ip=self.client_ip,
+                                 page=child.page_num, title=child.title, price=child.price)
+                # Program page: trigger XMODEM download
+                if child.page_type == 'P' and child.frames:
+                    await self._xmodem_send(child)
+                else:
+                    # Non-program: just show the page (same as SHOW)
+                    if child.frames:
+                        self.show_page = child
+                        self.show_frame_idx = 0
+                        await self.render_frame()
+                    else:
+                        await self.render_directory()
+            else:
+                await self.render_directory()
 
         elif cmd == 'HELP':
             cs = _get_server()
@@ -1012,6 +1480,37 @@ class TerminalSession:
                         await self.render_directory()
                     else:
                         await self.execute_command(cmd)
+
+            elif self.mode == 'mail':
+                if key == KEY_CRSR_DOWN:
+                    visible = self.mail_messages[self.mail_offset:self.mail_offset + 11]
+                    if self.mail_cursor < len(visible) - 1:
+                        old = self.mail_cursor
+                        self.mail_cursor += 1
+                        await self.redraw_mail_entry(old)
+                        await self.redraw_mail_entry(self.mail_cursor)
+                elif key == KEY_CRSR_UP:
+                    if self.mail_cursor > 0:
+                        old = self.mail_cursor
+                        self.mail_cursor -= 1
+                        await self.redraw_mail_entry(old)
+                        await self.redraw_mail_entry(self.mail_cursor)
+                elif key == KEY_CRSR_RIGHT:
+                    commands = self._get_duckshoot()
+                    self.duck_pos = (self.duck_pos + 1) % len(commands)
+                    await self.cursor_to(24, 0)
+                    await self.render_duckshoot()
+                elif key == KEY_CRSR_LEFT:
+                    commands = self._get_duckshoot()
+                    self.duck_pos = (self.duck_pos - 1) % len(commands)
+                    await self.cursor_to(24, 0)
+                    await self.render_duckshoot()
+                elif key == KEY_RETURN:
+                    commands = self._get_duckshoot()
+                    await self.execute_command(commands[self.duck_pos])
+                elif key == KEY_F7 or key == KEY_F8:
+                    self.mail_column = (self.mail_column + (1 if key == KEY_F8 else -1)) % 3
+                    await self.redraw_mail_column()
 
             elif self.mode == 'frame':
                 if key == KEY_CRSR_RIGHT:

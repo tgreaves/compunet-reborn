@@ -21,29 +21,41 @@
 	* Auto-detect Telnet vs Raw connections (IAC negotiation for Telnet clients,
 	  $FF byte escaping).
 	* PETSCII test indicator on login screen (block character).
-	* GOTO, VOTE, MAIL (inbox listing), LIFE, WHO IS ONLINE, LEAVE, HELP,
-	  ACCNT commands implemented.
+	* GOTO, VOTE, MAIL, LIFE, WHO IS ONLINE, LEAVE, HELP, ACCNT, BUY
+	  commands implemented.
+	* MAIL: full bordered inbox screen with cursor navigation, F7/F8
+	  column toggle (SENDER/DATE/STATUS), SHOW to read messages.
+	* BUY: XMODEM-CRC file download for program ('P') pages. Credit
+	  deduction for paid content.
 	* LEAVE uses goodbye.seq template (same artwork as protocol client).
 	* HELP screen loaded from `server/cfg/help.pet`.
 	* Shared state: terminal users appear in WHO IS ONLINE, same auth/audit system.
 	* Efficient redraw: cursor up/down only repaints two entry lines, F7/F8
 	  only repaints column values, duckshoot movement only repaints row 24.
 	* Duckshoot position preserved across commands and frame view/return.
-* Client:
-	* Fixed: CPU JAM on MAIL command (and potentially other multi-packet
-	  responses). NMI handler now saves/restores $01 and ensures I/O is
-	  visible before accessing ACIA registers. Previously, if NMI fired
-	  while L_A5D5 had KERNAL banked out ($01=$34), the hardware NMI vector
-	  at $FFFA read $0000 from RAM → jump to zero page → JAM.
-	* NMI handler address ($CF00) now written to RAM at $FFFA/$FFFB so
-	  NMI vectors correctly regardless of banking state.
 * Server:
-	* Fixed: WHO IS ONLINE missing users on reconnect. Now uses reference-counted
-	  session tracking — user only removed from online set when last session ends.
-	* New `server/terminal.py` module.
 	* Port 6401 listener added to main server event loop.
 	* Dockerfile updated: terminal.py included, port 6401 exposed.
 	* docker-compose.yml: port 6401 mapped.
+
+# 0.7.2-beta (2026-05-29)
+
+* Client:
+	* Fixed: CPU JAM ($0008) on MAIL command and other multi-packet directory
+	  responses. NMI handler now saves/restores $01 and ensures I/O is visible
+	  (ORA #$06) before accessing ACIA registers. Previously, if NMI fired while
+	  the directory parser had KERNAL banked out ($01=$34) to read RAM under I/O,
+	  the hardware NMI vector at $FFFA/$FFFB read $0000 from RAM causing a jump
+	  to zero page.
+	* Hardware NMI vector at $FFFA/$FFFB in RAM now set to $CF00 (NMI handler
+	  address) during ACIA_INIT, ensuring correct NMI vectoring regardless of
+	  current bank configuration.
+* Server:
+	* Fixed: WHO IS ONLINE missing users. When a user reconnected (new TCP
+	  connection before old session timed out), the old session's disconnect
+	  handler removed the user from `_online_users` even though the new session
+	  was still active. Now uses reference-counted tracking — user is only
+	  removed from the online set when their last session disconnects.
 
 # 0.7.1-beta (2026-05-28)
 
