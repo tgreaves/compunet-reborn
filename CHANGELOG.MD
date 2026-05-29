@@ -1,3 +1,22 @@
+# 0.7.2-beta (2026-05-29)
+
+* Client:
+	* Fixed: CPU JAM ($0008) on MAIL command and other multi-packet directory
+	  responses. NMI handler now saves/restores $01 and ensures I/O is visible
+	  (ORA #$06) before accessing ACIA registers. Previously, if NMI fired while
+	  the directory parser had KERNAL banked out ($01=$34) to read RAM under I/O,
+	  the hardware NMI vector at $FFFA/$FFFB read $0000 from RAM causing a jump
+	  to zero page.
+	* Hardware NMI vector at $FFFA/$FFFB in RAM now set to $CF00 (NMI handler
+	  address) during ACIA_INIT, ensuring correct NMI vectoring regardless of
+	  current bank configuration.
+* Server:
+	* Fixed: WHO IS ONLINE missing users. When a user reconnected (new TCP
+	  connection before old session timed out), the old session's disconnect
+	  handler removed the user from `_online_users` even though the new session
+	  was still active. Now uses reference-counted tracking — user is only
+	  removed from the online set when their last session disconnects.
+
 # 0.7.1-beta (2026-05-28)
 
 * Partyline:

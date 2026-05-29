@@ -99,7 +99,24 @@ MAIL_DIR = os.path.join(DATA_DIR, 'mail')
 VOTES_PATH = os.path.join(DATA_DIR, 'votes.json')
 
 # Active session tracking
-_online_users = set()  # user IDs currently logged in
+_online_users = set()  # user IDs currently logged in (derived from _online_count)
+_online_count = {}     # user_id -> number of active sessions
+
+
+def _user_connect(user_id):
+    """Register a user session as online."""
+    _online_count[user_id] = _online_count.get(user_id, 0) + 1
+    _online_users.add(user_id)
+
+
+def _user_disconnect(user_id):
+    """Unregister a user session. Only removes from online set when last session ends."""
+    count = _online_count.get(user_id, 0)
+    if count <= 1:
+        _online_count.pop(user_id, None)
+        _online_users.discard(user_id)
+    else:
+        _online_count[user_id] = count - 1
 
 WHO_PAGE_DIR = os.path.join(ROOT_DIR, 'who-is-online')  # slug of "WHO IS ONLINE?"
 WHO_PAGE_NUM = 800
@@ -444,7 +461,7 @@ class CompunetSession:
         self.is_editor = user.get('editor', False)
         log.info('Login OK: %s (credit=%.2f, purchased=%s)', user_id, self.credit, self.purchased)
         audit_log('connect', user=user_id, ip=self.client_ip)
-        _online_users.add(user_id)
+        _user_connect(user_id)
         return self._make_welcome_frame(user)
     
     def handle_command(self, data):
@@ -2425,7 +2442,7 @@ async def tcp_handler(reader, writer):
                             return
                         
                         authenticated = True
-                        _online_users.add(session.user_id)
+                        _user_connect(session.user_id)
                         log.info('TCP: login OK! Skipping LINKING (terminal pre-loaded)')
 
                         # Send welcome frame — L89D0 reads this after login
@@ -2559,15 +2576,13 @@ async def tcp_handler(reader, writer):
         log.info('TCP: connection error: %s', e)
     finally:
         if session.user_id:
-            _online_users.discard(session.user_id)
+            _user_disconnect(session.user_id)
         writer.close()
         try:
             await writer.wait_closed()
         except (ConnectionResetError, BrokenPipeError, OSError):
             pass
         log.info('TCP client disconnected: %s', addr)
-        if session.user_id and session.user_id in _online_users:
-            _online_users.discard(session.user_id)
 
 
 # ============================================================
