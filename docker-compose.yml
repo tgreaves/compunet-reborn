@@ -6,6 +6,7 @@ services:
       dockerfile: server/Dockerfile
     ports:
       - "6400:6400"
+      - "6401:6401"
       - "6403:6403"
       - "6502:6502"
     volumes:

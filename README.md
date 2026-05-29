@@ -1,6 +1,6 @@
 # Compunet Reborn
 
-An effort to reverse engineer and recreate the Compunet protocol using modern systems.
+A recreation of the Compunet online service protocol and experience using modern systems.
 
 <img src="website/static/animated-walkthrough.gif" width="768">
 
@@ -8,55 +8,47 @@ An effort to reverse engineer and recreate the Compunet protocol using modern sy
 
 Users connected via a custom 1200/75 baud modem (the "brick") that plugged into the C64's cartridge port. The modem contained an 8K ROM that bootstrapped the system — the full terminal software was downloaded from the server during each session ("linking"), or cached locally via the CNSAVE command.
 
-## Current Status
-
-**This project is in BETA.** Most core functionality has been implemented and is working, but things may break. The system is under active development.
-
-Working features include: directory browsing, content viewing, multi-page frames, telesoftware downloads and uploads, electronic mail (Courier) with send/receive, user-generated content uploads, voting, GOTO navigation, sub-directories, UCAT, advert system, and the full duckshoot menu. 
-
 ## Live Service
 
-The official live instance of this project is running at [https://compunet.live/](https://compunet.live/)
+The official live instance is running at [https://compunet.live/](https://compunet.live/)
 
-## Quick Start (C64 in VICE)
+## Current Status
 
-### Prerequisites
-- VICE C64 emulator (x64sc)
-- Python 3 for the server
-- cc65 suite (ca65/ld65) and c1541 for building
+**BETA.** Core functionality is working and under active development.
 
-### Steps
-1. Copy the server data template: `cp -R server/data.example server/data`
-2. Copy the user database template: `cp server/cfg/users.json.example server/cfg/users.json`
-3. Start server: `./server.sh`
-4. In VICE: Settings → Peripheral Devices → RS232
-5. Enable ACIA RS232 interface emulation, set Device to Serial 3
-6. Serial 3 settings: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
-7. Attach `client/c64/compunet-reborn.d64` to drive 8
-8. `LOAD "COMPUNET",8` then `RUN`
-9. Type `CONNECT`, enter any number at the phone number prompt
-10. Login with TEST/TEST
-11. Duckshoot menu appears!
+Working features: directory browsing, content viewing, multi-page frames,
+telesoftware downloads/uploads, electronic mail (Courier) with send/receive,
+user-generated content, voting, GOTO navigation, sub-directories, UCAT,
+advert system, partyline chat, WHO IS ONLINE, and the full duckshoot menu.
 
-## Quick Start (C64 Ultimate)
+Two connection methods are available:
+- **Custom client** (port 6400) — full binary protocol, requires SwiftLink emulation
+- **PETSCII terminal** (port 6401) — server-rendered, works with any PETSCII terminal program
 
-The client works on the C64 Ultimate's built-in SwiftLink-to-TCP bridge:
+## Quick Start
 
-1. Configure the Ultimate: Modem Interface → ACIA / SwiftLink, DE00/NMI
-2. Load `compunet-reborn.d64` and run as above
-3. At the phone number prompt, enter `vme.compunet.live:6400`
+### Option 1: PETSCII Terminal (Easiest)
 
-### Automated Testing
+Connect with any PETSCII terminal program (e.g. SyncTerm):
+1. Start the server (see below)
+2. In SyncTerm: create entry with Connection Type **Raw**, Font **Commodore 64 (UPPER)**, address `localhost:6401`
+3. Login with TEST/TEST
 
-```bash
-./vice_test.sh <ip_address> <username> <password> [--restart-server]
-```
+### Option 2: Custom Client in VICE
 
-Example: `./vice_test.sh 127.0.0.1:6400 test test --restart-server`
+1. Copy templates: `cp -R server/data.example server/data && cp server/cfg/users.json.example server/cfg/users.json`
+2. Start server: `./server.sh`
+3. In VICE: Settings → Peripheral Devices → RS232 → Enable ACIA, Device Serial 3
+4. Serial 3: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
+5. Load `client/c64/compunet-reborn.d64` — `LOAD "COMPUNET",8` then `RUN`
 
-## Docker
+### Option 3: C64 Ultimate
 
-The server and website can be deployed with Docker Compose:
+1. Configure Ultimate: Modem Interface → ACIA / SwiftLink, DE00/NMI
+2. Load the auto-connect client (`COMPUNET-LIVE` from D64)
+3. Connects automatically to vme.compunet.live:6400
+
+## Docker Deployment
 
 ```bash
 cp .env.example .env
@@ -65,8 +57,8 @@ docker compose up -d --build
 ```
 
 This starts:
-- **compunet-server** — C64 protocol server (port 6400) + REST API (port 6403)
-- **compunet-web** — Registration website (port 6464)
+- **compunet-server** — Protocol server (6400) + PETSCII terminal (6401) + REST API (6403)
+- **compunet-web** — Registration website (6464)
 
 See `.env.example` for required configuration variables.
 
@@ -77,10 +69,11 @@ See `.env.example` for required configuration variables.
 ```bash
 cd client/c64/src
 make
-# Output: ../compunet-reborn.prg, ../compunet-reborn.d64
 ```
 
-Requires `ca65` and `ld65` from the [cc65](https://cc65.github.io/) suite, and `c1541` from VICE.
+Produces: PRG, SFX (self-extracting), auto-connect live variant, and D64 disk image.
+
+Requires: [cc65](https://cc65.github.io/) (ca65/ld65), `c1541` from VICE, `exomizer`.
 
 ### Server (local, without Docker)
 
@@ -93,36 +86,38 @@ cd ..
 ./server.sh start
 ```
 
-## Repository Contents
+## Repository Structure
 
-### C64 Client
+### Client
 
-- **[client/c64/src/](client/c64/src/)** — Source code and build system
+- **[client/c64/src/](client/c64/src/)** — Client source (6502 assembly, ca65)
+- **[client/c64/src/partyline/](client/c64/src/partyline/)** — Partyline chat client
 - **[client/c64/compunet-reborn.d64](client/c64/compunet-reborn.d64)** — Ready-to-run disk image
 - **[client/c64/vintage/](client/c64/vintage/)** — Original reverse engineering artefacts
 
 ### Server
 
-- **[server/](server/)** — Python Compunet server
-  - TCP interface (port 6400) for C64 clients
-  - WebSocket interface (port 6502) for the web client
-  - REST API (port 6403) for user management
-  - Config in `server/cfg/`, dynamic data in `server/data/`
+- **[server/compunet_server.py](server/compunet_server.py)** — Main server (protocol, API, session management)
+- **[server/terminal.py](server/terminal.py)** — PETSCII terminal mode (port 6401)
+- **[server/partyline.py](server/partyline.py)** — Multi-user partyline chat
+- **[server/cfg/](server/cfg/)** — Configuration (users, bans, templates)
+- **[server/data/](server/data/)** — Runtime content (not tracked in git)
 
 ### Website
 
-- **[website/](website/)** — Flask web app for registration and account management
+- **[website/](website/)** — Flask web app (registration, admin panel, password reset)
 
 ### Documentation
 
-- **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — Full X.25-derived protocol specification
+- **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — X.25-derived binary protocol specification
+- **[docs/TERMINAL.md](docs/TERMINAL.md)** — PETSCII terminal mode architecture
 - **[docs/MODEM.md](docs/MODEM.md)** — Hardware comparison and ACIA driver approach
+- **[docs/partyline.md](docs/partyline.md)** — Partyline chat system design
 - **[docs/ROM-REWRITE.md](docs/ROM-REWRITE.md)** — PRG-based architecture and build system
-- **[client/c64/README.md](client/c64/README.md)** — Client architecture and known issues
 
-### Historical Sources
+### Historical
 
-- **[historical/](historical/)** — SEQ files, D64 disk images, documentation
+- **[historical/](historical/)** — Original SEQ files, D64 disk images, documentation
 
 ## Acknowledgements
 

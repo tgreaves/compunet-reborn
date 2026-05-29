@@ -1,3 +1,27 @@
+# 0.8-beta (2026-05-29)
+
+* PETSCII Terminal Mode (port 6401):
+	* Server-rendered BBS interface for any PETSCII terminal (SyncTerm, CCGMS,
+	  StrikeTerm, UltimateTerm). No custom client required.
+	* C64-accurate directory display with borders, duckshoot, welcome screen.
+	* Full command set: DIR, SHOW, BACK, GOTO, MAIL, ACCNT, LIFE, VOTE, BUY,
+	  UPLD, EDITR, UCAT, HELP, LEAVE, WHO.
+	* XMODEM-CRC/1K file transfers (upload and download).
+	* Frame editor with 20-frame memory, free cursor editing, GET/PUT/STORE.
+	* Mail: inbox browsing, read, compose with COURIER envelope and delivery.
+	* Partyline: bordered chat UI, integrated with protocol client users.
+	* Auto-detect Raw/Telnet connections.
+* Client:
+	* Page numbers right-aligned in directory listings.
+	* Column headers indented one space from separator.
+* Server:
+	* Port 6401 listener added to main server event loop.
+	* Dockerfile updated: terminal.py included, port 6401 exposed.
+	* docker-compose.yml: port 6401 mapped.
+* Website:
+	* Connect page: PETSCII terminal setup instructions (SyncTerm),
+	  registration step, C64 terminal client recommendations.
+
 # 0.7.2-beta (2026-05-29)
 
 * Client:

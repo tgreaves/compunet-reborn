@@ -41,6 +41,7 @@ from pathlib import Path
 import markdown
 import aiohttp
 import partyline
+import terminal
 
 try:
     import websockets
@@ -90,6 +91,7 @@ def audit_log(event, user=None, **details):
 WS_PORT = 6502
 TCP_PORT = 6400
 API_PORT = 6403
+TERM_PORT = 6401
 SERVER_DIR = os.path.dirname(__file__)
 CFG_DIR = os.path.join(SERVER_DIR, 'cfg')
 DATA_DIR = os.path.join(SERVER_DIR, 'data')
@@ -1161,11 +1163,11 @@ class CompunetSession:
         data.append(0x00)
 
         # Part 5: column headers
-        data.extend(ascii_to_petscii('SENDER'))
+        data.extend(ascii_to_petscii(' SENDER'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii('DATE'))
+        data.extend(ascii_to_petscii(' DATE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii('STATUS'))
+        data.extend(ascii_to_petscii(' STATUS'))
         data.append(0x0D)
         data.append(0x00)
 
@@ -1668,13 +1670,13 @@ class CompunetSession:
         data.append(0x00)
 
         # Part 5: column headers (PRICE must be first — client checks field 1 for SHOW)
-        data.extend(ascii_to_petscii('PRICE'))
+        data.extend(ascii_to_petscii(' PRICE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii('LIFE'))
+        data.extend(ascii_to_petscii(' LIFE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii('VOTE'))
+        data.extend(ascii_to_petscii(' VOTE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii('PAGE'))
+        data.extend(ascii_to_petscii(' PAGE'))
         data.append(0x0D)
         data.append(0x00)
 
@@ -1688,7 +1690,7 @@ class CompunetSession:
             data.append(0x0D)
         else:
             for page in user_pages:
-                page_str = str(page.page_num).ljust(6)
+                page_str = str(page.page_num).rjust(5) + ' '
                 type_str = page.type_string().ljust(3)
                 title_field = page.title[:18].ljust(18) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
@@ -1812,13 +1814,13 @@ class CompunetSession:
         # --- Part 5: Column headers (at $D500, 8 bytes per field) ---
         # Single line: all column headers comma-separated, CR-terminated.
         # F7/F8 cycles through them. $C002 selects which to display.
-        data.extend(ascii_to_petscii('PRICE'))
+        data.extend(ascii_to_petscii(' PRICE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii('LIFE'))
+        data.extend(ascii_to_petscii(' LIFE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii('AUTHOR'))
+        data.extend(ascii_to_petscii(' AUTHOR'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii('VOTE'))
+        data.extend(ascii_to_petscii(' VOTE'))
         data.append(0x0D)
 
         # Separator byte consumed by L_A448's JSR L96CC (value unused)
@@ -1845,10 +1847,10 @@ class CompunetSession:
         else:
             for child in visible:
                 # Combined field: [page_num padded to 6] + [title...type right-aligned]
-                # First 6 chars = page number (hidden in bg colour)
-                # Chars 7-26 = title left-aligned, type right-aligned (20 chars total)
+                # First 6 chars = page number (5 right-aligned + space)
+                # Then title left-aligned, type right-aligned (20 chars total)
                 # Type suffix must start at screen column 25 (SHOW reads $19)
-                page_str = str(child.page_num).ljust(6)
+                page_str = str(child.page_num).rjust(5) + ' '
                 type_str = child.type_string().ljust(3)
                 title = child.title[:18]
                 title_field = title.ljust(18) + type_str
@@ -1942,7 +1944,7 @@ class CompunetSession:
         data.append(0x00)
 
         # Part 5: column header
-        data.extend(ascii_to_petscii('WHO'))
+        data.extend(ascii_to_petscii(' WHO'))
         data.append(0x0D)
         data.append(0x00)
 
@@ -3060,6 +3062,9 @@ async def main():
     tcp_server = await asyncio.start_server(tcp_handler, '0.0.0.0', TCP_PORT)
     log.info('TCP server on port %d', TCP_PORT)
 
+    term_server = await asyncio.start_server(terminal.terminal_handler, '0.0.0.0', TERM_PORT)
+    log.info('PETSCII terminal on port %d', TERM_PORT)
+
     if aiohttp_web:
         app = aiohttp_web.Application()
         app.router.add_get('/api/health', api_health)
@@ -3092,10 +3097,11 @@ async def main():
         _version = 'unknown'
     log.info('Compunet server v%s ready.', _version)
 
-    async with ws_server, tcp_server:
+    async with ws_server, tcp_server, term_server:
         await asyncio.gather(
             ws_server.serve_forever(),
             tcp_server.serve_forever(),
+            term_server.serve_forever(),
         )
 
 

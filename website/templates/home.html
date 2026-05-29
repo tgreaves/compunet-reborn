@@ -3,12 +3,12 @@
 {% block content %}
 <div class="hero">
     <h1>COMPUNET REBORN</h1>
-    <p>THE LIVE ONE LIVES ON</p>
+    <p class="hero-slogan">THE LIVE ONE LIVES ON!</p>
 </div>
 
-<p>Compunet was a UK-based interactive online service that ran from 1984 to 1993, serving Commodore 64 users. It featured user-generated content, electronic mail, telesoftware downloads, and a unique community experience.</p>
+<p>Compunet was a UK-based interactive online service that ran from 1984 to 1993, serving the Commodore 64 community. It featured user-generated content, electronic mail (Courier), telesoftware downloads, a page editor, multi-user partyline chat, and the iconic horizontally-scrolling "duckshoot" menu.</p>
 
-<p>Compunet Reborn is an effort to reverse engineer and recreate the original protocol, bringing this piece of computing history back to life on modern systems.</p>
+<p>Compunet Reborn recreates this unique service on modern systems. Connect from any PETSCII terminal, a C64 emulator, or real hardware — and experience it live.</p>
 
 <div class="walkthrough">
     <video controls width="50%">
@@ -16,21 +16,37 @@
     </video>
 </div>
 
-<h2>FEATURES</h2>
+<h2>CONNECT NOW</h2>
 <div class="info-box">
-    <h3>WHAT WORKS TODAY</h3>
-    <p>Directory browsing, content viewing, program downloads and uploads, electronic mail (Courier), user-generated content uploads, voting, and the full duckshoot menu system.</p>
+    <h3>PETSCII TERMINAL (Easiest)</h3>
+    <p>Use <strong>SyncTerm</strong> on Windows/Mac/Linux — no C64 required. Connect to <code>vme.compunet.live:6401</code> in Raw mode with the C64 screen mode. Full PETSCII graphics, file transfers via XMODEM.</p>
+    <p><a href="{{ url_for('connect') }}">SETUP INSTRUCTIONS &raquo;</a></p>
 </div>
 
 <div class="info-box">
-    <h3>GET CONNECTED</h3>
-    <p>All you need is VICE (C64 emulator) with SwiftLink enabled. No modem emulator required &mdash; connect directly to the server.</p>
-    <p><a href="{{ url_for('connect') }}">CONNECTION INSTRUCTIONS &raquo;</a></p>
+    <h3>C64 CLIENT</h3>
+    <p>The full experience on <strong>VICE</strong>, <strong>C64 Ultimate</strong>, or real hardware with SwiftLink. Download the auto-connect client and you're online in seconds.</p>
+    <p><a href="{{ url_for('connect') }}">DOWNLOAD &amp; CONNECT &raquo;</a></p>
+</div>
+
+<h2>FEATURES</h2>
+<div class="info-box">
+    <h3>WHAT'S LIVE</h3>
+    <ul>
+        <li>Directory browsing with the original duckshoot menu</li>
+        <li>PETSCII frame viewing with full colour and graphics</li>
+        <li>Electronic mail (Courier) — send and receive</li>
+        <li>Telesoftware downloads and uploads</li>
+        <li>Multi-user Partyline chat</li>
+        <li>Page editor with frame memory</li>
+        <li>User-generated content with voting</li>
+        <li>Who's Online</li>
+    </ul>
 </div>
 
 <div class="info-box">
     <h3>CREATE AN ACCOUNT</h3>
-    <p>Register your User ID to join the system. Upload your own content, send mail, and download telesoftware.</p>
+    <p>Registration is free. Get your User ID and start exploring, uploading, and chatting.</p>
     <p><a href="{{ url_for('register') }}">REGISTER NOW &raquo;</a></p>
 </div>
 {% endblock %}
