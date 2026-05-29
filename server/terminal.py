@@ -157,6 +157,10 @@ class TerminalSession:
         self.client_ip = ''
         self.telnet = False
         self._upload_pending = None
+        self._ucat_active = False
+        self._ucat_saved_page = None
+        self._ucat_saved_cursor = 0
+        self._ucat_saved_offset = 0
         self._frame_memory = []    # Last 20 frames viewed (raw frame data)
         self._editor_idx = 0       # Current position in frame memory
         self.entries_row = 8  # screen row where directory entries start
@@ -243,11 +247,13 @@ class TerminalSession:
         await self.send(CLR)
         await self.send(COL_BLUE)
         await self.send(CR)
-        version_file = os.path.join(os.path.dirname(__file__), '..', 'VERSION')
         version = ''
-        if os.path.exists(version_file):
-            with open(version_file) as f:
-                version = ' v' + f.read().strip()
+        for vp in [os.path.join(os.path.dirname(__file__), 'VERSION'),
+                   os.path.join(os.path.dirname(__file__), '..', 'VERSION')]:
+            if os.path.exists(vp):
+                with open(vp) as f:
+                    version = ' v' + f.read().strip()
+                break
         await self.send_text(f'    COMPUNET REBORN{version}\r\r')
         await self.send_text('    PETSCII TERMINAL ACCESS\r\r')
         await self.send(COL_CYAN)
@@ -477,7 +483,7 @@ class TerminalSession:
         await self.send(self.B_THIN_V)
         await self.send(LOWERCASE)
         cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE']
-        await self.send_text(cols[self.dir_column].ljust(8)[:8])
+        await self.send_text((' ' + cols[self.dir_column]).ljust(8)[:8])
         await self.send(UPPERCASE)
         await self.send(self.B_THIN_V)
 
@@ -496,7 +502,7 @@ class TerminalSession:
                 page_num_str = str(child.page_num)
                 title = child.title[:18].ljust(18)
                 type_str = child.type_string()[:5].ljust(5)
-                content = f'{page_num_str:3s}   {title}{type_str}'[:29]
+                content = f'{page_num_str:>5s} {title}{type_str}'[:29]
 
                 # Column value
                 if self.dir_column == 0:
@@ -635,7 +641,7 @@ class TerminalSession:
         await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE']
-        await self.send_text(cols[self.dir_column].ljust(8)[:8])
+        await self.send_text((' ' + cols[self.dir_column]).ljust(8)[:8])
 
         # Column values for each visible entry
         page = self.current_page
@@ -677,7 +683,7 @@ class TerminalSession:
         page_num_str = str(child.page_num)
         title = child.title[:18].ljust(18)
         type_str = child.type_string()[:5].ljust(5)
-        content = f'{page_num_str:3s}   {title}{type_str}'[:29]
+        content = f'{page_num_str:>5s} {title}{type_str}'[:29]
 
         if self.dir_column == 0:
             col_val = '{:.2f}'.format(child.price) if child.price > 0 else ''
@@ -731,7 +737,7 @@ class TerminalSession:
         await self.cursor_to(row, 0)
 
         msg = visible[idx]
-        msg_id = str(msg.get('id', ''))[:5].ljust(5)
+        msg_id = str(msg.get('id', ''))[:5].rjust(5)
         subject = msg.get('subject', '')[:18].ljust(18)
         msg_type = 'T' + str(len(msg.get('frames', [])))
         type_str = msg_type[:5].ljust(5)
@@ -779,7 +785,7 @@ class TerminalSession:
         await self.cursor_to(8, 31)
         await self.send(LOWERCASE)
         await self.send(COL_WHITE)
-        await self.send_text(mail_cols[self.mail_column].ljust(8)[:8])
+        await self.send_text((' ' + mail_cols[self.mail_column]).ljust(8)[:8])
 
         # Column values for each visible entry
         visible = self.mail_messages[self.mail_offset:self.mail_offset + 11]
@@ -896,7 +902,7 @@ class TerminalSession:
         await self.send(self.B_THIN_V)
         await self.send(LOWERCASE)
         mail_cols = ['SENDER', 'DATE', 'STATUS']
-        await self.send_text(mail_cols[self.mail_column].ljust(8)[:8])
+        await self.send_text((' ' + mail_cols[self.mail_column]).ljust(8)[:8])
         await self.send(UPPERCASE)
         await self.send(self.B_THIN_V)
 
@@ -911,7 +917,7 @@ class TerminalSession:
         for i in range(11):
             if i < len(visible):
                 msg = visible[i]
-                msg_id = str(msg.get('id', ''))[:5].ljust(5)
+                msg_id = str(msg.get('id', ''))[:5].rjust(5)
                 subject = msg.get('subject', '')[:18].ljust(18)
                 msg_type = 'T' + str(len(msg.get('frames', [])))
                 type_str = msg_type[:5].ljust(5)
@@ -2495,7 +2501,13 @@ class TerminalSession:
             await self.render_directory()
 
         elif cmd == 'BACK':
-            if self.current_page.parent:
+            if self._ucat_active and not self.current_page.parent:
+                # Exit UCAT — restore previous location
+                self._ucat_active = False
+                self.current_page = self._ucat_saved_page
+                self.dir_cursor = self._ucat_saved_cursor
+                self.dir_offset = self._ucat_saved_offset
+            elif self.current_page.parent:
                 self.current_page = self.current_page.parent
                 self.dir_cursor = 0
                 self.dir_offset = 0
@@ -2606,18 +2618,21 @@ class TerminalSession:
             await self.render_directory()
 
         elif cmd == 'VOTE':
+            if self.mode != 'directory':
+                return
             page = self.current_page
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
-                await self.cursor_to(23, 0)
+                await self.cursor_to(24, 0)
+                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
-                await self.send_text('VOTE (1-9)? ')
+                await self.send_text('VOTE (1-9)? '.ljust(39))
+                await self.cursor_to(24, 12)
                 score_str = await self.read_line(max_len=1)
                 try:
                     score = int(score_str)
                     if 1 <= score <= 9:
                         child = visible[self.dir_cursor]
-                        # Use server vote logic
                         votes_path = cs.VOTES_PATH
                         import json
                         votes = {}
@@ -2634,7 +2649,8 @@ class TerminalSession:
                                      page=child.page_num, title=child.title, score=score)
                 except (ValueError, TypeError):
                     pass
-            await self.render_directory()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
 
         elif cmd == 'MAIL':
             self.mail_messages = self._load_mail()
@@ -2655,10 +2671,66 @@ class TerminalSession:
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
                 child = visible[self.dir_cursor]
-                await self.cursor_to(23, 0)
+                await self.cursor_to(24, 0)
+                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
-                await self.send_text(f'LIFE: {child.life} DAYS  ')
-            await self.read_key()
+                await self.send_text('EXTEND BY? '.ljust(39))
+                await self.cursor_to(24, 11)
+                ext_str = await self.read_line(max_len=4)
+                try:
+                    extend_by = int(ext_str) if ext_str.strip() else 0
+                except ValueError:
+                    extend_by = 0
+                if extend_by != 0:
+                    # Permission check for negative extend
+                    if extend_by < 0:
+                        users = cs._api_load_users()
+                        user_data = users.get(self.user_id, {})
+                        if (child.author != self.user_id and
+                                not user_data.get('admin') and
+                                not user_data.get('editor')):
+                            await self.cursor_to(24, 0)
+                            await self.send_text('NOT PERMITTED'.ljust(39))
+                            await self.read_key()
+                            await self.cursor_to(24, 0)
+                            await self.render_duckshoot()
+                            return
+                    num_frames = len(child.frames) if child.frames else 1
+                    if extend_by > 0:
+                        # Deduct from free storage, overflow to credit
+                        import json
+                        users = cs._api_load_users()
+                        user = users.get(self.user_id, {})
+                        storage_cost = num_frames * extend_by
+                        free_used = user.get('free_storage_used', 0)
+                        free_remaining = max(0, 2000 - free_used)
+                        if storage_cost <= free_remaining:
+                            user['free_storage_used'] = free_used + storage_cost
+                        else:
+                            from_free = free_remaining
+                            user['free_storage_used'] = free_used + from_free
+                            user['credit'] = user.get('credit', 0.0) - (storage_cost - from_free)
+                        child.life += extend_by
+                        users_path = os.path.join(os.path.dirname(__file__), 'cfg', 'users.json')
+                        with open(users_path, 'w') as f:
+                            json.dump(users, f)
+                    else:
+                        # Negative: reduce life, refund storage
+                        actual_reduction = min(abs(extend_by), child.life)
+                        refund = num_frames * actual_reduction
+                        import json
+                        users = cs._api_load_users()
+                        user = users.get(self.user_id, {})
+                        user['free_storage_used'] = max(0, user.get('free_storage_used', 0) - refund)
+                        child.life -= actual_reduction
+                        users_path = os.path.join(os.path.dirname(__file__), 'cfg', 'users.json')
+                        with open(users_path, 'w') as f:
+                            json.dump(users, f)
+                    # Save directory and audit
+                    self._save_directory_tree(cs)
+                    cs.audit_log('extend', user=self.user_id, ip=self.client_ip,
+                                 page=child.page_num, title=child.title,
+                                 extend_by=extend_by, new_life=child.life)
             await self.render_directory()
 
         elif cmd == 'ACCNT':
@@ -2710,6 +2782,25 @@ class TerminalSession:
                         await self.render_directory()
             else:
                 await self.render_directory()
+
+        elif cmd == 'UCAT':
+            # Save current location
+            self._ucat_saved_page = self.current_page
+            self._ucat_saved_cursor = self.dir_cursor
+            self._ucat_saved_offset = self.dir_offset
+            self._ucat_active = True
+            # Build virtual page with user's uploads
+            cs = _get_server()
+            ucat_page = cs.CompunetPage(
+                page_num=0, title='YOUR UPLOADS', page_type='D', author=self.user_id)
+            ucat_page.parent = None
+            user_pages = [p for p in self.directory.pages.values()
+                          if p.author == self.user_id]
+            ucat_page.children = sorted(user_pages, key=lambda p: p.page_num)
+            self.current_page = ucat_page
+            self.dir_cursor = 0
+            self.dir_offset = 0
+            await self.render_directory()
 
         elif cmd == 'UPLD':
             await self._cmd_upload()
@@ -2958,12 +3049,14 @@ class TerminalSession:
                 elif key == KEY_RETURN:
                     commands = self._get_duckshoot()
                     cmd = commands[self.duck_pos]
-                    self.mode = 'directory'
-                    if cmd == 'DIR':
-                        # From welcome: show root directory (don't enter a child)
-                        await self.render_directory()
-                    else:
-                        await self.execute_command(cmd)
+                    # Only certain commands are valid from welcome screen
+                    if cmd in ('DIR', 'GOTO', 'MAIL', 'HELP', 'ACCNT', 'LEAVE',
+                               'WHO', 'EDITR', 'UCAT'):
+                        self.mode = 'directory'
+                        if cmd == 'DIR':
+                            await self.render_directory()
+                        else:
+                            await self.execute_command(cmd)
 
             elif self.mode == 'mail':
                 if key == KEY_CRSR_DOWN:

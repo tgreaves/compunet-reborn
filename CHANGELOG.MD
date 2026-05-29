@@ -1,57 +1,26 @@
 # 0.8-beta (2026-05-29)
 
 * PETSCII Terminal Mode (port 6401):
-	* New server-rendered terminal interface: any PETSCII terminal program
-	  (SyncTerm, CCGMS, StrikeTerm, etc.) can connect without the custom client.
-	* Full welcome screen with template rendering (user info, pages, storage,
-	  pillarbox mail indicator) — pixel-accurate match to the C64 client.
-	* Directory browsing with C64-accurate bordered layout: thick/thin box
-	  drawing, column separator at col 30, status line, breadcrumb, F7/F8
-	  column toggle (PRICE/LIFE/AUTHOR/VOTE).
-	* Duckshoot command bar: revolving display with selected item in centre,
-	  full C64 command set (17 commands: HELP, DIR, SHOW, BACK, GOTO, UCAT,
-	  MAIL, ACCNT, SAVE, EDITR, LEAVE, PRINT, LIFE, BUY, LOAD, UPLD, VOTE).
-	* Frame display with RLE expansion ($06/$07 codes) — correct count+1
-	  semantics matching C64 ROM behaviour. Single-frame pages show
-	  "PRESS ANY KEY" instead of duckshoot.
-	* CR suppression after full 40-char lines (prevents blank line on terminal
-	  auto-wrap, matching C64 KERNAL CHROUT behaviour).
-	* Charset mode management: uppercase/graphics ($8E) for PETSCII artwork,
-	  lowercase/uppercase ($0E) for text rendering.
-	* Auto-detect Telnet vs Raw connections (IAC negotiation for Telnet clients,
-	  $FF byte escaping).
-	* PETSCII test indicator on login screen (block character).
-	* GOTO (page numbers, keywords, WHO), VOTE, MAIL, LIFE, WHO IS ONLINE,
-	  LEAVE, HELP, ACCNT, BUY, UPLD commands implemented.
-	* MAIL: full bordered inbox with cursor navigation, F7/F8 column toggle
-	  (SENDER/DATE/STATUS), SHOW to read, SEND to compose+deliver with
-	  COURIER envelope. Email notifications on send.
-	* BUY: XMODEM-CRC file download for 'P' pages, partyline entry for 'L'
-	  pages, credit deduction for paid content.
-	* UPLD: XMODEM-CRC upload for 'P' pages, editor-based compose for 'T'
-	  pages. Progressive preview in directory during entry.
-	* EDITR: frame viewer/editor with 20-frame rolling memory. Commands:
-	  EDIT (free cursor), NEW, COPY, ERASE, LAST, NEXT, GET (XMODEM upload
-	  frames), PUT (XMODEM download frame), STORE (XMODEM download all),
-	  FREE (show memory remaining). Dedicated editor HELP screen.
-	* Partyline: full terminal UI with bordered chat area, input area,
-	  scrolling messages, commands (*help, *who, *alias, *enter, *quit).
-	  Integrated with partyline module (cross-client chat).
-	* DIR on non-directory pages creates empty subdirectory (with upload
-	  permission check). Directory persists only if content uploaded.
-	* LEAVE uses goodbye.seq template (same artwork as protocol client).
-	* HELP screen loaded from `server/cfg/help.pet`.
-	* SHOW on type L pages shows "PLEASE USE BUY".
-	* Login: generic "INVALID USERNAME / PASSWORD" error (security).
-	* Shared state: terminal users appear in WHO IS ONLINE, same auth/audit system.
-	* Efficient redraw: cursor up/down only repaints two entry lines, F7/F8
-	  only repaints column values, duckshoot movement only repaints row 24.
-	* Duckshoot position preserved across commands and frame view/return.
-	* Version number displayed dynamically on login screen.
+	* Server-rendered BBS interface for any PETSCII terminal (SyncTerm, CCGMS,
+	  StrikeTerm, UltimateTerm). No custom client required.
+	* C64-accurate directory display with borders, duckshoot, welcome screen.
+	* Full command set: DIR, SHOW, BACK, GOTO, MAIL, ACCNT, LIFE, VOTE, BUY,
+	  UPLD, EDITR, UCAT, HELP, LEAVE, WHO.
+	* XMODEM-CRC/1K file transfers (upload and download).
+	* Frame editor with 20-frame memory, free cursor editing, GET/PUT/STORE.
+	* Mail: inbox browsing, read, compose with COURIER envelope and delivery.
+	* Partyline: bordered chat UI, integrated with protocol client users.
+	* Auto-detect Raw/Telnet connections.
+* Client:
+	* Page numbers right-aligned in directory listings.
+	* Column headers indented one space from separator.
 * Server:
 	* Port 6401 listener added to main server event loop.
 	* Dockerfile updated: terminal.py included, port 6401 exposed.
 	* docker-compose.yml: port 6401 mapped.
+* Website:
+	* Connect page: PETSCII terminal setup instructions (SyncTerm),
+	  registration step, C64 terminal client recommendations.
 
 # 0.7.2-beta (2026-05-29)
 

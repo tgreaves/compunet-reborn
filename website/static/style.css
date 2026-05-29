@@ -294,7 +294,7 @@ pre {
 /* Hero section */
 .hero {
     text-align: center;
-    padding: 32px;
+    padding: 24px 32px;
     border: 2px solid var(--c64-surface-light);
     border-radius: var(--radius);
     margin-bottom: 40px;
@@ -303,13 +303,21 @@ pre {
 
 .hero h1 {
     font-size: 22px;
-    margin-bottom: 16px;
+    margin-bottom: 8px;
     color: var(--c64-light-blue);
 }
 
 .hero p {
     font-size: 14px;
     color: var(--c64-grey);
+}
+
+.hero-slogan {
+    font-size: 20px !important;
+    color: var(--c64-yellow) !important;
+    letter-spacing: 3px;
+    font-weight: bold;
+    text-transform: uppercase;
 }
 
 /* Info boxes */
