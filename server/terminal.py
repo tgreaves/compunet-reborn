@@ -821,10 +821,21 @@ class TerminalSession:
             await self.render_directory()
 
         elif cmd == 'LEAVE':
+            cs = _get_server()
+            goodbye_path = os.path.join(cs.CONTENT_DIR, 'templates', 'goodbye.seq')
             await self.send(CLR)
-            await self.send(COL_BLUE)
-            await self.send_text('\r\r  GOODBYE!\r')
-            await asyncio.sleep(1)
+            await self.send(UPPERCASE)
+            if os.path.exists(goodbye_path):
+                with open(goodbye_path, 'rb') as f:
+                    await self.send(expand_frame(f.read()))
+            else:
+                await self.send(COL_BLUE)
+                await self.send_text('\r\r  GOODBYE!\r')
+            await self.send(LOWERCASE)
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text('PRESS ANY KEY')
+            await self.read_key()
             raise ConnectionResetError("User left")
 
         elif cmd == 'MORE':
@@ -907,6 +918,39 @@ class TerminalSession:
                 await self.cursor_to(23, 0)
                 await self.send(COL_WHITE)
                 await self.send_text(f'LIFE: {child.life} DAYS  ')
+            await self.read_key()
+            await self.render_directory()
+
+        elif cmd == 'ACCNT':
+            cs = _get_server()
+            users = cs._api_load_users()
+            user = users.get(self.user_id, {})
+            credit = user.get('credit', 0.0)
+            if credit >= 0:
+                msg = f'YOU ARE {credit:.2f} IN CREDIT'
+            else:
+                msg = f'YOU ARE {abs(credit):.2f} IN DEBIT'
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE)
+            await self.send_text(msg.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+
+        elif cmd == 'HELP':
+            cs = _get_server()
+            help_path = os.path.join(os.path.dirname(__file__), 'cfg', 'help.pet')
+            if os.path.exists(help_path):
+                with open(help_path, 'rb') as f:
+                    await self.send(f.read())
+            else:
+                await self.send(CLR)
+                await self.send(LOWERCASE)
+                await self.send_text('HELP not available\r')
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text('PRESS ANY KEY')
             await self.read_key()
             await self.render_directory()
 

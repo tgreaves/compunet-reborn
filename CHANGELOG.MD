@@ -21,11 +21,22 @@
 	* Auto-detect Telnet vs Raw connections (IAC negotiation for Telnet clients,
 	  $FF byte escaping).
 	* PETSCII test indicator on login screen (block character).
-	* GOTO, VOTE, MAIL (inbox listing), LIFE, WHO IS ONLINE, LEAVE commands.
+	* GOTO, VOTE, MAIL (inbox listing), LIFE, WHO IS ONLINE, LEAVE, HELP,
+	  ACCNT commands implemented.
+	* LEAVE uses goodbye.seq template (same artwork as protocol client).
+	* HELP screen loaded from `server/cfg/help.pet`.
 	* Shared state: terminal users appear in WHO IS ONLINE, same auth/audit system.
 	* Efficient redraw: cursor up/down only repaints two entry lines, F7/F8
 	  only repaints column values, duckshoot movement only repaints row 24.
 	* Duckshoot position preserved across commands and frame view/return.
+* Client:
+	* Fixed: CPU JAM on MAIL command (and potentially other multi-packet
+	  responses). NMI handler now saves/restores $01 and ensures I/O is
+	  visible before accessing ACIA registers. Previously, if NMI fired
+	  while L_A5D5 had KERNAL banked out ($01=$34), the hardware NMI vector
+	  at $FFFA read $0000 from RAM → jump to zero page → JAM.
+	* NMI handler address ($CF00) now written to RAM at $FFFA/$FFFB so
+	  NMI vectors correctly regardless of banking state.
 * Server:
 	* New `server/terminal.py` module.
 	* Port 6401 listener added to main server event loop.

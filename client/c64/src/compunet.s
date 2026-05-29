@@ -6810,8 +6810,10 @@ ACIA_INIT:
     SEI
     LDA #$00
     STA NMI_VECTOR
+    STA $FFFA          ; Hardware NMI vector (low) — used when KERNAL banked out
     LDA #$CF
     STA NMI_VECTOR+1
+    STA $FFFB          ; Hardware NMI vector (high)
     ; Configure ACIA: 19200 baud, 8N1, DTR active, RTS low, RX NMI enabled
     ; Write CMD=$09 first (never de-assert RTS — bridge uses RTS handshake)
     LDA #$1F
@@ -6832,6 +6834,10 @@ NMI_HANDLER:
     PHA
     TXA
     PHA
+    LDA $01                             ; Save current bank config
+    PHA
+    ORA #$06                            ; Ensure I/O + KERNAL visible
+    STA $01
     LDA ACIA_STATUS                     ; Check if ACIA has data
     AND #$08                            ; RDRF set?
     BEQ @not_acia                       ; No — just RTI
@@ -6840,6 +6846,8 @@ NMI_HANDLER:
     STA NMI_BUF,X                      ; Store in ring buffer
     INC NMI_BUF_TAIL                   ; Advance tail
 @not_acia:
+    PLA
+    STA $01                             ; Restore original bank config
     PLA
     TAX
     PLA
