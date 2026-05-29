@@ -114,7 +114,14 @@ server's `$06` code would produce.
 
 - No background colour control (VIC hardware register, no PETSCII equivalent)
 - No border colour (same reason)
-- Not all duckshoot commands implemented yet (HELP, UCAT, ACCNT, SAVE,
-  EDITR, PRINT, BUY, LOAD, UPLD are placeholders)
-- No upload/download support
-- No partyline integration yet
+- SAVE, LOAD, PRINT commands are N/A (C64 disk/printer operations)
+- UCAT not yet implemented
+- Multi-page directory scrolling (>11 entries) not yet implemented
+
+## Quirks
+
+- **Editor charset**: The frame editor operates in uppercase/graphics mode
+  only. There is no way to toggle to the lowercase/uppercase charset while
+  editing, as SyncTerm and most PC-based PETSCII terminals have no key
+  mapping for the C64's Commodore+Shift charset toggle. Frames requiring
+  the shifted charset should be created using the C64 client.

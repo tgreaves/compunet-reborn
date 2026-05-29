@@ -53,6 +53,9 @@ DUCK_DIR = ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT',
 DUCK_FRAME = ['MORE', 'FINISH']
 DUCK_MAIL = ['ID', 'EDITR', 'DONE', 'SEND', 'SHOW', 'MORE']
 DUCK_UPLOAD = ['SEND', 'ABORT']
+DUCK_UPLOAD_TEXT = ['SEND', 'FINSH', 'LAST', 'NEXT', 'EDITR']
+DUCK_EDITOR = ['RETURN', 'HELP', 'EDIT', 'LAST', 'NEXT', 'NEW',
+               'COPY', 'ERASE', 'GET', 'PUT', 'STORE', 'PRINT', 'FREE']
 
 # Import server components (deferred to avoid circular imports)
 _server_module = None
@@ -154,6 +157,8 @@ class TerminalSession:
         self.client_ip = ''
         self.telnet = False
         self._upload_pending = None
+        self._frame_memory = []    # Last 20 frames viewed (raw frame data)
+        self._editor_idx = 0       # Current position in frame memory
         self.entries_row = 8  # screen row where directory entries start
 
     # --- I/O helpers ---
@@ -238,14 +243,20 @@ class TerminalSession:
         await self.send(CLR)
         await self.send(COL_BLUE)
         await self.send(CR)
-        await self.send_text('    COMPUNET REBORN\r\r')
+        version_file = os.path.join(os.path.dirname(__file__), '..', 'VERSION')
+        version = ''
+        if os.path.exists(version_file):
+            with open(version_file) as f:
+                version = ' v' + f.read().strip()
+        await self.send_text(f'    COMPUNET REBORN{version}\r\r')
         await self.send_text('    PETSCII TERMINAL ACCESS\r\r')
         await self.send(COL_CYAN)
         await self.send_text('  Visit compunet.live for registration.\r\r')
         await self.send(COL_WHITE)
         await self.send_text('  PETSCII OK if you see a block: ')
         await self.send(RVS_ON + b'\x20' + RVS_OFF)
-        await self.send(CR + CR)
+        await self.send(CR)
+        await self.send_text('  Ensure terminal at 40 x 25.\r\r')
 
         # User ID
         await self.send(COL_WHITE)
@@ -262,13 +273,13 @@ class TerminalSession:
         users = cs._api_load_users()
         user = users.get(user_id)
         if not user:
-            await self.send_text('  UNKNOWN USER ID\r')
+            await self.send_text('  INVALID USERNAME / PASSWORD\r')
             await asyncio.sleep(2)
             return False
 
         pw_hash = hashlib.sha256(password.upper().encode('utf-8')).hexdigest()
         if user.get('password') != pw_hash:
-            await self.send_text('  INCORRECT PASSWORD\r')
+            await self.send_text('  INVALID USERNAME / PASSWORD\r')
             await asyncio.sleep(2)
             return False
 
@@ -969,46 +980,20 @@ class TerminalSession:
         await self.cursor_to(24, 0)
         await self.render_duckshoot()
 
-    async def _xmodem_send(self, page):
-        """Send a program page via XMODEM-CRC protocol."""
-        cs = _get_server()
-        prg_data = page.frames[0]  # Raw PRG (first 2 bytes = load addr)
-
-        # Show status
-        await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
-        await self.send(COL_WHITE)
-        filename = page.title[:16].strip().replace(' ', '-').lower()
-        await self.send_text(f'XMODEM: {filename} ({len(prg_data)}b)'.ljust(39))
-
-        # Wait for receiver to initiate (send 'C' for CRC mode or NAK for checksum)
-        try:
-            start_byte = await asyncio.wait_for(self._wait_xmodem_start(), timeout=60.0)
-        except asyncio.TimeoutError:
-            await self.cursor_to(24, 0)
-            await self.send_text('TRANSFER TIMEOUT'.ljust(39))
-            await self.read_key()
-            await self.cursor_to(24, 0)
-            await self.render_duckshoot()
-            return
-
-        use_crc = (start_byte == 0x43)  # 'C' = CRC mode
-
-        # Send data in 128-byte blocks
+    async def _xmodem_send_data(self, data, use_crc):
+        """Send raw data via XMODEM. Returns True on success, False on failure."""
         SOH = 0x01
         EOT = 0x04
         ACK = 0x06
         NAK = 0x15
         block_num = 1
         offset = 0
-        total = len(prg_data)
 
-        while offset < total:
-            block = prg_data[offset:offset + 128]
+        while offset < len(data):
+            block = data[offset:offset + 128]
             if len(block) < 128:
-                block = block + bytes([0x1A] * (128 - len(block)))  # Pad with SUB
+                block = block + bytes([0x1A] * (128 - len(block)))
 
-            # Build packet
             pkt = bytearray([SOH, block_num & 0xFF, (255 - block_num) & 0xFF])
             pkt.extend(block)
 
@@ -1020,7 +1005,6 @@ class TerminalSession:
                 checksum = sum(block) & 0xFF
                 pkt.append(checksum)
 
-            # Send and wait for ACK
             retries = 10
             while retries > 0:
                 self.writer.write(bytes(pkt))
@@ -1037,17 +1021,12 @@ class TerminalSession:
                     retries -= 1
 
             if retries == 0:
-                await self.cursor_to(24, 0)
-                await self.send_text('TRANSFER FAILED'.ljust(39))
-                await self.read_key()
-                await self.cursor_to(24, 0)
-                await self.render_duckshoot()
-                return
+                return False
 
             block_num += 1
             offset += 128
 
-        # End of transmission (receiver may NAK first EOT, resend until ACK)
+        # EOT with retry
         for _ in range(5):
             self.writer.write(bytes([EOT]))
             await self.writer.drain()
@@ -1057,6 +1036,37 @@ class TerminalSession:
                     break
             except asyncio.TimeoutError:
                 break
+        return True
+
+    async def _xmodem_send(self, page):
+        """Send a program page via XMODEM-CRC protocol."""
+        cs = _get_server()
+        prg_data = page.frames[0]
+
+        await self.cursor_to(24, 0)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        filename = page.title[:16].strip().replace(' ', '-').lower()
+        await self.send_text(f'XMODEM: {filename} ({len(prg_data)}b)'.ljust(39))
+
+        try:
+            start_byte = await asyncio.wait_for(self._wait_xmodem_start(), timeout=60.0)
+        except asyncio.TimeoutError:
+            await self.cursor_to(24, 0)
+            await self.send_text('TRANSFER TIMEOUT'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+
+        success = await self._xmodem_send_data(prg_data, start_byte == 0x43)
+        if not success:
+            await self.cursor_to(24, 0)
+            await self.send_text('TRANSFER FAILED'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
 
         cs.audit_log('download', user=self.user_id, ip=self.client_ip,
                      page=page.page_num, title=page.title)
@@ -1091,6 +1101,580 @@ class TerminalSession:
                     crc <<= 1
                 crc &= 0xFFFF
         return crc
+
+    async def _enter_partyline(self):
+        """Enter partyline with a custom terminal UI."""
+        import partyline as pl
+        cs = _get_server()
+
+        cs.audit_log('partyline', user=self.user_id, ip=self.client_ip)
+
+        # Check ban
+        if pl._is_banned(self.user_id):
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE)
+            await self.send_text('YOU ARE BANNED FROM PARTYLINE'.ljust(39))
+            await self.read_key()
+            await self.render_directory()
+            return
+
+        # Draw partyline UI
+        await self.send(CLR)
+        await self.send(LOWERCASE)
+
+        # Row 0: title
+        await self.send(COL_BLUE)
+        await self.send_text('  PARTYLINE')
+        await self.send(CR)
+
+        # Row 1: chat top border
+        await self.cursor_to(1, 2)
+        await self.send(UPPERCASE)
+        await self.send(b'\xb0')  # ┌
+        await self.send(b'\x60' * 35)  # ─
+        await self.send(b'\xae')  # ┐
+        await self.send(LOWERCASE)
+
+        # Rows 2-16: pipes at col 2 and col 38
+        for r in range(2, 17):
+            await self.cursor_to(r, 2)
+            await self.send(UPPERCASE)
+            await self.send(b'\x7d')  # │
+            await self.cursor_to(r, 38)
+            await self.send(b'\x7d')
+            await self.send(LOWERCASE)
+
+        # Row 17: chat bottom border
+        await self.cursor_to(17, 2)
+        await self.send(UPPERCASE)
+        await self.send(b'\xad')  # └
+        await self.send(b'\x60' * 35)
+        await self.send(b'\xbd')  # ┘
+        await self.send(LOWERCASE)
+
+        # Row 18: input area top (pipes)
+        await self.cursor_to(18, 3)
+        await self.send(UPPERCASE)
+        await self.send(b'\x7d')
+        await self.cursor_to(18, 39)
+        await self.send(b'\x7d')
+        await self.send(LOWERCASE)
+
+        # Rows 19-22: input pipes
+        for r in range(19, 23):
+            await self.cursor_to(r, 3)
+            await self.send(UPPERCASE)
+            await self.send(b'\x7d')
+            await self.cursor_to(r, 39)
+            await self.send(b'\x7d')
+            await self.send(LOWERCASE)
+
+        # Row 23: input bottom border
+        await self.cursor_to(23, 3)
+        await self.send(UPPERCASE)
+        await self.send(b'\xad')
+        await self.send(b'\x60' * 35)
+        await self.send(b'\xbd')
+        await self.send(LOWERCASE)
+
+        # Row 24: status
+        await self.cursor_to(24, 0)
+        await self.send(COL_WHITE)
+        await self.send_text('*HELP for commands  ESC to quit'.ljust(39))
+
+        # Register with partyline
+        pl._users[self.user_id] = {"writer": None, "alias": None, "room": "lobby"}
+
+        # Announce entry
+        chat_row = 0  # next row to write in chat area (0-14)
+        chat_lines = []
+
+        async def add_chat_line(text):
+            nonlocal chat_row
+            # Wrap long lines
+            while len(text) > 35:
+                chat_lines.append(text[:35])
+                text = text[35:]
+            chat_lines.append(text)
+            # Display
+            if chat_row < 15:
+                await self.cursor_to(2 + chat_row, 3)
+                await self.send(COL_BLUE)
+                await self.send_text(text[:35].ljust(35))
+                chat_row += 1
+            else:
+                # Scroll: move all lines up
+                chat_lines.pop(0) if len(chat_lines) > 15 else None
+                for i in range(15):
+                    await self.cursor_to(2 + i, 3)
+                    if i < len(chat_lines):
+                        await self.send(COL_BLUE)
+                        await self.send_text(chat_lines[-(15-i)][:35].ljust(35) if len(chat_lines) >= 15 - i else ''.ljust(35))
+                    else:
+                        await self.send_text(''.ljust(35))
+                # Redraw last line
+                await self.cursor_to(16, 3)
+                await self.send(COL_BLUE)
+                await self.send_text(text[:35].ljust(35))
+
+        await add_chat_line(f'{self.user_id} has entered partyline')
+        await add_chat_line('')
+        await pl.broadcast_room("lobby", f"{self.user_id} has entered partyline", exclude=self.user_id)
+        await pl.broadcast_room("lobby", "", exclude=self.user_id)
+
+        # Input state
+        input_buf = ''
+        input_col = 0
+        input_row = 0
+        await self.cursor_to(19, 4)
+
+        # Create an asyncio queue for incoming messages
+        msg_queue = asyncio.Queue()
+
+        # Override the writer in pl._users so broadcasts reach us
+        class TermWriter:
+            def __init__(self, queue):
+                self.queue = queue
+            def write(self, data):
+                self.queue.put_nowait(data)
+            async def drain(self):
+                pass
+
+        pl._users[self.user_id]["writer"] = TermWriter(msg_queue)
+
+        # Main loop
+        try:
+            while True:
+                # Check for incoming messages or keyboard input
+                done, pending = await asyncio.wait(
+                    [asyncio.ensure_future(self.reader.read(1)),
+                     asyncio.ensure_future(msg_queue.get())],
+                    return_when=asyncio.FIRST_COMPLETED)
+
+                for task in pending:
+                    task.cancel()
+
+                for task in done:
+                    result = task.result()
+
+                    if isinstance(result, bytes):
+                        # Keyboard input
+                        if not result:
+                            raise ConnectionResetError()
+                        key = result[0]
+
+                        if key == 0x1B or key == KEY_RUNSTOP:
+                            # Quit
+                            raise StopIteration()
+                        elif key == KEY_RETURN:
+                            if input_buf.strip():
+                                # Send message
+                                msg = input_buf.strip()
+                                if msg.startswith('*'):
+                                    # Command
+                                    if msg.upper() == '*QUIT' or msg.upper() == '*EXIT':
+                                        raise StopIteration()
+                                    elif msg.upper() == '*WHO':
+                                        who_lines = []
+                                        for uid, entry in pl._users.items():
+                                            alias = entry.get('alias') or uid
+                                            room = entry.get('room', 'lobby')
+                                            who_lines.append(f' {alias:<10} ({uid:<8}) {room}')
+                                        await add_chat_line('Users in partyline:-')
+                                        for wl in who_lines:
+                                            await add_chat_line(wl)
+                                        await add_chat_line('')
+                                    elif msg.upper().startswith('*HELP'):
+                                        await add_chat_line('Commands: *who *alias *enter *quit')
+                                        await add_chat_line('')
+                                    elif msg.upper().startswith('*ALIAS '):
+                                        name = msg[7:].strip()[:10]
+                                        pl._users[self.user_id]['alias'] = name
+                                        await add_chat_line(f'Alias set to {name}')
+                                        await add_chat_line('')
+                                    elif msg.upper().startswith('*ENTER '):
+                                        room = msg[7:].strip().lower()[:10]
+                                        old_room = pl._users[self.user_id]['room']
+                                        pl._users[self.user_id]['room'] = room
+                                        await pl.broadcast_room(old_room, f'{self.user_id} has left', exclude=self.user_id)
+                                        await pl.broadcast_room(room, f'{self.user_id} has entered {room}', exclude=self.user_id)
+                                        await add_chat_line(f'Entered room: {room}')
+                                        await add_chat_line('')
+                                else:
+                                    # Regular message
+                                    alias = pl._users[self.user_id].get('alias') or self.user_id
+                                    room = pl._users[self.user_id]['room']
+                                    display = f'{alias}: {msg}'
+                                    await add_chat_line(display)
+                                    await pl.broadcast_room(room, display, exclude=self.user_id)
+                            # Clear input
+                            input_buf = ''
+                            input_col = 0
+                            input_row = 0
+                            for r in range(19, 23):
+                                await self.cursor_to(r, 4)
+                                await self.send_text(' ' * 35)
+                            await self.cursor_to(19, 4)
+                        elif key == KEY_DEL:
+                            if input_buf:
+                                input_buf = input_buf[:-1]
+                                if input_col > 0:
+                                    input_col -= 1
+                                else:
+                                    input_row = max(0, input_row - 1)
+                                    input_col = 34
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+                                await self.send(b'\x20')
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+                        elif key >= 0x20 and len(input_buf) < 140:
+                            input_buf += chr(key)
+                            await self.send(bytes([key]))
+                            input_col += 1
+                            if input_col >= 35:
+                                input_col = 0
+                                input_row += 1
+                                if input_row >= 4:
+                                    input_row = 3
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+
+                    else:
+                        # Message from partyline (bytes in queue)
+                        if result:
+                            line = result.decode('latin-1', errors='replace').rstrip('\r\n')
+                            if line == '*EXIT':
+                                raise StopIteration()
+                            if line == '*PING':
+                                continue
+                            await add_chat_line(line)
+                            # Restore cursor to input position
+                            await self.cursor_to(19 + input_row, 4 + input_col)
+
+        except (StopIteration, asyncio.CancelledError):
+            pass
+        finally:
+            # Leave partyline
+            room = pl._users.get(self.user_id, {}).get('room', 'lobby')
+            if self.user_id in pl._users:
+                del pl._users[self.user_id]
+            await pl.broadcast_room(room, f'{self.user_id} has left partyline')
+            await pl.broadcast_room(room, "")
+
+        # Return to directory
+        await self.render_directory()
+
+    async def _render_editor_frame(self):
+        """Display the current frame from editor memory with editor duckshoot."""
+        await self.send(CLR)
+        await self.send(UPPERCASE)
+        if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
+            frame_data = self._frame_memory[self._editor_idx]
+            await self.send(expand_frame(frame_data))
+        await self.send(LOWERCASE)
+        await self.cursor_to(24, 0)
+        await self.render_duckshoot()
+
+    async def _render_upload_text_frame(self):
+        """Display current frame in upload-text mode with upload duckshoot."""
+        await self.send(CLR)
+        await self.send(UPPERCASE)
+        if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
+            frame_data = self._frame_memory[self._editor_idx]
+            await self.send(expand_frame(frame_data))
+        await self.send(LOWERCASE)
+        await self.cursor_to(24, 0)
+        await self.render_duckshoot()
+
+    async def _cmd_edit(self):
+        """Enter free-cursor editing mode on the current editor frame."""
+        if not self._frame_memory or self._editor_idx >= len(self._frame_memory):
+            return
+
+        # Initialize 40x24 screen buffer (row 24 reserved for duckshoot)
+        buf = [[0x20] * 40 for _ in range(24)]
+        colour = [[0x06] * 40 for _ in range(24)]  # default blue
+
+        # Expand current frame into the buffer
+        frame_data = self._frame_memory[self._editor_idx]
+        row, col = 0, 0
+        cur_colour = 0x06
+        i = 4  # skip 4-byte header
+        while i < len(frame_data):
+            b = frame_data[i]
+            if b == 0x00:
+                break
+            elif b == 0x06:
+                i += 1
+                if i < len(frame_data):
+                    count = frame_data[i] + 1
+                    for _ in range(count):
+                        if row < 24 and col < 40:
+                            buf[row][col] = 0x20
+                            colour[row][col] = cur_colour
+                            col += 1
+                            if col >= 40:
+                                col = 0
+                                row += 1
+            elif b == 0x07:
+                i += 1
+                if i + 1 < len(frame_data):
+                    char = frame_data[i]
+                    i += 1
+                    count = frame_data[i] + 1
+                    for _ in range(count):
+                        if row < 24 and col < 40:
+                            buf[row][col] = char
+                            colour[row][col] = cur_colour
+                            col += 1
+                            if col >= 40:
+                                col = 0
+                                row += 1
+            elif b == 0x0D:
+                if col >= 40:
+                    pass  # suppress CR after full line
+                else:
+                    row += 1
+                    col = 0
+            elif b < 0x20 or (0x80 <= b <= 0x9F):
+                # Colour codes
+                if b in (0x05, 0x1C, 0x1E, 0x1F, 0x81, 0x90, 0x95, 0x96,
+                         0x97, 0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F):
+                    cur_colour = b
+            else:
+                if row < 24 and col < 40:
+                    buf[row][col] = b
+                    colour[row][col] = cur_colour
+                    col += 1
+                    if col >= 40:
+                        col = 0
+                        row += 1
+            i += 1
+
+        # Display frame and position cursor at 0,0
+        await self.send(CLR)
+        await self.send(UPPERCASE)
+        await self.send(expand_frame(frame_data))
+        await self.cursor_to(0, 0)
+
+        # Edit loop — free cursor mode
+        edit_row, edit_col = 0, 0
+        cur_colour = 0x05  # white default for typing
+
+        while True:
+            key = await self.read_key()
+
+            if key == KEY_RUNSTOP or key == 0x1B:  # RUN/STOP or ESC
+                break
+            elif key == KEY_CRSR_DOWN:
+                if edit_row < 23:
+                    edit_row += 1
+                    await self.send(CRSR_DOWN)
+            elif key == KEY_CRSR_UP:
+                if edit_row > 0:
+                    edit_row -= 1
+                    await self.send(CRSR_UP)
+            elif key == KEY_CRSR_RIGHT:
+                if edit_col < 39:
+                    edit_col += 1
+                    await self.send(CRSR_RIGHT)
+            elif key == KEY_CRSR_LEFT:
+                if edit_col > 0:
+                    edit_col -= 1
+                    await self.send(CRSR_LEFT)
+            elif key == 0x13:  # HOME
+                edit_row, edit_col = 0, 0
+                await self.send(HOME)
+            elif key == KEY_RETURN:
+                if edit_row < 23:
+                    edit_row += 1
+                    edit_col = 0
+                    await self.send(CR)
+            elif key == KEY_DEL:
+                if edit_col > 0:
+                    edit_col -= 1
+                    buf[edit_row][edit_col] = 0x20
+                    colour[edit_row][edit_col] = cur_colour
+                    await self.send(b'\x9d\x20\x9d')  # left, space, left
+            elif key in (0x05, 0x1C, 0x1E, 0x1F, 0x81, 0x90, 0x95, 0x96,
+                         0x97, 0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9E, 0x9F):
+                # Colour change
+                cur_colour = key
+                await self.send(bytes([key]))
+            elif key == 0x12:  # RVS ON
+                await self.send(RVS_ON)
+            elif key == 0x92:  # RVS OFF
+                await self.send(RVS_OFF)
+            elif key >= 0x20:
+                # Printable character
+                if edit_row < 24 and edit_col < 40:
+                    buf[edit_row][edit_col] = key
+                    colour[edit_row][edit_col] = cur_colour
+                    await self.send(bytes([key]))
+                    edit_col += 1
+                    if edit_col >= 40:
+                        edit_col = 0
+                        edit_row += 1
+                        if edit_row >= 24:
+                            edit_row = 23
+
+        # Convert buffer back to frame data
+        frame = bytearray()
+        frame.extend(b'\x00\x06\x0F\x8E')  # standard header
+        prev_colour = 0x06
+        for r in range(24):
+            # Find last non-space on this row
+            last_col = 39
+            while last_col >= 0 and buf[r][last_col] == 0x20:
+                last_col -= 1
+            if last_col < 0 and r < 23:
+                frame.append(0x0D)
+                continue
+            for c in range(last_col + 1):
+                if colour[r][c] != prev_colour:
+                    frame.append(colour[r][c])
+                    prev_colour = colour[r][c]
+                frame.append(buf[r][c])
+            if r < 23:
+                frame.append(0x0D)
+        frame.append(0x00)  # end of frame
+
+        # Save back to frame memory
+        self._frame_memory[self._editor_idx] = bytes(frame)
+
+        # Return to editor duckshoot
+        await self._render_editor_frame()
+
+    def _generate_mail_envelope(self, msg_seq, sender_id, subject, dest_ids, timestamp, users, cs):
+        """Generate COURIER envelope header frame (same as protocol server)."""
+        MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN',
+                  'JUL','AUG','SEP','OCT','NOV','DEC']
+        date_str = f'{timestamp.day:02d}-{MONTHS[timestamp.month-1]}-{timestamp.strftime("%y")}'
+        time_str = timestamp.strftime('%H:%M')
+        sender_name = users.get(sender_id, {}).get('name', sender_id).upper()
+
+        # Build destination slot lines
+        dest_lines = []
+        for i in range(5):
+            if i < len(dest_ids):
+                did = dest_ids[i]
+                dest_name = users.get(did, {}).get('name', '').upper()
+                line = b'\x20\x20\x1F' + did.ljust(8)[:8].encode('ascii') + b'\x1C: \x1F' + dest_name.encode('ascii')
+            else:
+                line = b'\x20\x20\x06\x08\x1C:'
+            dest_lines.append(line)
+
+        # Load template
+        template_path = os.path.join(cs.CONTENT_DIR, 'templates', 'courier-envelope.seq')
+        if os.path.exists(template_path):
+            with open(template_path, 'rb') as f:
+                frame = f.read()
+        else:
+            # Fallback minimal envelope
+            frame = b'\x00\x06\x0F\x8E\x0D\x1F COURIER\x0D\x00'
+            return frame
+
+        # Replace placeholders
+        frame = frame.replace(b'{MSG_NO}', str(msg_seq).encode('ascii'))
+        frame = frame.replace(b'{SENDER_ID}', sender_id.encode('ascii'))
+        frame = frame.replace(b'{SENDER_NAME}', sender_name.encode('ascii'))
+        frame = frame.replace(b'{DATE}', date_str.encode('ascii'))
+        frame = frame.replace(b'{TIME}', time_str.encode('ascii'))
+        frame = frame.replace(b'{SUBJECT}', subject[:24].encode('ascii'))
+        for i in range(5):
+            frame = frame.replace(f'{{DEST_{i}}}'.encode('ascii'), dest_lines[i])
+
+        return frame
+
+    async def _deliver_mail(self):
+        """Deliver composed mail to recipients."""
+        import json
+        cs = _get_server()
+        send = self._upload_pending
+        now = datetime.datetime.now()
+        users = cs._api_load_users()
+
+        # Generate message sequence number
+        seq_file = os.path.join(cs.MAIL_DIR, 'sequence.json')
+        if os.path.exists(seq_file):
+            with open(seq_file, 'r') as f:
+                seq_data = json.load(f)
+            msg_seq = seq_data.get('next', 100000)
+        else:
+            msg_seq = 100000
+        with open(seq_file, 'w') as f:
+            json.dump({'next': msg_seq + 1}, f)
+
+        msg_id = str(msg_seq)
+
+        # Generate envelope header frame
+        envelope = self._generate_mail_envelope(
+            msg_seq, self.user_id, send['subject'], send['to'], now, users, cs)
+
+        # Deliver to each recipient
+        for dest_id in send['to']:
+            if dest_id not in users:
+                continue
+            dest_dir = os.path.join(cs.MAIL_DIR, dest_id)
+            os.makedirs(dest_dir, exist_ok=True)
+
+            # Load or create inbox
+            dest_mail_file = os.path.join(cs.MAIL_DIR, dest_id + '.json')
+            if os.path.exists(dest_mail_file):
+                with open(dest_mail_file, 'r') as f:
+                    dest_inbox = json.load(f)
+            else:
+                dest_inbox = {'messages': []}
+
+            # Save frame files (envelope as frame 0, then user frames)
+            frame_files = []
+            # Frame 0: envelope
+            env_file = f'{msg_id}-0.seq'
+            env_path = os.path.join(dest_dir, env_file)
+            with open(env_path, 'wb') as f:
+                f.write(envelope)
+            frame_files.append(env_file)
+            # Frame 1+: user content
+            for i, frame_data in enumerate(send['frames']):
+                frame_file = f'{msg_id}-{i+1}.seq'
+                frame_path = os.path.join(dest_dir, frame_file)
+                with open(frame_path, 'wb') as f:
+                    f.write(frame_data)
+                frame_files.append(frame_file)
+
+            # Add to inbox
+            dest_inbox['messages'].append({
+                'id': msg_id,
+                'from': self.user_id,
+                'subject': send['subject'],
+                'date': now.date().isoformat(),
+                'read': False,
+                'frames': frame_files,
+            })
+            with open(dest_mail_file, 'w') as f:
+                json.dump(dest_inbox, f, indent=2)
+
+        cs.audit_log('mail_send', user=self.user_id, ip=self.client_ip,
+                     subject=send['subject'], to=send['to'])
+
+        # Email notification for each recipient
+        for dest_id in send['to']:
+            if dest_id in users:
+                asyncio.get_event_loop().create_task(
+                    cs._send_mail_notification(dest_id, self.user_id, send['subject'], users))
+
+        await self.cursor_to(24, 0)
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        await self.send_text('MAIL SENT'.ljust(39))
+        await self.read_key()
+
+        self._upload_pending = None
+        self._mail_send_pending = None
+        self.mode = 'mail'
+        self.mail_messages = self._load_mail()
+        self.mail_cursor = 0
+        self.duck_pos = 3  # SEND
+        await self.render_mail()
 
     async def _cmd_upload(self):
         """UPLD command — prompt for page details then switch to upload mode."""
@@ -1222,14 +1806,109 @@ class TerminalSession:
             'type': page_type.strip(),
             'price': price,
             'lifetime': lifetime,
+            'frames': [],  # collected frames for T-type uploads
         }
 
-        # Switch to upload duckshoot
         self._saved_duck_pos = self.duck_pos
-        self.mode = 'upload'
-        self.duck_pos = 0  # SEND selected
+
+        if page_type.strip() == 'T':
+            # Text upload: enter editor to compose/select frames
+            self.mode = 'upload_text'
+            self.duck_pos = 0  # SEND selected
+            # Show last frame from memory (or blank)
+            if not self._frame_memory:
+                blank_frame = b'\x00\x06\x0F\x8E\x0D\x00'
+                self._frame_memory.append(blank_frame)
+            self._editor_idx = len(self._frame_memory) - 1
+            await self._render_upload_text_frame()
+        else:
+            # Program upload: XMODEM transfer
+            self.mode = 'upload'
+            self.duck_pos = 0  # SEND selected
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+
+    async def _complete_text_upload(self):
+        """Complete a text-type upload — save frames to directory or deliver mail."""
+        import json
+        cs = _get_server()
+
+        if not self._upload_pending or not self._upload_pending.get('frames'):
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE)
+            await self.send_text('NO FRAMES TO UPLOAD'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+
+        # Mail delivery
+        if self._upload_pending.get('_is_mail'):
+            await self._deliver_mail()
+            return
+
+        page = self.current_page
+        send = self._upload_pending
+
+        # Create page folder
+        page_slug = cs.CompunetDirectory._make_slug(send['title'])
+        parent_dir = getattr(page, '_dir_path', cs.ROOT_DIR)
+        page_dir = os.path.join(parent_dir, page_slug)
+        os.makedirs(page_dir, exist_ok=True)
+
+        # Save frames as .seq files
+        frame_files = []
+        for i, frame_data in enumerate(send['frames']):
+            frame_file = f'frame-{i+1}.seq'
+            frame_path = os.path.join(page_dir, frame_file)
+            with open(frame_path, 'wb') as f:
+                f.write(frame_data)
+            frame_files.append(frame_file)
+
+        # Allocate page number
+        all_pages = list(self.directory.pages.keys())
+        next_page_num = max(all_pages) + 1 if all_pages else 1000
+
+        size = len(send['frames'])
+
+        # Create page object
+        new_page = cs.CompunetPage(
+            page_num=next_page_num,
+            title=send['title'],
+            page_type='T',
+            size=size,
+            author=self.user_id,
+            price=send['price'],
+            life=send['lifetime'],
+        )
+        new_page.parent = page
+        new_page._frame_files = frame_files
+        new_page._dir_path = page_dir
+        new_page._adverts = []
+        for frame_file in frame_files:
+            frame_path = os.path.join(page_dir, frame_file)
+            with open(frame_path, 'rb') as f:
+                new_page.frames.append(f.read())
+        page.children.append(new_page)
+        self.directory.pages[next_page_num] = new_page
+
+        # Save directory
+        self._save_directory_tree(cs)
+
+        cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
+                     title=send['title'], page=next_page_num, type='T')
+
         await self.cursor_to(24, 0)
-        await self.render_duckshoot()
+        await self.send(LOWERCASE)
+        await self.send(COL_WHITE)
+        await self.send_text('UPLOAD COMPLETE'.ljust(39))
+        await self.read_key()
+
+        self._upload_pending = None
+        self.mode = 'directory'
+        self.duck_pos = getattr(self, '_saved_duck_pos', 0)
+        await self.render_directory()
 
     async def _cmd_upload_send(self):
         """SEND in upload mode — receive file via XMODEM then save."""
@@ -1537,6 +2216,160 @@ class TerminalSession:
         # Return to mail listing
         await self.render_mail()
 
+    async def _cmd_mail_send(self):
+        """SEND command in mail mode — compose and send a new message."""
+        import json
+        cs = _get_server()
+        users = cs._api_load_users()
+        user = users.get(self.user_id, {})
+        real_name = user.get('name', self.user_id)
+        now = datetime.datetime.now()
+
+        # Draw the mail compose screen
+        await self.send(CLR)
+        await self.send(LOWERCASE)
+        await self.send(COL_RED)
+
+        # Row 3: COURIER header
+        await self.cursor_to(3, 3)
+        await self.send_text('COURIER')
+
+        # Row 4: divider (use underline chars in shifted mode)
+        await self.cursor_to(4, 3)
+        await self.send(b'\x60' * 7)  # horizontal line in shifted charset
+
+        # Row 6: from
+        await self.cursor_to(6, 3)
+        await self.send_text('FROM : ')
+        await self.send(COL_BLUE)
+        await self.send_text(self.user_id)
+
+        # Row 7: real name (aligned under user ID value)
+        await self.cursor_to(7, 10)
+        await self.send(COL_BLUE)
+        await self.send_text(real_name)
+
+        # Row 9: date
+        await self.cursor_to(9, 3)
+        await self.send(COL_RED)
+        await self.send_text('DATE : ')
+        await self.send(COL_BLUE)
+        await self.send_text(now.strftime('%d-%m-%y'))
+
+        # Row 10: time
+        await self.cursor_to(10, 3)
+        await self.send(COL_RED)
+        await self.send_text('TIME : ')
+        await self.send(COL_BLUE)
+        await self.send_text(now.strftime('%H:%M'))
+
+        # Row 12: subject label
+        await self.cursor_to(12, 3)
+        await self.send(COL_RED)
+        await self.send_text('SUBJECT : ')
+
+        # Row 14: to label + colon lines for destinations
+        await self.cursor_to(14, 3)
+        await self.send_text('TO : ')
+        for i in range(5):
+            await self.cursor_to(16 + i, 12)
+            await self.send_text(':')
+
+        # Prompt for subject on duckshoot line
+        await self.cursor_to(24, 0)
+        await self.send(COL_WHITE)
+        await self.send_text('SUBJECT? '.ljust(39))
+        await self.cursor_to(24, 9)
+        subject = await self.read_line(max_len=20)
+        if not subject.strip():
+            await self.render_mail()
+            return
+
+        # Show subject on screen
+        await self.cursor_to(12, 13)
+        await self.send(COL_BLUE)
+        await self.send_text(subject[:20])
+
+        # Prompt for destination IDs (up to 5)
+        destinations = []
+        for i in range(5):
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text('DESTINATION ID? '.ljust(39))
+            await self.cursor_to(24, 16)
+            dest_id = await self.read_line(max_len=8)
+
+            if not dest_id.strip():
+                if i == 0:
+                    # First empty = abort
+                    await self.render_mail()
+                    return
+                break
+
+            destinations.append(dest_id.strip())
+            # Show on screen (first dest at row 16, blank line after TO :)
+            row = 16 + i
+            await self.cursor_to(row, 3)
+            await self.send(COL_BLUE)
+            await self.send_text(dest_id.strip())
+
+        # Validate all destination IDs and show real names
+        all_valid = True
+        for i, dest_id in enumerate(destinations):
+            dest_user = users.get(dest_id)
+            row = 16 + i
+            if dest_user:
+                name = dest_user.get('name', dest_id)
+                await self.cursor_to(row, 14)
+                await self.send(COL_BLUE)
+                await self.send_text(name[:20])
+            else:
+                await self.cursor_to(row, 14)
+                await self.send(COL_RED)
+                await self.send_text('*** NO SUCH USER ***')
+                all_valid = False
+
+        if not all_valid:
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text('PRESS ANY KEY'.ljust(39))
+            await self.read_key()
+            await self.render_mail()
+            return
+
+        # Confirm
+        await self.cursor_to(24, 0)
+        await self.send(COL_WHITE)
+        await self.send_text('OKAY? (Y/N) '.ljust(39))
+        await self.cursor_to(24, 12)
+        confirm = await self.read_line(max_len=1)
+        if confirm != 'Y':
+            await self.render_mail()
+            return
+
+        # Enter editor for composing mail frames
+        self._mail_send_pending = {
+            'subject': subject.strip(),
+            'to': destinations,
+            'frames': [],
+        }
+
+        # Switch to upload_text mode for composing
+        self.mode = 'upload_text'
+        self.duck_pos = 0  # SEND selected
+        if not self._frame_memory:
+            blank_frame = b'\x00\x06\x0F\x8E\x0D\x00'
+            self._frame_memory.append(blank_frame)
+        # Start with a new blank frame
+        blank_frame = b'\x00\x06\x0F\x8E\x0D\x00'
+        self._frame_memory.append(blank_frame)
+        if len(self._frame_memory) > 20:
+            self._frame_memory.pop(0)
+        self._editor_idx = len(self._frame_memory) - 1
+        self._upload_pending = self._mail_send_pending  # reuse upload_text SEND/FINSH
+        self._upload_pending['_is_mail'] = True
+        await self._render_upload_text_frame()
+
     def _get_duckshoot(self):
         if self.mode == 'frame':
             return DUCK_FRAME
@@ -1544,6 +2377,10 @@ class TerminalSession:
             return DUCK_MAIL
         elif self.mode == 'upload':
             return DUCK_UPLOAD
+        elif self.mode == 'upload_text':
+            return DUCK_UPLOAD_TEXT
+        elif self.mode == 'editor':
+            return DUCK_EDITOR
         return DUCK_DIR
 
     # --- Frame display ---
@@ -1556,6 +2393,12 @@ class TerminalSession:
         await self.send(UPPERCASE)
         frame_data = self.show_page.frames[self.show_frame_idx]
         await self.send(expand_frame(frame_data))
+
+        # Store in editor frame memory (last 20)
+        self._frame_memory.append(frame_data)
+        if len(self._frame_memory) > 20:
+            self._frame_memory.pop(0)
+        self._editor_idx = len(self._frame_memory) - 1
 
         # Switch back to shifted charset for duckshoot text
         await self.send(LOWERCASE)
@@ -1593,6 +2436,15 @@ class TerminalSession:
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
                 child = visible[self.dir_cursor]
+                if child.page_type == 'L':
+                    await self.cursor_to(24, 0)
+                    await self.send(LOWERCASE)
+                    await self.send(COL_WHITE)
+                    await self.send_text('PLEASE USE BUY'.ljust(39))
+                    await self.read_key()
+                    await self.cursor_to(24, 0)
+                    await self.render_duckshoot()
+                    return
                 if child.frames:
                     # Dynamic page check
                     if getattr(child, 'dynamic', None) == 'who':
@@ -1616,6 +2468,30 @@ class TerminalSession:
                     self.current_page = child
                     self.dir_cursor = 0
                     self.dir_offset = 0
+                else:
+                    # Create empty sub-directory (only if user can upload here)
+                    users = cs._api_load_users()
+                    user_data = users.get(self.user_id, {})
+                    can_upload = (self.user_id == page.author or
+                                  user_data.get('admin') or
+                                  user_data.get('editor'))
+                    if not can_upload:
+                        ancestor = page
+                        while ancestor:
+                            if getattr(ancestor, 'open_upload', False):
+                                can_upload = True
+                                break
+                            ancestor = getattr(ancestor, 'parent', None)
+                    if can_upload:
+                        # Enter the page as an empty directory
+                        child.parent = page
+                        if not hasattr(child, '_dir_path') or not child._dir_path:
+                            parent_dir = getattr(page, '_dir_path', cs.ROOT_DIR)
+                            child._dir_path = os.path.join(
+                                parent_dir, cs.CompunetDirectory._make_slug(child.title))
+                        self.current_page = child
+                        self.dir_cursor = 0
+                        self.dir_offset = 0
             await self.render_directory()
 
         elif cmd == 'BACK':
@@ -1626,20 +2502,61 @@ class TerminalSession:
             await self.render_directory()
 
         elif cmd == 'GOTO':
-            await self.cursor_to(23, 0)
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
-            await self.send_text('PAGE? ')
-            page_str = await self.read_line(max_len=6)
-            try:
-                page_num = int(page_str)
-                if page_num in self.directory.pages:
-                    target = self.directory.pages[page_num]
-                    if target.parent:
-                        self.current_page = target.parent
-                    self.dir_cursor = 0
-                    self.dir_offset = 0
-            except ValueError:
-                pass
+            await self.send_text('GOTO? '.ljust(39))
+            await self.cursor_to(24, 6)
+            target_str = await self.read_line(max_len=8)
+            target_str = target_str.strip()
+
+            if target_str:
+                # Built-in: WHO
+                if target_str.upper() == 'WHO':
+                    cs._regenerate_who_frame()
+                    frame_path = os.path.join(cs.WHO_PAGE_DIR, 'frame-1.seq')
+                    if os.path.exists(frame_path):
+                        with open(frame_path, 'rb') as f:
+                            frame_data = f.read()
+                        await self.send(CLR)
+                        await self.send(UPPERCASE)
+                        await self.send(expand_frame(frame_data))
+                        await self.send(LOWERCASE)
+                        await self.cursor_to(24, 0)
+                        await self.send(COL_WHITE)
+                        await self.send_text('PRESS ANY KEY')
+                        await self.read_key()
+                    await self.render_directory()
+                    return
+
+                # Try numeric page number
+                target_page = None
+                try:
+                    page_num = int(target_str)
+                    target_page = self.directory.pages.get(page_num)
+                except ValueError:
+                    # Try keyword lookup
+                    for pg in self.directory.pages.values():
+                        if pg.keyword and pg.keyword.upper() == target_str.upper():
+                            target_page = pg
+                            break
+
+                if target_page:
+                    if target_page.parent:
+                        self.current_page = target_page.parent
+                        # Find target in parent's children to highlight it
+                        for i, child in enumerate(self.current_page.children):
+                            if child.page_num == target_page.page_num:
+                                self.dir_cursor = i
+                                self.dir_offset = max(0, i - 5)
+                                break
+                        else:
+                            self.dir_cursor = 0
+                            self.dir_offset = 0
+                    else:
+                        self.dir_cursor = 0
+                        self.dir_offset = 0
+
             await self.render_directory()
 
         elif cmd == 'WHO':
@@ -1777,8 +2694,11 @@ class TerminalSession:
                         json.dump(users, f)
                     cs.audit_log('buy', user=self.user_id, ip=self.client_ip,
                                  page=child.page_num, title=child.title, price=child.price)
+                # Type L (link): enter partyline
+                if child.page_type == 'L':
+                    await self._enter_partyline()
                 # Program page: trigger XMODEM download
-                if child.page_type == 'P' and child.frames:
+                elif child.page_type == 'P' and child.frames:
                     await self._xmodem_send(child)
                 else:
                     # Non-program: just show the page (same as SHOW)
@@ -1794,8 +2714,171 @@ class TerminalSession:
         elif cmd == 'UPLD':
             await self._cmd_upload()
 
+        elif cmd == 'EDITR':
+            if not self._frame_memory:
+                blank_frame = b'\x00\x06\x0F\x8E\x0D\x00'
+                self._frame_memory.append(blank_frame)
+            self._saved_duck_pos = self.duck_pos
+            self.mode = 'editor'
+            self.duck_pos = 1  # HELP default
+            self._editor_idx = len(self._frame_memory) - 1
+            await self._render_editor_frame()
+
+        elif cmd == 'RETURN':
+            self.mode = 'directory'
+            self.duck_pos = getattr(self, '_saved_duck_pos', 0)
+            await self.render_directory()
+
+        elif cmd == 'LAST':
+            if self._frame_memory and self._editor_idx > 0:
+                self._editor_idx -= 1
+                await self._render_editor_frame()
+
+        elif cmd == 'NEXT':
+            if self._frame_memory and self._editor_idx < len(self._frame_memory) - 1:
+                self._editor_idx += 1
+                await self._render_editor_frame()
+
+        elif cmd == 'EDIT':
+            await self._cmd_edit()
+
+        elif cmd == 'NEW':
+            # Create a blank frame and add to memory
+            blank_frame = b'\x00\x06\x0F\x8E\x0D\x00'  # minimal frame: flags, space, bg, uppercase, CR, end
+            self._frame_memory.append(blank_frame)
+            if len(self._frame_memory) > 20:
+                self._frame_memory.pop(0)
+            self._editor_idx = len(self._frame_memory) - 1
+            await self._render_editor_frame()
+
+        elif cmd == 'COPY':
+            # Duplicate the current frame in memory
+            if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
+                copy = self._frame_memory[self._editor_idx]
+                self._frame_memory.append(copy)
+                if len(self._frame_memory) > 20:
+                    self._frame_memory.pop(0)
+                self._editor_idx = len(self._frame_memory) - 1
+                await self._render_editor_frame()
+
+        elif cmd == 'ERASE':
+            # Erase the current frame (replace with blank)
+            if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
+                blank_frame = b'\x00\x06\x0F\x8E\x0D\x00'
+                self._frame_memory[self._editor_idx] = blank_frame
+                await self._render_editor_frame()
+
+        elif cmd == 'PUT':
+            # Download current frame via XMODEM
+            if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
+                frame_data = self._frame_memory[self._editor_idx]
+                await self.cursor_to(24, 0)
+                await self.send(LOWERCASE)
+                await self.send(COL_WHITE)
+                await self.send_text(f'XMODEM: frame ({len(frame_data)}b)'.ljust(39))
+                try:
+                    start_byte = await asyncio.wait_for(self._wait_xmodem_start(), timeout=60.0)
+                except asyncio.TimeoutError:
+                    await self.cursor_to(24, 0)
+                    await self.send_text('TRANSFER TIMEOUT'.ljust(39))
+                    await self.read_key()
+                    await self._render_editor_frame()
+                    return
+                # Send frame data via XMODEM
+                await self._xmodem_send_data(frame_data, start_byte == 0x43)
+                await self.cursor_to(24, 0)
+                await self.send_text('TRANSFER COMPLETE'.ljust(39))
+                await self.read_key()
+            await self._render_editor_frame()
+
+        elif cmd == 'GET':
+            # Upload frame(s) via XMODEM into editor memory
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE)
+            await self.send_text('START XMODEM UPLOAD NOW...'.ljust(39))
+            try:
+                raw_data = await self._xmodem_receive()
+            except (asyncio.TimeoutError, ConnectionResetError):
+                await self.cursor_to(24, 0)
+                await self.send_text('TRANSFER FAILED'.ljust(39))
+                await self.read_key()
+                await self._render_editor_frame()
+                return
+            if raw_data:
+                # Split on $00 terminators into individual frames
+                frames = []
+                start = 0
+                for i in range(len(raw_data)):
+                    if raw_data[i] == 0x00 and i > start:
+                        frames.append(raw_data[start:i + 1])  # include the $00
+                        start = i + 1
+                if start < len(raw_data):
+                    # Remaining data without terminator — add $00
+                    frames.append(raw_data[start:] + b'\x00')
+                # Load frames into memory
+                for frame in frames:
+                    self._frame_memory.append(frame)
+                    if len(self._frame_memory) > 20:
+                        self._frame_memory.pop(0)
+                self._editor_idx = len(self._frame_memory) - 1
+                await self.cursor_to(24, 0)
+                await self.send_text(f'{len(frames)} FRAME(S) LOADED'.ljust(39))
+            else:
+                await self.cursor_to(24, 0)
+                await self.send_text('NO DATA RECEIVED'.ljust(39))
+            await self.read_key()
+            await self._render_editor_frame()
+
+        elif cmd == 'STORE':
+            # Download ALL frames in memory via XMODEM
+            if not self._frame_memory:
+                await self.cursor_to(24, 0)
+                await self.send(LOWERCASE)
+                await self.send(COL_WHITE)
+                await self.send_text('NO FRAMES IN MEMORY'.ljust(39))
+                await self.read_key()
+                await self._render_editor_frame()
+                return
+            # Concatenate all frames (each already $00-terminated)
+            all_data = bytearray()
+            for frame in self._frame_memory:
+                all_data.extend(frame)
+                if not frame.endswith(b'\x00'):
+                    all_data.append(0x00)
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE)
+            await self.send_text(f'XMODEM: {len(self._frame_memory)} frames ({len(all_data)}b)'.ljust(39))
+            try:
+                start_byte = await asyncio.wait_for(self._wait_xmodem_start(), timeout=60.0)
+            except asyncio.TimeoutError:
+                await self.cursor_to(24, 0)
+                await self.send_text('TRANSFER TIMEOUT'.ljust(39))
+                await self.read_key()
+                await self._render_editor_frame()
+                return
+            await self._xmodem_send_data(bytes(all_data), start_byte == 0x43)
+            await self.cursor_to(24, 0)
+            await self.send_text('TRANSFER COMPLETE'.ljust(39))
+            await self.read_key()
+            await self._render_editor_frame()
+
+        elif cmd == 'FREE':
+            free_frames = 20 - len(self._frame_memory)
+            await self.cursor_to(24, 0)
+            await self.send(LOWERCASE)
+            await self.send(COL_WHITE)
+            await self.send_text(f'{free_frames} FRAMES FREE'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+
         elif cmd == 'SEND':
-            await self._cmd_upload_send()
+            if self.mode == 'mail':
+                await self._cmd_mail_send()
+            else:
+                await self._cmd_upload_send()
 
         elif cmd == 'ABORT':
             self._upload_pending = None
@@ -1803,7 +2886,10 @@ class TerminalSession:
 
         elif cmd == 'HELP':
             cs = _get_server()
-            help_path = os.path.join(os.path.dirname(__file__), 'cfg', 'help.pet')
+            if self.mode == 'editor':
+                help_path = os.path.join(os.path.dirname(__file__), 'cfg', 'editor-help.pet')
+            else:
+                help_path = os.path.join(os.path.dirname(__file__), 'cfg', 'help.pet')
             if os.path.exists(help_path):
                 with open(help_path, 'rb') as f:
                     await self.send(f.read())
@@ -1815,7 +2901,10 @@ class TerminalSession:
             await self.send(COL_WHITE)
             await self.send_text('PRESS ANY KEY')
             await self.read_key()
-            await self.render_directory()
+            if self.mode == 'editor':
+                await self._render_editor_frame()
+            else:
+                await self.render_directory()
 
     # --- Main input loop ---
 
@@ -1908,6 +2997,62 @@ class TerminalSession:
                     await self.redraw_mail_column()
 
             elif self.mode == 'upload':
+                if key == KEY_CRSR_RIGHT:
+                    commands = self._get_duckshoot()
+                    self.duck_pos = (self.duck_pos + 1) % len(commands)
+                    await self.cursor_to(24, 0)
+                    await self.render_duckshoot()
+                elif key == KEY_CRSR_LEFT:
+                    commands = self._get_duckshoot()
+                    self.duck_pos = (self.duck_pos - 1) % len(commands)
+                    await self.cursor_to(24, 0)
+                    await self.render_duckshoot()
+                elif key == KEY_RETURN:
+                    commands = self._get_duckshoot()
+                    await self.execute_command(commands[self.duck_pos])
+
+            elif self.mode == 'upload_text':
+                if key == KEY_CRSR_RIGHT:
+                    commands = self._get_duckshoot()
+                    self.duck_pos = (self.duck_pos + 1) % len(commands)
+                    await self.cursor_to(24, 0)
+                    await self.render_duckshoot()
+                elif key == KEY_CRSR_LEFT:
+                    commands = self._get_duckshoot()
+                    self.duck_pos = (self.duck_pos - 1) % len(commands)
+                    await self.cursor_to(24, 0)
+                    await self.render_duckshoot()
+                elif key == KEY_RETURN:
+                    commands = self._get_duckshoot()
+                    cmd = commands[self.duck_pos]
+                    if cmd == 'SEND':
+                        # Add current frame to upload
+                        if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
+                            self._upload_pending['frames'].append(
+                                self._frame_memory[self._editor_idx])
+                        await self.cursor_to(24, 0)
+                        await self.send(LOWERCASE)
+                        await self.send(COL_WHITE)
+                        n = len(self._upload_pending['frames'])
+                        await self.send_text(f'FRAME {n} ADDED. NEXT OR FINISH'.ljust(39))
+                        await self.read_key()
+                        await self.cursor_to(24, 0)
+                        await self.render_duckshoot()
+                    elif cmd == 'FINSH':
+                        await self._complete_text_upload()
+                    elif cmd == 'LAST':
+                        if self._frame_memory and self._editor_idx > 0:
+                            self._editor_idx -= 1
+                            await self._render_upload_text_frame()
+                    elif cmd == 'NEXT':
+                        if self._frame_memory and self._editor_idx < len(self._frame_memory) - 1:
+                            self._editor_idx += 1
+                            await self._render_upload_text_frame()
+                    elif cmd == 'EDITR':
+                        await self._cmd_edit()
+                        await self._render_upload_text_frame()
+
+            elif self.mode == 'editor':
                 if key == KEY_CRSR_RIGHT:
                     commands = self._get_duckshoot()
                     self.duck_pos = (self.duck_pos + 1) % len(commands)

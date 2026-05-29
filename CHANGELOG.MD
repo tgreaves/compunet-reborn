@@ -21,18 +21,33 @@
 	* Auto-detect Telnet vs Raw connections (IAC negotiation for Telnet clients,
 	  $FF byte escaping).
 	* PETSCII test indicator on login screen (block character).
-	* GOTO, VOTE, MAIL, LIFE, WHO IS ONLINE, LEAVE, HELP, ACCNT, BUY
-	  commands implemented.
-	* MAIL: full bordered inbox screen with cursor navigation, F7/F8
-	  column toggle (SENDER/DATE/STATUS), SHOW to read messages.
-	* BUY: XMODEM-CRC file download for program ('P') pages. Credit
-	  deduction for paid content.
+	* GOTO (page numbers, keywords, WHO), VOTE, MAIL, LIFE, WHO IS ONLINE,
+	  LEAVE, HELP, ACCNT, BUY, UPLD commands implemented.
+	* MAIL: full bordered inbox with cursor navigation, F7/F8 column toggle
+	  (SENDER/DATE/STATUS), SHOW to read, SEND to compose+deliver with
+	  COURIER envelope. Email notifications on send.
+	* BUY: XMODEM-CRC file download for 'P' pages, partyline entry for 'L'
+	  pages, credit deduction for paid content.
+	* UPLD: XMODEM-CRC upload for 'P' pages, editor-based compose for 'T'
+	  pages. Progressive preview in directory during entry.
+	* EDITR: frame viewer/editor with 20-frame rolling memory. Commands:
+	  EDIT (free cursor), NEW, COPY, ERASE, LAST, NEXT, GET (XMODEM upload
+	  frames), PUT (XMODEM download frame), STORE (XMODEM download all),
+	  FREE (show memory remaining). Dedicated editor HELP screen.
+	* Partyline: full terminal UI with bordered chat area, input area,
+	  scrolling messages, commands (*help, *who, *alias, *enter, *quit).
+	  Integrated with partyline module (cross-client chat).
+	* DIR on non-directory pages creates empty subdirectory (with upload
+	  permission check). Directory persists only if content uploaded.
 	* LEAVE uses goodbye.seq template (same artwork as protocol client).
 	* HELP screen loaded from `server/cfg/help.pet`.
+	* SHOW on type L pages shows "PLEASE USE BUY".
+	* Login: generic "INVALID USERNAME / PASSWORD" error (security).
 	* Shared state: terminal users appear in WHO IS ONLINE, same auth/audit system.
 	* Efficient redraw: cursor up/down only repaints two entry lines, F7/F8
 	  only repaints column values, duckshoot movement only repaints row 24.
 	* Duckshoot position preserved across commands and frame view/return.
+	* Version number displayed dynamically on login screen.
 * Server:
 	* Port 6401 listener added to main server event loop.
 	* Dockerfile updated: terminal.py included, port 6401 exposed.
