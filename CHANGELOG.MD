@@ -38,6 +38,8 @@
 	* NMI handler address ($CF00) now written to RAM at $FFFA/$FFFB so
 	  NMI vectors correctly regardless of banking state.
 * Server:
+	* Fixed: WHO IS ONLINE missing users on reconnect. Now uses reference-counted
+	  session tracking — user only removed from online set when last session ends.
 	* New `server/terminal.py` module.
 	* Port 6401 listener added to main server event loop.
 	* Dockerfile updated: terminal.py included, port 6401 exposed.
