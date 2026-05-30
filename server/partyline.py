@@ -108,6 +108,85 @@ def display_name(user_id):
     return user_id
 
 
+def petscii_to_ascii(buf):
+    """Convert PETSCII bytes to ASCII string (shifted/lowercase mode).
+
+    Shared conversion used by both protocol and terminal partyline handlers.
+    """
+    result = []
+    for b in (buf if isinstance(buf, (bytes, bytearray)) else buf.encode('latin-1')):
+        if 0xC1 <= b <= 0xDA:
+            result.append(chr(b - 0x80))  # uppercase A-Z
+        elif 0x41 <= b <= 0x5A:
+            result.append(chr(b + 0x20))  # lowercase a-z
+        elif 0x20 <= b <= 0x3F:
+            result.append(chr(b))         # digits, punctuation, space
+        else:
+            result.append(chr(b & 0x7F) if 0x20 <= (b & 0x7F) <= 0x7E else '?')
+    return ''.join(result)
+
+
+async def process_input(user_id, line, writer):
+    """Process a partyline input line (command or message).
+
+    Shared handler for both protocol and terminal clients.
+    writer: the user's writer (or TermWriter proxy for terminal clients).
+    Returns True if the user should exit partyline, False otherwise.
+    """
+    line = line.strip()
+    if not line:
+        return False
+
+    if line.startswith('*'):
+        parts = line[1:].split(' ', 1)
+        cmd = parts[0].lower()
+        args = parts[1] if len(parts) > 1 else ""
+        logger.info("Partyline cmd from %s: *%s %s", user_id, cmd, args)
+
+        if cmd == "help":
+            await _cmd_help(writer, user_id)
+        elif cmd == "alias":
+            await _cmd_alias(writer, user_id, args)
+        elif cmd == "who":
+            await _cmd_who(writer, user_id)
+        elif cmd == "enter":
+            await _cmd_enter(writer, user_id, args)
+        elif cmd == "dice":
+            await _cmd_dice(writer, user_id, args)
+        elif cmd == "call":
+            await _cmd_call(writer, user_id, args)
+        elif cmd == "kick":
+            await _cmd_kick(writer, user_id, args)
+        elif cmd == "ban":
+            await _cmd_ban(writer, user_id, args)
+        elif cmd == "unban":
+            await _cmd_unban(writer, user_id, args)
+        elif cmd == "quit" or cmd == "exit":
+            await _cmd_quit(writer, user_id)
+            return True
+        else:
+            await send_line(writer, f"Unknown command: *{cmd}")
+            await send_line(writer, "")
+    else:
+        # Chat message — format and broadcast
+        name = display_name(user_id)
+        room = _users[user_id]["room"]
+        chunks = [line[i:i+35] for i in range(0, len(line), 35)]
+        # Send to self
+        await send_line(writer, f"{name}:")
+        for chunk in chunks:
+            await send_line(writer, chunk)
+        await send_line(writer, "")
+        # Broadcast to room
+        await broadcast_room(room, f"{name}:", exclude=user_id)
+        for chunk in chunks:
+            await broadcast_room(room, chunk, exclude=user_id)
+        await broadcast_room(room, "", exclude=user_id)
+        logger.info("Partyline msg from %s [%s]: %s", user_id, room, line)
+
+    return False
+
+
 def _ascii_to_petscii(text):
     """Convert ASCII text to PETSCII for C64 display (lowercase mode)."""
     result = bytearray()
@@ -157,20 +236,7 @@ async def read_line(reader):
         if data == CR:
             break
         buf.extend(data)
-    # Convert PETSCII to ASCII (C64 lowercase mode):
-    # $C1-$DA = uppercase on screen → ASCII uppercase A-Z
-    # $41-$5A = lowercase on screen → ASCII lowercase a-z
-    result = []
-    for b in buf:
-        if 0xC1 <= b <= 0xDA:
-            result.append(chr(b - 0x80))  # uppercase A-Z
-        elif 0x41 <= b <= 0x5A:
-            result.append(chr(b + 0x20))  # lowercase a-z
-        elif 0x20 <= b <= 0x3F:
-            result.append(chr(b))         # digits, punctuation, space
-        else:
-            result.append(chr(b & 0x7F) if 0x20 <= (b & 0x7F) <= 0x7E else '?')
-    return ''.join(result)
+    return petscii_to_ascii(buf)
 
 
 async def _cmd_help(writer, user_id):
@@ -445,52 +511,9 @@ async def handle_session(reader, writer, user_id):
             if not line:
                 continue
 
-            if line.startswith('*'):
-                # Command dispatch
-                parts = line[1:].split(' ', 1)
-                cmd = parts[0].lower()
-                args = parts[1] if len(parts) > 1 else ""
-                logger.info("Partyline cmd from %s: *%s %s", user_id, cmd, args)
-
-                if cmd == "help":
-                    await _cmd_help(writer, user_id)
-                elif cmd == "alias":
-                    await _cmd_alias(writer, user_id, args)
-                elif cmd == "who":
-                    await _cmd_who(writer, user_id)
-                elif cmd == "enter":
-                    await _cmd_enter(writer, user_id, args)
-                elif cmd == "dice":
-                    await _cmd_dice(writer, user_id, args)
-                elif cmd == "call":
-                    await _cmd_call(writer, user_id, args)
-                elif cmd == "kick":
-                    await _cmd_kick(writer, user_id, args)
-                elif cmd == "ban":
-                    await _cmd_ban(writer, user_id, args)
-                elif cmd == "unban":
-                    await _cmd_unban(writer, user_id, args)
-                elif cmd == "quit":
-                    await _cmd_quit(writer, user_id)
-                    return
-                else:
-                    await send_line(writer, f"Unknown command: *{cmd}")
-                    await send_line(writer, "")
-            else:
-                # Chat message — broadcast to room
-                # Split long lines into 35-char chunks (client chat width)
-                logger.info("Partyline msg from %s [%s]: %s", user_id, _users[user_id]["room"], line)
-                name = display_name(user_id)
-                room = _users[user_id]["room"]
-                chunks = [line[i:i+35] for i in range(0, len(line), 35)]
-                await send_line(writer, f"{name}:")
-                for chunk in chunks:
-                    await send_line(writer, chunk)
-                await send_line(writer, "")
-                await broadcast_room(room, f"{name}:", exclude=user_id)
-                for chunk in chunks:
-                    await broadcast_room(room, chunk, exclude=user_id)
-                await broadcast_room(room, "", exclude=user_id)
+            should_exit = await process_input(user_id, line, writer)
+            if should_exit:
+                return
 
     except (ConnectionResetError, BrokenPipeError, OSError):
         logger.info("User %s connection lost", user_id)

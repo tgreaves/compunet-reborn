@@ -1,3 +1,25 @@
+# 0.8.1-beta (2026-05-30)
+
+* Terminal:
+	* Fixed: charset inconsistency on C64 terminal clients (#56). DIR and MAIL
+	  screens no longer switch charset during rendering — eliminates flickering
+	  and graphical corruption when scrolling.
+	* Terminal type selection on connection: C64 clients get full charset
+	  switching, PC terminals (SyncTerm) suppress $8E/$0E to avoid conflicts
+	  with fixed-font rendering.
+	* Fixed: frame charset detection now properly parses RLE codes instead of
+	  naively scanning for $0E bytes (was misidentifying RLE counts as charset
+	  switches).
+	* ID command implemented in MAIL duckshoot (user ID lookup with real name
+	  display).
+	* Partyline: shared command handler (process_input) for both protocol and
+	  terminal clients — all commands available (*dice, *kick, *ban, *call etc).
+	  Proper PETSCII-to-ASCII conversion preserves mixed case. Name displayed
+	  on separate line from message (matches C64 client format).
+	* Partyline: scrollable chat history (100 lines, cursor up/down).
+	* Partyline: double-RETURN to send (first RETURN = line break).
+	* Font recommendation changed to "Commodore 64 (LOWER)" for SyncTerm.
+
 # 0.8-beta (2026-05-29)
 
 * PETSCII Terminal Mode (port 6401):

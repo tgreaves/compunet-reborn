@@ -69,8 +69,8 @@ def _get_server():
     return _server_module
 
 
-def ascii_to_petscii(text):
-    """Convert ASCII text to PETSCII (shifted charset / lowercase+uppercase mode).
+def ascii_to_petscii_shifted(text):
+    """Convert ASCII text to PETSCII for shifted (lowercase+uppercase) mode.
 
     $41-$5A = lowercase a-z, $C1-$DA = uppercase A-Z.
     """
@@ -84,6 +84,25 @@ def ascii_to_petscii(text):
         else:
             result.append(b)
     return bytes(result)
+
+
+def ascii_to_petscii_unshifted(text):
+    """Convert ASCII text to PETSCII for unshifted (uppercase/graphics) mode.
+
+    $41-$5A = uppercase A-Z. No lowercase available.
+    """
+    result = bytearray()
+    for ch in text:
+        b = ord(ch)
+        if 0x61 <= b <= 0x7A:       # ASCII lowercase → uppercase ($41-$5A)
+            result.append(b - 0x20)
+        else:
+            result.append(b)
+    return bytes(result)
+
+
+# Default alias for backward compat (template replacements in welcome frame use this)
+ascii_to_petscii = ascii_to_petscii_shifted
 
 
 def expand_frame(frame_data):
@@ -156,6 +175,8 @@ class TerminalSession:
         self.show_frame_idx = 0
         self.client_ip = ''
         self.telnet = False
+        self.charset = 'upper'  # 'upper' = unshifted (default), 'lower' = shifted
+        self.terminal_type = 'c64'  # 'c64' or 'pc'
         self._upload_pending = None
         self._ucat_active = False
         self._ucat_saved_page = None
@@ -175,8 +196,26 @@ class TerminalSession:
         await self.writer.drain()
 
     async def send_text(self, text):
-        """Send ASCII text converted to PETSCII."""
-        await self.send(ascii_to_petscii(text))
+        """Send ASCII text converted to PETSCII based on current charset mode."""
+        if self.charset == 'upper':
+            await self.send(ascii_to_petscii_unshifted(text))
+        else:
+            await self.send(ascii_to_petscii_shifted(text))
+
+    async def set_charset(self, mode):
+        """Switch charset mode: 'upper' (unshifted) or 'lower' (shifted).
+
+        For PC terminals, charset switching is suppressed (they use a fixed font).
+        The tracking is still updated so send_text uses the correct conversion.
+        """
+        if mode == 'upper' and self.charset != 'upper':
+            if self.terminal_type == 'c64':
+                await self.send(UPPERCASE)
+            self.charset = 'upper'
+        elif mode == 'lower' and self.charset != 'lower':
+            if self.terminal_type == 'c64':
+                await self.send(LOWERCASE)
+            self.charset = 'lower'
 
     async def cursor_to(self, row, col):
         """Position cursor using HOME + cursor-down/right."""
@@ -245,6 +284,8 @@ class TerminalSession:
         cs = _get_server()
 
         await self.send(CLR)
+        await self.send(UPPERCASE)
+        self.charset = 'upper'
         await self.send(COL_BLUE)
         await self.send(CR)
         version = ''
@@ -259,8 +300,22 @@ class TerminalSession:
         await self.send(COL_CYAN)
         await self.send_text('  Visit compunet.live for registration.\r\r')
         await self.send(COL_WHITE)
-        await self.send_text('  PETSCII OK if you see a block: ')
-        await self.send(RVS_ON + b'\x20' + RVS_OFF)
+        await self.send_text('  Terminal type:\r')
+        await self.send_text('    1) C64 / C64 Ultimate\r')
+        await self.send_text('    2) SyncTerm / PC (C64 LOWER font)\r\r')
+        await self.send_text('  Select (1/2): ')
+        # Read terminal type selection
+        while True:
+            key = await self.read_key()
+            if key == 0x31:  # '1'
+                self.terminal_type = 'c64'
+                await self.send(b'\x31')  # echo '1'
+                break
+            elif key == 0x32:  # '2'
+                self.terminal_type = 'pc'
+                await self.send(b'\x32')  # echo '2'
+                break
+        await self.send(CR + CR)
         await self.send(CR)
         await self.send_text('  Ensure terminal at 40 x 25.\r\r')
 
@@ -298,12 +353,12 @@ class TerminalSession:
 
         # Build welcome frame using same logic as protocol server
         await self.send(CLR)
-        await self.send(UPPERCASE)
+        await self.set_charset('upper')
 
         welcome_frame = self._make_welcome_frame(user)
         await self.send(expand_frame(welcome_frame))
 
-        await self.send(LOWERCASE)
+        # Stay in uppercase mode for the duckshoot
         self.mode = 'welcome'
         await self.render_duckshoot()
         return True
@@ -426,8 +481,15 @@ class TerminalSession:
     B_TEE_ENTRY_R = b'\xb3'  # ┤ (entry top right)
 
     async def render_directory(self):
-        """Draw the full directory screen with borders matching C64 client."""
+        """Draw the full directory screen with borders matching C64 client.
+
+        Entire screen rendered in uppercase (unshifted) mode — no charset switching.
+        """
         await self.send(CLR)
+        # Force uppercase (raw frame/file data may have silently changed charset)
+        if self.terminal_type == 'c64':
+            await self.send(UPPERCASE)
+        self.charset = 'upper'
 
         # Header (rows 0-4)
         page = self.current_page
@@ -441,50 +503,37 @@ class TerminalSession:
             cs = _get_server()
             header_path = os.path.join(cs.ROOT_DIR, header_file)
             if os.path.exists(header_path):
-                await self.send(UPPERCASE)
                 with open(header_path, 'rb') as f:
                     frame_data = b'\x00\x00\x00\x00' + f.read()
                 await self.send(expand_frame(frame_data))
 
         # Row 6: frame top border
         await self.cursor_to(6, 0)
-        await self.send(UPPERCASE)
         await self.send(COL_WHITE)
         await self.send(self.B_TEE_L + self.B_THICK_H * 28 + self.B_THIN_H +
                         self.B_TEE_DOWN + self.B_THIN_H * 8 + self.B_CORNER_TR)
 
         # Row 7: status line
-        await self.send(LOWERCASE)
-        await self.send(COL_WHITE)
-        await self.send(UPPERCASE)
         await self.send(self.B_THICK_V)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('    1 ')
         await self.send(COL_BLUE)
         await self.send_text('*** COMPUNET ***')
         await self.send(COL_WHITE)
-        spaces = 29 - 6 - 16  # 7 spaces to fill remaining width
+        spaces = 29 - 6 - 16
         await self.send(b'\x20' * spaces)
-        await self.send(UPPERCASE)
         await self.send(self.B_THICK_V)
         await self.send(b'\x20' * 8)
         await self.send(self.B_THICK_V)
 
         # Row 8: breadcrumb + column header
-        await self.send(LOWERCASE)
-        await self.send(UPPERCASE)
         await self.send(self.B_THICK_V)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         breadcrumb = f'  {page.page_num} {page.title}'
         await self.send_text(breadcrumb[:29].ljust(29))
-        await self.send(UPPERCASE)
         await self.send(self.B_THIN_V)
-        await self.send(LOWERCASE)
         cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE']
         await self.send_text((' ' + cols[self.dir_column]).ljust(8)[:8])
-        await self.send(UPPERCASE)
         await self.send(self.B_THIN_V)
 
         # Row 9: entry area top border
@@ -492,19 +541,16 @@ class TerminalSession:
                         self.B_THICK_H * 8 + self.B_TEE_ENTRY_R)
 
         # Rows 10-20: entries (11 rows)
-        await self.send(LOWERCASE)
         visible = page.children[self.dir_offset:self.dir_offset + 11]
         self.entries_row = 10
         for i in range(11):
             if i < len(visible):
                 child = visible[i]
-                # Page number + title
                 page_num_str = str(child.page_num)
                 title = child.title[:18].ljust(18)
                 type_str = child.type_string()[:5].ljust(5)
                 content = f'{page_num_str:>5s} {title}{type_str}'[:29]
 
-                # Column value
                 if self.dir_column == 0:
                     col_val = '{:.2f}'.format(child.price) if child.price > 0 else ''
                 elif self.dir_column == 1:
@@ -517,59 +563,41 @@ class TerminalSession:
 
                 if i == self.dir_cursor:
                     await self.send(COL_WHITE)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THICK_V)
-                    await self.send(LOWERCASE)
                     await self.send(RVS_ON)
                     await self.send_text(content.ljust(29))
                     await self.send(RVS_OFF)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THIN_V)
-                    await self.send(LOWERCASE)
                     await self.send(RVS_ON)
                     await self.send_text(col_val)
                     await self.send(RVS_OFF)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THIN_V)
                 else:
                     await self.send(COL_WHITE)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THICK_V)
-                    await self.send(LOWERCASE)
                     await self.send(COL_BLUE)
                     await self.send_text(content.ljust(29))
                     await self.send(COL_WHITE)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THIN_V)
-                    await self.send(LOWERCASE)
                     await self.send(COL_BLUE)
                     await self.send_text(col_val)
                     await self.send(COL_WHITE)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THICK_V)
             else:
-                # Empty row
                 await self.send(COL_WHITE)
-                await self.send(UPPERCASE)
                 await self.send(self.B_THICK_V)
-                await self.send(LOWERCASE)
                 await self.send(b'\x20' * 29)
-                await self.send(UPPERCASE)
                 await self.send(self.B_THIN_V)
                 await self.send(b'\x20' * 8)
                 await self.send(self.B_THICK_V)
 
         # Row 21: bottom border
-        await self.send(UPPERCASE)
         await self.send(COL_WHITE)
         await self.send(self.B_CORNER_BL + self.B_THIN_H * 29 + self.B_TEE_UP)
-        await self.send(LOWERCASE)
         await self.send_text('<F7)(F8>')
-        await self.send(UPPERCASE)
         await self.send(b'\xab')  # corner
 
         # Rows 22-23: adverts
-        await self.send(LOWERCASE)
         await self.cursor_to(22, 0)
         await self.send(COL_YELLOW)
         advert = ''
@@ -601,8 +629,10 @@ class TerminalSession:
         n = len(commands)
         if n == 0:
             return
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
+
+        # Pick the right conversion for current charset
+        convert = ascii_to_petscii_unshifted if self.charset == 'upper' else ascii_to_petscii_shifted
 
         # Build 39 chars from commands wrapping circularly
         # Selected item starts at char position 18 (slot 3 × 6)
@@ -629,7 +659,7 @@ class TerminalSession:
             elif not rev and currently_reversed:
                 out.extend(RVS_OFF)
                 currently_reversed = False
-            out.extend(ascii_to_petscii(ch))
+            out.extend(convert(ch))
         if currently_reversed:
             out.extend(RVS_OFF)
         await self.send(bytes(out))
@@ -638,7 +668,6 @@ class TerminalSession:
         """Redraw just the column header and column values (F7/F8 toggle)."""
         # Column header at row 8, col 31
         await self.cursor_to(8, 31)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE']
         await self.send_text((' ' + cols[self.dir_column]).ljust(8)[:8])
@@ -697,35 +726,25 @@ class TerminalSession:
 
         if idx == self.dir_cursor:
             await self.send(COL_WHITE)
-            await self.send(UPPERCASE)
             await self.send(self.B_THICK_V)
-            await self.send(LOWERCASE)
             await self.send(RVS_ON)
             await self.send_text(content.ljust(29))
             await self.send(RVS_OFF)
-            await self.send(UPPERCASE)
             await self.send(self.B_THIN_V)
-            await self.send(LOWERCASE)
             await self.send(RVS_ON)
             await self.send_text(col_val)
             await self.send(RVS_OFF)
-            await self.send(UPPERCASE)
             await self.send(self.B_THIN_V)
         else:
             await self.send(COL_WHITE)
-            await self.send(UPPERCASE)
             await self.send(self.B_THICK_V)
-            await self.send(LOWERCASE)
             await self.send(COL_BLUE)
             await self.send_text(content.ljust(29))
             await self.send(COL_WHITE)
-            await self.send(UPPERCASE)
             await self.send(self.B_THIN_V)
-            await self.send(LOWERCASE)
             await self.send(COL_BLUE)
             await self.send_text(col_val)
             await self.send(COL_WHITE)
-            await self.send(UPPERCASE)
             await self.send(self.B_THICK_V)
 
     async def redraw_mail_entry(self, idx):
@@ -746,36 +765,26 @@ class TerminalSession:
 
         if idx == self.mail_cursor:
             await self.send(COL_WHITE)
-            await self.send(UPPERCASE)
             await self.send(self.B_THICK_V)
-            await self.send(LOWERCASE)
             await self.send(RVS_ON)
             await self.send_text(content)
             await self.send(RVS_OFF)
-            await self.send(UPPERCASE)
             await self.send(self.B_THIN_V)
-            await self.send(LOWERCASE)
             await self.send(RVS_ON)
             await self.send_text(col_val)
             await self.send(RVS_OFF)
-            await self.send(UPPERCASE)
             await self.send(self.B_THIN_V)
         else:
             unread = not msg.get('read')
             await self.send(COL_WHITE)
-            await self.send(UPPERCASE)
             await self.send(self.B_THICK_V)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE if unread else COL_BLUE)
             await self.send_text(content)
             await self.send(COL_WHITE)
-            await self.send(UPPERCASE)
             await self.send(self.B_THIN_V)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE if unread else COL_BLUE)
             await self.send_text(col_val)
             await self.send(COL_WHITE)
-            await self.send(UPPERCASE)
             await self.send(self.B_THICK_V)
 
     async def redraw_mail_column(self):
@@ -783,7 +792,6 @@ class TerminalSession:
         mail_cols = ['SENDER', 'DATE', 'STATUS']
         # Column header at row 8, col 31
         await self.cursor_to(8, 31)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text((' ' + mail_cols[self.mail_column]).ljust(8)[:8])
 
@@ -847,13 +855,20 @@ class TerminalSession:
             return 'NEW     '
 
     async def render_mail(self):
-        """Draw the mail screen with borders matching the C64 client."""
+        """Draw the mail screen with borders matching the C64 client.
+
+        Entire screen rendered in uppercase (unshifted) mode.
+        """
         cs = _get_server()
         users = cs._api_load_users()
         user = users.get(self.user_id, {})
         real_name = user.get('name', self.user_id)
 
         await self.send(CLR)
+        # Force uppercase (raw frame/file data may have silently changed charset)
+        if self.terminal_type == 'c64':
+            await self.send(UPPERCASE)
+        self.charset = 'upper'
 
         # Header (same as DIR — rows 0-5)
         page = self.current_page
@@ -866,44 +881,32 @@ class TerminalSession:
         if header_file:
             header_path = os.path.join(cs.ROOT_DIR, header_file)
             if os.path.exists(header_path):
-                await self.send(UPPERCASE)
                 with open(header_path, 'rb') as f:
                     frame_data = b'\x00\x00\x00\x00' + f.read()
                 await self.send(expand_frame(frame_data))
 
         # Row 6: frame top border
         await self.cursor_to(6, 0)
-        await self.send(UPPERCASE)
         await self.send(COL_WHITE)
         await self.send(self.B_TEE_L + self.B_THICK_H * 28 + self.B_THIN_H +
                         self.B_TEE_DOWN + self.B_THIN_H * 8 + self.B_CORNER_TR)
 
         # Row 7: user id line
-        await self.send(LOWERCASE)
-        await self.send(UPPERCASE)
         await self.send(self.B_THICK_V)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         user_line = f' USER ID : {self.user_id}'
         await self.send_text(user_line[:29].ljust(29))
-        await self.send(UPPERCASE)
         await self.send(self.B_THICK_V)
         await self.send(b'\x20' * 8)
         await self.send(self.B_THICK_V)
 
         # Row 8: real name + column header (SENDER)
-        await self.send(LOWERCASE)
-        await self.send(UPPERCASE)
         await self.send(self.B_THICK_V)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text(real_name[:29].ljust(29))
-        await self.send(UPPERCASE)
         await self.send(self.B_THIN_V)
-        await self.send(LOWERCASE)
         mail_cols = ['SENDER', 'DATE', 'STATUS']
         await self.send_text((' ' + mail_cols[self.mail_column]).ljust(8)[:8])
-        await self.send(UPPERCASE)
         await self.send(self.B_THIN_V)
 
         # Row 9: entry area top border
@@ -911,7 +914,6 @@ class TerminalSession:
                         self.B_THICK_H * 8 + self.B_TEE_ENTRY_R)
 
         # Rows 10-20: mail entries (11 rows)
-        await self.send(LOWERCASE)
         visible = self.mail_messages[self.mail_offset:self.mail_offset + 11]
         self.entries_row = 10
         for i in range(11):
@@ -926,59 +928,42 @@ class TerminalSession:
 
                 if i == self.mail_cursor:
                     await self.send(COL_WHITE)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THICK_V)
-                    await self.send(LOWERCASE)
                     await self.send(RVS_ON)
                     await self.send_text(content)
                     await self.send(RVS_OFF)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THIN_V)
-                    await self.send(LOWERCASE)
                     await self.send(RVS_ON)
                     await self.send_text(col_val)
                     await self.send(RVS_OFF)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THIN_V)
                 else:
                     unread = not msg.get('read')
                     await self.send(COL_WHITE)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THICK_V)
-                    await self.send(LOWERCASE)
                     await self.send(COL_WHITE if unread else COL_BLUE)
                     await self.send_text(content)
                     await self.send(COL_WHITE)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THIN_V)
-                    await self.send(LOWERCASE)
                     await self.send(COL_WHITE if unread else COL_BLUE)
                     await self.send_text(col_val)
                     await self.send(COL_WHITE)
-                    await self.send(UPPERCASE)
                     await self.send(self.B_THICK_V)
             else:
                 await self.send(COL_WHITE)
-                await self.send(UPPERCASE)
                 await self.send(self.B_THICK_V)
-                await self.send(LOWERCASE)
                 await self.send(b'\x20' * 29)
-                await self.send(UPPERCASE)
                 await self.send(self.B_THIN_V)
                 await self.send(b'\x20' * 8)
                 await self.send(self.B_THICK_V)
 
         # Row 21: bottom border
-        await self.send(UPPERCASE)
         await self.send(COL_WHITE)
         await self.send(self.B_CORNER_BL + self.B_THIN_H * 29 + self.B_TEE_UP)
-        await self.send(LOWERCASE)
         await self.send_text('<F7)(F8>')
-        await self.send(UPPERCASE)
         await self.send(b'\xab')
 
         # Rows 22-23: empty
-        await self.send(LOWERCASE)
         await self.cursor_to(22, 0)
         await self.send(CR + CR)
 
@@ -1050,7 +1035,6 @@ class TerminalSession:
         prg_data = page.frames[0]
 
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         filename = page.title[:16].strip().replace(' ', '-').lower()
         await self.send_text(f'XMODEM: {filename} ({len(prg_data)}b)'.ljust(39))
@@ -1078,7 +1062,6 @@ class TerminalSession:
                      page=page.page_num, title=page.title)
 
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('TRANSFER COMPLETE'.ljust(39))
         await self.read_key()
@@ -1118,71 +1101,63 @@ class TerminalSession:
         # Check ban
         if pl._is_banned(self.user_id):
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('YOU ARE BANNED FROM PARTYLINE'.ljust(39))
             await self.read_key()
             await self.render_directory()
             return
 
-        # Draw partyline UI
+        # Draw partyline UI (shifted mode for mixed case chat)
         await self.send(CLR)
-        await self.send(LOWERCASE)
-
-        # Row 0: title
-        await self.send(COL_BLUE)
-        await self.send_text('  PARTYLINE')
-        await self.send(CR)
+        # Draw borders in uppercase mode (one switch), then switch to shifted for text
+        await self.set_charset('upper')
 
         # Row 1: chat top border
         await self.cursor_to(1, 2)
-        await self.send(UPPERCASE)
         await self.send(b'\xb0')  # ┌
         await self.send(b'\x60' * 35)  # ─
         await self.send(b'\xae')  # ┐
-        await self.send(LOWERCASE)
 
         # Rows 2-16: pipes at col 2 and col 38
         for r in range(2, 17):
             await self.cursor_to(r, 2)
-            await self.send(UPPERCASE)
             await self.send(b'\x7d')  # │
             await self.cursor_to(r, 38)
             await self.send(b'\x7d')
-            await self.send(LOWERCASE)
 
         # Row 17: chat bottom border
         await self.cursor_to(17, 2)
-        await self.send(UPPERCASE)
         await self.send(b'\xad')  # └
         await self.send(b'\x60' * 35)
         await self.send(b'\xbd')  # ┘
-        await self.send(LOWERCASE)
 
         # Row 18: input area top (pipes)
         await self.cursor_to(18, 3)
-        await self.send(UPPERCASE)
         await self.send(b'\x7d')
         await self.cursor_to(18, 39)
         await self.send(b'\x7d')
-        await self.send(LOWERCASE)
 
         # Rows 19-22: input pipes
         for r in range(19, 23):
             await self.cursor_to(r, 3)
-            await self.send(UPPERCASE)
             await self.send(b'\x7d')
             await self.cursor_to(r, 39)
             await self.send(b'\x7d')
-            await self.send(LOWERCASE)
 
         # Row 23: input bottom border
         await self.cursor_to(23, 3)
-        await self.send(UPPERCASE)
         await self.send(b'\xad')
         await self.send(b'\x60' * 35)
         await self.send(b'\xbd')
-        await self.send(LOWERCASE)
+
+        # Switch to shifted mode for text (partyline uses mixed case)
+        await self.set_charset('lower')
+
+        # Row 0: title
+        await self.cursor_to(0, 0)
+        await self.send(COL_BLUE)
+        await self.send_text('  PARTYLINE')
+        await self.send(CR)
 
         # Row 24: status
         await self.cursor_to(24, 0)
@@ -1192,37 +1167,38 @@ class TerminalSession:
         # Register with partyline
         pl._users[self.user_id] = {"writer": None, "alias": None, "room": "lobby"}
 
-        # Announce entry
-        chat_row = 0  # next row to write in chat area (0-14)
-        chat_lines = []
+        # Chat history buffer (server-side, scrollable)
+        chat_lines = []  # full history (up to 100 lines)
+        scroll_offset = 0  # 0 = showing latest, >0 = scrolled back
+
+        async def redraw_chat():
+            """Redraw the 15-line chat area from the buffer at current scroll offset."""
+            total = len(chat_lines)
+            # Window shows lines ending at (total - scroll_offset)
+            end = total - scroll_offset
+            start = max(0, end - 15)
+            for i in range(15):
+                await self.cursor_to(2 + i, 3)
+                line_idx = start + i
+                if line_idx < end and line_idx < total:
+                    await self.send(COL_BLUE)
+                    await self.send_text(chat_lines[line_idx][:35].ljust(35))
+                else:
+                    await self.send_text(' ' * 35)
 
         async def add_chat_line(text):
-            nonlocal chat_row
+            nonlocal scroll_offset
             # Wrap long lines
             while len(text) > 35:
                 chat_lines.append(text[:35])
                 text = text[35:]
             chat_lines.append(text)
-            # Display
-            if chat_row < 15:
-                await self.cursor_to(2 + chat_row, 3)
-                await self.send(COL_BLUE)
-                await self.send_text(text[:35].ljust(35))
-                chat_row += 1
-            else:
-                # Scroll: move all lines up
-                chat_lines.pop(0) if len(chat_lines) > 15 else None
-                for i in range(15):
-                    await self.cursor_to(2 + i, 3)
-                    if i < len(chat_lines):
-                        await self.send(COL_BLUE)
-                        await self.send_text(chat_lines[-(15-i)][:35].ljust(35) if len(chat_lines) >= 15 - i else ''.ljust(35))
-                    else:
-                        await self.send_text(''.ljust(35))
-                # Redraw last line
-                await self.cursor_to(16, 3)
-                await self.send(COL_BLUE)
-                await self.send_text(text[:35].ljust(35))
+            # Trim to 100 lines max
+            while len(chat_lines) > 100:
+                chat_lines.pop(0)
+            # If at bottom, redraw; otherwise just leave scroll position
+            if scroll_offset == 0:
+                await redraw_chat()
 
         await add_chat_line(f'{self.user_id} has entered partyline')
         await add_chat_line('')
@@ -1238,16 +1214,22 @@ class TerminalSession:
         # Create an asyncio queue for incoming messages
         msg_queue = asyncio.Queue()
 
-        # Override the writer in pl._users so broadcasts reach us
+        class _QueueMsg:
+            """Wrapper to distinguish queue messages from reader bytes."""
+            def __init__(self, data):
+                self.data = data
+
+        # Override the writer in pl._users so broadcasts/send_line reach us
         class TermWriter:
             def __init__(self, queue):
                 self.queue = queue
             def write(self, data):
-                self.queue.put_nowait(data)
+                self.queue.put_nowait(_QueueMsg(data))
             async def drain(self):
                 pass
 
-        pl._users[self.user_id]["writer"] = TermWriter(msg_queue)
+        term_writer = TermWriter(msg_queue)
+        pl._users[self.user_id]["writer"] = term_writer
 
         # Main loop
         try:
@@ -1264,7 +1246,22 @@ class TerminalSession:
                 for task in done:
                     result = task.result()
 
-                    if isinstance(result, bytes):
+                    if isinstance(result, _QueueMsg):
+                        # Message from partyline (via queue)
+                        raw = result.data
+                        if isinstance(raw, bytes):
+                            raw = raw.rstrip(b'\r\n')
+                        else:
+                            raw = raw.encode('latin-1').rstrip(b'\r\n')
+                        raw_str = raw.decode('ascii', errors='replace')
+                        if raw_str == '*EXIT':
+                            raise StopIteration()
+                        if raw_str == '*PING':
+                            continue
+                        line = pl.petscii_to_ascii(raw)
+                        await add_chat_line(line)
+                        await self.cursor_to(19 + input_row, 4 + input_col)
+                    elif isinstance(result, bytes):
                         # Keyboard input
                         if not result:
                             raise ConnectionResetError()
@@ -1273,47 +1270,29 @@ class TerminalSession:
                         if key == 0x1B or key == KEY_RUNSTOP:
                             # Quit
                             raise StopIteration()
+                        elif key == KEY_CRSR_UP:
+                            # Scroll chat up (show older)
+                            max_scroll = max(0, len(chat_lines) - 15)
+                            if scroll_offset < max_scroll:
+                                scroll_offset += 1
+                                await redraw_chat()
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+                        elif key == KEY_CRSR_DOWN:
+                            # Scroll chat down (show newer)
+                            if scroll_offset > 0:
+                                scroll_offset -= 1
+                                await redraw_chat()
+                                await self.cursor_to(19 + input_row, 4 + input_col)
                         elif key == KEY_RETURN:
                             if input_buf.strip():
-                                # Send message
-                                msg = input_buf.strip()
-                                if msg.startswith('*'):
-                                    # Command
-                                    if msg.upper() == '*QUIT' or msg.upper() == '*EXIT':
-                                        raise StopIteration()
-                                    elif msg.upper() == '*WHO':
-                                        who_lines = []
-                                        for uid, entry in pl._users.items():
-                                            alias = entry.get('alias') or uid
-                                            room = entry.get('room', 'lobby')
-                                            who_lines.append(f' {alias:<10} ({uid:<8}) {room}')
-                                        await add_chat_line('Users in partyline:-')
-                                        for wl in who_lines:
-                                            await add_chat_line(wl)
-                                        await add_chat_line('')
-                                    elif msg.upper().startswith('*HELP'):
-                                        await add_chat_line('Commands: *who *alias *enter *quit')
-                                        await add_chat_line('')
-                                    elif msg.upper().startswith('*ALIAS '):
-                                        name = msg[7:].strip()[:10]
-                                        pl._users[self.user_id]['alias'] = name
-                                        await add_chat_line(f'Alias set to {name}')
-                                        await add_chat_line('')
-                                    elif msg.upper().startswith('*ENTER '):
-                                        room = msg[7:].strip().lower()[:10]
-                                        old_room = pl._users[self.user_id]['room']
-                                        pl._users[self.user_id]['room'] = room
-                                        await pl.broadcast_room(old_room, f'{self.user_id} has left', exclude=self.user_id)
-                                        await pl.broadcast_room(room, f'{self.user_id} has entered {room}', exclude=self.user_id)
-                                        await add_chat_line(f'Entered room: {room}')
-                                        await add_chat_line('')
-                                else:
-                                    # Regular message
-                                    alias = pl._users[self.user_id].get('alias') or self.user_id
-                                    room = pl._users[self.user_id]['room']
-                                    display = f'{alias}: {msg}'
-                                    await add_chat_line(display)
-                                    await pl.broadcast_room(room, display, exclude=self.user_id)
+                                # Convert PETSCII input to ASCII
+                                ascii_line = pl.petscii_to_ascii(
+                                    bytes([ord(c) for c in input_buf.strip()]))
+                                # Process through shared handler
+                                should_exit = await pl.process_input(
+                                    self.user_id, ascii_line, term_writer)
+                                if should_exit:
+                                    raise StopIteration()
                             # Clear input
                             input_buf = ''
                             input_col = 0
@@ -1344,17 +1323,6 @@ class TerminalSession:
                                     input_row = 3
                                 await self.cursor_to(19 + input_row, 4 + input_col)
 
-                    else:
-                        # Message from partyline (bytes in queue)
-                        if result:
-                            line = result.decode('latin-1', errors='replace').rstrip('\r\n')
-                            if line == '*EXIT':
-                                raise StopIteration()
-                            if line == '*PING':
-                                continue
-                            await add_chat_line(line)
-                            # Restore cursor to input position
-                            await self.cursor_to(19 + input_row, 4 + input_col)
 
         except (StopIteration, asyncio.CancelledError):
             pass
@@ -1372,22 +1340,20 @@ class TerminalSession:
     async def _render_editor_frame(self):
         """Display the current frame from editor memory with editor duckshoot."""
         await self.send(CLR)
-        await self.send(UPPERCASE)
+        await self.set_charset('upper')
         if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
             frame_data = self._frame_memory[self._editor_idx]
             await self.send(expand_frame(frame_data))
-        await self.send(LOWERCASE)
         await self.cursor_to(24, 0)
         await self.render_duckshoot()
 
     async def _render_upload_text_frame(self):
         """Display current frame in upload-text mode with upload duckshoot."""
         await self.send(CLR)
-        await self.send(UPPERCASE)
+        await self.set_charset('upper')
         if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
             frame_data = self._frame_memory[self._editor_idx]
             await self.send(expand_frame(frame_data))
-        await self.send(LOWERCASE)
         await self.cursor_to(24, 0)
         await self.render_duckshoot()
 
@@ -1458,7 +1424,7 @@ class TerminalSession:
 
         # Display frame and position cursor at 0,0
         await self.send(CLR)
-        await self.send(UPPERCASE)
+        await self.set_charset("upper")
         await self.send(expand_frame(frame_data))
         await self.cursor_to(0, 0)
 
@@ -1669,7 +1635,6 @@ class TerminalSession:
                     cs._send_mail_notification(dest_id, self.user_id, send['subject'], users))
 
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('MAIL SENT'.ljust(39))
         await self.read_key()
@@ -1690,7 +1655,6 @@ class TerminalSession:
         # Check if directory has space
         if len(page.children) >= 11:
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('DIRECTORY FULL'.ljust(39))
             await self.read_key()
@@ -1711,7 +1675,6 @@ class TerminalSession:
                 ancestor = getattr(ancestor, 'parent', None)
         if not can_upload:
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('UPLOAD NOT PERMITTED'.ljust(39))
             await self.read_key()
@@ -1729,24 +1692,20 @@ class TerminalSession:
                 return
             await self.cursor_to(entry_row, 0)
             await self.send(COL_CYAN)
-            await self.send(UPPERCASE)
+            await self.set_charset("upper")
             await self.send(self.B_THICK_V)
-            await self.send(LOWERCASE)
             type_str = (page_type + str(lifetime) if page_type else '')[:5].ljust(5)
             content = f'      {title[:18]:<18s}{type_str}'[:29]
             await self.send_text(content)
-            await self.send(UPPERCASE)
+            await self.set_charset("upper")
             await self.send(self.B_THIN_V)
-            await self.send(LOWERCASE)
             price_str = f'{price:.2f}' if price > 0 else ''
             await self.send_text(price_str[:8].ljust(8))
-            await self.send(UPPERCASE)
+            await self.set_charset("upper")
             await self.send(self.B_THICK_V)
-            await self.send(LOWERCASE)
 
         # Prompt for page details on duckshoot line
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('UPLOAD PAGE TITLE? '.ljust(39))
         await self.cursor_to(24, 19)
@@ -1794,11 +1753,10 @@ class TerminalSession:
             if new_idx < 11:
                 await self.cursor_to(entry_row, 0)
                 await self.send(COL_WHITE)
-                await self.send(UPPERCASE)
+                await self.set_charset("upper")
                 await self.send(self.B_THICK_V)
-                await self.send(LOWERCASE)
                 await self.send(b'\x20' * 29)
-                await self.send(UPPERCASE)
+                await self.set_charset("upper")
                 await self.send(self.B_THIN_V)
                 await self.send(b'\x20' * 8)
                 await self.send(self.B_THICK_V)
@@ -1841,7 +1799,6 @@ class TerminalSession:
 
         if not self._upload_pending or not self._upload_pending.get('frames'):
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('NO FRAMES TO UPLOAD'.ljust(39))
             await self.read_key()
@@ -1906,7 +1863,6 @@ class TerminalSession:
                      title=send['title'], page=next_page_num, type='T')
 
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('UPLOAD COMPLETE'.ljust(39))
         await self.read_key()
@@ -1928,7 +1884,6 @@ class TerminalSession:
 
         # Prompt for XMODEM transfer
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('START XMODEM UPLOAD NOW...'.ljust(39))
 
@@ -2182,7 +2137,6 @@ class TerminalSession:
 
         if not frames:
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('NO MESSAGE DATA'.ljust(39))
             await self.read_key()
@@ -2208,9 +2162,13 @@ class TerminalSession:
         # Display frames
         for i, frame_data in enumerate(frames):
             await self.send(CLR)
-            await self.send(UPPERCASE)
+            await self.set_charset('upper')
             await self.send(expand_frame(frame_data))
-            await self.send(LOWERCASE)
+            # Store in editor frame memory
+            self._frame_memory.append(frame_data)
+            if len(self._frame_memory) > 20:
+                self._frame_memory.pop(0)
+            self._editor_idx = len(self._frame_memory) - 1
             await self.cursor_to(24, 0)
             await self.send(COL_WHITE)
             if i < len(frames) - 1:
@@ -2231,18 +2189,18 @@ class TerminalSession:
         real_name = user.get('name', self.user_id)
         now = datetime.datetime.now()
 
-        # Draw the mail compose screen
+        # Draw the mail compose screen (uppercase mode)
         await self.send(CLR)
-        await self.send(LOWERCASE)
+        await self.set_charset('upper')
         await self.send(COL_RED)
 
         # Row 3: COURIER header
         await self.cursor_to(3, 3)
         await self.send_text('COURIER')
 
-        # Row 4: divider (use underline chars in shifted mode)
+        # Row 4: divider
         await self.cursor_to(4, 3)
-        await self.send(b'\x60' * 7)  # horizontal line in shifted charset
+        await self.send(b'\x60' * 7)  # horizontal line
 
         # Row 6: from
         await self.cursor_to(6, 3)
@@ -2396,7 +2354,8 @@ class TerminalSession:
         if not self.show_page or not self.show_page.frames:
             return
         await self.send(CLR)
-        await self.send(UPPERCASE)
+        await self.set_charset("upper")
+        self.charset = 'upper'
         frame_data = self.show_page.frames[self.show_frame_idx]
         await self.send(expand_frame(frame_data))
 
@@ -2406,8 +2365,24 @@ class TerminalSession:
             self._frame_memory.pop(0)
         self._editor_idx = len(self._frame_memory) - 1
 
-        # Switch back to shifted charset for duckshoot text
-        await self.send(LOWERCASE)
+        # Determine final charset state by parsing the frame content properly
+        # (can't just scan for $0E — it may appear as an RLE count)
+        i = 4
+        while i < len(frame_data):
+            b = frame_data[i]
+            if b == 0x00:
+                break
+            elif b == 0x06:
+                i += 2  # skip count byte
+                continue
+            elif b == 0x07:
+                i += 3  # skip char + count bytes
+                continue
+            elif b == 0x0E:
+                self.charset = 'lower'
+            elif b == 0x8E:
+                self.charset = 'upper'
+            i += 1
 
         has_more = self.show_frame_idx < len(self.show_page.frames) - 1
         self._saved_duck_pos = self.duck_pos
@@ -2444,7 +2419,6 @@ class TerminalSession:
                 child = visible[self.dir_cursor]
                 if child.page_type == 'L':
                     await self.cursor_to(24, 0)
-                    await self.send(LOWERCASE)
                     await self.send(COL_WHITE)
                     await self.send_text('PLEASE USE BUY'.ljust(39))
                     await self.read_key()
@@ -2515,7 +2489,6 @@ class TerminalSession:
 
         elif cmd == 'GOTO':
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('GOTO? '.ljust(39))
             await self.cursor_to(24, 6)
@@ -2531,9 +2504,8 @@ class TerminalSession:
                         with open(frame_path, 'rb') as f:
                             frame_data = f.read()
                         await self.send(CLR)
-                        await self.send(UPPERCASE)
+                        await self.set_charset("upper")
                         await self.send(expand_frame(frame_data))
-                        await self.send(LOWERCASE)
                         await self.cursor_to(24, 0)
                         await self.send(COL_WHITE)
                         await self.send_text('PRESS ANY KEY')
@@ -2578,7 +2550,7 @@ class TerminalSession:
                 with open(frame_path, 'rb') as f:
                     frame_data = f.read()
                 await self.send(CLR)
-                await self.send(UPPERCASE)
+                await self.set_charset("upper")
                 await self.send(expand_frame(frame_data))
                 await self.read_key()  # Wait for any key
             await self.render_directory()
@@ -2587,14 +2559,13 @@ class TerminalSession:
             cs = _get_server()
             goodbye_path = os.path.join(cs.CONTENT_DIR, 'templates', 'goodbye.seq')
             await self.send(CLR)
-            await self.send(UPPERCASE)
+            await self.set_charset("upper")
             if os.path.exists(goodbye_path):
                 with open(goodbye_path, 'rb') as f:
                     await self.send(expand_frame(f.read()))
             else:
                 await self.send(COL_BLUE)
                 await self.send_text('\r\r  GOODBYE!\r')
-            await self.send(LOWERCASE)
             await self.cursor_to(24, 0)
             await self.send(COL_WHITE)
             await self.send_text('PRESS ANY KEY')
@@ -2624,7 +2595,6 @@ class TerminalSession:
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
                 await self.cursor_to(24, 0)
-                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
                 await self.send_text('VOTE (1-9)? '.ljust(39))
                 await self.cursor_to(24, 12)
@@ -2666,13 +2636,76 @@ class TerminalSession:
             self.duck_pos = getattr(self, '_saved_duck_pos', 0)
             await self.render_directory()
 
+        elif cmd == 'ID':
+            cs = _get_server()
+            users = cs._api_load_users()
+
+            # Draw ID screen
+            await self.send(CLR)
+            if self.terminal_type == 'c64':
+                await self.send(UPPERCASE)
+            self.charset = 'upper'
+            await self.send(COL_BLUE)
+
+            # Row 3: COURIER header
+            await self.cursor_to(3, 3)
+            await self.send_text('COURIER')
+
+            # Row 4: divider
+            await self.cursor_to(4, 3)
+            await self.send(self.B_THICK_H * 7)
+
+            # Draw colon placeholders for 5 slots
+            for i in range(5):
+                await self.cursor_to(6 + i, 12)
+                await self.send_text(':')
+
+            # Prompt for IDs
+            ids_entered = []
+            for i in range(5):
+                await self.cursor_to(24, 0)
+                await self.send(COL_WHITE)
+                await self.send_text('ID TO CHECK? '.ljust(39))
+                await self.cursor_to(24, 13)
+                user_id = await self.read_line(max_len=8)
+
+                if not user_id.strip():
+                    if i == 0:
+                        await self.render_mail()
+                        return
+                    break
+
+                ids_entered.append(user_id.strip())
+                # Show ID on screen
+                await self.cursor_to(6 + i, 3)
+                await self.send(COL_BLUE)
+                await self.send_text(user_id.strip()[:8])
+
+            # Show real names / errors
+            for i, uid in enumerate(ids_entered):
+                user = users.get(uid)
+                await self.cursor_to(6 + i, 14)
+                if user:
+                    name = user.get('name', uid)
+                    await self.send(COL_BLUE)
+                    await self.send_text(name[:20])
+                else:
+                    await self.send(COL_RED)
+                    await self.send_text('*** NO SUCH USER ***')
+
+            # Press any key
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text('PRESS ANY KEY'.ljust(39))
+            await self.read_key()
+            await self.render_mail()
+
         elif cmd == 'LIFE':
             page = self.current_page
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
                 child = visible[self.dir_cursor]
                 await self.cursor_to(24, 0)
-                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
                 await self.send_text('EXTEND BY? '.ljust(39))
                 await self.cursor_to(24, 11)
@@ -2743,7 +2776,6 @@ class TerminalSession:
             else:
                 msg = f'YOU ARE {abs(credit):.2f} IN DEBIT'
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text(msg.ljust(39))
             await self.read_key()
@@ -2864,7 +2896,6 @@ class TerminalSession:
             if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
                 frame_data = self._frame_memory[self._editor_idx]
                 await self.cursor_to(24, 0)
-                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
                 await self.send_text(f'XMODEM: frame ({len(frame_data)}b)'.ljust(39))
                 try:
@@ -2885,7 +2916,6 @@ class TerminalSession:
         elif cmd == 'GET':
             # Upload frame(s) via XMODEM into editor memory
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('START XMODEM UPLOAD NOW...'.ljust(39))
             try:
@@ -2925,7 +2955,6 @@ class TerminalSession:
             # Download ALL frames in memory via XMODEM
             if not self._frame_memory:
                 await self.cursor_to(24, 0)
-                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
                 await self.send_text('NO FRAMES IN MEMORY'.ljust(39))
                 await self.read_key()
@@ -2938,7 +2967,6 @@ class TerminalSession:
                 if not frame.endswith(b'\x00'):
                     all_data.append(0x00)
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text(f'XMODEM: {len(self._frame_memory)} frames ({len(all_data)}b)'.ljust(39))
             try:
@@ -2958,7 +2986,6 @@ class TerminalSession:
         elif cmd == 'FREE':
             free_frames = 20 - len(self._frame_memory)
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text(f'{free_frames} FRAMES FREE'.ljust(39))
             await self.read_key()
@@ -2986,7 +3013,6 @@ class TerminalSession:
                     await self.send(f.read())
             else:
                 await self.send(CLR)
-                await self.send(LOWERCASE)
                 await self.send_text('HELP not available\r')
             await self.cursor_to(24, 0)
             await self.send(COL_WHITE)
@@ -3124,7 +3150,6 @@ class TerminalSession:
                             self._upload_pending['frames'].append(
                                 self._frame_memory[self._editor_idx])
                         await self.cursor_to(24, 0)
-                        await self.send(LOWERCASE)
                         await self.send(COL_WHITE)
                         n = len(self._upload_pending['frames'])
                         await self.send_text(f'FRAME {n} ADDED. NEXT OR FINISH'.ljust(39))
