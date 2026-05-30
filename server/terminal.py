@@ -176,6 +176,7 @@ class TerminalSession:
         self.client_ip = ''
         self.telnet = False
         self.charset = 'upper'  # 'upper' = unshifted (default), 'lower' = shifted
+        self.terminal_type = 'c64'  # 'c64' or 'pc'
         self._upload_pending = None
         self._ucat_active = False
         self._ucat_saved_page = None
@@ -202,12 +203,18 @@ class TerminalSession:
             await self.send(ascii_to_petscii_shifted(text))
 
     async def set_charset(self, mode):
-        """Switch charset mode: 'upper' (unshifted) or 'lower' (shifted)."""
+        """Switch charset mode: 'upper' (unshifted) or 'lower' (shifted).
+
+        For PC terminals, charset switching is suppressed (they use a fixed font).
+        The tracking is still updated so send_text uses the correct conversion.
+        """
         if mode == 'upper' and self.charset != 'upper':
-            await self.send(UPPERCASE)
+            if self.terminal_type == 'c64':
+                await self.send(UPPERCASE)
             self.charset = 'upper'
         elif mode == 'lower' and self.charset != 'lower':
-            await self.send(LOWERCASE)
+            if self.terminal_type == 'c64':
+                await self.send(LOWERCASE)
             self.charset = 'lower'
 
     async def cursor_to(self, row, col):
@@ -277,7 +284,7 @@ class TerminalSession:
         cs = _get_server()
 
         await self.send(CLR)
-        await self.send(UPPERCASE)  # Force unshifted mode from the start
+        await self.send(UPPERCASE)
         self.charset = 'upper'
         await self.send(COL_BLUE)
         await self.send(CR)
@@ -293,8 +300,22 @@ class TerminalSession:
         await self.send(COL_CYAN)
         await self.send_text('  Visit compunet.live for registration.\r\r')
         await self.send(COL_WHITE)
-        await self.send_text('  PETSCII OK if you see a block: ')
-        await self.send(RVS_ON + b'\x20' + RVS_OFF)
+        await self.send_text('  Terminal type:\r')
+        await self.send_text('    1) C64 / C64 Ultimate\r')
+        await self.send_text('    2) SyncTerm / PC (C64 LOWER font)\r\r')
+        await self.send_text('  Select (1/2): ')
+        # Read terminal type selection
+        while True:
+            key = await self.read_key()
+            if key == 0x31:  # '1'
+                self.terminal_type = 'c64'
+                await self.send(b'\x31')  # echo '1'
+                break
+            elif key == 0x32:  # '2'
+                self.terminal_type = 'pc'
+                await self.send(b'\x32')  # echo '2'
+                break
+        await self.send(CR + CR)
         await self.send(CR)
         await self.send_text('  Ensure terminal at 40 x 25.\r\r')
 
@@ -466,7 +487,8 @@ class TerminalSession:
         """
         await self.send(CLR)
         # Force uppercase (raw frame/file data may have silently changed charset)
-        await self.send(UPPERCASE)
+        if self.terminal_type == 'c64':
+            await self.send(UPPERCASE)
         self.charset = 'upper'
 
         # Header (rows 0-4)
@@ -844,7 +866,8 @@ class TerminalSession:
 
         await self.send(CLR)
         # Force uppercase (raw frame/file data may have silently changed charset)
-        await self.send(UPPERCASE)
+        if self.terminal_type == 'c64':
+            await self.send(UPPERCASE)
         self.charset = 'upper'
 
         # Header (same as DIR — rows 0-5)
@@ -2605,7 +2628,8 @@ class TerminalSession:
 
             # Draw ID screen
             await self.send(CLR)
-            await self.send(UPPERCASE)
+            if self.terminal_type == 'c64':
+                await self.send(UPPERCASE)
             self.charset = 'upper'
             await self.send(COL_BLUE)
 
