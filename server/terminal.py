@@ -464,7 +464,9 @@ class TerminalSession:
         Entire screen rendered in uppercase (unshifted) mode — no charset switching.
         """
         await self.send(CLR)
-        await self.set_charset('upper')
+        # Force uppercase (raw frame/file data may have silently changed charset)
+        await self.send(UPPERCASE)
+        self.charset = 'upper'
 
         # Header (rows 0-4)
         page = self.current_page
@@ -840,7 +842,9 @@ class TerminalSession:
         real_name = user.get('name', self.user_id)
 
         await self.send(CLR)
-        await self.set_charset('upper')
+        # Force uppercase (raw frame/file data may have silently changed charset)
+        await self.send(UPPERCASE)
+        self.charset = 'upper'
 
         # Header (same as DIR — rows 0-5)
         page = self.current_page
