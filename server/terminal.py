@@ -1189,7 +1189,7 @@ class TerminalSession:
         # Create an asyncio queue for incoming messages
         msg_queue = asyncio.Queue()
 
-        # Override the writer in pl._users so broadcasts reach us
+        # Override the writer in pl._users so broadcasts/send_line reach us
         class TermWriter:
             def __init__(self, queue):
                 self.queue = queue
@@ -1198,7 +1198,8 @@ class TerminalSession:
             async def drain(self):
                 pass
 
-        pl._users[self.user_id]["writer"] = TermWriter(msg_queue)
+        term_writer = TermWriter(msg_queue)
+        pl._users[self.user_id]["writer"] = term_writer
 
         # Main loop
         try:
@@ -1226,45 +1227,14 @@ class TerminalSession:
                             raise StopIteration()
                         elif key == KEY_RETURN:
                             if input_buf.strip():
-                                # Send message
-                                msg = input_buf.strip()
-                                if msg.startswith('*'):
-                                    # Command
-                                    if msg.upper() == '*QUIT' or msg.upper() == '*EXIT':
-                                        raise StopIteration()
-                                    elif msg.upper() == '*WHO':
-                                        who_lines = []
-                                        for uid, entry in pl._users.items():
-                                            alias = entry.get('alias') or uid
-                                            room = entry.get('room', 'lobby')
-                                            who_lines.append(f' {alias:<10} ({uid:<8}) {room}')
-                                        await add_chat_line('Users in partyline:-')
-                                        for wl in who_lines:
-                                            await add_chat_line(wl)
-                                        await add_chat_line('')
-                                    elif msg.upper().startswith('*HELP'):
-                                        await add_chat_line('Commands: *who *alias *enter *quit')
-                                        await add_chat_line('')
-                                    elif msg.upper().startswith('*ALIAS '):
-                                        name = msg[7:].strip()[:10]
-                                        pl._users[self.user_id]['alias'] = name
-                                        await add_chat_line(f'Alias set to {name}')
-                                        await add_chat_line('')
-                                    elif msg.upper().startswith('*ENTER '):
-                                        room = msg[7:].strip().lower()[:10]
-                                        old_room = pl._users[self.user_id]['room']
-                                        pl._users[self.user_id]['room'] = room
-                                        await pl.broadcast_room(old_room, f'{self.user_id} has left', exclude=self.user_id)
-                                        await pl.broadcast_room(room, f'{self.user_id} has entered {room}', exclude=self.user_id)
-                                        await add_chat_line(f'Entered room: {room}')
-                                        await add_chat_line('')
-                                else:
-                                    # Regular message
-                                    alias = pl._users[self.user_id].get('alias') or self.user_id
-                                    room = pl._users[self.user_id]['room']
-                                    display = f'{alias}: {msg}'
-                                    await add_chat_line(display)
-                                    await pl.broadcast_room(room, display, exclude=self.user_id)
+                                # Convert PETSCII input to ASCII
+                                ascii_line = pl.petscii_to_ascii(
+                                    bytes([ord(c) for c in input_buf.strip()]))
+                                # Process through shared handler
+                                should_exit = await pl.process_input(
+                                    self.user_id, ascii_line, term_writer)
+                                if should_exit:
+                                    raise StopIteration()
                             # Clear input
                             input_buf = ''
                             input_col = 0
@@ -1298,11 +1268,15 @@ class TerminalSession:
                     else:
                         # Message from partyline (bytes in queue)
                         if result:
-                            line = result.decode('latin-1', errors='replace').rstrip('\r\n')
-                            if line == '*EXIT':
+                            raw = result.rstrip(b'\r\n') if isinstance(result, bytes) else result.encode('latin-1').rstrip(b'\r\n')
+                            # Check for protocol sentinels (raw ASCII)
+                            raw_str = raw.decode('ascii', errors='replace')
+                            if raw_str == '*EXIT':
                                 raise StopIteration()
-                            if line == '*PING':
+                            if raw_str == '*PING':
                                 continue
+                            # Convert PETSCII to ASCII for display
+                            line = pl.petscii_to_ascii(raw)
                             await add_chat_line(line)
                             # Restore cursor to input position
                             await self.cursor_to(19 + input_row, 4 + input_col)
