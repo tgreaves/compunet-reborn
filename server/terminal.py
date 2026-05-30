@@ -1143,37 +1143,38 @@ class TerminalSession:
         # Register with partyline
         pl._users[self.user_id] = {"writer": None, "alias": None, "room": "lobby"}
 
-        # Announce entry
-        chat_row = 0  # next row to write in chat area (0-14)
-        chat_lines = []
+        # Chat history buffer (server-side, scrollable)
+        chat_lines = []  # full history (up to 100 lines)
+        scroll_offset = 0  # 0 = showing latest, >0 = scrolled back
+
+        async def redraw_chat():
+            """Redraw the 15-line chat area from the buffer at current scroll offset."""
+            total = len(chat_lines)
+            # Window shows lines ending at (total - scroll_offset)
+            end = total - scroll_offset
+            start = max(0, end - 15)
+            for i in range(15):
+                await self.cursor_to(2 + i, 3)
+                line_idx = start + i
+                if line_idx < end and line_idx < total:
+                    await self.send(COL_BLUE)
+                    await self.send_text(chat_lines[line_idx][:35].ljust(35))
+                else:
+                    await self.send_text(' ' * 35)
 
         async def add_chat_line(text):
-            nonlocal chat_row
+            nonlocal scroll_offset
             # Wrap long lines
             while len(text) > 35:
                 chat_lines.append(text[:35])
                 text = text[35:]
             chat_lines.append(text)
-            # Display
-            if chat_row < 15:
-                await self.cursor_to(2 + chat_row, 3)
-                await self.send(COL_BLUE)
-                await self.send_text(text[:35].ljust(35))
-                chat_row += 1
-            else:
-                # Scroll: move all lines up
-                chat_lines.pop(0) if len(chat_lines) > 15 else None
-                for i in range(15):
-                    await self.cursor_to(2 + i, 3)
-                    if i < len(chat_lines):
-                        await self.send(COL_BLUE)
-                        await self.send_text(chat_lines[-(15-i)][:35].ljust(35) if len(chat_lines) >= 15 - i else ''.ljust(35))
-                    else:
-                        await self.send_text(''.ljust(35))
-                # Redraw last line
-                await self.cursor_to(16, 3)
-                await self.send(COL_BLUE)
-                await self.send_text(text[:35].ljust(35))
+            # Trim to 100 lines max
+            while len(chat_lines) > 100:
+                chat_lines.pop(0)
+            # If at bottom, redraw; otherwise just leave scroll position
+            if scroll_offset == 0:
+                await redraw_chat()
 
         await add_chat_line(f'{self.user_id} has entered partyline')
         await add_chat_line('')
@@ -1245,6 +1246,19 @@ class TerminalSession:
                         if key == 0x1B or key == KEY_RUNSTOP:
                             # Quit
                             raise StopIteration()
+                        elif key == KEY_CRSR_UP:
+                            # Scroll chat up (show older)
+                            max_scroll = max(0, len(chat_lines) - 15)
+                            if scroll_offset < max_scroll:
+                                scroll_offset += 1
+                                await redraw_chat()
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+                        elif key == KEY_CRSR_DOWN:
+                            # Scroll chat down (show newer)
+                            if scroll_offset > 0:
+                                scroll_offset -= 1
+                                await redraw_chat()
+                                await self.cursor_to(19 + input_row, 4 + input_col)
                         elif key == KEY_RETURN:
                             if input_buf.strip():
                                 # Convert PETSCII input to ASCII
