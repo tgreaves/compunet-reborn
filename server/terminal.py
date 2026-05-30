@@ -2165,9 +2165,13 @@ class TerminalSession:
         # Display frames
         for i, frame_data in enumerate(frames):
             await self.send(CLR)
-            await self.send(UPPERCASE)
+            await self.set_charset('upper')
             await self.send(expand_frame(frame_data))
-            await self.send(LOWERCASE)
+            # Store in editor frame memory
+            self._frame_memory.append(frame_data)
+            if len(self._frame_memory) > 20:
+                self._frame_memory.pop(0)
+            self._editor_idx = len(self._frame_memory) - 1
             await self.cursor_to(24, 0)
             await self.send(COL_WHITE)
             if i < len(frames) - 1:
