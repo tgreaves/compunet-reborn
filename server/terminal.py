@@ -277,7 +277,6 @@ class TerminalSession:
         cs = _get_server()
 
         await self.send(CLR)
-        await self.set_charset('lower')
         await self.send(COL_BLUE)
         await self.send(CR)
         version = ''
