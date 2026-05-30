@@ -1189,12 +1189,17 @@ class TerminalSession:
         # Create an asyncio queue for incoming messages
         msg_queue = asyncio.Queue()
 
+        class _QueueMsg:
+            """Wrapper to distinguish queue messages from reader bytes."""
+            def __init__(self, data):
+                self.data = data
+
         # Override the writer in pl._users so broadcasts/send_line reach us
         class TermWriter:
             def __init__(self, queue):
                 self.queue = queue
             def write(self, data):
-                self.queue.put_nowait(data)
+                self.queue.put_nowait(_QueueMsg(data))
             async def drain(self):
                 pass
 
@@ -1216,7 +1221,22 @@ class TerminalSession:
                 for task in done:
                     result = task.result()
 
-                    if isinstance(result, bytes):
+                    if isinstance(result, _QueueMsg):
+                        # Message from partyline (via queue)
+                        raw = result.data
+                        if isinstance(raw, bytes):
+                            raw = raw.rstrip(b'\r\n')
+                        else:
+                            raw = raw.encode('latin-1').rstrip(b'\r\n')
+                        raw_str = raw.decode('ascii', errors='replace')
+                        if raw_str == '*EXIT':
+                            raise StopIteration()
+                        if raw_str == '*PING':
+                            continue
+                        line = pl.petscii_to_ascii(raw)
+                        await add_chat_line(line)
+                        await self.cursor_to(19 + input_row, 4 + input_col)
+                    elif isinstance(result, bytes):
                         # Keyboard input
                         if not result:
                             raise ConnectionResetError()
@@ -1265,21 +1285,6 @@ class TerminalSession:
                                     input_row = 3
                                 await self.cursor_to(19 + input_row, 4 + input_col)
 
-                    else:
-                        # Message from partyline (bytes in queue)
-                        if result:
-                            raw = result.rstrip(b'\r\n') if isinstance(result, bytes) else result.encode('latin-1').rstrip(b'\r\n')
-                            # Check for protocol sentinels (raw ASCII)
-                            raw_str = raw.decode('ascii', errors='replace')
-                            if raw_str == '*EXIT':
-                                raise StopIteration()
-                            if raw_str == '*PING':
-                                continue
-                            # Convert PETSCII to ASCII for display
-                            line = pl.petscii_to_ascii(raw)
-                            await add_chat_line(line)
-                            # Restore cursor to input position
-                            await self.cursor_to(19 + input_row, 4 + input_col)
 
         except (StopIteration, asyncio.CancelledError):
             pass
