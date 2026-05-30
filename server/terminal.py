@@ -2595,7 +2595,7 @@ class TerminalSession:
             await self.send(COL_BLUE)
 
             # Row 3: COURIER header
-            await self.cursor_to(3, 11)
+            await self.cursor_to(3, 3)
             await self.send_text('COURIER')
 
             # Row 4: divider
