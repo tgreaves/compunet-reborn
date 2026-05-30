@@ -2584,6 +2584,69 @@ class TerminalSession:
             self.duck_pos = getattr(self, '_saved_duck_pos', 0)
             await self.render_directory()
 
+        elif cmd == 'ID':
+            cs = _get_server()
+            users = cs._api_load_users()
+
+            # Draw ID screen
+            await self.send(CLR)
+            await self.send(UPPERCASE)
+            self.charset = 'upper'
+            await self.send(COL_BLUE)
+
+            # Row 3: COURIER header
+            await self.cursor_to(3, 11)
+            await self.send_text('COURIER')
+
+            # Row 4: divider
+            await self.cursor_to(4, 3)
+            await self.send(self.B_THICK_H * 7)
+
+            # Draw colon placeholders for 5 slots
+            for i in range(5):
+                await self.cursor_to(6 + i, 12)
+                await self.send_text(':')
+
+            # Prompt for IDs
+            ids_entered = []
+            for i in range(5):
+                await self.cursor_to(24, 0)
+                await self.send(COL_WHITE)
+                await self.send_text('ID TO CHECK? '.ljust(39))
+                await self.cursor_to(24, 13)
+                user_id = await self.read_line(max_len=8)
+
+                if not user_id.strip():
+                    if i == 0:
+                        await self.render_mail()
+                        return
+                    break
+
+                ids_entered.append(user_id.strip())
+                # Show ID on screen
+                await self.cursor_to(6 + i, 3)
+                await self.send(COL_BLUE)
+                await self.send_text(user_id.strip()[:8])
+
+            # Show real names / errors
+            for i, uid in enumerate(ids_entered):
+                user = users.get(uid)
+                await self.cursor_to(6 + i, 14)
+                if user:
+                    name = user.get('name', uid)
+                    await self.send(COL_BLUE)
+                    await self.send_text(name[:20])
+                else:
+                    await self.send(COL_RED)
+                    await self.send_text('*** NO SUCH USER ***')
+
+            # Press any key
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text('PRESS ANY KEY'.ljust(39))
+            await self.read_key()
+            await self.render_mail()
+
         elif cmd == 'LIFE':
             page = self.current_page
             visible = page.children[self.dir_offset:self.dir_offset + 11]
