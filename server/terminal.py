@@ -2365,10 +2365,24 @@ class TerminalSession:
             self._frame_memory.pop(0)
         self._editor_idx = len(self._frame_memory) - 1
 
-        # Frame may have switched charset — check for $0E in content
-        # and update our tracking. Default stays uppercase.
-        if b'\x0e' in frame_data[4:]:
-            self.charset = 'lower'
+        # Determine final charset state by parsing the frame content properly
+        # (can't just scan for $0E — it may appear as an RLE count)
+        i = 4
+        while i < len(frame_data):
+            b = frame_data[i]
+            if b == 0x00:
+                break
+            elif b == 0x06:
+                i += 2  # skip count byte
+                continue
+            elif b == 0x07:
+                i += 3  # skip char + count bytes
+                continue
+            elif b == 0x0E:
+                self.charset = 'lower'
+            elif b == 0x8E:
+                self.charset = 'upper'
+            i += 1
 
         has_more = self.show_frame_idx < len(self.show_page.frames) - 1
         self._saved_duck_pos = self.duck_pos
