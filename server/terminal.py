@@ -1007,7 +1007,6 @@ class TerminalSession:
         prg_data = page.frames[0]
 
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         filename = page.title[:16].strip().replace(' ', '-').lower()
         await self.send_text(f'XMODEM: {filename} ({len(prg_data)}b)'.ljust(39))
@@ -1035,7 +1034,6 @@ class TerminalSession:
                      page=page.page_num, title=page.title)
 
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('TRANSFER COMPLETE'.ljust(39))
         await self.read_key()
@@ -1075,7 +1073,6 @@ class TerminalSession:
         # Check ban
         if pl._is_banned(self.user_id):
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('YOU ARE BANNED FROM PARTYLINE'.ljust(39))
             await self.read_key()
@@ -1084,62 +1081,55 @@ class TerminalSession:
 
         # Draw partyline UI (shifted mode for mixed case chat)
         await self.send(CLR)
-        await self.set_charset('lower')
-
-        # Row 0: title
-        await self.send(COL_BLUE)
-        await self.send_text('  PARTYLINE')
-        await self.send(CR)
+        # Draw borders in uppercase mode (one switch), then switch to shifted for text
+        await self.set_charset('upper')
 
         # Row 1: chat top border
         await self.cursor_to(1, 2)
-        await self.send(UPPERCASE)
         await self.send(b'\xb0')  # ┌
         await self.send(b'\x60' * 35)  # ─
         await self.send(b'\xae')  # ┐
-        await self.send(LOWERCASE)
 
         # Rows 2-16: pipes at col 2 and col 38
         for r in range(2, 17):
             await self.cursor_to(r, 2)
-            await self.send(UPPERCASE)
             await self.send(b'\x7d')  # │
             await self.cursor_to(r, 38)
             await self.send(b'\x7d')
-            await self.send(LOWERCASE)
 
         # Row 17: chat bottom border
         await self.cursor_to(17, 2)
-        await self.send(UPPERCASE)
         await self.send(b'\xad')  # └
         await self.send(b'\x60' * 35)
         await self.send(b'\xbd')  # ┘
-        await self.send(LOWERCASE)
 
         # Row 18: input area top (pipes)
         await self.cursor_to(18, 3)
-        await self.send(UPPERCASE)
         await self.send(b'\x7d')
         await self.cursor_to(18, 39)
         await self.send(b'\x7d')
-        await self.send(LOWERCASE)
 
         # Rows 19-22: input pipes
         for r in range(19, 23):
             await self.cursor_to(r, 3)
-            await self.send(UPPERCASE)
             await self.send(b'\x7d')
             await self.cursor_to(r, 39)
             await self.send(b'\x7d')
-            await self.send(LOWERCASE)
 
         # Row 23: input bottom border
         await self.cursor_to(23, 3)
-        await self.send(UPPERCASE)
         await self.send(b'\xad')
         await self.send(b'\x60' * 35)
         await self.send(b'\xbd')
-        await self.send(LOWERCASE)
+
+        # Switch to shifted mode for text (partyline uses mixed case)
+        await self.set_charset('lower')
+
+        # Row 0: title
+        await self.cursor_to(0, 0)
+        await self.send(COL_BLUE)
+        await self.send_text('  PARTYLINE')
+        await self.send(CR)
 
         # Row 24: status
         await self.cursor_to(24, 0)
@@ -1329,22 +1319,20 @@ class TerminalSession:
     async def _render_editor_frame(self):
         """Display the current frame from editor memory with editor duckshoot."""
         await self.send(CLR)
-        await self.send(UPPERCASE)
+        await self.set_charset('upper')
         if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
             frame_data = self._frame_memory[self._editor_idx]
             await self.send(expand_frame(frame_data))
-        await self.send(LOWERCASE)
         await self.cursor_to(24, 0)
         await self.render_duckshoot()
 
     async def _render_upload_text_frame(self):
         """Display current frame in upload-text mode with upload duckshoot."""
         await self.send(CLR)
-        await self.send(UPPERCASE)
+        await self.set_charset('upper')
         if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
             frame_data = self._frame_memory[self._editor_idx]
             await self.send(expand_frame(frame_data))
-        await self.send(LOWERCASE)
         await self.cursor_to(24, 0)
         await self.render_duckshoot()
 
@@ -1415,7 +1403,7 @@ class TerminalSession:
 
         # Display frame and position cursor at 0,0
         await self.send(CLR)
-        await self.send(UPPERCASE)
+        await self.set_charset("upper")
         await self.send(expand_frame(frame_data))
         await self.cursor_to(0, 0)
 
@@ -1626,7 +1614,6 @@ class TerminalSession:
                     cs._send_mail_notification(dest_id, self.user_id, send['subject'], users))
 
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('MAIL SENT'.ljust(39))
         await self.read_key()
@@ -1647,7 +1634,6 @@ class TerminalSession:
         # Check if directory has space
         if len(page.children) >= 11:
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('DIRECTORY FULL'.ljust(39))
             await self.read_key()
@@ -1668,7 +1654,6 @@ class TerminalSession:
                 ancestor = getattr(ancestor, 'parent', None)
         if not can_upload:
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('UPLOAD NOT PERMITTED'.ljust(39))
             await self.read_key()
@@ -1686,24 +1671,20 @@ class TerminalSession:
                 return
             await self.cursor_to(entry_row, 0)
             await self.send(COL_CYAN)
-            await self.send(UPPERCASE)
+            await self.set_charset("upper")
             await self.send(self.B_THICK_V)
-            await self.send(LOWERCASE)
             type_str = (page_type + str(lifetime) if page_type else '')[:5].ljust(5)
             content = f'      {title[:18]:<18s}{type_str}'[:29]
             await self.send_text(content)
-            await self.send(UPPERCASE)
+            await self.set_charset("upper")
             await self.send(self.B_THIN_V)
-            await self.send(LOWERCASE)
             price_str = f'{price:.2f}' if price > 0 else ''
             await self.send_text(price_str[:8].ljust(8))
-            await self.send(UPPERCASE)
+            await self.set_charset("upper")
             await self.send(self.B_THICK_V)
-            await self.send(LOWERCASE)
 
         # Prompt for page details on duckshoot line
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('UPLOAD PAGE TITLE? '.ljust(39))
         await self.cursor_to(24, 19)
@@ -1751,11 +1732,10 @@ class TerminalSession:
             if new_idx < 11:
                 await self.cursor_to(entry_row, 0)
                 await self.send(COL_WHITE)
-                await self.send(UPPERCASE)
+                await self.set_charset("upper")
                 await self.send(self.B_THICK_V)
-                await self.send(LOWERCASE)
                 await self.send(b'\x20' * 29)
-                await self.send(UPPERCASE)
+                await self.set_charset("upper")
                 await self.send(self.B_THIN_V)
                 await self.send(b'\x20' * 8)
                 await self.send(self.B_THICK_V)
@@ -1798,7 +1778,6 @@ class TerminalSession:
 
         if not self._upload_pending or not self._upload_pending.get('frames'):
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('NO FRAMES TO UPLOAD'.ljust(39))
             await self.read_key()
@@ -1863,7 +1842,6 @@ class TerminalSession:
                      title=send['title'], page=next_page_num, type='T')
 
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('UPLOAD COMPLETE'.ljust(39))
         await self.read_key()
@@ -1885,7 +1863,6 @@ class TerminalSession:
 
         # Prompt for XMODEM transfer
         await self.cursor_to(24, 0)
-        await self.send(LOWERCASE)
         await self.send(COL_WHITE)
         await self.send_text('START XMODEM UPLOAD NOW...'.ljust(39))
 
@@ -2139,7 +2116,6 @@ class TerminalSession:
 
         if not frames:
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('NO MESSAGE DATA'.ljust(39))
             await self.read_key()
@@ -2357,7 +2333,7 @@ class TerminalSession:
         if not self.show_page or not self.show_page.frames:
             return
         await self.send(CLR)
-        await self.send(UPPERCASE)
+        await self.set_charset("upper")
         self.charset = 'upper'
         frame_data = self.show_page.frames[self.show_frame_idx]
         await self.send(expand_frame(frame_data))
@@ -2408,7 +2384,6 @@ class TerminalSession:
                 child = visible[self.dir_cursor]
                 if child.page_type == 'L':
                     await self.cursor_to(24, 0)
-                    await self.send(LOWERCASE)
                     await self.send(COL_WHITE)
                     await self.send_text('PLEASE USE BUY'.ljust(39))
                     await self.read_key()
@@ -2479,7 +2454,6 @@ class TerminalSession:
 
         elif cmd == 'GOTO':
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('GOTO? '.ljust(39))
             await self.cursor_to(24, 6)
@@ -2495,9 +2469,8 @@ class TerminalSession:
                         with open(frame_path, 'rb') as f:
                             frame_data = f.read()
                         await self.send(CLR)
-                        await self.send(UPPERCASE)
+                        await self.set_charset("upper")
                         await self.send(expand_frame(frame_data))
-                        await self.send(LOWERCASE)
                         await self.cursor_to(24, 0)
                         await self.send(COL_WHITE)
                         await self.send_text('PRESS ANY KEY')
@@ -2542,7 +2515,7 @@ class TerminalSession:
                 with open(frame_path, 'rb') as f:
                     frame_data = f.read()
                 await self.send(CLR)
-                await self.send(UPPERCASE)
+                await self.set_charset("upper")
                 await self.send(expand_frame(frame_data))
                 await self.read_key()  # Wait for any key
             await self.render_directory()
@@ -2551,14 +2524,13 @@ class TerminalSession:
             cs = _get_server()
             goodbye_path = os.path.join(cs.CONTENT_DIR, 'templates', 'goodbye.seq')
             await self.send(CLR)
-            await self.send(UPPERCASE)
+            await self.set_charset("upper")
             if os.path.exists(goodbye_path):
                 with open(goodbye_path, 'rb') as f:
                     await self.send(expand_frame(f.read()))
             else:
                 await self.send(COL_BLUE)
                 await self.send_text('\r\r  GOODBYE!\r')
-            await self.send(LOWERCASE)
             await self.cursor_to(24, 0)
             await self.send(COL_WHITE)
             await self.send_text('PRESS ANY KEY')
@@ -2588,7 +2560,6 @@ class TerminalSession:
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
                 await self.cursor_to(24, 0)
-                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
                 await self.send_text('VOTE (1-9)? '.ljust(39))
                 await self.cursor_to(24, 12)
@@ -2636,7 +2607,6 @@ class TerminalSession:
             if self.dir_cursor < len(visible):
                 child = visible[self.dir_cursor]
                 await self.cursor_to(24, 0)
-                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
                 await self.send_text('EXTEND BY? '.ljust(39))
                 await self.cursor_to(24, 11)
@@ -2707,7 +2677,6 @@ class TerminalSession:
             else:
                 msg = f'YOU ARE {abs(credit):.2f} IN DEBIT'
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text(msg.ljust(39))
             await self.read_key()
@@ -2828,7 +2797,6 @@ class TerminalSession:
             if self._frame_memory and 0 <= self._editor_idx < len(self._frame_memory):
                 frame_data = self._frame_memory[self._editor_idx]
                 await self.cursor_to(24, 0)
-                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
                 await self.send_text(f'XMODEM: frame ({len(frame_data)}b)'.ljust(39))
                 try:
@@ -2849,7 +2817,6 @@ class TerminalSession:
         elif cmd == 'GET':
             # Upload frame(s) via XMODEM into editor memory
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text('START XMODEM UPLOAD NOW...'.ljust(39))
             try:
@@ -2889,7 +2856,6 @@ class TerminalSession:
             # Download ALL frames in memory via XMODEM
             if not self._frame_memory:
                 await self.cursor_to(24, 0)
-                await self.send(LOWERCASE)
                 await self.send(COL_WHITE)
                 await self.send_text('NO FRAMES IN MEMORY'.ljust(39))
                 await self.read_key()
@@ -2902,7 +2868,6 @@ class TerminalSession:
                 if not frame.endswith(b'\x00'):
                     all_data.append(0x00)
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text(f'XMODEM: {len(self._frame_memory)} frames ({len(all_data)}b)'.ljust(39))
             try:
@@ -2922,7 +2887,6 @@ class TerminalSession:
         elif cmd == 'FREE':
             free_frames = 20 - len(self._frame_memory)
             await self.cursor_to(24, 0)
-            await self.send(LOWERCASE)
             await self.send(COL_WHITE)
             await self.send_text(f'{free_frames} FRAMES FREE'.ljust(39))
             await self.read_key()
@@ -2950,7 +2914,6 @@ class TerminalSession:
                     await self.send(f.read())
             else:
                 await self.send(CLR)
-                await self.send(LOWERCASE)
                 await self.send_text('HELP not available\r')
             await self.cursor_to(24, 0)
             await self.send(COL_WHITE)
@@ -3088,7 +3051,6 @@ class TerminalSession:
                             self._upload_pending['frames'].append(
                                 self._frame_memory[self._editor_idx])
                         await self.cursor_to(24, 0)
-                        await self.send(LOWERCASE)
                         await self.send(COL_WHITE)
                         n = len(self._upload_pending['frames'])
                         await self.send_text(f'FRAME {n} ADDED. NEXT OR FINISH'.ljust(39))
