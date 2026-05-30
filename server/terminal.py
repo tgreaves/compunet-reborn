@@ -277,6 +277,8 @@ class TerminalSession:
         cs = _get_server()
 
         await self.send(CLR)
+        await self.send(UPPERCASE)  # Force unshifted mode from the start
+        self.charset = 'upper'
         await self.send(COL_BLUE)
         await self.send(CR)
         version = ''
