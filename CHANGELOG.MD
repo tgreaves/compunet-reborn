@@ -1,3 +1,21 @@
+# 0.9-beta (2026-05-31)
+
+* Protocol:
+	* ACK-based flow control: client now sends X.25 ACK packets after receiving
+	  each data packet. Server waits for ACK before sending next packet.
+	* Removed all fixed inter-packet delays (500ms command, 250ms pre-response,
+	  50ms download). Transfer speed now adapts to client processing speed.
+	* Result: dramatically faster page loads, directory browsing, and program
+	  downloads. Server never outpaces client regardless of baud rate setting.
+	* EOS (end-of-stream) packets sent fire-and-forget (client treats zero-length
+	  as terminator without ACK).
+	* Breaking change: requires updated client. Old clients will not work.
+* Client:
+	* ACIA_SEND_ACK routine added: sends ACK packet ($01 [06] [$20] [$20] [seq]
+	  [CRC] $02) after receiving each DAT packet in ACIA_FLOW_CONTROL.
+	* CRC init $40/$E6 matching original ROM ACK behaviour at L9ABC.
+	* Only DAT token ($22) triggers ACK — COM echoes and error tokens do not.
+
 # 0.8.1-beta (2026-05-30)
 
 * Terminal:

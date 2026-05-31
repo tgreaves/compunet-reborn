@@ -168,6 +168,18 @@ class X25Connection:
         log.info('X25 TX: ACK seq=$%02X [%s]', seq_to_ack, pkt.hex())
         return pkt
 
+    def is_ack_packet(self, raw_pkt):
+        """Check if a de-stuffed packet is an ACK (token $20)."""
+        if len(raw_pkt) >= 4 and raw_pkt[1] == TOKEN_ACK:
+            return True
+        return False
+
+    def get_ack_seq(self, raw_pkt):
+        """Extract the sequence number being ACK'd from an ACK packet."""
+        if len(raw_pkt) >= 4:
+            return raw_pkt[3]  # [len] [token=$20] [fixed=$20] [seq]
+        return None
+
     def make_data_packet(self, payload, token=TOKEN_DAT):
         """
         Build a data packet containing payload bytes.

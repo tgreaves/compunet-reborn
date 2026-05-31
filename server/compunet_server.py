@@ -2203,7 +2203,32 @@ async def tcp_handler(reader, writer):
     session = CompunetSession(directory)
     session.client_ip = addr[0] if addr else ''
     x25 = X25Connection()
-    
+
+    async def wait_for_ack(timeout=5.0):
+        """Wait for client to send an ACK packet. Returns True if received."""
+        try:
+            deadline = asyncio.get_event_loop().time() + timeout
+            while asyncio.get_event_loop().time() < deadline:
+                remaining = deadline - asyncio.get_event_loop().time()
+                data = await asyncio.wait_for(reader.read(32), timeout=remaining)
+                if not data:
+                    return False
+                # Feed into X.25 parser
+                packets = x25.feed_data(data)
+                for token, seq, payload in packets:
+                    if token == TOKEN_ACK:
+                        log.debug('ACK received: seq=$%02X', seq)
+                        return True
+        except (asyncio.TimeoutError, ConnectionResetError, BrokenPipeError):
+            log.debug('ACK wait: timeout or disconnect')
+        return False
+
+    async def send_pkt_with_ack(pkt):
+        """Send a packet and wait for client ACK before returning."""
+        writer.write(pkt)
+        await writer.drain()
+        await wait_for_ack()
+
     try:
         # ============================================================
         # Phase 1: Connection handshake (auto-detect Hayes vs raw X.25)
@@ -2425,15 +2450,12 @@ async def tcp_handler(reader, writer):
                             error_frame.extend(ascii_to_petscii('  INVALID ID OR PASSWORD'))
                             error_frame.append(0x0D)
                             error_frame.append(0x00)  # end of frame
-                            await asyncio.sleep(0.5)
                             MAX_PAYLOAD = 100
                             offset = 0
                             while offset < len(error_frame):
                                 chunk = error_frame[offset:offset + MAX_PAYLOAD]
                                 pkt = x25.make_data_packet(chunk, TOKEN_DAT)
-                                writer.write(pkt)
-                                await writer.drain()
-                                await asyncio.sleep(0.05)
+                                await send_pkt_with_ack(pkt)
                                 offset += MAX_PAYLOAD
                             eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
                             writer.write(eos_pkt)
@@ -2454,9 +2476,7 @@ async def tcp_handler(reader, writer):
                             while offset < len(response):
                                 chunk = response[offset:offset + MAX_PAYLOAD]
                                 pkt = x25.make_data_packet(chunk, TOKEN_DAT)
-                                writer.write(pkt)
-                                await writer.drain()
-                                await asyncio.sleep(0.25)
+                                await send_pkt_with_ack(pkt)
                                 offset += MAX_PAYLOAD
                             eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
                             writer.write(eos_pkt)
@@ -2473,8 +2493,6 @@ async def tcp_handler(reader, writer):
                         async with _lock_content:
                             cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
-                            log.info('CMD: pre-response delay 250ms starting')
-                            await asyncio.sleep(0.25)
                             log.info('CMD: sending %d bytes in %d-byte chunks', len(cmd_response), 100)
                             MAX_PAYLOAD = 100
                             offset = 0
@@ -2482,11 +2500,9 @@ async def tcp_handler(reader, writer):
                             while offset < len(cmd_response):
                                 chunk = cmd_response[offset:offset + MAX_PAYLOAD]
                                 pkt = x25.make_data_packet(chunk, TOKEN_DAT)
-                                writer.write(pkt)
-                                await writer.drain()
+                                await send_pkt_with_ack(pkt)
                                 pkt_num += 1
-                                log.info('CMD: sent pkt %d (%d payload, %d wire), sleeping 500ms', pkt_num, len(chunk), len(pkt))
-                                await asyncio.sleep(0.5)
+                                log.info('CMD: sent pkt %d (%d payload, %d wire)', pkt_num, len(chunk), len(pkt))
                                 offset += MAX_PAYLOAD
                             # EOS only for streamed responses (not single-packet ACKs)
                             if session.last_response_type != RESP_ACK:
@@ -2522,17 +2538,14 @@ async def tcp_handler(reader, writer):
                     audit_log('download', user=session.user_id,
                               page=getattr(session, '_download_page_num', 0),
                               title=getattr(session, '_download_title', ''))
-                    await asyncio.sleep(0.5)
                     MAX_PAYLOAD = 100
                     offset = 0
                     pkt_num = 0
                     while offset < len(program_data):
                         chunk = program_data[offset:offset + MAX_PAYLOAD]
                         pkt = x25.make_data_packet(chunk, TOKEN_DAT)
-                        writer.write(pkt)
-                        await writer.drain()
+                        await send_pkt_with_ack(pkt)
                         pkt_num += 1
-                        await asyncio.sleep(0.05)
                         offset += MAX_PAYLOAD
                     eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
                     writer.write(eos_pkt)
@@ -2564,10 +2577,9 @@ async def tcp_handler(reader, writer):
                         session.pending_send['_current_frame'] = bytearray()
                         log.info('UPLOAD: frame %d complete (%d bytes)',
                                  len(session.pending_send['frames']), len(frame_data))
-                        await asyncio.sleep(0.5)
                         ack_data = bytes([RESP_ACK]) + b'\x00' * 10
                         ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
-                        writer.write(ack_pkt)
+                        await send_pkt_with_ack(ack_pkt)
                         await writer.drain()
                         log.info('UPLOAD: sent frame ACK (%d wire)', len(ack_pkt))
 
