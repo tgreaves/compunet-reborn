@@ -2487,7 +2487,8 @@ async def tcp_handler(reader, writer):
                         log.debug('TCP: ignoring retransmitted login packet')
                     
                     elif authenticated:
-                        # Post-login commands (lock prevents interleaved writes)
+                        # Any activity from user confirms they're online
+                        _user_connect(session.user_id)
                         log.info('TCP: dispatching command (authenticated=True)')
                         async with _lock_content:
                             cmd_response = session.handle_command(cmd_payload)
