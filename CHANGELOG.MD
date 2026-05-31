@@ -1,3 +1,10 @@
+# 0.9.1-beta (2026-05-31)
+
+* Server:
+	* Simplified online user tracking: removed reference counting. User marked
+	  online on any activity (login, command received). Marked offline on LEAVE,
+	  TCP disconnect, or idle timeout. Fixes ghost users in WHO IS ONLINE.
+
 # 0.9-beta (2026-05-31)
 
 * Protocol:
