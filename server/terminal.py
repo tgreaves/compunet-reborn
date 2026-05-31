@@ -3209,6 +3209,16 @@ async def terminal_handler(reader, writer):
     addr = writer.get_extra_info('peername')
     logger.info('Terminal client connected: %s', addr)
 
+    # Enable TCP keepalives to prevent NAT/firewall timeout
+    import socket
+    sock = writer.get_extra_info('socket')
+    if sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        if hasattr(socket, 'TCP_KEEPIDLE'):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 15)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 4)
+
     directory = cs.CompunetDirectory()
     session = TerminalSession(reader, writer, directory)
     session.client_ip = addr[0] if addr else ''

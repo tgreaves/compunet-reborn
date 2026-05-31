@@ -282,6 +282,37 @@ The protocol implements X.25-style windowed flow control:
 - Packet buffers at $C228[0..3] (sequence numbers)
 - Packet flags at $C22C[0..3] (bit 6 = awaiting ACK, bit 7 = retransmit)
 
+### ACK-Based Flow Control (v0.9+)
+
+The Compunet Reborn client sends an ACK packet after receiving each DAT packet.
+The server waits for this ACK before sending the next packet, providing
+self-pacing flow control that adapts to the client's processing speed.
+
+**ACK Packet Format** (client → server):
+```
+$01 [06] [$20] [$20] [seq_being_acked] [CRC_hi] [CRC_lo] $02
+```
+- Length: $06 (fixed)
+- Token: $20 (ACK)
+- Fixed byte: $20
+- Seq: sequence number from the received DAT packet
+- CRC: CRC-CCITT with init $40/$E6
+
+**Flow**:
+1. Server sends DAT packet with sequence number
+2. Client receives, de-stuffs, validates
+3. Client sends ACK with the received sequence number
+4. Server receives ACK, sends next packet
+
+**Rules**:
+- Only DAT token ($22) packets trigger ACK
+- EOS (zero-length DAT) does NOT trigger ACK — client treats as stream end
+- COM echoes and error tokens do NOT trigger ACK
+- Server timeout: 5 seconds (logs warning on timeout, continues)
+
+This replaces the original fixed-delay approach (500ms between packets) and
+enables full-speed transfers regardless of emulator baud rate settings.
+
 ### CRC/Checksum (at $9B10)
 
 The protocol uses a 16-bit CRC for packet integrity:

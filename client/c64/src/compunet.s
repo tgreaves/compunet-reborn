@@ -7576,6 +7576,11 @@ ACIA_FLOW_CONTROL:
     BEQ @error
     CMP #$40                            ; '@' = error
     BEQ @error
+    ; Send ACK for DAT packets (flow control)
+    CMP #$22                            ; Token $22 = DAT?
+    BNE @no_ack                         ; Not DAT — skip ACK
+    JSR ACIA_SEND_ACK
+@no_ack:
     CLC                                 ; Success
     RTS
 @error:
@@ -7613,6 +7618,119 @@ ACIA_FLOW_CONTROL:
 @get_byte_blocking:
     JSR @get_byte
     BCS @get_byte_blocking
+    RTS
+
+; =================================================================
+; ACIA_SEND_ACK — Send X.25 ACK packet for received sequence number
+; =================================================================
+; Sends: $01 [06] [$20] [$20] [seq] [CRC_hi] [CRC_lo] $02
+; Seq is extracted from the received packet at RECV_BUF+2.
+; CRC init: $40/$E6 (matches original ROM ACK at L9ABC).
+; =================================================================
+ACIA_SEND_ACK:
+    PHA
+    TXA
+    PHA
+    TYA
+    PHA
+
+    ; Send start marker
+    LDA #$01
+    JSR ACIA_WAIT_READY
+
+    ; Init CRC with $40/$E6
+    LDA #$40
+    STA $C21D
+    LDA #$E6
+    STA $C21E
+
+    ; Byte 1: length = $06
+    LDA #$06
+    JSR @ack_stuff_crc
+
+    ; Byte 2: token = $20 (ACK)
+    LDA #$20
+    JSR @ack_stuff_crc
+
+    ; Byte 3: fixed = $20
+    LDA #$20
+    JSR @ack_stuff_crc
+
+    ; Byte 4: sequence number from received packet
+    LDA RECV_BUF+2
+    JSR @ack_stuff_crc
+
+    ; Byte 5: CRC hi
+    LDA $C21D
+    JSR @ack_stuff
+
+    ; Byte 6: CRC lo
+    LDA $C21E
+    JSR @ack_stuff
+
+    ; Send end marker
+    LDA #$02
+    JSR ACIA_WAIT_READY
+
+    PLA
+    TAY
+    PLA
+    TAX
+    PLA
+    RTS
+
+; --- Send byte with stuffing + CRC update ---
+@ack_stuff_crc:
+    PHA
+    JSR @ack_crc_update
+    PLA
+; --- Send byte with stuffing only ---
+@ack_stuff:
+    CMP #$01
+    BEQ @ack_s1
+    CMP #$02
+    BEQ @ack_s2
+    CMP #$03
+    BEQ @ack_s3
+    JSR ACIA_WAIT_READY
+    RTS
+@ack_s1:
+    LDA #$03
+    JSR ACIA_WAIT_READY
+    LDA #$21
+    JSR ACIA_WAIT_READY
+    RTS
+@ack_s2:
+    LDA #$03
+    JSR ACIA_WAIT_READY
+    LDA #$22
+    JSR ACIA_WAIT_READY
+    RTS
+@ack_s3:
+    LDA #$03
+    JSR ACIA_WAIT_READY
+    LDA #$23
+    JSR ACIA_WAIT_READY
+    RTS
+
+; --- CRC update (CRC-CCITT, same as ACIA_SEND_PACKET) ---
+@ack_crc_update:
+    EOR $C21D
+    STA $C21D
+    LDX #$08
+@ack_crc_loop:
+    ASL $C21E
+    ROL $C21D
+    BCC @ack_crc_noxor
+    LDA $C21D
+    EOR #$10
+    STA $C21D
+    LDA $C21E
+    EOR #$21
+    STA $C21E
+@ack_crc_noxor:
+    DEX
+    BNE @ack_crc_loop
     RTS
 
 ; =================================================================
