@@ -360,7 +360,7 @@ class CompunetDirectory:
                 error_frame += ascii_to_petscii(f' {frame_file}') + b'\x0D\x00'
                 page.frames.append(error_frame)
                 log.warning('CONTENT: missing frame file: %s', frame_path)
-                audit_log('error', event='missing_frame', path=frame_path,
+                audit_log('missing_frame', path=frame_path,
                           page=page.page_num, title=page.title)
 
         # For program pages, calculate size in KB from file data
