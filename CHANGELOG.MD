@@ -1,3 +1,11 @@
+# 0.10-beta (2026-05-31)
+
+* Server:
+	* Fixed: `_save_directory` now preserves the `dynamic` field in directory
+	  JSON. Previously, any upload or directory modification would drop this
+	  flag, causing dynamic pages (e.g. WHO IS ONLINE?) to serve stale cached
+	  content instead of regenerating on each view.
+
 # 0.9-beta (2026-05-31)
 
 * Protocol:

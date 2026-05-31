@@ -1996,6 +1996,8 @@ class TerminalSession:
                 }
                 if child.keyword:
                     node['keyword'] = child.keyword
+                if getattr(child, 'dynamic', None):
+                    node['dynamic'] = child.dynamic
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files
