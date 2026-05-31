@@ -453,6 +453,8 @@ async def _cmd_unban(writer, user_id, args):
 
 async def _cmd_quit(writer, user_id):
     """Handle user quitting partyline."""
+    if user_id not in _users:
+        return
     name = display_name(user_id)
     room = _users[user_id]["room"]
     # Remove user from state before broadcasting
@@ -460,7 +462,10 @@ async def _cmd_quit(writer, user_id):
     await broadcast_room(room, f"{name} has left partyline")
     await broadcast_room(room, "")
     # Send exit sentinel to client
-    await send_line(writer, "*EXIT")
+    try:
+        await send_line(writer, "*EXIT")
+    except (ConnectionResetError, BrokenPipeError, OSError):
+        pass
     logger.info("User %s quit partyline", user_id)
 
 
