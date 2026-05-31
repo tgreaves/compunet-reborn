@@ -10,6 +10,8 @@
 	* EOS (end-of-stream) packets sent fire-and-forget (client treats zero-length
 	  as terminator without ACK).
 	* Breaking change: requires updated client. Old clients will not work.
+	* TCP keepalives enabled on both ports (60s idle, 15s interval, 4 retries).
+	  Prevents NAT/firewall connection drops during idle sessions.
 * Client:
 	* ACIA_SEND_ACK routine added: sends ACK packet ($01 [06] [$20] [$20] [seq]
 	  [CRC] $02) after receiving each DAT packet in ACIA_FLOW_CONTROL.
