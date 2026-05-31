@@ -9,7 +9,8 @@
 	  of sending uninitialised data. Event logged to audit.
 	* Fixed: partyline *quit KeyError when user disconnects simultaneously
 	  with sending the quit command (race condition).
-	* Skip CRC validation for ACK packets (client uses different CRC init).
+	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00 in client, matching
+	  server receive-path validation. CRC check re-enabled for all packets.
 
 # 0.9.1-beta (2026-05-31)
 
