@@ -5,6 +5,9 @@
 	  JSON. Previously, any upload or directory modification would drop this
 	  flag, causing dynamic pages (e.g. WHO IS ONLINE?) to serve stale cached
 	  content instead of regenerating on each view.
+	* Simplified online user tracking: removed reference counting. User marked
+	  online on any activity (login, command received). Marked offline on LEAVE,
+	  TCP disconnect, or idle timeout. Fixes ghost users in WHO IS ONLINE.
 
 # 0.9-beta (2026-05-31)
 

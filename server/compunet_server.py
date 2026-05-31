@@ -101,24 +101,17 @@ MAIL_DIR = os.path.join(DATA_DIR, 'mail')
 VOTES_PATH = os.path.join(DATA_DIR, 'votes.json')
 
 # Active session tracking
-_online_users = set()  # user IDs currently logged in (derived from _online_count)
-_online_count = {}     # user_id -> number of active sessions
+_online_users = set()  # user IDs currently online
 
 
 def _user_connect(user_id):
-    """Register a user session as online."""
-    _online_count[user_id] = _online_count.get(user_id, 0) + 1
+    """Mark a user as online (called on login and any activity)."""
     _online_users.add(user_id)
 
 
 def _user_disconnect(user_id):
-    """Unregister a user session. Only removes from online set when last session ends."""
-    count = _online_count.get(user_id, 0)
-    if count <= 1:
-        _online_count.pop(user_id, None)
-        _online_users.discard(user_id)
-    else:
-        _online_count[user_id] = count - 1
+    """Mark a user as offline (called on LEAVE, disconnect, or timeout)."""
+    _online_users.discard(user_id)
 
 WHO_PAGE_DIR = os.path.join(ROOT_DIR, 'who-is-online')  # slug of "WHO IS ONLINE?"
 WHO_PAGE_NUM = 800
@@ -2496,7 +2489,8 @@ async def tcp_handler(reader, writer):
                         log.debug('TCP: ignoring retransmitted login packet')
                     
                     elif authenticated:
-                        # Post-login commands (lock prevents interleaved writes)
+                        # Any activity from user confirms they're online
+                        _user_connect(session.user_id)
                         log.info('TCP: dispatching command (authenticated=True)')
                         async with _lock_content:
                             cmd_response = session.handle_command(cmd_payload)
