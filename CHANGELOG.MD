@@ -5,6 +5,11 @@
 	  JSON. Previously, any upload or directory modification would drop this
 	  flag, causing dynamic pages (e.g. WHO IS ONLINE?) to serve stale cached
 	  content instead of regenerating on each view.
+	* Missing frame files now serve an error frame ("FRAME NOT FOUND") instead
+	  of sending uninitialised data. Event logged to audit.
+	* Fixed: partyline *quit KeyError when user disconnects simultaneously
+	  with sending the quit command (race condition).
+	* Skip CRC validation for ACK packets (client uses different CRC init).
 
 # 0.9.1-beta (2026-05-31)
 
