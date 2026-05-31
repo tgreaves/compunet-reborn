@@ -232,7 +232,6 @@ async def read_line(reader):
         data = await asyncio.wait_for(reader.read(1), timeout=60.0)
         if not data:
             raise ConnectionResetError("Client disconnected")
-        logger.debug("Partyline RX byte: $%02X", data[0])
         if data == CR:
             break
         buf.extend(data)
