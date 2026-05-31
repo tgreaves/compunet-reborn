@@ -2213,8 +2213,12 @@ async def tcp_handler(reader, writer):
     session.client_ip = addr[0] if addr else ''
     x25 = X25Connection()
 
+    pending_packets = []  # Packets received during ACK wait (non-ACK)
+
     async def wait_for_ack(timeout=5.0):
-        """Wait for client to send an ACK packet. Returns True if received."""
+        """Wait for client to send an ACK packet. Returns True if received.
+        Any non-ACK packets received are stashed in pending_packets for
+        the main loop to process."""
         try:
             deadline = asyncio.get_event_loop().time() + timeout
             while asyncio.get_event_loop().time() < deadline:
@@ -2228,6 +2232,9 @@ async def tcp_handler(reader, writer):
                     if token == TOKEN_ACK:
                         log.debug('ACK received: seq=$%02X', seq)
                         return True
+                    else:
+                        # Stash non-ACK packet for main loop
+                        pending_packets.append((token, seq, payload))
         except (asyncio.TimeoutError, ConnectionResetError, BrokenPipeError):
             log.debug('ACK wait: timeout or disconnect')
         return False
@@ -2414,7 +2421,11 @@ async def tcp_handler(reader, writer):
             
             log.debug('TCP RX: %d bytes: %s', len(data), data.hex())
             packets = x25.feed_data(data)
-            
+            # Prepend any packets stashed during ACK wait
+            if pending_packets:
+                packets = pending_packets + packets
+                pending_packets.clear()
+
             for token, seq, payload in packets:
                 log.info('TCP: packet token=$%02X seq=$%02X payload=%d bytes',
                          token, seq, len(payload))

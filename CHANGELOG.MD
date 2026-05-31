@@ -11,6 +11,9 @@
 	  with sending the quit command (race condition).
 	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00 in client, matching
 	  server receive-path validation. CRC check re-enabled for all packets.
+	* Fixed: commands sent by client during ACK wait were being consumed and
+	  lost. Now stashed in pending_packets buffer and processed by main loop.
+	  Fixes LIFE/EXTEND not reloading directory and duckshoot corruption.
 
 # 0.9.1-beta (2026-05-31)
 
