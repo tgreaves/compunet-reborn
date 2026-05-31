@@ -294,12 +294,10 @@ class X25Connection:
             # Verify CRC (init $00/$00 over all bytes except CRC)
             # Note: VICE SwiftLink strips bit 7 from transmitted bytes, so CRC
             # bytes arrive with bit 7 cleared. Accept if masking bit 7 matches.
-            # Skip CRC check for ACK packets (client uses different CRC init $40/$E6)
-            if token != TOKEN_ACK:
-                crc_hi, crc_lo = crc_ccitt(raw_pkt[:-2], crc_hi=0x00, crc_lo=0x00)
-                if (crc_hi & 0x7F) != (crc_hi_rx & 0x7F) or (crc_lo & 0x7F) != (crc_lo_rx & 0x7F):
-                    log.warning('X25 RX: CRC mismatch! expected=%02X%02X got=%02X%02X pkt=%s',
-                                crc_hi, crc_lo, crc_hi_rx, crc_lo_rx, raw_pkt.hex())
+            crc_hi, crc_lo = crc_ccitt(raw_pkt[:-2], crc_hi=0x00, crc_lo=0x00)
+            if (crc_hi & 0x7F) != (crc_hi_rx & 0x7F) or (crc_lo & 0x7F) != (crc_lo_rx & 0x7F):
+                log.warning('X25 RX: CRC mismatch! expected=%02X%02X got=%02X%02X pkt=%s',
+                            crc_hi, crc_lo, crc_hi_rx, crc_lo_rx, raw_pkt.hex())
 
             token_name = TOKEN_NAMES.get(token, f'${token:02X}')
             log.info('X25 RX: %s seq=$%02X len=%d payload=%d bytes [%s]',
