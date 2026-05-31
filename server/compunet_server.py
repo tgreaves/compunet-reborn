@@ -354,6 +354,14 @@ class CompunetDirectory:
             if os.path.exists(frame_path):
                 with open(frame_path, 'rb') as f:
                     page.frames.append(f.read())
+            else:
+                # Missing frame file — insert error frame and log
+                error_frame = b'\x00\x06\x0F\x8E\x0D\x1C FRAME NOT FOUND\x0D\x0D'
+                error_frame += ascii_to_petscii(f' {frame_file}') + b'\x0D\x00'
+                page.frames.append(error_frame)
+                log.warning('CONTENT: missing frame file: %s', frame_path)
+                audit_log('error', event='missing_frame', path=frame_path,
+                          page=page.page_num, title=page.title)
 
         # For program pages, calculate size in KB from file data
         if page.page_type == 'P' and page.frames:
