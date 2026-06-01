@@ -13,6 +13,13 @@
 
 ; --- KERNAL ---
 GETIN           = $FFE4
+CHROUT          = $FFD2
+SETLFS          = $FFBA
+SETNAM          = $FFBD
+OPEN            = $FFC0
+CLOSE           = $FFC3
+CHKOUT          = $FFC9
+CLRCHN          = $FFCC
 
 ; --- VIC-II ---
 VIC_BORDER      = $D020
@@ -64,7 +71,7 @@ INPUT_ROWS      = 4            ; rows available (19..22)
 
 ; --- History buffer parameters ---
 HIST_LINE_SIZE  = 35            ; same as CHAT_WIDTH
-HIST_MAX_LINES  = 114           ; 4096 / 35 ≈ 116, use 114
+HIST_MAX_LINES  = 255           ; 8925 bytes, max single-byte index ($3000-$52DD)
 
 ; =================================================================
 ; ENTRY POINT
@@ -244,9 +251,9 @@ start:
     STA hist_count              ; total history lines stored
     STA scroll_offset           ; lines scrolled back (0 = live)
 
-    ; --- Zero the history buffer at $3000 (16 pages = 4096 bytes, covers 3990) ---
+    ; --- Zero the history buffer at $3000 (35 pages = 8960 bytes, covers 8925) ---
     LDA #$00
-    LDX #$10                    ; 16 pages
+    LDX #$23                    ; 35 pages ($3000-$52FF)
     LDY #$00
     STY ZP_PTR1
     LDA #$30
@@ -270,6 +277,11 @@ start:
 main_loop:
     ; --- Check exit flag ---
     LDA exit_flag
+    BNE do_exit
+
+    ; --- Check carrier (DCD bit 5 of ACIA status, high = lost) ---
+    LDA ACIA_STATUS
+    AND #$20
     BNE do_exit
 
     ; --- Poll receive buffer ---
@@ -659,6 +671,20 @@ poll_keyboard:
     RTS
 
 @transmit:
+    ; Check for *SAVE command (intercept locally, don't send to server)
+    JSR check_save_cmd
+    BCC @do_transmit
+    ; *SAVE detected — handle locally
+    JSR do_save_history
+    JSR clear_input_area
+    LDA #$00
+    STA last_was_return
+    STA input_col
+    STA input_row
+    STA tx_buf_len
+    JSR draw_input_cursor
+    RTS
+@do_transmit:
     ; Transmit the buffer contents + CR
     JSR transmit_buffer
     ; Clear input area and reset
@@ -866,6 +892,301 @@ transmit_buffer:
     LDA #CR
     JSR acia_send_byte
     RTS
+
+; =================================================================
+; CHECK_SAVE_CMD — Check if tx_buf starts with "*SAVE"
+; =================================================================
+; Returns: C=1 if *SAVE detected, C=0 otherwise
+; Compares first 5 bytes (case-insensitive, PETSCII uppercase $C1-$DA)
+
+check_save_cmd:
+    LDA tx_buf_len
+    CMP #$05                    ; at least 5 chars?
+    BCC @not_save
+    ; Check "*" ($2A)
+    LDA tx_buf
+    CMP #$2A
+    BNE @not_save
+    ; Check "S" ($D3 shifted uppercase or $53 unshifted)
+    LDA tx_buf+1
+    CMP #$D3
+    BEQ @got_s
+    CMP #$53
+    BNE @not_save
+@got_s:
+    ; Check "A" ($C1 or $41)
+    LDA tx_buf+2
+    CMP #$C1
+    BEQ @got_a
+    CMP #$41
+    BNE @not_save
+@got_a:
+    ; Check "V" ($D6 or $56)
+    LDA tx_buf+3
+    CMP #$D6
+    BEQ @got_v
+    CMP #$56
+    BNE @not_save
+@got_v:
+    ; Check "E" ($C5 or $45)
+    LDA tx_buf+4
+    CMP #$C5
+    BEQ @is_save
+    CMP #$45
+    BNE @not_save
+@is_save:
+    SEC
+    RTS
+@not_save:
+    CLC
+    RTS
+
+; =================================================================
+; DO_SAVE_HISTORY — Save partyline history to disk
+; =================================================================
+; Prompts for filename on row 24 (status line), writes history buffer.
+
+STATUS_ROW      = 24
+
+do_save_history:
+    ; Position cursor on status line and show prompt
+    JSR goto_status_line
+    LDX #$00
+@prompt_loop:
+    LDA save_prompt,X
+    BEQ @prompt_done
+    JSR CHROUT
+    INX
+    BNE @prompt_loop
+@prompt_done:
+
+    ; Read filename from keyboard on status line
+    LDX #$00                    ; filename length
+@fn_loop:
+    JSR GETIN
+    BEQ @fn_loop
+    CMP #CR
+    BEQ @fn_done
+    CMP #$14                    ; DEL
+    BNE @fn_char
+    CPX #$00
+    BEQ @fn_loop
+    DEX
+    ; Erase char on screen
+    LDA #$9D                    ; cursor left
+    JSR CHROUT
+    LDA #$20                    ; space
+    JSR CHROUT
+    LDA #$9D                    ; cursor left
+    JSR CHROUT
+    JMP @fn_loop
+@fn_char:
+    CPX #$10                    ; max 16 chars
+    BCS @fn_loop
+    STA save_filename,X
+    JSR CHROUT                  ; echo char
+    INX
+    JMP @fn_loop
+@fn_done:
+    CPX #$00                    ; empty filename?
+    BNE @fn_ok
+    JSR clear_status_line
+    RTS                         ; empty — abort
+@fn_ok:
+    STX save_fn_len
+
+    ; Show "SAVING..." on status line
+    JSR goto_status_line
+    LDX #$00
+@saving_loop:
+    LDA saving_msg,X
+    BEQ @saving_done
+    JSR CHROUT
+    INX
+    BNE @saving_loop
+@saving_done:
+
+    ; Open file for write: OPEN 2,8,2,"0:filename,S,W"
+    ; Build full filename string: "0:" + filename + ",S,W"
+    LDY #$00
+    LDA #$30                    ; '0'
+    STA save_fullname,Y
+    INY
+    LDA #$3A                    ; ':'
+    STA save_fullname,Y
+    INY
+    LDX #$00
+@copy_fn:
+    CPX save_fn_len
+    BCS @fn_suffix
+    LDA save_filename,X
+    STA save_fullname,Y
+    INX
+    INY
+    BNE @copy_fn
+@fn_suffix:
+    LDA #$2C                    ; ','
+    STA save_fullname,Y
+    INY
+    LDA #$53                    ; 'S'
+    STA save_fullname,Y
+    INY
+    LDA #$2C                    ; ','
+    STA save_fullname,Y
+    INY
+    LDA #$57                    ; 'W'
+    STA save_fullname,Y
+    INY
+    STY save_fullname_len
+
+    ; SETNAM
+    LDA save_fullname_len
+    LDX #<save_fullname
+    LDY #>save_fullname
+    JSR SETNAM
+
+    ; SETLFS: file#2, device 8, secondary 2
+    LDA #$02
+    LDX #$08
+    LDY #$02
+    JSR SETLFS
+
+    ; OPEN
+    JSR OPEN
+    BCS @save_error
+
+    ; CHKOUT (redirect output to file)
+    LDX #$02
+    JSR CHKOUT
+    BCS @save_error_close
+
+    ; Write history lines
+    ; Start from oldest line in ring buffer
+    LDA hist_count
+    BEQ @save_close             ; nothing to save
+    STA save_lines_left
+
+    ; Calculate start index: (hist_write_idx - hist_count) mod HIST_MAX_LINES
+    LDA hist_write_idx
+    SEC
+    SBC hist_count
+    BCS @no_wrap_start
+    CLC
+    ADC #HIST_MAX_LINES
+@no_wrap_start:
+    STA save_read_idx
+
+@save_line_loop:
+    ; Get address of this line
+    LDA save_read_idx
+    JSR calc_hist_offset        ; ZP_PTR2 = address
+
+    ; Write 35 bytes (trim trailing spaces)
+    LDY #HIST_LINE_SIZE - 1
+@trim_loop:
+    LDA (ZP_PTR2),Y
+    CMP #$20
+    BNE @found_end
+    DEY
+    BPL @trim_loop
+    ; Entirely blank line — just write CR
+    JMP @write_cr
+@found_end:
+    ; Write bytes 0..Y
+    INY                         ; Y = number of chars to write
+    STY save_line_len
+    LDY #$00
+@write_char:
+    LDA (ZP_PTR2),Y
+    JSR CHROUT
+    INY
+    CPY save_line_len
+    BCC @write_char
+@write_cr:
+    LDA #CR
+    JSR CHROUT
+
+    ; Advance to next line
+    INC save_read_idx
+    LDA save_read_idx
+    CMP #HIST_MAX_LINES
+    BCC @no_wrap_read
+    LDA #$00
+    STA save_read_idx
+@no_wrap_read:
+    DEC save_lines_left
+    BNE @save_line_loop
+
+@save_close:
+    JSR CLRCHN
+    LDA #$02
+    JSR CLOSE
+
+    ; Show success on status line
+    JSR goto_status_line
+    LDX #$00
+@ok_loop:
+    LDA save_ok_msg,X
+    BEQ @ok_done
+    JSR CHROUT
+    INX
+    BNE @ok_loop
+@ok_done:
+    RTS
+
+@save_error_close:
+    JSR CLRCHN
+    LDA #$02
+    JSR CLOSE
+@save_error:
+    JSR goto_status_line
+    LDX #$00
+@err_loop:
+    LDA save_err_msg,X
+    BEQ @err_done
+    JSR CHROUT
+    INX
+    BNE @err_loop
+@err_done:
+    RTS
+
+; --- Position cursor at start of status line (row 24) ---
+goto_status_line:
+    LDA #$13                    ; HOME
+    JSR CHROUT
+    LDX #STATUS_ROW
+@gs_down:
+    LDA #$11                    ; cursor down
+    JSR CHROUT
+    DEX
+    BNE @gs_down
+    RTS
+
+; --- Clear status line ---
+clear_status_line:
+    JSR goto_status_line
+    LDX #$28                    ; 40 chars
+@cs_loop:
+    LDA #$20
+    JSR CHROUT
+    DEX
+    BNE @cs_loop
+    RTS
+
+; --- Save command strings ---
+save_prompt:     .byte "FILENAME? ", $00
+saving_msg:      .byte "SAVING...", $00
+save_ok_msg:     .byte "SAVED.", $00
+save_err_msg:    .byte "SAVE ERROR!", $00
+
+; --- Save command variables ---
+save_filename:   .res 16, 0
+save_fn_len:     .byte 0
+save_fullname:   .res 24, 0    ; "0:filename,S,W"
+save_fullname_len: .byte 0
+save_lines_left: .byte 0
+save_read_idx:   .byte 0
+save_line_len:   .byte 0
 
 ; =================================================================
 ; SEND_QUIT — Send "*quit\r" via ACIA

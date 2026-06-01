@@ -6834,6 +6834,8 @@ NMI_HANDLER:
     PHA
     TXA
     PHA
+    LDA #$2F
+    STA $00                             ; Force DDR correct (prevent $01 becoming read-only)
     LDA $01                             ; Save current bank config
     PHA
     ORA #$06                            ; Ensure I/O + KERNAL visible
@@ -6892,7 +6894,14 @@ ACIA_REG_READ:
     CPX #$00
     BEQ @status
     ; X=8 or other: return carrier detect
-    LDA #$40
+    ; Check ACIA DCD bit (bit 5 of status register, active high = NO carrier)
+    LDA ACIA_STATUS
+    AND #$20                            ; Bit 5 = DCD
+    BNE @no_carrier                     ; DCD high = connection lost
+    LDA #$40                            ; Carrier present (bit 6 set for ROM)
+    RTS
+@no_carrier:
+    LDA #$00                            ; No carrier (bit 6 clear)
     RTS
 
 @status:
@@ -7503,8 +7512,12 @@ RECV_LEN        = $C3FE   ; Payload length
 RECV_POS        = $C3FF   ; Current read position for PROCESS_CMD
 NODATA_FLAG     = $C3FD   ; End-of-stream flag (reset by FLOW_CONTROL)
 SEND_PKT_LEN    = $C3FC   ; Temp: packet length during ACIA_SEND_PACKET
+EOS_RECEIVED    = $C3FB   ; Set when EOS (zero-length) packet received
 
 ACIA_FLOW_CONTROL:
+    ; Ensure DDR is correct (ROM may have zeroed $00, making $01 read-only)
+    LDA #$2F
+    STA $00
     ; Wait for start marker $01
     LDA #$00
     STA $A1                             ; Timeout counter lo
@@ -7555,16 +7568,21 @@ ACIA_FLOW_CONTROL:
     ; Our commands have token $43 (COM) — server responses have $22 (DAT)
     CMP #$43                            ; Is it a COM packet (echo)?
     BEQ @error                          ; Yes — return C=1 (discard)
-    ; Valid packet received — reset end-of-stream flag
+    ; Valid packet received — reset end-of-stream flags
     LDA #$00
     STA NODATA_FLAG
+    STA EOS_RECEIVED
     ; Calculate payload length (total - 5: len, token, seq, CRC_hi, CRC_lo)
     TYA                                 ; Y = total bytes received
     SEC
     SBC #$05
     STA RECV_LEN                        ; Payload length
     ; Zero-length payload = end-of-stream marker
-    BEQ @error
+    BNE @has_payload
+    INC EOS_RECEIVED                    ; Set flag (was 0 → 1)
+    SEC
+    RTS                                 ; Return C=1 (end of stream)
+@has_payload:
     ; Set read position to start of payload (offset 3)
     LDA #$03
     STA RECV_POS
@@ -7625,7 +7643,7 @@ ACIA_FLOW_CONTROL:
 ; =================================================================
 ; Sends: $01 [06] [$20] [$20] [seq] [CRC_hi] [CRC_lo] $02
 ; Seq is extracted from the received packet at RECV_BUF+2.
-; CRC init: $40/$E6 (matches original ROM ACK at L9ABC).
+; CRC init: $00/$00 (matches server receive-path CRC validation).
 ; =================================================================
 ACIA_SEND_ACK:
     PHA
@@ -7638,10 +7656,9 @@ ACIA_SEND_ACK:
     LDA #$01
     JSR ACIA_WAIT_READY
 
-    ; Init CRC with $40/$E6
-    LDA #$40
+    ; Init CRC with $00/$00 (matches server receive-path validation)
+    LDA #$00
     STA $C21D
-    LDA #$E6
     STA $C21E
 
     ; Byte 1: length = $06
@@ -7788,6 +7805,9 @@ ACIA_PROCESS_CMD:
     RTS
 
 @need_new_packet:
+    ; If EOS already received, skip the timeout wait
+    LDA EOS_RECEIVED
+    BNE @no_data
     ; Try to receive the next packet via ACIA_FLOW_CONTROL.
     ; It has its own ~16K iteration timeout for genuine end-of-stream.
     JSR ACIA_FLOW_CONTROL

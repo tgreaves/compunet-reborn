@@ -1,3 +1,71 @@
+# 0.11-beta (2026-06-01)
+
+* Client:
+	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00, matching server
+	  receive-path validation. CRC check re-enabled for all packets.
+	* Fixed: ~2.7 second delay before duckshoot appeared after viewing frames.
+	  EOS packet was consumed during pre-fetch but subsequent ACIA_PROCESS_CMD
+	  calls would wait for the full timeout. New EOS_RECEIVED flag ($C3FB)
+	  causes immediate stream termination on re-entry.
+	* Carrier detect: ACIA_REG_READ now checks real DCD bit ($DE01 bit 5)
+	  instead of hardcoding carrier present. On C64 Ultimate, TCP disconnect
+	  triggers the ROM's "CARRIER LOST" handler and returns to dial prompt
+	  for easy reconnection. Partyline also checks DCD in its main loop.
+	* Fixed: crash after browsing several directories. ROM directory parser
+	  temporarily zeroes $00 (DDR), making $01 writes no-ops. With ACK-paced
+	  flow control, NMIs fire during ROM processing — if NMI arrives while
+	  DDR is zero, I/O becomes permanently invisible and the client hangs.
+	  NMI handler now forces $00=$2F before touching $01. ACIA_FLOW_CONTROL
+	  also restores $00=$2F on entry as a recovery point (without changing
+	  $01, which must remain in the ROM's chosen bank state).
+* Server:
+	* Disconnect events now logged to audit trail (protocol + terminal).
+
+# 0.10-beta (2026-05-31)
+
+* Server:
+	* Fixed: `_save_directory` now preserves the `dynamic` field in directory
+	  JSON. Previously, any upload or directory modification would drop this
+	  flag, causing dynamic pages (e.g. WHO IS ONLINE?) to serve stale cached
+	  content instead of regenerating on each view.
+	* Fixed: `_save_directory` now preserves the `open_upload` field in
+	  directory JSON. Previously, any upload into an open directory would drop
+	  the flag, blocking subsequent uploads by non-owners. (terminal.py already
+	  preserved this correctly.)
+	* Missing frame files now serve an error frame ("FRAME NOT FOUND") instead
+	  of sending uninitialised data. Event logged to audit.
+	* Fixed: partyline *quit KeyError when user disconnects simultaneously
+	  with sending the quit command (race condition).
+	* Fixed: commands sent by client during ACK wait were being consumed and
+	  lost. Now stashed in pending_packets buffer and processed by main loop.
+	* Dedicated partyline log (`server/data/partyline.jsonl`): records all
+	  messages, commands, joins, leaves, disconnects, kicks, and bans from
+	  both protocol and terminal clients.
+* Partyline:
+	* `*save` command (#61): saves chat scrollback. C64 client prompts for
+	  filename and saves to disk drive as PETSCII SEQ file (matching original
+	  Compunet historical format). Terminal clients save via XMODEM.
+	* Chat history buffer increased: C64 client 114 → 255 lines (~9KB),
+	  terminal 100 → 500 lines.
+* Website:
+	* Admin panel: Partyline Log page (`/admin/partyline-log`) with paginated
+	  view of partyline activity (50 per page, newest first).
+* Content:
+	* Upload date/time now stored in directory JSON (`uploaded` field, ISO format).
+	  Preserved during directory saves.
+	* "WHAT'S NEW?" dynamic directory (page 199, GOTO NEW): shows the 11 most
+	  recent uploads across all directories, sorted newest first. Regenerated
+	  on each view.
+* Deployment notes:
+	* Backfill `uploaded` field for existing content based on filesystem dates.
+	* Re-add `"dynamic": "who"` to WHO IS ONLINE? entry in root.json if missing.
+	* Add "WHAT'S NEW?" entry to root.json: `{"page_num": 199, "title":
+	  "WHAT'S NEW?", "type": "D", "author": "SYSTEM", "price": 0, "life": 0,
+	  "keyword": "NEW", "dynamic": "new"}`.
+	* Verify `"open_upload": true` is present in community directories
+	  (e.g. jungle/graphics/directory.json). If missing, re-add it — previous
+	  server versions did not preserve the field on save.
+
 # 0.9.1-beta (2026-05-31)
 
 * Server:

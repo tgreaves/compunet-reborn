@@ -163,6 +163,19 @@ def _regenerate_who_frame():
         f.write(bytes(frame))
 
 
+def _populate_whats_new(page, directory):
+    """Populate the WHAT'S NEW? dynamic directory with most recent uploads."""
+    # Collect all pages that have an uploaded timestamp
+    all_pages = [p for p in directory.pages.values()
+                 if getattr(p, 'uploaded', None) and p.page_num != page.page_num]
+    # Sort by uploaded date, newest first
+    all_pages.sort(key=lambda p: p.uploaded, reverse=True)
+    # Take top 11 (one page of directory entries)
+    page.children = all_pages[:11]
+    log.info("WHAT'S NEW: found %d pages with uploaded, showing %d",
+             len(all_pages), len(page.children))
+
+
 # Protocol constants
 RESP_ACK = 0x41       # 'A' - acknowledge/proceed
 RESP_LINKING = 0x4C   # 'L' - linking required
@@ -257,6 +270,7 @@ class CompunetPage:
         self.life = life
         self.vote = vote
         self.keyword = keyword
+        self.uploaded = None     # ISO timestamp when content was uploaded
         self.children = []
         self.frames = []    # list of bytes objects (raw frame data)
         self.parent = None
@@ -345,6 +359,7 @@ class CompunetDirectory:
         page.parent = parent
         page._dir_path = page_dir
         page.dynamic = node.get('dynamic', None)
+        page.uploaded = node.get('uploaded', None)
         self.pages[page.page_num] = page
 
         # Load frames from page folder
@@ -354,6 +369,14 @@ class CompunetDirectory:
             if os.path.exists(frame_path):
                 with open(frame_path, 'rb') as f:
                     page.frames.append(f.read())
+            else:
+                # Missing frame file — insert error frame and log
+                error_frame = b'\x00\x06\x0F\x8E\x0D\x1C FRAME NOT FOUND\x0D\x0D'
+                error_frame += ascii_to_petscii(f' {frame_file}') + b'\x0D\x00'
+                page.frames.append(error_frame)
+                log.warning('CONTENT: missing frame file: %s', frame_path)
+                audit_log('missing_frame', path=frame_path,
+                          page=page.page_num, title=page.title)
 
         # For program pages, calculate size in KB from file data
         if page.page_type == 'P' and page.frames:
@@ -569,6 +592,10 @@ class CompunetSession:
         if page is None:
             return self._make_dir_response()
 
+        # Dynamic directory: populate on navigation
+        if getattr(page, 'dynamic', None) == 'new':
+            _populate_whats_new(page, self.directory)
+
         self.selected_entry = 0
         self.dir_page_offset = 0
         if page.has_subdir():
@@ -663,7 +690,10 @@ class CompunetSession:
                 audit_log('read', user=self.user_id, page=child.page_num,
                           title=child.title, type=child.page_type)
                 return self._send_current_frame()
-            elif child.has_subdir():
+            # Dynamic directory: populate children on each view
+            if getattr(child, 'dynamic', None) == 'new':
+                _populate_whats_new(child, self.directory)
+            if child.has_subdir():
                 self.current_page = child
                 self.selected_entry = 0
                 self.dir_page_offset = 0
@@ -1576,6 +1606,7 @@ class CompunetSession:
             price=send['price'],
             life=send['lifetime'],
         )
+        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         new_page.parent = self.current_page
         new_page._frame_files = frame_files
         new_page._dir_path = page_dir
@@ -1604,6 +1635,8 @@ class CompunetSession:
         def _save_dir_json(page, json_path):
             """Write a directory JSON for a page's children."""
             data = {}
+            if hasattr(page, 'open_upload') and page.open_upload:
+                data['open_upload'] = True
             if hasattr(page, 'header') and page.header:
                 data['header'] = page.header
             if hasattr(page, '_adverts') and page._adverts:
@@ -1620,6 +1653,10 @@ class CompunetSession:
                 }
                 if child.keyword:
                     node['keyword'] = child.keyword
+                if getattr(child, 'dynamic', None):
+                    node['dynamic'] = child.dynamic
+                if getattr(child, 'uploaded', None):
+                    node['uploaded'] = child.uploaded
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files
@@ -1713,6 +1750,9 @@ class CompunetSession:
         current_page_num = self.current_page.page_num
         self.directory.reload()
         self.current_page = self.directory.pages.get(current_page_num, self.directory.root)
+        # Re-populate dynamic directories after reload
+        if getattr(self.current_page, 'dynamic', None) == 'new':
+            _populate_whats_new(self.current_page, self.directory)
 
         self.dir_displayed = True
         self.last_response_type = RESP_DIR
@@ -2203,8 +2243,12 @@ async def tcp_handler(reader, writer):
     session.client_ip = addr[0] if addr else ''
     x25 = X25Connection()
 
+    pending_packets = []  # Packets received during ACK wait (non-ACK)
+
     async def wait_for_ack(timeout=5.0):
-        """Wait for client to send an ACK packet. Returns True if received."""
+        """Wait for client to send an ACK packet. Returns True if received.
+        Any non-ACK packets received are stashed in pending_packets for
+        the main loop to process."""
         try:
             deadline = asyncio.get_event_loop().time() + timeout
             while asyncio.get_event_loop().time() < deadline:
@@ -2218,6 +2262,9 @@ async def tcp_handler(reader, writer):
                     if token == TOKEN_ACK:
                         log.debug('ACK received: seq=$%02X', seq)
                         return True
+                    else:
+                        # Stash non-ACK packet for main loop
+                        pending_packets.append((token, seq, payload))
         except (asyncio.TimeoutError, ConnectionResetError, BrokenPipeError):
             log.debug('ACK wait: timeout or disconnect')
         return False
@@ -2404,7 +2451,11 @@ async def tcp_handler(reader, writer):
             
             log.debug('TCP RX: %d bytes: %s', len(data), data.hex())
             packets = x25.feed_data(data)
-            
+            # Prepend any packets stashed during ACK wait
+            if pending_packets:
+                packets = pending_packets + packets
+                pending_packets.clear()
+
             for token, seq, payload in packets:
                 log.info('TCP: packet token=$%02X seq=$%02X payload=%d bytes',
                          token, seq, len(payload))
@@ -2591,6 +2642,7 @@ async def tcp_handler(reader, writer):
     finally:
         if session.user_id:
             _user_disconnect(session.user_id)
+            audit_log('disconnect', user=session.user_id, ip=session.client_ip)
         writer.close()
         try:
             await writer.wait_closed()
