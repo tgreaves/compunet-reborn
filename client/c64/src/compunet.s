@@ -7515,11 +7515,9 @@ SEND_PKT_LEN    = $C3FC   ; Temp: packet length during ACIA_SEND_PACKET
 EOS_RECEIVED    = $C3FB   ; Set when EOS (zero-length) packet received
 
 ACIA_FLOW_CONTROL:
-    ; Ensure DDR/port are correct (ROM may have corrupted $00)
+    ; Ensure DDR is correct (ROM may have zeroed $00, making $01 read-only)
     LDA #$2F
     STA $00
-    LDA #$37
-    STA $01
     ; Wait for start marker $01
     LDA #$00
     STA $A1                             ; Timeout counter lo
