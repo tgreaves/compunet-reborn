@@ -7525,6 +7525,7 @@ ACIA_FLOW_CONTROL:
     STA $FFFB
     ; Wait for start marker $01
     LDA #$00
+    STA EOS_RECEIVED                    ; Clear EOS flag (new stream may follow)
     STA $A1                             ; Timeout counter lo
     STA $A2                             ; Timeout counter hi
 @wait_start:
