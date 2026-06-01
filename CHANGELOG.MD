@@ -13,7 +13,12 @@
 	  server receive-path validation. CRC check re-enabled for all packets.
 	* Fixed: commands sent by client during ACK wait were being consumed and
 	  lost. Now stashed in pending_packets buffer and processed by main loop.
-	  Fixes LIFE/EXTEND not reloading directory and duckshoot corruption.
+	* Dedicated partyline log (`server/data/partyline.jsonl`): records all
+	  messages, commands, joins, leaves, disconnects, kicks, and bans from
+	  both protocol and terminal clients.
+* Website:
+	* Admin panel: Partyline Log page (`/admin/partyline-log`) with paginated
+	  view of partyline activity (50 per page, newest first).
 
 # 0.9.1-beta (2026-05-31)
 
