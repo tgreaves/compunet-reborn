@@ -9,10 +9,11 @@
 	  of sending uninitialised data. Event logged to audit.
 	* Fixed: partyline *quit KeyError when user disconnects simultaneously
 	  with sending the quit command (race condition).
-	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00 in client, matching
-	  server receive-path validation. CRC check re-enabled for all packets.
 	* Fixed: commands sent by client during ACK wait were being consumed and
 	  lost. Now stashed in pending_packets buffer and processed by main loop.
+* Client:
+	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00, matching server
+	  receive-path validation. CRC check re-enabled for all packets.
 	* Dedicated partyline log (`server/data/partyline.jsonl`): records all
 	  messages, commands, joins, leaves, disconnects, kicks, and bans from
 	  both protocol and terminal clients.
