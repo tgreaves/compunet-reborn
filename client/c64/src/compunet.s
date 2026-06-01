@@ -7518,8 +7518,14 @@ ACIA_FLOW_CONTROL:
     ; Ensure DDR is correct (ROM may have zeroed $00, making $01 read-only)
     LDA #$2F
     STA $00
+    ; Re-arm NMI vector (ROM directory buffer overwrites $FFFA/$FFFB)
+    LDA #$00
+    STA $FFFA
+    LDA #$CF
+    STA $FFFB
     ; Wait for start marker $01
     LDA #$00
+    STA EOS_RECEIVED                    ; Clear EOS flag (new stream may follow)
     STA $A1                             ; Timeout counter lo
     STA $A2                             ; Timeout counter hi
 @wait_start:
@@ -7805,9 +7811,6 @@ ACIA_PROCESS_CMD:
     RTS
 
 @need_new_packet:
-    ; If EOS already received, skip the timeout wait
-    LDA EOS_RECEIVED
-    BNE @no_data
     ; Try to receive the next packet via ACIA_FLOW_CONTROL.
     ; It has its own ~16K iteration timeout for genuine end-of-stream.
     JSR ACIA_FLOW_CONTROL

@@ -1,3 +1,17 @@
+# 0.11.1-beta (2026-06-01)
+
+* Client:
+	* Fixed: downloads broken by EOS_RECEIVED flag persisting across stream
+	  boundaries. After receiving the program header + EOS, the flag remained
+	  set, causing ACIA_PROCESS_CMD to immediately return "no data" when the
+	  ROM called it for the actual download bytes. Removed EOS_RECEIVED check
+	  from @need_new_packet — ACIA_FLOW_CONTROL's timeout handles end-of-stream.
+	* Hardening: NMI handler forces $00=$2F (DDR) before banking in I/O,
+	  preventing failure if ROM has zeroed the DDR during processing.
+	* Hardening: ACIA_FLOW_CONTROL restores $00=$2F and re-arms the NMI
+	  vector ($FFFA/$FFFB=$CF00) on entry, after ROM directory buffer
+	  operations may have overwritten them.
+
 # 0.11-beta (2026-06-01)
 
 * Client:
