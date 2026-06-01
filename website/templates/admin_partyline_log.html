@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Partyline Log — Admin — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>PARTYLINE LOG</h1>
+
+<p>Partyline activity (newest first). Page {{ page }} of {{ total_pages }}.</p>
+
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>TIME</th>
+            <th>EVENT</th>
+            <th>USER</th>
+            <th>ROOM</th>
+            <th>DETAILS</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in entries %}
+        <tr>
+            <td>{{ entry.ts }}</td>
+            <td>{{ entry.event }}</td>
+            <td>{{ entry.get('user', '') }}</td>
+            <td>{{ entry.get('room', '') }}</td>
+            <td>
+                {% if entry.event == 'message' %}
+                    {{ entry.get('text', '') }}
+                {% elif entry.event == 'command' %}
+                    *{{ entry.get('cmd', '') }} {{ entry.get('args', '') }}
+                {% elif entry.event == 'kick' %}
+                    kicked {{ entry.get('target', '') }}
+                {% elif entry.event == 'ban' %}
+                    banned {{ entry.get('target', '') }}
+                {% else %}
+                    {% for key, val in entry.items() %}
+                        {% if key not in ('ts', 'event', 'user', 'room') %}
+                            {{ key }}={{ val }}{% if not loop.last %}, {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if not entries %}
+<p>No partyline activity recorded yet.</p>
+{% endif %}
+
+<div style="margin-top: 24px;">
+    {% if page > 1 %}
+        <a href="{{ url_for('admin_partyline_log', page=page-1) }}" class="btn">&lt; NEWER</a>
+    {% endif %}
+    {% if page < total_pages %}
+        <a href="{{ url_for('admin_partyline_log', page=page+1) }}" class="btn">OLDER &gt;</a>
+    {% endif %}
+</div>
+
+<p style="margin-top: 24px;"><a href="{{ url_for('admin_users') }}">&lt; BACK TO ADMIN</a></p>
+{% endblock %}
