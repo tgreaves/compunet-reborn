@@ -3312,6 +3312,7 @@ async def terminal_handler(reader, writer):
     finally:
         if session.user_id:
             cs._online_users.discard(session.user_id)
+            cs.audit_log('disconnect', user=session.user_id, ip=session.client_ip)
         try:
             writer.close()
             await writer.wait_closed()

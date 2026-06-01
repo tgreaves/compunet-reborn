@@ -3,6 +3,10 @@
 * Client:
 	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00, matching server
 	  receive-path validation. CRC check re-enabled for all packets.
+	* Fixed: ~2.7 second delay before duckshoot appeared after viewing frames.
+	  EOS packet was consumed during pre-fetch but subsequent ACIA_PROCESS_CMD
+	  calls would wait for the full timeout. New EOS_RECEIVED flag ($C3FB)
+	  causes immediate stream termination on re-entry.
 
 # 0.10-beta (2026-05-31)
 

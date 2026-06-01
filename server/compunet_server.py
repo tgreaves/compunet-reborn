@@ -2642,6 +2642,7 @@ async def tcp_handler(reader, writer):
     finally:
         if session.user_id:
             _user_disconnect(session.user_id)
+            audit_log('disconnect', user=session.user_id, ip=session.client_ip)
         writer.close()
         try:
             await writer.wait_closed()

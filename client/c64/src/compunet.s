@@ -7503,6 +7503,7 @@ RECV_LEN        = $C3FE   ; Payload length
 RECV_POS        = $C3FF   ; Current read position for PROCESS_CMD
 NODATA_FLAG     = $C3FD   ; End-of-stream flag (reset by FLOW_CONTROL)
 SEND_PKT_LEN    = $C3FC   ; Temp: packet length during ACIA_SEND_PACKET
+EOS_RECEIVED    = $C3FB   ; Set when EOS (zero-length) packet received
 
 ACIA_FLOW_CONTROL:
     ; Wait for start marker $01
@@ -7555,16 +7556,21 @@ ACIA_FLOW_CONTROL:
     ; Our commands have token $43 (COM) — server responses have $22 (DAT)
     CMP #$43                            ; Is it a COM packet (echo)?
     BEQ @error                          ; Yes — return C=1 (discard)
-    ; Valid packet received — reset end-of-stream flag
+    ; Valid packet received — reset end-of-stream flags
     LDA #$00
     STA NODATA_FLAG
+    STA EOS_RECEIVED
     ; Calculate payload length (total - 5: len, token, seq, CRC_hi, CRC_lo)
     TYA                                 ; Y = total bytes received
     SEC
     SBC #$05
     STA RECV_LEN                        ; Payload length
     ; Zero-length payload = end-of-stream marker
-    BEQ @error
+    BNE @has_payload
+    INC EOS_RECEIVED                    ; Set flag (was 0 → 1)
+    SEC
+    RTS                                 ; Return C=1 (end of stream)
+@has_payload:
     ; Set read position to start of payload (offset 3)
     LDA #$03
     STA RECV_POS
@@ -7787,6 +7793,9 @@ ACIA_PROCESS_CMD:
     RTS
 
 @need_new_packet:
+    ; If EOS already received, skip the timeout wait
+    LDA EOS_RECEIVED
+    BNE @no_data
     ; Try to receive the next packet via ACIA_FLOW_CONTROL.
     ; It has its own ~16K iteration timeout for genuine end-of-stream.
     JSR ACIA_FLOW_CONTROL
