@@ -1,3 +1,12 @@
+# 0.11.1-beta (2026-06-01)
+
+* Client:
+	* Fixed: NMI vector corruption crash. ROM's directory buffer overwrites
+	  $FFFA-$FFFF (hardware NMI vector in RAM) when rendering directory
+	  responses. If an NMI fires while KERNAL is banked out, the corrupted
+	  vector causes a jump to garbage. ACIA_FLOW_CONTROL now re-arms
+	  $FFFA/$FFFB to $CF00 after every received packet.
+
 # 0.11-beta (2026-06-01)
 
 * Client:
