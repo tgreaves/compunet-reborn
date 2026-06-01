@@ -7560,6 +7560,11 @@ ACIA_FLOW_CONTROL:
     RTS
 
 @pkt_complete:
+    ; Re-arm NMI vector (ROM directory buffer may overwrite $FFFA/$FFFB)
+    LDA #$00
+    STA $FFFA
+    LDA #$CF
+    STA $FFFB
     ; Packet in RECV_BUF: [len] [token] [seq] [payload...] [CRC_hi] [CRC_lo]
     ; Extract token
     LDA RECV_BUF+1                      ; Token byte
