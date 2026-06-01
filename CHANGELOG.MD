@@ -11,12 +11,18 @@
 	  with sending the quit command (race condition).
 	* Fixed: commands sent by client during ACK wait were being consumed and
 	  lost. Now stashed in pending_packets buffer and processed by main loop.
-* Client:
-	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00, matching server
-	  receive-path validation. CRC check re-enabled for all packets.
 	* Dedicated partyline log (`server/data/partyline.jsonl`): records all
 	  messages, commands, joins, leaves, disconnects, kicks, and bans from
 	  both protocol and terminal clients.
+* Client:
+	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00, matching server
+	  receive-path validation. CRC check re-enabled for all packets.
+* Partyline:
+	* `*save` command (#61): saves chat scrollback. C64 client prompts for
+	  filename and saves to disk drive as PETSCII SEQ file (matching original
+	  Compunet historical format). Terminal clients save via XMODEM.
+	* Chat history buffer increased: C64 client 114 → 255 lines (~9KB),
+	  terminal 100 → 500 lines.
 * Website:
 	* Admin panel: Partyline Log page (`/admin/partyline-log`) with paginated
 	  view of partyline activity (50 per page, newest first).

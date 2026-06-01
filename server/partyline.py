@@ -119,6 +119,7 @@ Sample Partyline commands:-
  a different room
 *dice (number) to roll
 *call (user) to call someone
+*save to save chat log
 *quit to leave partyline"""
 
 
@@ -185,6 +186,10 @@ async def process_input(user_id, line, writer):
             await _cmd_ban(writer, user_id, args)
         elif cmd == "unban":
             await _cmd_unban(writer, user_id, args)
+        elif cmd == "save":
+            # Handled by the client (C64 saves locally, terminal uses XMODEM)
+            # Return special marker so caller knows to handle save
+            return 'save'
         elif cmd == "quit" or cmd == "exit":
             await _cmd_quit(writer, user_id)
             return True
@@ -544,8 +549,12 @@ async def handle_session(reader, writer, user_id):
             if not line:
                 continue
 
-            should_exit = await process_input(user_id, line, writer)
-            if should_exit:
+            result = await process_input(user_id, line, writer)
+            if result == 'save':
+                # C64 client handles save locally from its own buffer
+                await send_line(writer, "Saving...")
+                await send_line(writer, "")
+            elif result:
                 return
 
     except (ConnectionResetError, BrokenPipeError, OSError):

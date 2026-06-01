@@ -1169,7 +1169,7 @@ class TerminalSession:
         pl.partyline_log('join', user=self.user_id)
 
         # Chat history buffer (server-side, scrollable)
-        chat_lines = []  # full history (up to 100 lines)
+        chat_lines = []  # full history (up to 500 lines)
         scroll_offset = 0  # 0 = showing latest, >0 = scrolled back
 
         async def redraw_chat():
@@ -1194,8 +1194,8 @@ class TerminalSession:
                 chat_lines.append(text[:35])
                 text = text[35:]
             chat_lines.append(text)
-            # Trim to 100 lines max
-            while len(chat_lines) > 100:
+            # Trim to 500 lines max
+            while len(chat_lines) > 500:
                 chat_lines.pop(0)
             # If at bottom, redraw; otherwise just leave scroll position
             if scroll_offset == 0:
@@ -1290,9 +1290,11 @@ class TerminalSession:
                                 ascii_line = pl.petscii_to_ascii(
                                     bytes([ord(c) for c in input_buf.strip()]))
                                 # Process through shared handler
-                                should_exit = await pl.process_input(
+                                result = await pl.process_input(
                                     self.user_id, ascii_line, term_writer)
-                                if should_exit:
+                                if result == 'save':
+                                    await self._partyline_save(chat_lines)
+                                elif result:
                                     raise StopIteration()
                             # Clear input
                             input_buf = ''
@@ -1335,6 +1337,35 @@ class TerminalSession:
                 pl.partyline_log('leave', user=self.user_id, room=room)
             await pl.broadcast_room(room, f'{self.user_id} has left partyline')
             await pl.broadcast_room(room, "")
+
+    async def _partyline_save(self, chat_lines):
+        """Save partyline scrollback via XMODEM (terminal client)."""
+        # Build raw PETSCII data from chat_lines (matching historical format)
+        data = bytearray()
+        for line in chat_lines:
+            data.extend(ascii_to_petscii_shifted(line))
+            data.append(0x0D)
+
+        # Prompt user to start XMODEM receive
+        await self.cursor_to(24, 0)
+        await self.send(COL_WHITE)
+        await self.send_text(f'XMODEM SAVE ({len(data)} bytes)...'.ljust(39))
+
+        try:
+            start_byte = await asyncio.wait_for(self._wait_xmodem_start(), timeout=60.0)
+        except asyncio.TimeoutError:
+            await self.cursor_to(24, 0)
+            await self.send_text('SAVE TIMEOUT'.ljust(39))
+            await self.read_key()
+            return
+
+        success = await self._xmodem_send_data(bytes(data), start_byte == 0x43)
+        await self.cursor_to(24, 0)
+        if success:
+            await self.send_text('SAVE COMPLETE'.ljust(39))
+        else:
+            await self.send_text('SAVE FAILED'.ljust(39))
+        await self.read_key()
 
         # Return to directory
         await self.render_directory()
