@@ -11,6 +11,12 @@
 	  instead of hardcoding carrier present. On C64 Ultimate, TCP disconnect
 	  triggers the ROM's "CARRIER LOST" handler and returns to dial prompt
 	  for easy reconnection. Partyline also checks DCD in its main loop.
+	* Fixed: crash after browsing several directories. ROM directory parser
+	  temporarily zeroes $00 (DDR), making $01 writes no-ops. With ACK-paced
+	  flow control, NMIs fire during ROM processing — if NMI arrives while
+	  DDR is zero, I/O becomes permanently invisible and the client hangs.
+	  NMI handler now forces $00=$2F; ACIA_FLOW_CONTROL restores both
+	  $00/$01 on entry as a recovery point.
 
 # 0.10-beta (2026-05-31)
 
