@@ -6834,6 +6834,8 @@ NMI_HANDLER:
     PHA
     TXA
     PHA
+    LDA #$2F
+    STA $00                             ; Force DDR correct (prevent $01 becoming read-only)
     LDA $01                             ; Save current bank config
     PHA
     ORA #$06                            ; Ensure I/O + KERNAL visible
@@ -7513,6 +7515,11 @@ SEND_PKT_LEN    = $C3FC   ; Temp: packet length during ACIA_SEND_PACKET
 EOS_RECEIVED    = $C3FB   ; Set when EOS (zero-length) packet received
 
 ACIA_FLOW_CONTROL:
+    ; Ensure DDR/port are correct (ROM may have corrupted $00)
+    LDA #$2F
+    STA $00
+    LDA #$37
+    STA $01
     ; Wait for start marker $01
     LDA #$00
     STA $A1                             ; Timeout counter lo
