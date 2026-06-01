@@ -562,6 +562,39 @@ def admin_audit():
                            page=page, total_pages=total_pages)
 
 
+@app.route('/admin/partyline-log')
+def admin_partyline_log():
+    denied = _require_admin()
+    if denied:
+        return denied
+
+    page = int(request.args.get('page', 1))
+    per_page = 50
+
+    # Read partyline log directly (it's on the same filesystem in Docker)
+    log_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'data', 'partyline.jsonl')
+    entries = []
+    if os.path.exists(log_path):
+        with open(log_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+
+    # Reverse for newest first
+    entries.reverse()
+    total = len(entries)
+    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+    start = (page - 1) * per_page
+    entries = entries[start:start + per_page]
+
+    return render_template('admin_partyline_log.html', entries=entries,
+                           page=page, total_pages=total_pages)
+
+
 # ============================================================
 # Password Reset
 # ============================================================

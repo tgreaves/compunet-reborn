@@ -9,12 +9,34 @@ Web clients connect via WebSocket and use a queue-based adapter.
 """
 
 import asyncio
+import datetime
 import json
 import logging
 import os
 import random
 
 logger = logging.getLogger(__name__)
+
+# Partyline log
+PARTYLINE_LOG_PATH = os.path.join(os.path.dirname(__file__), 'data', 'partyline.jsonl')
+
+
+def partyline_log(event, user=None, **details):
+    """Append an event to the partyline log (JSON-lines format)."""
+    entry = {
+        'ts': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+        'event': event,
+    }
+    if user:
+        entry['user'] = user
+    entry.update(details)
+    try:
+        os.makedirs(os.path.dirname(PARTYLINE_LOG_PATH), exist_ok=True)
+        with open(PARTYLINE_LOG_PATH, 'a') as f:
+            f.write(json.dumps(entry) + '\n')
+    except OSError:
+        logger.warning('Failed to write partyline log entry: %s', entry)
+
 
 # Ban list
 CFG_DIR = os.path.join(os.path.dirname(__file__), 'cfg')
@@ -97,6 +119,7 @@ Sample Partyline commands:-
  a different room
 *dice (number) to roll
 *call (user) to call someone
+*save to save chat log
 *quit to leave partyline"""
 
 
@@ -142,6 +165,8 @@ async def process_input(user_id, line, writer):
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
         logger.info("Partyline cmd from %s: *%s %s", user_id, cmd, args)
+        room = _users[user_id]["room"] if user_id in _users else "?"
+        partyline_log('command', user=user_id, room=room, cmd=cmd, args=args)
 
         if cmd == "help":
             await _cmd_help(writer, user_id)
@@ -161,6 +186,10 @@ async def process_input(user_id, line, writer):
             await _cmd_ban(writer, user_id, args)
         elif cmd == "unban":
             await _cmd_unban(writer, user_id, args)
+        elif cmd == "save":
+            # Handled by the client (C64 saves locally, terminal uses XMODEM)
+            # Return special marker so caller knows to handle save
+            return 'save'
         elif cmd == "quit" or cmd == "exit":
             await _cmd_quit(writer, user_id)
             return True
@@ -171,6 +200,7 @@ async def process_input(user_id, line, writer):
         # Chat message — format and broadcast
         name = display_name(user_id)
         room = _users[user_id]["room"]
+        partyline_log('message', user=user_id, room=room, text=line)
         chunks = [line[i:i+35] for i in range(0, len(line), 35)]
         # Send to self
         await send_line(writer, f"{name}:")
@@ -232,7 +262,6 @@ async def read_line(reader):
         data = await asyncio.wait_for(reader.read(1), timeout=60.0)
         if not data:
             raise ConnectionResetError("Client disconnected")
-        logger.debug("Partyline RX byte: $%02X", data[0])
         if data == CR:
             break
         buf.extend(data)
@@ -388,6 +417,7 @@ async def _cmd_kick(writer, user_id, args):
     await send_line(writer, "")
     from compunet_server import audit_log
     audit_log('partyline_kick', user=user_id, target=target)
+    partyline_log('kick', user=user_id, target=target, room=target_room)
     logger.info("User %s kicked %s from partyline", user_id, target)
 
 
@@ -427,6 +457,7 @@ async def _cmd_ban(writer, user_id, args):
     await send_line(writer, "")
     from compunet_server import audit_log
     audit_log('partyline_ban', user=user_id, target=target)
+    partyline_log('ban', user=user_id, target=target)
     logger.info("User %s banned %s from partyline", user_id, target)
 
 
@@ -453,6 +484,8 @@ async def _cmd_unban(writer, user_id, args):
 
 async def _cmd_quit(writer, user_id):
     """Handle user quitting partyline."""
+    if user_id not in _users:
+        return
     name = display_name(user_id)
     room = _users[user_id]["room"]
     # Remove user from state before broadcasting
@@ -460,13 +493,18 @@ async def _cmd_quit(writer, user_id):
     await broadcast_room(room, f"{name} has left partyline")
     await broadcast_room(room, "")
     # Send exit sentinel to client
-    await send_line(writer, "*EXIT")
+    try:
+        await send_line(writer, "*EXIT")
+    except (ConnectionResetError, BrokenPipeError, OSError):
+        pass
     logger.info("User %s quit partyline", user_id)
+    partyline_log('leave', user=user_id, room=room)
 
 
 async def handle_session(reader, writer, user_id):
     """Handle a partyline session. Returns when user quits."""
     logger.info("User %s entering partyline", user_id)
+    partyline_log('join', user=user_id)
 
     # Check ban list
     if _is_banned(user_id):
@@ -511,8 +549,12 @@ async def handle_session(reader, writer, user_id):
             if not line:
                 continue
 
-            should_exit = await process_input(user_id, line, writer)
-            if should_exit:
+            result = await process_input(user_id, line, writer)
+            if result == 'save':
+                # C64 client handles save locally from its own buffer
+                await send_line(writer, "Saving...")
+                await send_line(writer, "")
+            elif result:
                 return
 
     except (ConnectionResetError, BrokenPipeError, OSError):
@@ -523,6 +565,7 @@ async def handle_session(reader, writer, user_id):
             room = _users[user_id]["room"]
             name = display_name(user_id)
             del _users[user_id]
+            partyline_log('disconnect', user=user_id, room=room)
             await broadcast_room(room, f"{name} has left partyline")
             await broadcast_room(room, "")
             logger.info("User %s removed from partyline (cleanup)", user_id)

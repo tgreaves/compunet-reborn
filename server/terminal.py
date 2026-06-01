@@ -1166,9 +1166,10 @@ class TerminalSession:
 
         # Register with partyline
         pl._users[self.user_id] = {"writer": None, "alias": None, "room": "lobby"}
+        pl.partyline_log('join', user=self.user_id)
 
         # Chat history buffer (server-side, scrollable)
-        chat_lines = []  # full history (up to 100 lines)
+        chat_lines = []  # full history (up to 500 lines)
         scroll_offset = 0  # 0 = showing latest, >0 = scrolled back
 
         async def redraw_chat():
@@ -1193,8 +1194,8 @@ class TerminalSession:
                 chat_lines.append(text[:35])
                 text = text[35:]
             chat_lines.append(text)
-            # Trim to 100 lines max
-            while len(chat_lines) > 100:
+            # Trim to 500 lines max
+            while len(chat_lines) > 500:
                 chat_lines.pop(0)
             # If at bottom, redraw; otherwise just leave scroll position
             if scroll_offset == 0:
@@ -1289,9 +1290,11 @@ class TerminalSession:
                                 ascii_line = pl.petscii_to_ascii(
                                     bytes([ord(c) for c in input_buf.strip()]))
                                 # Process through shared handler
-                                should_exit = await pl.process_input(
+                                result = await pl.process_input(
                                     self.user_id, ascii_line, term_writer)
-                                if should_exit:
+                                if result == 'save':
+                                    await self._partyline_save(chat_lines)
+                                elif result:
                                     raise StopIteration()
                             # Clear input
                             input_buf = ''
@@ -1331,8 +1334,38 @@ class TerminalSession:
             room = pl._users.get(self.user_id, {}).get('room', 'lobby')
             if self.user_id in pl._users:
                 del pl._users[self.user_id]
+                pl.partyline_log('leave', user=self.user_id, room=room)
             await pl.broadcast_room(room, f'{self.user_id} has left partyline')
             await pl.broadcast_room(room, "")
+
+    async def _partyline_save(self, chat_lines):
+        """Save partyline scrollback via XMODEM (terminal client)."""
+        # Build raw PETSCII data from chat_lines (matching historical format)
+        data = bytearray()
+        for line in chat_lines:
+            data.extend(ascii_to_petscii_shifted(line))
+            data.append(0x0D)
+
+        # Prompt user to start XMODEM receive
+        await self.cursor_to(24, 0)
+        await self.send(COL_WHITE)
+        await self.send_text(f'XMODEM SAVE ({len(data)} bytes)...'.ljust(39))
+
+        try:
+            start_byte = await asyncio.wait_for(self._wait_xmodem_start(), timeout=60.0)
+        except asyncio.TimeoutError:
+            await self.cursor_to(24, 0)
+            await self.send_text('SAVE TIMEOUT'.ljust(39))
+            await self.read_key()
+            return
+
+        success = await self._xmodem_send_data(bytes(data), start_byte == 0x43)
+        await self.cursor_to(24, 0)
+        if success:
+            await self.send_text('SAVE COMPLETE'.ljust(39))
+        else:
+            await self.send_text('SAVE FAILED'.ljust(39))
+        await self.read_key()
 
         # Return to directory
         await self.render_directory()
@@ -1845,6 +1878,7 @@ class TerminalSession:
             price=send['price'],
             life=send['lifetime'],
         )
+        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         new_page.parent = page
         new_page._frame_files = frame_files
         new_page._dir_path = page_dir
@@ -1946,6 +1980,7 @@ class TerminalSession:
             price=send['price'],
             life=send['lifetime'],
         )
+        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         new_page.parent = page
         new_page._frame_files = [frame_file]
         new_page._dir_path = page_dir
@@ -1996,6 +2031,10 @@ class TerminalSession:
                 }
                 if child.keyword:
                     node['keyword'] = child.keyword
+                if getattr(child, 'dynamic', None):
+                    node['dynamic'] = child.dynamic
+                if getattr(child, 'uploaded', None):
+                    node['uploaded'] = child.uploaded
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files
@@ -2444,6 +2483,9 @@ class TerminalSession:
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
                 child = visible[self.dir_cursor]
+                # Dynamic directory: populate on each view
+                if getattr(child, 'dynamic', None) == 'new':
+                    cs._populate_whats_new(child, self.directory)
                 if child.has_subdir():
                     self.current_page = child
                     self.dir_cursor = 0
