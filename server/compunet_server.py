@@ -163,6 +163,19 @@ def _regenerate_who_frame():
         f.write(bytes(frame))
 
 
+def _populate_whats_new(page, directory):
+    """Populate the WHAT'S NEW? dynamic directory with most recent uploads."""
+    # Collect all pages that have an uploaded timestamp
+    all_pages = [p for p in directory.pages.values()
+                 if getattr(p, 'uploaded', None) and p.page_num != page.page_num]
+    # Sort by uploaded date, newest first
+    all_pages.sort(key=lambda p: p.uploaded, reverse=True)
+    # Take top 11 (one page of directory entries)
+    page.children = all_pages[:11]
+    log.info("WHAT'S NEW: found %d pages with uploaded, showing %d",
+             len(all_pages), len(page.children))
+
+
 # Protocol constants
 RESP_ACK = 0x41       # 'A' - acknowledge/proceed
 RESP_LINKING = 0x4C   # 'L' - linking required
@@ -257,6 +270,7 @@ class CompunetPage:
         self.life = life
         self.vote = vote
         self.keyword = keyword
+        self.uploaded = None     # ISO timestamp when content was uploaded
         self.children = []
         self.frames = []    # list of bytes objects (raw frame data)
         self.parent = None
@@ -345,6 +359,7 @@ class CompunetDirectory:
         page.parent = parent
         page._dir_path = page_dir
         page.dynamic = node.get('dynamic', None)
+        page.uploaded = node.get('uploaded', None)
         self.pages[page.page_num] = page
 
         # Load frames from page folder
@@ -577,6 +592,10 @@ class CompunetSession:
         if page is None:
             return self._make_dir_response()
 
+        # Dynamic directory: populate on navigation
+        if getattr(page, 'dynamic', None) == 'new':
+            _populate_whats_new(page, self.directory)
+
         self.selected_entry = 0
         self.dir_page_offset = 0
         if page.has_subdir():
@@ -671,7 +690,10 @@ class CompunetSession:
                 audit_log('read', user=self.user_id, page=child.page_num,
                           title=child.title, type=child.page_type)
                 return self._send_current_frame()
-            elif child.has_subdir():
+            # Dynamic directory: populate children on each view
+            if getattr(child, 'dynamic', None) == 'new':
+                _populate_whats_new(child, self.directory)
+            if child.has_subdir():
                 self.current_page = child
                 self.selected_entry = 0
                 self.dir_page_offset = 0
@@ -1584,6 +1606,7 @@ class CompunetSession:
             price=send['price'],
             life=send['lifetime'],
         )
+        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         new_page.parent = self.current_page
         new_page._frame_files = frame_files
         new_page._dir_path = page_dir
@@ -1612,6 +1635,8 @@ class CompunetSession:
         def _save_dir_json(page, json_path):
             """Write a directory JSON for a page's children."""
             data = {}
+            if hasattr(page, 'open_upload') and page.open_upload:
+                data['open_upload'] = True
             if hasattr(page, 'header') and page.header:
                 data['header'] = page.header
             if hasattr(page, '_adverts') and page._adverts:
@@ -1630,6 +1655,8 @@ class CompunetSession:
                     node['keyword'] = child.keyword
                 if getattr(child, 'dynamic', None):
                     node['dynamic'] = child.dynamic
+                if getattr(child, 'uploaded', None):
+                    node['uploaded'] = child.uploaded
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files
@@ -1723,6 +1750,9 @@ class CompunetSession:
         current_page_num = self.current_page.page_num
         self.directory.reload()
         self.current_page = self.directory.pages.get(current_page_num, self.directory.root)
+        # Re-populate dynamic directories after reload
+        if getattr(self.current_page, 'dynamic', None) == 'new':
+            _populate_whats_new(self.current_page, self.directory)
 
         self.dir_displayed = True
         self.last_response_type = RESP_DIR

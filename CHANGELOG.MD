@@ -5,6 +5,10 @@
 	  JSON. Previously, any upload or directory modification would drop this
 	  flag, causing dynamic pages (e.g. WHO IS ONLINE?) to serve stale cached
 	  content instead of regenerating on each view.
+	* Fixed: `_save_directory` now preserves the `open_upload` field in
+	  directory JSON. Previously, any upload into an open directory would drop
+	  the flag, blocking subsequent uploads by non-owners. (terminal.py already
+	  preserved this correctly.)
 	* Missing frame files now serve an error frame ("FRAME NOT FOUND") instead
 	  of sending uninitialised data. Event logged to audit.
 	* Fixed: partyline *quit KeyError when user disconnects simultaneously
@@ -26,6 +30,21 @@
 * Website:
 	* Admin panel: Partyline Log page (`/admin/partyline-log`) with paginated
 	  view of partyline activity (50 per page, newest first).
+* Content:
+	* Upload date/time now stored in directory JSON (`uploaded` field, ISO format).
+	  Preserved during directory saves.
+	* "WHAT'S NEW?" dynamic directory (page 199, GOTO NEW): shows the 11 most
+	  recent uploads across all directories, sorted newest first. Regenerated
+	  on each view.
+* Deployment notes:
+	* Backfill `uploaded` field for existing content based on filesystem dates.
+	* Re-add `"dynamic": "who"` to WHO IS ONLINE? entry in root.json if missing.
+	* Add "WHAT'S NEW?" entry to root.json: `{"page_num": 199, "title":
+	  "WHAT'S NEW?", "type": "D", "author": "SYSTEM", "price": 0, "life": 0,
+	  "keyword": "NEW", "dynamic": "new"}`.
+	* Verify `"open_upload": true` is present in community directories
+	  (e.g. jungle/graphics/directory.json). If missing, re-add it — previous
+	  server versions did not preserve the field on save.
 
 # 0.9.1-beta (2026-05-31)
 

@@ -1878,6 +1878,7 @@ class TerminalSession:
             price=send['price'],
             life=send['lifetime'],
         )
+        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         new_page.parent = page
         new_page._frame_files = frame_files
         new_page._dir_path = page_dir
@@ -1979,6 +1980,7 @@ class TerminalSession:
             price=send['price'],
             life=send['lifetime'],
         )
+        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         new_page.parent = page
         new_page._frame_files = [frame_file]
         new_page._dir_path = page_dir
@@ -2031,6 +2033,8 @@ class TerminalSession:
                     node['keyword'] = child.keyword
                 if getattr(child, 'dynamic', None):
                     node['dynamic'] = child.dynamic
+                if getattr(child, 'uploaded', None):
+                    node['uploaded'] = child.uploaded
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files
@@ -2479,6 +2483,9 @@ class TerminalSession:
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
                 child = visible[self.dir_cursor]
+                # Dynamic directory: populate on each view
+                if getattr(child, 'dynamic', None) == 'new':
+                    cs._populate_whats_new(child, self.directory)
                 if child.has_subdir():
                     self.current_page = child
                     self.dir_cursor = 0
