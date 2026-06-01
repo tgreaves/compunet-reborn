@@ -6892,7 +6892,14 @@ ACIA_REG_READ:
     CPX #$00
     BEQ @status
     ; X=8 or other: return carrier detect
-    LDA #$40
+    ; Check ACIA DCD bit (bit 5 of status register, active high = NO carrier)
+    LDA ACIA_STATUS
+    AND #$20                            ; Bit 5 = DCD
+    BNE @no_carrier                     ; DCD high = connection lost
+    LDA #$40                            ; Carrier present (bit 6 set for ROM)
+    RTS
+@no_carrier:
+    LDA #$00                            ; No carrier (bit 6 clear)
     RTS
 
 @status:

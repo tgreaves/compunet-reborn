@@ -279,6 +279,11 @@ main_loop:
     LDA exit_flag
     BNE do_exit
 
+    ; --- Check carrier (DCD bit 5 of ACIA status, high = lost) ---
+    LDA ACIA_STATUS
+    AND #$20
+    BNE do_exit
+
     ; --- Poll receive buffer ---
     JSR poll_receive
 

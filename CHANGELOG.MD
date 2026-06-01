@@ -7,6 +7,10 @@
 	  EOS packet was consumed during pre-fetch but subsequent ACIA_PROCESS_CMD
 	  calls would wait for the full timeout. New EOS_RECEIVED flag ($C3FB)
 	  causes immediate stream termination on re-entry.
+	* Carrier detect: ACIA_REG_READ now checks real DCD bit ($DE01 bit 5)
+	  instead of hardcoding carrier present. On C64 Ultimate, TCP disconnect
+	  triggers the ROM's "CARRIER LOST" handler and returns to dial prompt
+	  for easy reconnection. Partyline also checks DCD in its main loop.
 
 # 0.10-beta (2026-05-31)
 
