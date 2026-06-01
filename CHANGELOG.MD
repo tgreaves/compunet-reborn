@@ -15,8 +15,11 @@
 	  temporarily zeroes $00 (DDR), making $01 writes no-ops. With ACK-paced
 	  flow control, NMIs fire during ROM processing — if NMI arrives while
 	  DDR is zero, I/O becomes permanently invisible and the client hangs.
-	  NMI handler now forces $00=$2F; ACIA_FLOW_CONTROL restores both
-	  $00/$01 on entry as a recovery point.
+	  NMI handler now forces $00=$2F before touching $01. ACIA_FLOW_CONTROL
+	  also restores $00=$2F on entry as a recovery point (without changing
+	  $01, which must remain in the ROM's chosen bank state).
+* Server:
+	* Disconnect events now logged to audit trail (protocol + terminal).
 
 # 0.10-beta (2026-05-31)
 
