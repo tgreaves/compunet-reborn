@@ -7518,6 +7518,11 @@ ACIA_FLOW_CONTROL:
     ; Ensure DDR is correct (ROM may have zeroed $00, making $01 read-only)
     LDA #$2F
     STA $00
+    ; Re-arm NMI vector (ROM directory buffer overwrites $FFFA/$FFFB)
+    LDA #$00
+    STA $FFFA
+    LDA #$CF
+    STA $FFFB
     ; Wait for start marker $01
     LDA #$00
     STA $A1                             ; Timeout counter lo
@@ -7560,11 +7565,6 @@ ACIA_FLOW_CONTROL:
     RTS
 
 @pkt_complete:
-    ; Re-arm NMI vector (ROM directory buffer may overwrite $FFFA/$FFFB)
-    LDA #$00
-    STA $FFFA
-    LDA #$CF
-    STA $FFFB
     ; Packet in RECV_BUF: [len] [token] [seq] [payload...] [CRC_hi] [CRC_lo]
     ; Extract token
     LDA RECV_BUF+1                      ; Token byte
