@@ -7811,9 +7811,6 @@ ACIA_PROCESS_CMD:
     RTS
 
 @need_new_packet:
-    ; If EOS already received, skip the timeout wait
-    LDA EOS_RECEIVED
-    BNE @no_data
     ; Try to receive the next packet via ACIA_FLOW_CONTROL.
     ; It has its own ~16K iteration timeout for genuine end-of-stream.
     JSR ACIA_FLOW_CONTROL
