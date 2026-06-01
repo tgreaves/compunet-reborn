@@ -571,8 +571,8 @@ def admin_partyline_log():
     page = int(request.args.get('page', 1))
     per_page = 50
 
-    # Read partyline log (mounted at /app/server/data/ in Docker)
-    log_path = os.path.join(os.path.dirname(__file__), 'server', 'data', 'partyline.jsonl')
+    # Read partyline log directly (it's on the same filesystem in Docker)
+    log_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'data', 'partyline.jsonl')
     entries = []
     if os.path.exists(log_path):
         with open(log_path, 'r') as f:
