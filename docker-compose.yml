@@ -26,6 +26,7 @@ services:
       - ./website/templates:/app/templates
       - ./website/static:/app/static
       - ./website/app.py:/app/app.py:ro
+      - ./server/data:/app/server/data:ro
       - ./.env:/app/.env:ro
     environment:
       - COMPUNET_API_URL=http://compunet-server:6403
