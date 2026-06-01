@@ -1,3 +1,9 @@
+# 0.11-beta (2026-06-01)
+
+* Client:
+	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00, matching server
+	  receive-path validation. CRC check re-enabled for all packets.
+
 # 0.9.1-beta (2026-05-31)
 
 * Server:
