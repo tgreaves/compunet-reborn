@@ -1166,6 +1166,7 @@ class TerminalSession:
 
         # Register with partyline
         pl._users[self.user_id] = {"writer": None, "alias": None, "room": "lobby"}
+        pl.partyline_log('join', user=self.user_id)
 
         # Chat history buffer (server-side, scrollable)
         chat_lines = []  # full history (up to 100 lines)
@@ -1331,6 +1332,7 @@ class TerminalSession:
             room = pl._users.get(self.user_id, {}).get('room', 'lobby')
             if self.user_id in pl._users:
                 del pl._users[self.user_id]
+                pl.partyline_log('leave', user=self.user_id, room=room)
             await pl.broadcast_room(room, f'{self.user_id} has left partyline')
             await pl.broadcast_room(room, "")
 
