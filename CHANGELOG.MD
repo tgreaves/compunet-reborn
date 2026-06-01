@@ -1,3 +1,11 @@
+# 0.12-beta (2026-06-01)
+
+* Website:
+	* Fixed: partyline log admin page not showing content in Docker. Path
+	  resolution used `..` which escaped the container's `/app` directory.
+	* docker-compose.yml: mount `server/data` into website container (read-only)
+	  for partyline log access.
+
 # 0.11.1-beta (2026-06-01)
 
 * Client:
