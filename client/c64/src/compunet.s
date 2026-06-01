@@ -7625,7 +7625,7 @@ ACIA_FLOW_CONTROL:
 ; =================================================================
 ; Sends: $01 [06] [$20] [$20] [seq] [CRC_hi] [CRC_lo] $02
 ; Seq is extracted from the received packet at RECV_BUF+2.
-; CRC init: $00/$00 (matches server receive-path CRC validation).
+; CRC init: $40/$E6 (matches original ROM ACK at L9ABC).
 ; =================================================================
 ACIA_SEND_ACK:
     PHA
@@ -7638,9 +7638,10 @@ ACIA_SEND_ACK:
     LDA #$01
     JSR ACIA_WAIT_READY
 
-    ; Init CRC with $00/$00 (matches server receive-path validation)
-    LDA #$00
+    ; Init CRC with $40/$E6
+    LDA #$40
     STA $C21D
+    LDA #$E6
     STA $C21E
 
     ; Byte 1: length = $06

@@ -18,9 +18,6 @@
 	* Dedicated partyline log (`server/data/partyline.jsonl`): records all
 	  messages, commands, joins, leaves, disconnects, kicks, and bans from
 	  both protocol and terminal clients.
-* Client:
-	* Fixed: ACK CRC init changed from $40/$E6 to $00/$00, matching server
-	  receive-path validation. CRC check re-enabled for all packets.
 * Partyline:
 	* `*save` command (#61): saves chat scrollback. C64 client prompts for
 	  filename and saves to disk drive as PETSCII SEQ file (matching original
