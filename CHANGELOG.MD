@@ -1,5 +1,9 @@
 # 0.12-beta (2026-06-01)
 
+* Server:
+	* Audit: frame reads now logged for terminal clients (was protocol-only).
+	* Audit: credit purchases (`buy` event) now logged for protocol clients
+	  (was terminal-only).
 * Website:
 	* Fixed: partyline log admin page not showing content in Docker. Path
 	  resolution used `..` which escaped the container's `/app` directory.
