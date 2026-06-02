@@ -1,5 +1,9 @@
 # 0.12-beta (2026-06-01)
 
+* Partyline:
+	* Room names now preserve mixed case (#66). Previously forced to lowercase.
+	* C64 client: PETSCII graphics characters blocked from input. Only allows
+	  alphanumeric, punctuation, and space. Prevents garbled text in chat.
 * Server:
 	* Audit: frame reads now logged for terminal clients (was protocol-only).
 	* Audit: credit purchases (`buy` event) now logged for protocol clients
