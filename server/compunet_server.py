@@ -1856,6 +1856,8 @@ class CompunetSession:
         data.extend(ascii_to_petscii(' AUTHOR'))
         data.append(0x2C)
         data.extend(ascii_to_petscii(' VOTE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii(' UPLOADED'))
         data.append(0x0D)
 
         # Separator byte consumed by L_A448's JSR L96CC (value unused)
@@ -1908,6 +1910,19 @@ class CompunetSession:
                     vote_count = self._get_vote_count(child.page_num)
                     vote_str = f'{child.vote} ({vote_count})'
                     data.extend(ascii_to_petscii(vote_str[:8]))
+                data.append(0x2C)
+                # Column 5: UPLOADED — "DD-MMM" format, hyphen-aligned
+                uploaded = getattr(child, 'uploaded', None)
+                if uploaded:
+                    import datetime
+                    try:
+                        dt = datetime.datetime.fromisoformat(uploaded)
+                        day = str(dt.day)
+                        mon = dt.strftime('%b').upper()
+                        date_str = f'{day}-{mon}'.rjust(6)
+                        data.extend(ascii_to_petscii(date_str))
+                    except (ValueError, AttributeError):
+                        pass
                 data.append(0x0D)
         
         log.info('PAGE response: %d bytes hex=%s', len(data), data.hex())
