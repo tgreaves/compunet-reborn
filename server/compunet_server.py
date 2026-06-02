@@ -346,8 +346,12 @@ class CompunetDirectory:
 
     def _build_flat_page(self, node, parent, base_dir):
         """Build a page from flat JSON node, resolving paths from its folder."""
-        page_slug = self._make_slug(node['title'])
-        page_dir = os.path.join(base_dir, page_slug)
+        if 'directory' in node:
+            dir_json_path = os.path.join(ROOT_DIR, node['directory'])
+            page_dir = os.path.dirname(dir_json_path)
+        else:
+            page_slug = self._make_slug(node['title'])
+            page_dir = os.path.join(base_dir, page_slug)
 
         page = CompunetPage(
             page_num=node['page_num'],
