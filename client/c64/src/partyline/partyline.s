@@ -580,6 +580,17 @@ poll_keyboard:
     BEQ @do_return
 
     ; --- Printable character ---
+    ; Only allow: $20-$5F (space, numbers, lowercase, punctuation)
+    ;             $C1-$DA (shifted uppercase letters)
+    CMP #$20
+    BCC @no_key                 ; reject $00-$1F (control codes)
+    CMP #$60
+    BCC @char_ok                ; $20-$5F accepted
+    CMP #$C1
+    BCC @no_key                 ; reject $60-$C0 (graphics chars)
+    CMP #$DB
+    BCS @no_key                 ; reject $DB-$FF
+@char_ok:
     ; Clear last_was_return flag since we got a regular char
     PHA
     LDA #$00

@@ -307,7 +307,7 @@ async def _cmd_who(writer, user_id):
 
 async def _cmd_enter(writer, user_id, args):
     """Move user to a different room."""
-    new_room = args.strip().lower()
+    new_room = args.strip()
     if not new_room:
         await send_line(writer, "Usage: *enter <room>")
         await send_line(writer, "")
