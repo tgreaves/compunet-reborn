@@ -71,7 +71,7 @@ def _is_privileged(user_id):
     return user.get('admin', False) or user.get('editor', False)
 
 # Global state: connected partyline users
-# {user_id: {"writer": writer, "alias": None, "room": "lobby"}}
+# {user_id: {"writer": writer, "alias": None, "room": "Lobby"}}
 _users = {}
 
 CR = b'\x0d'
@@ -514,14 +514,14 @@ async def handle_session(reader, writer, user_id):
         return
 
     # Register user
-    _users[user_id] = {"writer": writer, "alias": None, "room": "lobby"}
+    _users[user_id] = {"writer": writer, "alias": None, "room": "Lobby"}
 
     try:
         # Announce entry
         await send_line(writer, f"{user_id} has entered partyline")
         await send_line(writer, "")
-        await broadcast_room("lobby", f"{user_id} has entered partyline", exclude=user_id)
-        await broadcast_room("lobby", "", exclude=user_id)
+        await broadcast_room("Lobby", f"{user_id} has entered partyline", exclude=user_id)
+        await broadcast_room("Lobby", "", exclude=user_id)
 
         # Show who's online
         await _cmd_who(writer, user_id)
