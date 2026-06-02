@@ -12,6 +12,9 @@
 	* WHO IS ONLINE: format now matches original Compunet (#69). Red header
 	  with "CNETTERS ON THE SYSTEM AT HH:MM", partyline indicator note,
 	  cyan user list.
+	* Directory listings: new UPLDDATE column (#70). F7/F8 cycles through
+	  PRICE, LIFE, AUTHOR, VOTE, UPLDDATE. Shows upload date in DD-MMM
+	  format with hyphen-aligned. Works on both protocol and terminal clients.
 	* Audit: frame reads now logged for terminal clients (was protocol-only).
 	* Audit: credit purchases (`buy` event) now logged for protocol clients
 	  (was terminal-only).
