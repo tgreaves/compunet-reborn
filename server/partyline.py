@@ -115,6 +115,7 @@ Sample Partyline commands:-
 
 *alias (followed by a name)
 *who  (tells who's in pline)
+*where (user) to find someone
 *enter (any room name) to enter
  a different room
 *dice (number) to roll
@@ -174,6 +175,8 @@ async def process_input(user_id, line, writer):
             await _cmd_alias(writer, user_id, args)
         elif cmd == "who":
             await _cmd_who(writer, user_id)
+        elif cmd == "where":
+            await _cmd_where(writer, user_id, args)
         elif cmd == "enter":
             await _cmd_enter(writer, user_id, args)
         elif cmd == "dice":
@@ -302,6 +305,21 @@ async def _cmd_who(writer, user_id):
         alias = entry["alias"] or uid
         room = entry["room"]
         await send_line(writer, f" {alias:<10} ({uid:<8}) {room}")
+    await send_line(writer, "")
+
+
+async def _cmd_where(writer, user_id, args):
+    """Show which room a user is in."""
+    target = args.strip().upper()
+    if not target:
+        await send_line(writer, "Usage: *where <user>")
+        await send_line(writer, "")
+        return
+    if target in _users:
+        room = _users[target]["room"]
+        await send_line(writer, f"{target} is in {room}.")
+    else:
+        await send_line(writer, f"{target} is not on Partyline.")
     await send_line(writer, "")
 
 
