@@ -120,24 +120,29 @@ WHO_PAGE_NUM = 800
 def _regenerate_who_frame():
     """Regenerate the WHO IS ONLINE frame SEQ file from current sessions."""
     import partyline as pl
+    import datetime
     os.makedirs(WHO_PAGE_DIR, exist_ok=True)
 
     users = sorted(_online_users)
     partyline_users = set(pl._users.keys()) if hasattr(pl, '_users') else set()
+    now = datetime.datetime.now().strftime('%H:%M')
 
     frame = bytearray()
-    # Frame init (same prefix as NEWS frame)
     frame.append(0x00)  # frame flags
     frame.append(0x06)  # repeat space...
     frame.append(0x0F)  # ...15 times (clear line)
     frame.append(0x8E)  # uppercase mode
     frame.append(0x0D)  # CR
-    frame.append(0x1F)  # blue text
-    frame.extend(ascii_to_petscii('  CURRENTLY ON COMPUNET'))
+    # Red header with time (matches original format)
+    frame.append(0x1C)  # red
+    frame.extend(ascii_to_petscii(f'   CNETTERS ON THE SYSTEM AT {now}'))
+    frame.append(0x0D)
+    frame.extend(ascii_to_petscii('   * INDICATES A USER IN PARTYLINE'))
     frame.append(0x0D)
     frame.append(0x0D)
 
-    # 3 columns, 13 chars each
+    # Cyan user list in 3 columns
+    frame.append(0x1F)  # cyan
     col_width = 13
     cols = 3
     row_count = (len(users) + cols - 1) // cols
@@ -153,11 +158,6 @@ def _regenerate_who_frame():
                 line += entry.ljust(col_width)
         frame.extend(ascii_to_petscii(line.rstrip()))
         frame.append(0x0D)
-
-    # Footer
-    frame.append(0x0D)
-    frame.extend(ascii_to_petscii('  * CURRENTLY ON PARTYLINE'))
-    frame.append(0x0D)
 
     with open(os.path.join(WHO_PAGE_DIR, 'frame-1.seq'), 'wb') as f:
         f.write(bytes(frame))
@@ -276,13 +276,16 @@ class CompunetPage:
         self.parent = None
     
     def has_subdir(self):
-        return len(self.children) > 0
+        if len(self.children) > 0:
+            return True
+        return self.page_type == 'D' and getattr(self, 'dynamic', None) is not None
     
     def type_string(self):
         """Generate the type suffix shown in directory listings."""
         s = self.page_type
         if self.page_type != 'L' and self.size > 0:
-            s += str(self.size)
+            if not (self.page_type == 'T' and self.size == 1):
+                s += str(self.size)
         if self.has_subdir():
             s += '+'
         return s
@@ -343,8 +346,12 @@ class CompunetDirectory:
 
     def _build_flat_page(self, node, parent, base_dir):
         """Build a page from flat JSON node, resolving paths from its folder."""
-        page_slug = self._make_slug(node['title'])
-        page_dir = os.path.join(base_dir, page_slug)
+        if 'directory' in node:
+            dir_json_path = os.path.join(ROOT_DIR, node['directory'])
+            page_dir = os.path.dirname(dir_json_path)
+        else:
+            page_slug = self._make_slug(node['title'])
+            page_dir = os.path.join(base_dir, page_slug)
 
         page = CompunetPage(
             page_num=node['page_num'],
@@ -685,6 +692,8 @@ class CompunetSession:
                     log.info('BUY: user=%s page=%d ("%s") price=%.2f credit=%.2f',
                              self.user_id, child.page_num, child.title,
                              child.price, self.credit)
+                    audit_log('buy', user=self.user_id, page=child.page_num,
+                              title=child.title, price=child.price)
                 self.show_page = child
                 self.show_frame_index = 0
                 audit_log('read', user=self.user_id, page=child.page_num,
@@ -1660,7 +1669,7 @@ class CompunetSession:
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files
-                if child.children:
+                if child.children and not getattr(child, 'dynamic', None):
                     child_slug = _page_slug(child.title)
                     child_dir = getattr(child, '_dir_path', '')
                     dir_json_path = os.path.join(child_dir, 'directory.json')
@@ -1854,6 +1863,8 @@ class CompunetSession:
         data.extend(ascii_to_petscii(' AUTHOR'))
         data.append(0x2C)
         data.extend(ascii_to_petscii(' VOTE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('UPLDDATE'))
         data.append(0x0D)
 
         # Separator byte consumed by L_A448's JSR L96CC (value unused)
@@ -1906,6 +1917,19 @@ class CompunetSession:
                     vote_count = self._get_vote_count(child.page_num)
                     vote_str = f'{child.vote} ({vote_count})'
                     data.extend(ascii_to_petscii(vote_str[:8]))
+                data.append(0x2C)
+                # Column 5: UPLOADED — "DD-MMM" format, hyphen-aligned
+                uploaded = getattr(child, 'uploaded', None)
+                if uploaded:
+                    import datetime
+                    try:
+                        dt = datetime.datetime.fromisoformat(uploaded)
+                        day = str(dt.day)
+                        mon = dt.strftime('%b').upper()
+                        date_str = f'{day}-{mon}'.rjust(7)
+                        data.extend(ascii_to_petscii(date_str))
+                    except (ValueError, AttributeError):
+                        pass
                 data.append(0x0D)
         
         log.info('PAGE response: %d bytes hex=%s', len(data), data.hex())

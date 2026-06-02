@@ -71,7 +71,7 @@ def _is_privileged(user_id):
     return user.get('admin', False) or user.get('editor', False)
 
 # Global state: connected partyline users
-# {user_id: {"writer": writer, "alias": None, "room": "lobby"}}
+# {user_id: {"writer": writer, "alias": None, "room": "Lobby"}}
 _users = {}
 
 CR = b'\x0d'
@@ -115,6 +115,7 @@ Sample Partyline commands:-
 
 *alias (followed by a name)
 *who  (tells who's in pline)
+*where (user) to find someone
 *enter (any room name) to enter
  a different room
 *dice (number) to roll
@@ -174,6 +175,8 @@ async def process_input(user_id, line, writer):
             await _cmd_alias(writer, user_id, args)
         elif cmd == "who":
             await _cmd_who(writer, user_id)
+        elif cmd == "where":
+            await _cmd_where(writer, user_id, args)
         elif cmd == "enter":
             await _cmd_enter(writer, user_id, args)
         elif cmd == "dice":
@@ -305,9 +308,24 @@ async def _cmd_who(writer, user_id):
     await send_line(writer, "")
 
 
+async def _cmd_where(writer, user_id, args):
+    """Show which room a user is in."""
+    target = args.strip().upper()
+    if not target:
+        await send_line(writer, "Usage: *where <user>")
+        await send_line(writer, "")
+        return
+    if target in _users:
+        room = _users[target]["room"]
+        await send_line(writer, f"{target} is in {room}.")
+    else:
+        await send_line(writer, f"{target} is not on Partyline.")
+    await send_line(writer, "")
+
+
 async def _cmd_enter(writer, user_id, args):
     """Move user to a different room."""
-    new_room = args.strip().lower()
+    new_room = args.strip()
     if not new_room:
         await send_line(writer, "Usage: *enter <room>")
         await send_line(writer, "")
@@ -514,14 +532,17 @@ async def handle_session(reader, writer, user_id):
         return
 
     # Register user
-    _users[user_id] = {"writer": writer, "alias": None, "room": "lobby"}
+    _users[user_id] = {"writer": writer, "alias": None, "room": "Lobby"}
 
     try:
         # Announce entry
         await send_line(writer, f"{user_id} has entered partyline")
         await send_line(writer, "")
-        await broadcast_room("lobby", f"{user_id} has entered partyline", exclude=user_id)
-        await broadcast_room("lobby", "", exclude=user_id)
+        await broadcast_room("Lobby", f"{user_id} has entered partyline", exclude=user_id)
+        await broadcast_room("Lobby", "", exclude=user_id)
+
+        # Show who's online
+        await _cmd_who(writer, user_id)
 
         # Main loop
         idle_pings = 0

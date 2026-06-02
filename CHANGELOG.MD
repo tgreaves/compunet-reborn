@@ -1,3 +1,43 @@
+# 0.12-beta (2026-06-01)
+
+* Partyline:
+	* Room names now preserve mixed case (#66). Previously forced to lowercase.
+	  Default room renamed from "lobby" to "Lobby".
+	* Auto-run `*who` on join so user immediately sees who is online.
+	* New command: `*where <user>` — shows which room a user is in, or
+	  reports they are not on Partyline.
+	* C64 client: PETSCII graphics characters blocked from input. Only allows
+	  alphanumeric, punctuation, and space. Prevents garbled text in chat.
+* Server:
+	* WHO IS ONLINE: format now matches original Compunet (#69). Red header
+	  with "CNETTERS ON THE SYSTEM AT HH:MM", partyline indicator note,
+	  cyan user list.
+	* Directory listings: new UPLDDATE column (#70). F7/F8 cycles through
+	  PRICE, LIFE, AUTHOR, VOTE, UPLDDATE. Shows upload date in DD-MMM
+	  format with hyphen-aligned. Works on both protocol and terminal clients.
+	* Directory listings: single-frame text pages now show `T` instead of
+	  `T1` (matches original Compunet). Multi-frame and other types unchanged.
+	* Directory listings: dynamic directory pages (e.g. WHAT'S NEW?) now
+	  correctly show `D+` to indicate they contain entries.
+	* Fixed: `_save_directory` no longer persists children of dynamic pages.
+	  Previously, saving after an upload would write a stale `whats-new/`
+	  directory to disk, causing "FRAME NOT FOUND" when viewing entries from
+	  the WHAT'S NEW? listing.
+	* Fixed: page `_dir_path` now derived from the `directory` JSON field
+	  when present, not from the title slug. Fixes "FRAME NOT FOUND" when
+	  a page is renamed (e.g. JUNGLE → THE JUNGLE).
+	* Audit: frame reads now logged for terminal clients (was protocol-only).
+	* Audit: credit purchases (`buy` event) now logged for protocol clients
+	  (was terminal-only).
+* Docker:
+	* Set `TZ=Europe/London` on both containers. Fixes Docker log timestamps,
+	  audit log times, and WHO IS ONLINE clock showing UTC instead of local.
+* Website:
+	* Fixed: partyline log admin page not showing content in Docker. Path
+	  resolution used `..` which escaped the container's `/app` directory.
+	* docker-compose.yml: mount `server/data` into website container (read-only)
+	  for partyline log access.
+
 # 0.11.1-beta (2026-06-01)
 
 * Client:
