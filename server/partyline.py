@@ -523,6 +523,9 @@ async def handle_session(reader, writer, user_id):
         await broadcast_room("lobby", f"{user_id} has entered partyline", exclude=user_id)
         await broadcast_room("lobby", "", exclude=user_id)
 
+        # Show who's online
+        await _cmd_who(writer, user_id)
+
         # Main loop
         idle_pings = 0
         while user_id in _users:
