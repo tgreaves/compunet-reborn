@@ -282,7 +282,8 @@ class CompunetPage:
         """Generate the type suffix shown in directory listings."""
         s = self.page_type
         if self.page_type != 'L' and self.size > 0:
-            s += str(self.size)
+            if not (self.page_type == 'T' and self.size == 1):
+                s += str(self.size)
         if self.has_subdir():
             s += '+'
         return s

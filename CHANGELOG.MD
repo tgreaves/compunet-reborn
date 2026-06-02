@@ -15,6 +15,8 @@
 	* Directory listings: new UPLDDATE column (#70). F7/F8 cycles through
 	  PRICE, LIFE, AUTHOR, VOTE, UPLDDATE. Shows upload date in DD-MMM
 	  format with hyphen-aligned. Works on both protocol and terminal clients.
+	* Directory listings: single-frame text pages now show `T` instead of
+	  `T1` (matches original Compunet). Multi-frame and other types unchanged.
 	* Audit: frame reads now logged for terminal clients (was protocol-only).
 	* Audit: credit purchases (`buy` event) now logged for protocol clients
 	  (was terminal-only).
