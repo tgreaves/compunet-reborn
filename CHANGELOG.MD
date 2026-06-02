@@ -22,6 +22,9 @@
 	* Audit: frame reads now logged for terminal clients (was protocol-only).
 	* Audit: credit purchases (`buy` event) now logged for protocol clients
 	  (was terminal-only).
+* Docker:
+	* Set `TZ=Europe/London` on both containers. Fixes Docker log timestamps,
+	  audit log times, and WHO IS ONLINE clock showing UTC instead of local.
 * Website:
 	* Fixed: partyline log admin page not showing content in Docker. Path
 	  resolution used `..` which escaped the container's `/app` directory.
