@@ -276,7 +276,9 @@ class CompunetPage:
         self.parent = None
     
     def has_subdir(self):
-        return len(self.children) > 0
+        if len(self.children) > 0:
+            return True
+        return self.page_type == 'D' and getattr(self, 'dynamic', None) is not None
     
     def type_string(self):
         """Generate the type suffix shown in directory listings."""

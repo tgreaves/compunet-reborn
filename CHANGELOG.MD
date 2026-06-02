@@ -17,6 +17,8 @@
 	  format with hyphen-aligned. Works on both protocol and terminal clients.
 	* Directory listings: single-frame text pages now show `T` instead of
 	  `T1` (matches original Compunet). Multi-frame and other types unchanged.
+	* Directory listings: dynamic directory pages (e.g. WHAT'S NEW?) now
+	  correctly show `D+` to indicate they contain entries.
 	* Audit: frame reads now logged for terminal clients (was protocol-only).
 	* Audit: credit purchases (`buy` event) now logged for protocol clients
 	  (was terminal-only).
