@@ -1857,7 +1857,7 @@ class CompunetSession:
         data.append(0x2C)
         data.extend(ascii_to_petscii(' VOTE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii(' UPLDDATE'))
+        data.extend(ascii_to_petscii('UPLDDATE'))
         data.append(0x0D)
 
         # Separator byte consumed by L_A448's JSR L96CC (value unused)
