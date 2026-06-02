@@ -2392,6 +2392,10 @@ class TerminalSession:
         """Display a text frame."""
         if not self.show_page or not self.show_page.frames:
             return
+        cs.audit_log('read', user=self.user_id, ip=self.client_ip,
+                     page=self.show_page.page_num, title=self.show_page.title,
+                     type=self.show_page.page_type,
+                     frame=self.show_frame_idx + 1)
         await self.send(CLR)
         await self.set_charset("upper")
         self.charset = 'upper'
