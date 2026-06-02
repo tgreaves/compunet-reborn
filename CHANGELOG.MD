@@ -4,6 +4,8 @@
 	* Room names now preserve mixed case (#66). Previously forced to lowercase.
 	  Default room renamed from "lobby" to "Lobby".
 	* Auto-run `*who` on join so user immediately sees who is online.
+	* New command: `*where <user>` — shows which room a user is in, or
+	  reports they are not on Partyline.
 	* C64 client: PETSCII graphics characters blocked from input. Only allows
 	  alphanumeric, punctuation, and space. Prevents garbled text in chat.
 * Server:
