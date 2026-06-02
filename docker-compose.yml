@@ -13,6 +13,8 @@ services:
       - ./server/cfg:/app/cfg
       - ./server/data:/app/data
       - ./.env:/app/.env:ro
+    environment:
+      - TZ=Europe/London
     restart: unless-stopped
 
   compunet-web:
@@ -30,6 +32,7 @@ services:
       - ./.env:/app/.env:ro
     environment:
       - COMPUNET_API_URL=http://compunet-server:6403
+      - TZ=Europe/London
     depends_on:
       - compunet-server
     restart: unless-stopped
