@@ -9,6 +9,9 @@
 	* C64 client: PETSCII graphics characters blocked from input. Only allows
 	  alphanumeric, punctuation, and space. Prevents garbled text in chat.
 * Server:
+	* WHO IS ONLINE: format now matches original Compunet (#69). Red header
+	  with "CNETTERS ON THE SYSTEM AT HH:MM", partyline indicator note,
+	  cyan user list.
 	* Audit: frame reads now logged for terminal clients (was protocol-only).
 	* Audit: credit purchases (`buy` event) now logged for protocol clients
 	  (was terminal-only).
