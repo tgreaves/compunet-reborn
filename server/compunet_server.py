@@ -120,24 +120,29 @@ WHO_PAGE_NUM = 800
 def _regenerate_who_frame():
     """Regenerate the WHO IS ONLINE frame SEQ file from current sessions."""
     import partyline as pl
+    import datetime
     os.makedirs(WHO_PAGE_DIR, exist_ok=True)
 
     users = sorted(_online_users)
     partyline_users = set(pl._users.keys()) if hasattr(pl, '_users') else set()
+    now = datetime.datetime.now().strftime('%H:%M')
 
     frame = bytearray()
-    # Frame init (same prefix as NEWS frame)
     frame.append(0x00)  # frame flags
     frame.append(0x06)  # repeat space...
     frame.append(0x0F)  # ...15 times (clear line)
     frame.append(0x8E)  # uppercase mode
     frame.append(0x0D)  # CR
-    frame.append(0x1F)  # blue text
-    frame.extend(ascii_to_petscii('  CURRENTLY ON COMPUNET'))
+    # Red header with time (matches original format)
+    frame.append(0x1C)  # red
+    frame.extend(ascii_to_petscii(f'   CNETTERS ON THE SYSTEM AT {now}'))
+    frame.append(0x0D)
+    frame.extend(ascii_to_petscii('   * INDICATES A USER IN PARTYLINE'))
     frame.append(0x0D)
     frame.append(0x0D)
 
-    # 3 columns, 13 chars each
+    # Cyan user list in 3 columns
+    frame.append(0x1F)  # cyan
     col_width = 13
     cols = 3
     row_count = (len(users) + cols - 1) // cols
@@ -153,11 +158,6 @@ def _regenerate_who_frame():
                 line += entry.ljust(col_width)
         frame.extend(ascii_to_petscii(line.rstrip()))
         frame.append(0x0D)
-
-    # Footer
-    frame.append(0x0D)
-    frame.extend(ascii_to_petscii('  * CURRENTLY ON PARTYLINE'))
-    frame.append(0x0D)
 
     with open(os.path.join(WHO_PAGE_DIR, 'frame-1.seq'), 'wb') as f:
         f.write(bytes(frame))
