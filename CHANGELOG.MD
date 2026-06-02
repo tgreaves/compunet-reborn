@@ -23,6 +23,9 @@
 	  Previously, saving after an upload would write a stale `whats-new/`
 	  directory to disk, causing "FRAME NOT FOUND" when viewing entries from
 	  the WHAT'S NEW? listing.
+	* Fixed: page `_dir_path` now derived from the `directory` JSON field
+	  when present, not from the title slug. Fixes "FRAME NOT FOUND" when
+	  a page is renamed (e.g. JUNGLE → THE JUNGLE).
 	* Audit: frame reads now logged for terminal clients (was protocol-only).
 	* Audit: credit purchases (`buy` event) now logged for protocol clients
 	  (was terminal-only).
