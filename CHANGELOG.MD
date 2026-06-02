@@ -19,6 +19,10 @@
 	  `T1` (matches original Compunet). Multi-frame and other types unchanged.
 	* Directory listings: dynamic directory pages (e.g. WHAT'S NEW?) now
 	  correctly show `D+` to indicate they contain entries.
+	* Fixed: `_save_directory` no longer persists children of dynamic pages.
+	  Previously, saving after an upload would write a stale `whats-new/`
+	  directory to disk, causing "FRAME NOT FOUND" when viewing entries from
+	  the WHAT'S NEW? listing.
 	* Audit: frame reads now logged for terminal clients (was protocol-only).
 	* Audit: credit purchases (`buy` event) now logged for protocol clients
 	  (was terminal-only).
