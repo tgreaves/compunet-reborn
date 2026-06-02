@@ -1919,7 +1919,7 @@ class CompunetSession:
                         dt = datetime.datetime.fromisoformat(uploaded)
                         day = str(dt.day)
                         mon = dt.strftime('%b').upper()
-                        date_str = f'{day}-{mon}'.rjust(6)
+                        date_str = f'{day}-{mon}'.rjust(7)
                         data.extend(ascii_to_petscii(date_str))
                     except (ValueError, AttributeError):
                         pass

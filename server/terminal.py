@@ -532,8 +532,8 @@ class TerminalSession:
         breadcrumb = f'  {page.page_num} {page.title}'
         await self.send_text(breadcrumb[:29].ljust(29))
         await self.send(self.B_THIN_V)
-        cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE', 'UPLDDATE']
-        await self.send_text((' ' + cols[self.dir_column]).ljust(8)[:8])
+        cols = [' PRICE', ' LIFE', ' AUTHOR', ' VOTE', 'UPLDDATE']
+        await self.send_text(cols[self.dir_column].ljust(8)[:8])
         await self.send(self.B_THIN_V)
 
         # Row 9: entry area top border
@@ -676,7 +676,7 @@ class TerminalSession:
             dt = datetime.datetime.fromisoformat(uploaded)
             day = str(dt.day)
             mon = dt.strftime('%b').upper()
-            return f'{day}-{mon}'.rjust(6)
+            return f'{day}-{mon}'.rjust(7)
         except (ValueError, AttributeError):
             return ''
 
@@ -685,8 +685,8 @@ class TerminalSession:
         # Column header at row 8, col 31
         await self.cursor_to(8, 31)
         await self.send(COL_WHITE)
-        cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE', 'UPLDDATE']
-        await self.send_text((' ' + cols[self.dir_column]).ljust(8)[:8])
+        cols = [' PRICE', ' LIFE', ' AUTHOR', ' VOTE', 'UPLDDATE']
+        await self.send_text(cols[self.dir_column].ljust(8)[:8])
 
         # Column values for each visible entry
         page = self.current_page
