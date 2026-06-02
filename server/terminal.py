@@ -167,7 +167,7 @@ class TerminalSession:
         self.current_page = directory.root
         self.dir_cursor = 0
         self.dir_offset = 0
-        self.dir_column = 0         # 0=PRICE, 1=LIFE, 2=AUTHOR, 3=VOTE
+        self.dir_column = 0         # 0=PRICE, 1=LIFE, 2=AUTHOR, 3=VOTE, 4=UPLDDATE
         self.mail_column = 0        # 0=SENDER, 1=DATE, 2=STATUS
         self.duck_pos = 0
         self.mode = 'login'         # login, directory, frame, mail
@@ -532,7 +532,7 @@ class TerminalSession:
         breadcrumb = f'  {page.page_num} {page.title}'
         await self.send_text(breadcrumb[:29].ljust(29))
         await self.send(self.B_THIN_V)
-        cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE']
+        cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE', 'UPLDDATE']
         await self.send_text((' ' + cols[self.dir_column]).ljust(8)[:8])
         await self.send(self.B_THIN_V)
 
@@ -557,8 +557,10 @@ class TerminalSession:
                     col_val = str(child.life) if child.life > 0 else ''
                 elif self.dir_column == 2:
                     col_val = child.author[:8]
-                else:
+                elif self.dir_column == 3:
                     col_val = str(child.vote) if child.vote > 0 else ''
+                else:
+                    col_val = self._format_upload_date(child)
                 col_val = col_val[:8].ljust(8)
 
                 if i == self.dir_cursor:
@@ -664,12 +666,26 @@ class TerminalSession:
             out.extend(RVS_OFF)
         await self.send(bytes(out))
 
+    def _format_upload_date(self, child):
+        """Format upload date as DD-MMM, right-justified so hyphens align."""
+        uploaded = getattr(child, 'uploaded', None)
+        if not uploaded:
+            return ''
+        import datetime
+        try:
+            dt = datetime.datetime.fromisoformat(uploaded)
+            day = str(dt.day)
+            mon = dt.strftime('%b').upper()
+            return f'{day}-{mon}'.rjust(6)
+        except (ValueError, AttributeError):
+            return ''
+
     async def redraw_column(self):
         """Redraw just the column header and column values (F7/F8 toggle)."""
         # Column header at row 8, col 31
         await self.cursor_to(8, 31)
         await self.send(COL_WHITE)
-        cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE']
+        cols = ['PRICE', 'LIFE', 'AUTHOR', 'VOTE', 'UPLDDATE']
         await self.send_text((' ' + cols[self.dir_column]).ljust(8)[:8])
 
         # Column values for each visible entry
@@ -685,8 +701,10 @@ class TerminalSession:
                     col_val = str(child.life) if child.life > 0 else ''
                 elif self.dir_column == 2:
                     col_val = child.author[:8]
-                else:
+                elif self.dir_column == 3:
                     col_val = str(child.vote) if child.vote > 0 else ''
+                else:
+                    col_val = self._format_upload_date(child)
                 col_val = col_val[:8].ljust(8)
                 if i == self.dir_cursor:
                     await self.send(COL_WHITE)
@@ -720,8 +738,10 @@ class TerminalSession:
             col_val = str(child.life) if child.life > 0 else ''
         elif self.dir_column == 2:
             col_val = child.author[:8]
-        else:
+        elif self.dir_column == 3:
             col_val = str(child.vote) if child.vote > 0 else ''
+        else:
+            col_val = self._format_upload_date(child)
         col_val = col_val[:8].ljust(8)
 
         if idx == self.dir_cursor:
@@ -3104,7 +3124,7 @@ class TerminalSession:
                     commands = self._get_duckshoot()
                     await self.execute_command(commands[self.duck_pos])
                 elif key == KEY_F7 or key == KEY_F8:
-                    self.dir_column = (self.dir_column + (1 if key == KEY_F8 else -1)) % 4
+                    self.dir_column = (self.dir_column + (1 if key == KEY_F8 else -1)) % 5
                     await self.redraw_column()
 
             elif self.mode == 'welcome':
