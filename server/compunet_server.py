@@ -685,6 +685,8 @@ class CompunetSession:
                     log.info('BUY: user=%s page=%d ("%s") price=%.2f credit=%.2f',
                              self.user_id, child.page_num, child.title,
                              child.price, self.credit)
+                    audit_log('buy', user=self.user_id, page=child.page_num,
+                              title=child.title, price=child.price)
                 self.show_page = child
                 self.show_frame_index = 0
                 audit_log('read', user=self.user_id, page=child.page_num,
