@@ -1874,10 +1874,37 @@ L8EE8:
     BCS @wait_welcome
     ; Read and display welcome frame (sets border, background, duckshoot colours)
     JSR L89D0
+    ; Receive terminal via LINKING
+    ; Display "LINKING" status
+    LDX #.lobyte(L8F3F)
+    LDY #.hibyte(L8F3F)
+    JSR PRINT_STATUS_MSG
+    ; Use same byte stream format as MODEM_INIT_DOWNLOAD but don't touch $C155
+    JSR L96CC                           ; byte 1: discard
+    JSR L96CC                           ; byte 2: discard
+    JSR L96CC                           ; byte 3: discard (jump lo — we know it's $05)
+    JSR L96CC                           ; byte 4: discard (jump hi — we know it's $A0)
+    JSR L96CC                           ; byte 5: load addr lo
+    STA $1D
+    JSR L96CC                           ; byte 6: load addr hi
+    STA $1E
+    JSR L96CC                           ; byte 7: discard
+    JSR L96CC                           ; byte 8: discard
+    LDY #$00
+@link_loop:
+    JSR L96CC                           ; get next byte
+    STA ($1D),Y
+    BCS @link_done                      ; end of stream
+    INC $1D
+    BNE @link_loop
+    INC $1E
+    BNE @link_loop
+@link_done:
+    ; Set $C155 bit 7 (terminal expects this for MODEM_INIT_DOWNLOAD calls)
     SEC
     ROR $C155
-    ; Receive terminal via LINKING (MODEM_INIT_DOWNLOAD reads stream, jumps to entry)
-    JMP MODEM_INIT_DOWNLOAD
+    ; Enter terminal
+    JMP $A005
 
 ; --- MODEM_INIT_DOWNLOAD ---
 ; Receive terminal software during LINKING phase (skipped — terminal pre-loaded)

@@ -1,3 +1,20 @@
+# 0.13-beta (2026-06-03)
+
+* Protocol:
+	* LINKING: terminal code now downloaded from server on connect (#73).
+	  Client sends 8-byte header (jump/load addresses) followed by terminal
+	  binary (~7.7K) via ACK-paced packets. Download takes ~3 seconds.
+	  "LINKING" status displayed during transfer.
+	* Client PRG reduced from ~12K to ~8K (SFX compressed). Terminal no
+	  longer bundled — downloaded on demand.
+	* Server stores terminal at `server/cfg/terminal.bin`, sent to all
+	  connecting clients after welcome frame.
+* Build:
+	* Makefile now produces `terminal.bin` alongside PRG/SFX/D64 outputs.
+	  Terminal binary extracted from main build and copied to server/cfg/.
+	* Linker config keeps all segments in one MEMORY region for correct
+	  cross-segment label resolution, then splits terminal post-build.
+
 # 0.12-beta (2026-06-01)
 
 * Partyline:

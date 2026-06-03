@@ -34,9 +34,14 @@ TERMINAL_BIN = build/terminal.bin
 
 .PHONY: all clean
 
-all: $(PRG) $(SFX_PRG) $(LIVE_PRG) $(D64) $(LIVE_D64)
+all: $(PRG) $(SFX_PRG) $(LIVE_PRG) $(D64) $(LIVE_D64) $(TERMINAL_BIN)
 	@cp $(TERMINAL_BIN) $(SERVER_CFG)/terminal.bin
 	@echo "Created $(TERMINAL_BIN) ($$(wc -c < $(TERMINAL_BIN)) bytes, for LINKING)"
+
+$(TERMINAL_BIN): $(BIN)
+	@dd if=$(BIN) bs=1 skip=$$((0x2000)) count=$$((0x2900)) of=$(TERMINAL_BIN) 2>/dev/null
+	@# Strip trailing zeros
+	@python3 -c "d=open('$(TERMINAL_BIN)','rb').read().rstrip(b'\x00');open('$(TERMINAL_BIN)','wb').write(d)"
 
 $(PRG): $(BIN)
 	@printf '\x00\x80' > $(PRG)
