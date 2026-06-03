@@ -32,11 +32,35 @@ WEBSITE_STATIC = ../../../website/static
 SERVER_CFG = ../../../server/cfg
 TERMINAL_BIN = build/terminal.bin
 
+CRT = ../compunet-reborn.crt
+
 .PHONY: all clean
 
-all: $(PRG) $(SFX_PRG) $(LIVE_PRG) $(D64) $(LIVE_D64) $(TERMINAL_BIN)
+all: $(PRG) $(SFX_PRG) $(LIVE_PRG) $(D64) $(LIVE_D64) $(CRT) $(TERMINAL_BIN)
 	@cp $(TERMINAL_BIN) $(SERVER_CFG)/terminal.bin
 	@echo "Created $(TERMINAL_BIN) ($$(wc -c < $(TERMINAL_BIN)) bytes, for LINKING)"
+
+$(CRT): $(BIN)
+	@python3 -c "\
+import struct;\
+rom=open('$(BIN)','rb').read()[:0x2000].ljust(8192,b'\x00');\
+crt=bytearray();\
+crt.extend(b'C64 CARTRIDGE   ');\
+crt.extend(struct.pack('>I',0x40));\
+crt.extend(struct.pack('>H',0x0100));\
+crt.extend(struct.pack('>H',0x0000));\
+crt.append(0x00);crt.append(0x01);\
+crt.extend(b'\x00'*6);\
+crt.extend(b'COMPUNET REBORN'.ljust(32,b'\x00'));\
+crt.extend(b'CHIP');\
+crt.extend(struct.pack('>I',0x2010));\
+crt.extend(struct.pack('>H',0x0000));\
+crt.extend(struct.pack('>H',0x0000));\
+crt.extend(struct.pack('>H',0x8000));\
+crt.extend(struct.pack('>H',0x2000));\
+crt.extend(rom);\
+open('$(CRT)','wb').write(crt)"
+	@echo "Created $(CRT) (8K cartridge, $$(wc -c < $(CRT)) bytes)"
 
 $(TERMINAL_BIN): $(BIN)
 	@dd if=$(BIN) bs=1 skip=$$((0x2000)) count=$$((0x2900)) of=$(TERMINAL_BIN) 2>/dev/null
@@ -104,4 +128,4 @@ build:
 	mkdir -p build
 
 clean:
-	rm -rf build $(PRG) $(SFX_PRG) $(LIVE_PRG) $(D64) $(LIVE_D64)
+	rm -rf build $(PRG) $(SFX_PRG) $(LIVE_PRG) $(D64) $(LIVE_D64) $(CRT)
