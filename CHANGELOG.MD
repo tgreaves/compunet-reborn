@@ -27,6 +27,8 @@
 	  CODE+ACIA is 7.2K — fits within 8K for future CRT build.
 	* DIR response: prepend $8E charset byte to Part 1 header. Fixes
 	  lowercase rendering on C64 Ultimate after LINKING.
+	* Fixed: terminal client crash on SHOW (render_frame missing
+	  `_get_server()` call for audit logging).
 * Build:
 	* Makefile produces trimmed PRG (CODE+ACIA only) for SFX compression.
 	  Avoids exomizer workspace conflict with large zero-filled gaps.
