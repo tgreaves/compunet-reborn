@@ -2412,6 +2412,7 @@ class TerminalSession:
         """Display a text frame."""
         if not self.show_page or not self.show_page.frames:
             return
+        cs = _get_server()
         cs.audit_log('read', user=self.user_id, ip=self.client_ip,
                      page=self.show_page.page_num, title=self.show_page.title,
                      type=self.show_page.page_type,
