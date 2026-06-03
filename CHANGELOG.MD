@@ -9,6 +9,10 @@
 	  downloaded on demand. Raw PRG is 7.3K.
 	* Server stores terminal at `server/cfg/terminal.bin`, sent to all
 	  connecting clients after welcome frame.
+	* CNLOAD/CNSAVE: terminal end address stored after LINKING, enabling
+	  disk caching of the downloaded terminal for instant reconnects.
+	* 8K CRT cartridge build: standard format (EXROM=0, GAME=1), boots to
+	  Compunet BASIC prompt. Works on VICE and C64 Ultimate.
 * Client:
 	* Stripped dead X.25 protocol engine (~2.3K removed). All protocol
 	  handling done by ACIA driver. Only RTS stubs + string constants
