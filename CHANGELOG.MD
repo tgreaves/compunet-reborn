@@ -25,6 +25,7 @@
 	  remain for ROM jump table compatibility.
 	* ACIA segment now follows CODE directly (no $C900 gap). Combined
 	  CODE+ACIA is 7.2K — fits within 8K for future CRT build.
+* Server:
 	* DIR response: prepend $8E charset byte to Part 1 header. Fixes
 	  lowercase rendering on C64 Ultimate after LINKING.
 	* Fixed: terminal client crash on SHOW (render_frame missing
