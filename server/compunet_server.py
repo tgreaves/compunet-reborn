@@ -100,6 +100,29 @@ ROOT_DIR = os.path.join(CONTENT_DIR, 'root')
 MAIL_DIR = os.path.join(DATA_DIR, 'mail')
 VOTES_PATH = os.path.join(DATA_DIR, 'votes.json')
 
+
+def _compute_terminal_hash():
+    """Compute a 2-byte checksum of terminal.bin for version-aware LINKING."""
+    terminal_path = os.path.join(CFG_DIR, 'terminal.bin')
+    if not os.path.exists(terminal_path):
+        return 0x30, 0x30  # No terminal = same as "not loaded"
+    with open(terminal_path, 'rb') as f:
+        data = f.read()
+    # Simple 16-bit additive checksum (fast, sufficient for change detection)
+    checksum = 0
+    for b in data:
+        checksum = (checksum + b) & 0xFFFF
+    hi = (checksum >> 8) & 0xFF
+    lo = checksum & 0xFF
+    # Avoid $30/$30 which means "no terminal"
+    if hi == 0x30 and lo == 0x30:
+        lo = 0x31
+    return lo, hi
+
+
+TERMINAL_HASH = _compute_terminal_hash()
+log.info('Terminal hash: $%02X/$%02X', TERMINAL_HASH[0], TERMINAL_HASH[1])
+
 # Active session tracking
 _online_users = set()  # user IDs currently online
 
@@ -2503,13 +2526,17 @@ async def tcp_handler(reader, writer):
                         password = bytes(cmd_payload[9:15]).decode('latin-1').strip()
                         
                         # CNLOAD flag at offset 25-26 from start of cmd_payload
+                        # These are the terminal version hash stored at $A000/$A001
                         cnload_1 = cmd_payload[25] if len(cmd_payload) > 25 else 0
                         cnload_2 = cmd_payload[26] if len(cmd_payload) > 26 else 0
-                        skip_linking = (cnload_1 == 0x30 and cnload_2 == 0x30)
-                        
+                        # Skip LINKING if client's hash matches current terminal
+                        skip_linking = (cnload_1 == TERMINAL_HASH[0] and
+                                        cnload_2 == TERMINAL_HASH[1])
+
                         log.info('TCP: *** LOGIN ***')
-                        log.info('TCP:   user=%r cnload_bytes=$%02X/$%02X (skip=%s)',
-                                 user_id, cnload_1, cnload_2, skip_linking)
+                        log.info('TCP:   user=%r cnload_bytes=$%02X/$%02X (skip=%s, server_hash=$%02X/$%02X)',
+                                 user_id, cnload_1, cnload_2, skip_linking,
+                                 TERMINAL_HASH[0], TERMINAL_HASH[1])
                         
                         async with _lock_users:
                             response = session.handle_login(user_id, password)
@@ -2559,30 +2586,35 @@ async def tcp_handler(reader, writer):
                             await writer.drain()
                             log.info('TCP: sent welcome frame (%d bytes + EOS)', len(response))
 
-                        # LINKING: send terminal binary
+                        # LINKING: send terminal binary or header-only (if client is current)
                         terminal_path = os.path.join(CFG_DIR, 'terminal.bin')
-                        if os.path.exists(terminal_path):
+                        linking_header = bytes([TERMINAL_HASH[0], TERMINAL_HASH[1],
+                                               0x05, 0xA0, 0x00, 0xA0, 0x00, 0x00])
+                        if not skip_linking and os.path.exists(terminal_path):
                             with open(terminal_path, 'rb') as f:
                                 terminal_data = f.read()
-                            # Header: 2 padding + jump_lo + jump_hi + load_lo + load_hi + 2 padding
-                            linking_header = bytes([0x00, 0x00, 0x05, 0xA0, 0x00, 0xA0, 0x00, 0x00])
                             linking_stream = linking_header + terminal_data
-                            MAX_PAYLOAD = 100
-                            offset = 0
-                            pkt_num = 0
-                            while offset < len(linking_stream):
-                                chunk = linking_stream[offset:offset + MAX_PAYLOAD]
-                                pkt = x25.make_data_packet(chunk, TOKEN_DAT)
-                                await send_pkt_with_ack(pkt)
-                                pkt_num += 1
-                                offset += MAX_PAYLOAD
-                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
-                            writer.write(eos_pkt)
-                            await writer.drain()
+                        else:
+                            # Header + 1 padding byte — avoids EOS pre-fetch timeout.
+                            # The 1 byte writes $00 to $A000 but the hash PLA overwrites it after.
+                            linking_stream = linking_header + b'\x00'
+                            if skip_linking:
+                                log.info('LINKING: skipped (client has current terminal)')
+                        MAX_PAYLOAD = 100
+                        offset = 0
+                        pkt_num = 0
+                        while offset < len(linking_stream):
+                            chunk = linking_stream[offset:offset + MAX_PAYLOAD]
+                            pkt = x25.make_data_packet(chunk, TOKEN_DAT)
+                            await send_pkt_with_ack(pkt)
+                            pkt_num += 1
+                            offset += MAX_PAYLOAD
+                        eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                        writer.write(eos_pkt)
+                        await writer.drain()
+                        if not skip_linking:
                             log.info('LINKING: sent terminal (%d bytes, %d packets)',
                                      len(linking_stream), pkt_num)
-                        else:
-                            log.warning('LINKING: terminal.bin not found at %s', terminal_path)
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it

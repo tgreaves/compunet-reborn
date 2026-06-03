@@ -1880,8 +1880,10 @@ L8EE8:
     LDY #.hibyte(L8F3F)
     JSR PRINT_STATUS_MSG
     ; Use same byte stream format as MODEM_INIT_DOWNLOAD but don't touch $C155
-    JSR L96CC                           ; byte 1: discard
-    JSR L96CC                           ; byte 2: discard
+    JSR L96CC                           ; byte 1: version hash lo → save for later
+    PHA
+    JSR L96CC                           ; byte 2: version hash hi → save for later
+    PHA
     JSR L96CC                           ; byte 3: discard (jump lo — we know it's $05)
     JSR L96CC                           ; byte 4: discard (jump hi — we know it's $A0)
     JSR L96CC                           ; byte 5: load addr lo
@@ -1905,6 +1907,11 @@ L8EE8:
     LDY $1E
     STX $8036
     STY $8037
+    ; Store version hash at $A000/$A001 (for login packet on reconnect)
+    PLA
+    STA $A001                           ; hash hi (pushed second)
+    PLA
+    STA $A000                           ; hash lo (pushed first)
     ; Set $C155 bit 7 (terminal expects this for MODEM_INIT_DOWNLOAD calls)
     SEC
     ROR $C155
