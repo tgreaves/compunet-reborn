@@ -12,9 +12,11 @@
 	* CNLOAD/CNSAVE: terminal end address stored after LINKING, enabling
 	  disk caching of the downloaded terminal for instant reconnects.
 	  CNSAVE saves from $A000 to terminal end (~31 blocks). CNLOAD
-	  restores it; login packet then reports terminal cached ($A000/$A001
-	  non-$30). Server currently always links regardless (Phase 4 will
-	  add version-aware skipping).
+	  restores it.
+	* Version-aware LINKING: server computes 2-byte hash of terminal.bin.
+	  Hash sent in LINKING header; client stores at $A000/$A001. On
+	  reconnect after CNLOAD, matching hash skips LINKING (~100ms vs
+	  ~3 seconds). Terminal updates automatically re-download.
 	* 8K CRT cartridge build: standard format (EXROM=0, GAME=1), boots to
 	  Compunet BASIC prompt. Works on VICE and C64 Ultimate.
 * Client:
