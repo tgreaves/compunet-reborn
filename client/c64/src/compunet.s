@@ -338,8 +338,8 @@ L82CC:
     TAX
     LDY #$01
     JSR KERNAL_SETLFS                   ; KERNAL_SETLFS
-    LDX #.lobyte(L9FF0)
-    LDY #.hibyte(L9FF0)
+    LDX #$00
+    LDY #$A0
     STX $1D
     STY $1E
     BIT $19
