@@ -152,15 +152,29 @@ it would need to either:
 - Option C: ACIA in RAM, copied from ROM on boot (~200 bytes of ROM for the copy
   routine + ACIA code stored compressed or at end of ROM)
 
-**Phase 3: Version-aware linking**
-- Terminal binary has a version hash
-- Client sends hash in login packet
+**Phase 3: Version-aware linking (future optimisation)**
+- Terminal binary has a version byte at a fixed address (e.g. $A002)
+- Client sends it in the login packet alongside $A000/$A001
 - Server compares and only sends if outdated
+- For initial implementation: always link (no version check)
 
-## Questions
+## Decisions Made
 
-1. Should we target an 8K or 16K cartridge?
-2. Is the ~4 second first-connect download acceptable?
-3. Should CNLOAD/CNSAVE save to the same drive the client was loaded from?
-4. Do we want version-aware linking (only re-download when server has newer
-   terminal) or always download?
+1. **Target 8K CRT** — remove unused original modem code to make space for ACIA
+2. **Download time acceptable** — ~3 seconds via ACK-paced packets, same mechanism
+   as program downloads (BUY)
+3. **Always link during testing** — no version checking initially. Every connect
+   downloads the terminal. Add version-aware skipping later as optimisation.
+4. **CNLOAD/CNSAVE** — re-implement for disk caching (future phase)
+
+## Note on cnload_bytes Logic
+
+The original protocol:
+- Client sends `$A000/$A001` in the login packet (bytes 25-26)
+- `$30/$30` (init values) = no terminal loaded → server MUST send LINKING
+- Real address values = terminal cached → server skips LINKING
+
+Our current server has this **inverted** (`skip_linking` when `$30/$30`) because
+the bundled client always sends `$30/$30` and never needs linking. When we
+re-implement, the server should: always send LINKING data (phase 1), or check
+a version byte (phase 3).
