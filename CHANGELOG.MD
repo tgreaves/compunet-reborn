@@ -2,14 +2,26 @@
 
 * Protocol:
 	* LINKING: terminal code now downloaded from server on connect (#73).
-	  Client sends 8-byte header (jump/load addresses) followed by terminal
+	  Server sends 8-byte header (jump/load addresses) followed by terminal
 	  binary (~7.7K) via ACK-paced packets. Download takes ~3 seconds.
 	  "LINKING" status displayed during transfer.
-	* Client PRG reduced from ~12K to ~8K (SFX compressed). Terminal no
-	  longer bundled — downloaded on demand.
+	* Client SFX reduced from 12K to 5.5K. Terminal no longer bundled —
+	  downloaded on demand. Raw PRG is 7.3K.
 	* Server stores terminal at `server/cfg/terminal.bin`, sent to all
 	  connecting clients after welcome frame.
+* Client:
+	* Stripped dead X.25 protocol engine (~2.3K removed). All protocol
+	  handling done by ACIA driver. Only RTS stubs + string constants
+	  remain for ROM jump table compatibility.
+	* ACIA segment now follows CODE directly (no $C900 gap). Combined
+	  CODE+ACIA is 7.2K — fits within 8K for future CRT build.
+	* DIR response: prepend $8E charset byte to Part 1 header. Fixes
+	  lowercase rendering on C64 Ultimate after LINKING.
 * Build:
+	* Makefile produces trimmed PRG (CODE+ACIA only) for SFX compression.
+	  Avoids exomizer workspace conflict with large zero-filled gaps.
+	* Exomizer default mode (no -x1 flag) — automatic decompressor
+	  placement prevents self-overwrite with compact binary.
 	* Makefile now produces `terminal.bin` alongside PRG/SFX/D64 outputs.
 	  Terminal binary extracted from main build and copied to server/cfg/.
 	* Linker config keeps all segments in one MEMORY region for correct
