@@ -74,19 +74,33 @@
 </ul>
 
 <h3>Download Client</h3>
+
+<h4>VICE / C64 Ultimate (Cartridge — recommended)</h4>
 <table class="download-table">
     <tr>
-        <td><a href="{{ url_for('static', filename='compunet-reborn-live.prg') }}">compunet-reborn-live.prg</a></td>
+        <td><a href="{{ url_for('static', filename='compunet-reborn-live.crt') }}">compunet-reborn-live.crt</a></td>
         <td>Auto-connects to Compunet (recommended)</td>
     </tr>
     <tr>
-        <td><a href="{{ url_for('static', filename='compunet-reborn-sfx.prg') }}">compunet-reborn-sfx.prg</a></td>
+        <td><a href="{{ url_for('static', filename='compunet-reborn.crt') }}">compunet-reborn.crt</a></td>
         <td>Manual connection (enter server address when prompted)</td>
     </tr>
 </table>
 
+<h4>Real C64 Hardware (PRG)</h4>
+<table class="download-table">
+    <tr>
+        <td><a href="{{ url_for('static', filename='compunet-reborn-live.prg') }}">compunet-reborn-live.prg</a></td>
+        <td>Auto-connects to Compunet (LOAD + RUN)</td>
+    </tr>
+    <tr>
+        <td><a href="{{ url_for('static', filename='compunet-reborn-sfx.prg') }}">compunet-reborn-sfx.prg</a></td>
+        <td>Manual connection (LOAD + RUN, enter server address)</td>
+    </tr>
+</table>
+
 <div class="flash flash-info">
-    <strong>&#9888; WINDOWS VICE USERS:</strong> If you experience connection issues with the auto-connect client, use <code>compunet-reborn-sfx.prg</code> instead. Enter <code>vme.compunet.live:6400</code> at the phone number prompt.
+    <strong>&#9888; WINDOWS VICE USERS:</strong> If you experience connection issues with the auto-connect client, use the manual version instead. Enter <code>vme.compunet.live:6400</code> at the phone number prompt.
 </div>
 
 <h3>Setup</h3>
@@ -116,32 +130,32 @@
     </div>
 </div>
 
-<h3>Connecting</h3>
+<h3>Connecting (CRT Cartridge)</h3>
 <ol>
-    <li>In VICE: drag the PRG file into the emulator window, or use File &rarr; Smart Attach. If VICE does not RUN automatically (with flashing bars showing the decompression), type <code>RUN</code>.</li>
-    <li>On C64 Ultimate: select the PRG in the file browser and choose Run</li>
-    <li>Wait for the client to finish decompressing (flashing bars visible)
-        <div class="walkthrough" style="margin: 12px 0;">
-            <img src="{{ url_for('static', filename='decompressing-screenshot.png') }}" alt="Decompression in progress" width="50%">
-        </div>
-    </li>
-    <li>Type <code>CONNECT</code>
-        <div class="walkthrough" style="margin: 12px 0;">
-            <img src="{{ url_for('static', filename='connect-screenshot.png') }}" alt="Type CONNECT at the prompt" width="50%">
-        </div>
-    </li>
-    <li><em>(If using manual SFX client)</em>: Enter <code>vme.compunet.live:6400</code>
-        <div class="walkthrough" style="margin: 12px 0;">
-            <img src="{{ url_for('static', filename='phone-number-screenshot.png') }}" alt="Enter server address" width="50%">
-        </div>
-    </li>
-    <li>Enter your User ID and password</li>
-    <li>The welcome screen appears — you're in!
-        <div class="walkthrough" style="margin: 12px 0;">
-            <img src="{{ url_for('static', filename='welcome-screenshot.png') }}" alt="Welcome screen" width="50%">
-        </div>
-    </li>
+    <li>In VICE: File &rarr; Attach cartridge image &rarr; select the CRT file. Then reset the emulator.</li>
+    <li>On C64 Ultimate: copy the CRT to your storage, select it as a cartridge in the menu.</li>
+    <li>The system boots directly to the Compunet prompt.</li>
+    <li>Type <code>CONNECT</code></li>
+    <li><em>(If using manual CRT)</em>: Enter <code>vme.compunet.live:6400</code> at the phone number prompt.</li>
+    <li>Wait for "LINKING" (downloads the terminal software — ~3 seconds on first connect, instant on subsequent connects if you use <code>CNSAVE</code>/<code>CNLOAD</code>).</li>
+    <li>Enter your User ID and password.</li>
+    <li>The welcome screen appears — you're in!</li>
 </ol>
+
+<h3>Connecting (PRG — Real Hardware)</h3>
+<ol>
+    <li><code>LOAD "filename",8</code> then <code>RUN</code></li>
+    <li>Wait for the client to finish decompressing.</li>
+    <li>Type <code>CONNECT</code></li>
+    <li><em>(If using manual PRG)</em>: Enter <code>vme.compunet.live:6400</code></li>
+    <li>Wait for "LINKING" (downloads terminal software).</li>
+    <li>Enter your User ID and password.</li>
+    <li>The welcome screen appears — you're in!</li>
+</ol>
+
+<div class="flash flash-info">
+    <strong>Tip:</strong> After your first connect, type <code>CNSAVE</code> at the Compunet prompt to cache the terminal software to disk. Next time, type <code>CNLOAD</code> before <code>CONNECT</code> for an instant connection (skips the LINKING download).
+</div>
 
 <hr>
 
