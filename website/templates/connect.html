@@ -3,162 +3,132 @@
 {% block content %}
 <h1>HOW TO CONNECT</h1>
 
-<p>There are two ways to connect to Compunet Reborn:</p>
-<ul>
-    <li><strong>PETSCII Terminal</strong> (easiest) — use SyncTerm or any PETSCII terminal program</li>
-    <li><strong>Custom C64 Client</strong> — full experience on a real or emulated Commodore 64</li>
-</ul>
+<div class="flash flash-info" style="font-size: 1.1em; padding: 1.2em;">
+    <strong>Quickest start:</strong> Download <a href="{{ url_for('static', filename='compunet-reborn-live.crt') }}">compunet-reborn-live.crt</a>, attach in VICE or C64 Ultimate, power on. <a href="{{ url_for('register') }}">Register</a> first if you haven't already.
+</div>
 
 <h2>STEP 1: REGISTER</h2>
-<p>You need a registered account to connect. Registration is free.</p>
+<p>You need a registered account to connect. Registration is free and approval is usually same-day.</p>
 <p><a href="{{ url_for('register') }}" class="btn">Register for an account</a></p>
-<p>Once approved, you'll receive your User ID and can set your password.</p>
 
 <hr>
 
-<h2>OPTION A: PETSCII TERMINAL (SyncTerm)</h2>
+<h2>STEP 2: CHOOSE YOUR CLIENT</h2>
 
-<p>The quickest way to connect. Works on Windows, Mac, and Linux with no C64 hardware or emulator required.</p>
-
-<h3>1. Download SyncTerm</h3>
-<p>Download from <a href="https://syncterm.bbsdev.net/">syncterm.bbsdev.net</a> and install.</p>
-
-<h3>2. Create a Connection Entry</h3>
-<p>Create a new directory entry in SyncTerm with these settings:</p>
-<table class="download-table">
-    <tr><td>Name</td><td><code>Compunet Reborn</code></td></tr>
-    <tr><td>Address</td><td><code>vme.compunet.live</code></td></tr>
-    <tr><td>Connection Type</td><td><code>Raw</code></td></tr>
-    <tr><td>TCP Port</td><td><code>6401</code></td></tr>
-    <tr><td>Screen Mode</td><td><code>C64</code></td></tr>
-    <tr><td>Font</td><td><code>Commodore 64 (LOWER)</code></td></tr>
-    <tr><td>Fake Comm Rate</td><td>Your choice on how retro you want to be!</td></tr>
-</table>
-
-<h3>3. Connect</h3>
-<ol>
-    <li>Select your Compunet Reborn entry and connect</li>
-    <li>You should see a PETSCII block character confirming your terminal is configured correctly</li>
-    <li>Enter your User ID and password</li>
-    <li>The welcome screen appears — you're in!</li>
-</ol>
-
-<div class="flash flash-info">
-    <strong>Tip:</strong> Ensure your terminal is set to 40 columns &times; 25 rows. If the display looks garbled, check your Font and Screen Mode settings.
-    <br><br><strong>Note:</strong> A limitation of the terminal client is that the background colour cannot be changed, so not all graphical content will render exactly as intended. For the full visual experience, use the custom C64 client.
-</div>
-
-<h3>File Transfers</h3>
-<p>Uploads and downloads use <strong>XMODEM-CRC</strong> (also supports XMODEM-1K). Use your terminal's XMODEM send/receive function to transfer files.</p>
-
-<h3>Other Compatible Terminals</h3>
-<p>Any terminal program with PETSCII support and XMODEM-CRC file transfer will work. On a <strong>C64 or C64 Ultimate</strong>, the following terminal programs can connect to port 6401:</p>
-<ul>
-    <li><strong>CCGMS</strong> — classic C64 terminal with PETSCII and XMODEM support</li>
-    <li><strong>StrikeTerm</strong> — modern C64 terminal program</li>
-    <li><strong>UltimateTerm</strong> — designed for the C64 Ultimate</li>
-</ul>
-<p>Configure your C64 terminal to connect to <code>vme.compunet.live:6401</code> using Raw TCP (no Telnet).</p>
-
-<hr>
-
-<h2>OPTION B: CUSTOM C64 CLIENT</h2>
-
-<p>The full Compunet experience on a real (or emulated) Commodore 64 with SwiftLink-compatible serial interface.</p>
-
-<h3>Supported Hardware</h3>
-<ul>
-    <li><strong>VICE C64 emulator</strong> (x64sc) — <a href="https://vice-emu.sourceforge.io/">download here</a></li>
-    <li><strong>C64 Ultimate</strong> (Ultimate 64, Ultimate-II+) — built-in SwiftLink-to-TCP bridge</li>
-    <li><strong>Real C64 + SwiftLink</strong> with a WiFi modem</li>
-</ul>
-
-<h3>Download Client</h3>
-
-<h4>VICE / C64 Ultimate (Cartridge — recommended)</h4>
-<table class="download-table">
-    <tr>
-        <td><a href="{{ url_for('static', filename='compunet-reborn-live.crt') }}">compunet-reborn-live.crt</a></td>
-        <td>Auto-connects to Compunet (recommended)</td>
-    </tr>
-    <tr>
-        <td><a href="{{ url_for('static', filename='compunet-reborn.crt') }}">compunet-reborn.crt</a></td>
-        <td>Manual connection (enter server address when prompted)</td>
-    </tr>
-</table>
-
-<h4>Real C64 Hardware (PRG)</h4>
-<table class="download-table">
-    <tr>
-        <td><a href="{{ url_for('static', filename='compunet-reborn-live.prg') }}">compunet-reborn-live.prg</a></td>
-        <td>Auto-connects to Compunet (LOAD + RUN)</td>
-    </tr>
-    <tr>
-        <td><a href="{{ url_for('static', filename='compunet-reborn-sfx.prg') }}">compunet-reborn-sfx.prg</a></td>
-        <td>Manual connection (LOAD + RUN, enter server address)</td>
-    </tr>
-</table>
-
-<div class="flash flash-info">
-    <strong>&#9888; WINDOWS VICE USERS:</strong> If you experience connection issues with the auto-connect client, use the manual version instead. Enter <code>vme.compunet.live:6400</code> at the phone number prompt.
-</div>
-
-<h3>Setup</h3>
 <div class="setup-columns">
     <div class="setup-col">
-        <h4>VICE</h4>
-        <ol>
-            <li>Go to Settings &rarr; Peripheral Devices &rarr; RS232</li>
-            <li>Enable <code>ACIA RS232 interface emulation</code></li>
-            <li>Set Device to <code>Serial 3</code></li>
-            <li>In the RS232 devices section for Serial 3, set:
-                <ul>
-                    <li>Host: <code>vme.compunet.live:6400</code></li>
-                    <li>Baud: <code>1200</code></li>
-                    <li>IP232: <strong>Unchecked</strong></li>
-                </ul>
-            </li>
-        </ol>
+        <h3>&#128190; VICE / C64 Ultimate</h3>
+        <p>Cartridge image — just attach and boot. No typing required.</p>
+        <table class="download-table">
+            <tr>
+                <td><a href="{{ url_for('static', filename='compunet-reborn-live.crt') }}">compunet-reborn-live.crt</a></td>
+                <td>Auto-connect</td>
+            </tr>
+            <tr>
+                <td><a href="{{ url_for('static', filename='compunet-reborn.crt') }}">compunet-reborn.crt</a></td>
+                <td>Manual (enter address)</td>
+            </tr>
+        </table>
     </div>
     <div class="setup-col">
-        <h4>C64 ULTIMATE</h4>
-        <ol>
-            <li>Go to the Ultimate menu</li>
-            <li>Configure: Modem Interface &rarr; ACIA / SwiftLink, DE00/NMI</li>
-            <li>Ensure Command Interface is Enabled</li>
-        </ol>
+        <h3>&#128187; Real C64 + SwiftLink</h3>
+        <p>PRG file — LOAD then RUN from disk or SD card.</p>
+        <table class="download-table">
+            <tr>
+                <td><a href="{{ url_for('static', filename='compunet-reborn-live.prg') }}">compunet-reborn-live.prg</a></td>
+                <td>Auto-connect</td>
+            </tr>
+            <tr>
+                <td><a href="{{ url_for('static', filename='compunet-reborn-sfx.prg') }}">compunet-reborn-sfx.prg</a></td>
+                <td>Manual (enter address)</td>
+            </tr>
+        </table>
     </div>
-</div>
-
-<h3>Connecting (CRT Cartridge)</h3>
-<ol>
-    <li>In VICE: File &rarr; Attach cartridge image &rarr; select the CRT file. Then reset the emulator.</li>
-    <li>On C64 Ultimate: copy the CRT to your storage, select it as a cartridge in the menu.</li>
-    <li>The system boots directly to the Compunet prompt.</li>
-    <li>Type <code>CONNECT</code></li>
-    <li><em>(If using manual CRT)</em>: Enter <code>vme.compunet.live:6400</code> at the phone number prompt.</li>
-    <li>Wait for "LINKING" (downloads the terminal software — ~3 seconds on first connect, instant on subsequent connects if you use <code>CNSAVE</code>/<code>CNLOAD</code>).</li>
-    <li>Enter your User ID and password.</li>
-    <li>The welcome screen appears — you're in!</li>
-</ol>
-
-<h3>Connecting (PRG — Real Hardware)</h3>
-<ol>
-    <li><code>LOAD "filename",8</code> then <code>RUN</code></li>
-    <li>Wait for the client to finish decompressing.</li>
-    <li>Type <code>CONNECT</code></li>
-    <li><em>(If using manual PRG)</em>: Enter <code>vme.compunet.live:6400</code></li>
-    <li>Wait for "LINKING" (downloads terminal software).</li>
-    <li>Enter your User ID and password.</li>
-    <li>The welcome screen appears — you're in!</li>
-</ol>
-
-<div class="flash flash-info">
-    <strong>Tip:</strong> After your first connect, type <code>CNSAVE</code> at the Compunet prompt to cache the terminal software to disk. Next time, type <code>CNLOAD</code> before <code>CONNECT</code> for an instant connection (skips the LINKING download).
+    <div class="setup-col">
+        <h3>&#128421; PETSCII Terminal</h3>
+        <p>SyncTerm or any PETSCII terminal. No C64 needed.</p>
+        <p>Connect to:<br><code>vme.compunet.live:6401</code><br>Raw TCP, C64 screen mode.</p>
+        <p><small><a href="https://syncterm.bbsdev.net/">Download SyncTerm</a></small></p>
+    </div>
 </div>
 
 <hr>
 
-<h2>USING COMPUNET</h2>
+<h2>STEP 3: SETUP</h2>
+
+<details>
+    <summary><strong>VICE Setup</strong> (click to expand)</summary>
+    <ol>
+        <li>Download VICE from <a href="https://vice-emu.sourceforge.io/">vice-emu.sourceforge.io</a></li>
+        <li>Go to Settings &rarr; Cartridge/IO Settings &rarr; RS-232 interface emulation</li>
+        <li>Enable <code>ACIA RS232 interface emulation</code></li>
+        <li>Set Device to <code>Serial 3</code></li>
+        <li>In the RS232 devices section for Serial 3:
+            <ul>
+                <li>Host: <code>vme.compunet.live:6400</code></li>
+                <li>Baud: <code>1200</code></li>
+                <li>IP232: <strong>Unchecked</strong></li>
+            </ul>
+        </li>
+        <li>Attach the CRT: File &rarr; Attach cartridge image &rarr; select the .crt file</li>
+        <li>Reset the emulator (Machine &rarr; Reset &rarr; Hard)</li>
+    </ol>
+</details>
+
+<details>
+    <summary><strong>C64 Ultimate Setup</strong> (click to expand)</summary>
+    <ol>
+        <li>Copy the CRT file to your USB or SD storage</li>
+        <li>In the Ultimate menu: Configure &rarr; Modem Interface &rarr; ACIA / SwiftLink, DE00/NMI</li>
+        <li>Ensure Command Interface is Enabled</li>
+        <li>Navigate to the CRT file and select it as a cartridge</li>
+        <li>Reset or power cycle</li>
+    </ol>
+</details>
+
+<details>
+    <summary><strong>SyncTerm Setup</strong> (click to expand)</summary>
+    <p>Create a new directory entry with these settings:</p>
+    <table class="download-table">
+        <tr><td>Name</td><td><code>Compunet Reborn</code></td></tr>
+        <tr><td>Address</td><td><code>vme.compunet.live</code></td></tr>
+        <tr><td>Connection Type</td><td><code>Raw</code></td></tr>
+        <tr><td>TCP Port</td><td><code>6401</code></td></tr>
+        <tr><td>Screen Mode</td><td><code>C64</code></td></tr>
+        <tr><td>Font</td><td><code>Commodore 64 (LOWER)</code></td></tr>
+    </table>
+</details>
+
+<details>
+    <summary><strong>Real C64 + SwiftLink / WiFi Modem</strong> (click to expand)</summary>
+    <ol>
+        <li>Copy the PRG file to a D64 image or SD card</li>
+        <li><code>LOAD "COMPUNET-REBORN-LIVE",8</code></li>
+        <li><code>RUN</code></li>
+        <li>The client decompresses and boots to the Compunet prompt</li>
+        <li>Type <code>CONNECT</code></li>
+    </ol>
+    <p>For the manual version, enter <code>vme.compunet.live:6400</code> at the phone number prompt.</p>
+</details>
+
+<hr>
+
+<h2>STEP 4: CONNECT</h2>
+
+<ol>
+    <li>The system boots to the <strong>Compunet BASIC prompt</strong>.</li>
+    <li>Type <code>CONNECT</code> (CRT/PRG) or select your entry (SyncTerm).</li>
+    <li>For CRT/PRG clients: <strong>LINKING</strong> downloads the terminal software (~3 seconds on first connect).</li>
+    <li>Enter your <strong>User ID</strong> and <strong>password</strong>.</li>
+    <li>The welcome screen appears — you're in!</li>
+</ol>
+
+<div class="flash flash-info">
+    <strong>&#9888; Windows VICE:</strong> If the auto-connect CRT fails to connect, use the manual version and enter <code>vme.compunet.live:6400</code> at the phone number prompt.
+</div>
+
+<hr>
+
+<h2>WHAT NEXT?</h2>
 <p>Once connected, see the <a href="{{ url_for('guide') }}">User Guide</a> for how to navigate, send mail, upload content, and use Partyline.</p>
 {% endblock %}
