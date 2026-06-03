@@ -137,25 +137,32 @@ it would need to either:
    has. Could use the existing `cnload_bytes` mechanism (terminal version hash
    instead of just "present/absent").
 
-### Proposed Approach
+### Implementation Plan
 
-**Phase 1: Separate terminal into a downloadable binary**
-- Split `compunet.s` TERMINAL segment into a standalone file
-- Server sends it during LINKING when client reports no terminal
-- Client stores at $A000+, jumps to $A005
-- CNLOAD/CNSAVE cache it to disk
+**Phase 1: LINKING (this branch — v0.13-beta)**
+- Split TERMINAL segment from `compunet.s` into a standalone binary (`terminal.bin`)
+- Server sends `terminal.bin` during LINKING phase (always, no version check)
+- Client receives it via `MODEM_INIT_DOWNLOAD` (ACK-paced), stores at $A000+
+- PRG/SFX/D64 builds continue with ACIA at $C900 (no relocation needed)
+- PRG is now ~9K (ROM+ACIA only), terminal downloaded on connect
 
-**Phase 2: Fit ROM + ACIA into 8K for CRT**
-- Replace dead X.25 protocol engine ($96DB-$9FE6, 2342 bytes) with ACIA driver
-- ACIA runs in-place within the ROM address space (no copy to $C900 needed)
-- Dispatch table at $96C0 retained — JMP stubs redirect to ACIA routines
-- ~1200 bytes spare for future use or NMI handler storage
+**Phase 2: 8K CRT build (future branch)**
+- Relocate ACIA driver from $C900 into ROM space ($96DB-$9FE6)
+- Replace dead X.25 protocol engine (2342 bytes) — ACIA is only ~1100 bytes
+- ACIA runs in-place within RAM-copied-ROM (no separate copy step)
+- Build CRT output from the 8K ROM image
+- ~1200 bytes spare for future use
 
-**Phase 3: Version-aware linking (future optimisation)**
+**Phase 3: CNLOAD/CNSAVE (future)**
+- Re-implement disk caching commands
+- On subsequent connects, client sends real $A000/$A001 values
+- Server version check: only sends terminal if outdated
+- Instant reconnects for users with cached terminal
+
+**Phase 4: Version-aware linking (future)**
 - Terminal binary has a version byte at a fixed address (e.g. $A002)
-- Client sends it in the login packet alongside $A000/$A001
+- Client sends it in the login packet
 - Server compares and only sends if outdated
-- For initial implementation: always link (no version check)
 
 ## Decisions Made
 
