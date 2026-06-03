@@ -1787,6 +1787,8 @@ class CompunetSession:
         
         # --- Part 1: Frame header ---
         # PETSCII frame data stored at $D000, displayed via CHROUT after template.
+        # Start with uppercase charset to ensure consistent rendering.
+        data.append(0x8E)
         # Inherits from parent if not defined on this page.
         header_file = None
         ancestor = page
