@@ -2541,7 +2541,7 @@ async def tcp_handler(reader, writer):
                         
                         authenticated = True
                         _user_connect(session.user_id)
-                        log.info('TCP: login OK! Skipping LINKING (terminal pre-loaded)')
+                        log.info('TCP: login OK!')
 
                         # Send welcome frame — L89D0 reads this after login
                         if response:
@@ -2556,6 +2556,31 @@ async def tcp_handler(reader, writer):
                             writer.write(eos_pkt)
                             await writer.drain()
                             log.info('TCP: sent welcome frame (%d bytes + EOS)', len(response))
+
+                        # LINKING: send terminal binary
+                        terminal_path = os.path.join(CFG_DIR, 'terminal.bin')
+                        if os.path.exists(terminal_path):
+                            with open(terminal_path, 'rb') as f:
+                                terminal_data = f.read()
+                            # Header: 2 padding + jump_lo + jump_hi + load_lo + load_hi + 2 padding
+                            linking_header = bytes([0x00, 0x00, 0x05, 0xA0, 0x00, 0xA0, 0x00, 0x00])
+                            linking_stream = linking_header + terminal_data
+                            MAX_PAYLOAD = 100
+                            offset = 0
+                            pkt_num = 0
+                            while offset < len(linking_stream):
+                                chunk = linking_stream[offset:offset + MAX_PAYLOAD]
+                                pkt = x25.make_data_packet(chunk, TOKEN_DAT)
+                                await send_pkt_with_ack(pkt)
+                                pkt_num += 1
+                                offset += MAX_PAYLOAD
+                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                            writer.write(eos_pkt)
+                            await writer.drain()
+                            log.info('LINKING: sent terminal (%d bytes, %d packets)',
+                                     len(linking_stream), pkt_num)
+                        else:
+                            log.warning('LINKING: terminal.bin not found at %s', terminal_path)
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it

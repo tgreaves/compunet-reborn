@@ -29,10 +29,14 @@ CFG = compunet.cfg
 VERSION_INC = build/version.inc
 
 WEBSITE_STATIC = ../../../website/static
+SERVER_CFG = ../../../server/cfg
+TERMINAL_BIN = build/terminal.bin
 
 .PHONY: all clean
 
 all: $(PRG) $(SFX_PRG) $(LIVE_PRG) $(D64) $(LIVE_D64)
+	@cp $(TERMINAL_BIN) $(SERVER_CFG)/terminal.bin
+	@echo "Created $(TERMINAL_BIN) ($$(wc -c < $(TERMINAL_BIN)) bytes, for LINKING)"
 
 $(PRG): $(BIN)
 	@printf '\x00\x80' > $(PRG)

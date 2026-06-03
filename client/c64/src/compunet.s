@@ -1876,8 +1876,8 @@ L8EE8:
     JSR L89D0
     SEC
     ROR $C155
-    ; Jump directly to terminal entry point
-    JMP $A005
+    ; Receive terminal via LINKING (MODEM_INIT_DOWNLOAD reads stream, jumps to entry)
+    JMP MODEM_INIT_DOWNLOAD
 
 ; --- MODEM_INIT_DOWNLOAD ---
 ; Receive terminal software during LINKING phase (skipped — terminal pre-loaded)
