@@ -120,11 +120,11 @@ it would need to either:
 1. **ACIA driver must exist before LINKING** — it's needed to receive the download.
    So it must be in the ROM/CRT itself, not part of the downloaded terminal.
 
-2. **8K space budget**: ROM is currently ~8K. Adding ACIA (~1.8K) would overflow.
-   Options:
-   - Optimise ROM code to free 1.8K (significant effort)
-   - Use a 16K cartridge (EXROM=0, GAME=0) giving $8000-$BFFF
-   - Copy ACIA stub to RAM during ROM init (uses RAM, not ROM space)
+2. **8K space budget — SOLVED**: The original X.25 protocol engine at $96C0-$9FE6
+   (2342 bytes) is entirely dead code — all protocol handling is done by the ACIA
+   driver. Replacing this section with the ACIA driver (~1100 bytes) fits easily
+   with ~1200 bytes to spare. The dispatch table JMP stubs at $96C0 remain,
+   pointing into the ACIA code that now lives in the same region.
 
 3. **First-connect experience**: First time a user connects, there's no cached
    terminal — full download needed (~7.5K). `MODEM_INIT_DOWNLOAD` reads a raw
@@ -146,11 +146,10 @@ it would need to either:
 - CNLOAD/CNSAVE cache it to disk
 
 **Phase 2: Fit ROM + ACIA into 8K for CRT**
-- ACIA driver is ~1.8K — needs to fit alongside 8K ROM
-- Option A: 16K CRT (easy, but overkill)
-- Option B: Optimise ROM to free space (hard)
-- Option C: ACIA in RAM, copied from ROM on boot (~200 bytes of ROM for the copy
-  routine + ACIA code stored compressed or at end of ROM)
+- Replace dead X.25 protocol engine ($96DB-$9FE6, 2342 bytes) with ACIA driver
+- ACIA runs in-place within the ROM address space (no copy to $C900 needed)
+- Dispatch table at $96C0 retained — JMP stubs redirect to ACIA routines
+- ~1200 bytes spare for future use or NMI handler storage
 
 **Phase 3: Version-aware linking (future optimisation)**
 - Terminal binary has a version byte at a fixed address (e.g. $A002)
