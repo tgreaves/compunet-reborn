@@ -1900,6 +1900,11 @@ L8EE8:
     INC $1E
     BNE @link_loop
 @link_done:
+    ; Store terminal end address (for CNSAVE)
+    LDX $1D
+    LDY $1E
+    STX $8036
+    STY $8037
     ; Set $C155 bit 7 (terminal expects this for MODEM_INIT_DOWNLOAD calls)
     SEC
     ROR $C155
