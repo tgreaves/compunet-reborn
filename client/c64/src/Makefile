@@ -85,10 +85,16 @@ crt.extend(rom);\
 open('$(CRT)','wb').write(crt)"
 	@echo "Created $(CRT) (8K cartridge, $$(wc -c < $(CRT)) bytes)"
 
+LIVE_TERMINAL_BIN = build/terminal-live.bin
+
 $(TERMINAL_BIN): $(BIN)
 	@dd if=$(BIN) bs=1 skip=$$((0x2000)) count=$$((0x2900)) of=$(TERMINAL_BIN) 2>/dev/null
 	@# Strip trailing zeros
 	@python3 -c "d=open('$(TERMINAL_BIN)','rb').read().rstrip(b'\x00');open('$(TERMINAL_BIN)','wb').write(d)"
+
+$(LIVE_TERMINAL_BIN): $(LIVE_BIN)
+	@dd if=$(LIVE_BIN) bs=1 skip=$$((0x2000)) count=$$((0x2900)) of=$(LIVE_TERMINAL_BIN) 2>/dev/null
+	@python3 -c "d=open('$(LIVE_TERMINAL_BIN)','rb').read().rstrip(b'\x00');open('$(LIVE_TERMINAL_BIN)','wb').write(d)"
 
 $(PRG): $(BIN)
 	@printf '\x00\x80' > $(PRG)

@@ -1679,15 +1679,7 @@ L8D52:
     LDA $8014
     STA $0286
 .ifdef AUTO_CONNECT
-    ; Skip "INPUT PHONE NUMBER" display in auto-connect mode
-.else
-    LDX #.lobyte(L8CEA)
-    LDY #.hibyte(L8CEA)
-    JSR PRINT_STRING                    ; PRINT_STRING
-.endif
-
-.ifdef AUTO_CONNECT
-    ; Skip phone number input — use hardcoded server address
+    ; Auto-connect: skip display, copy hardcoded address
     LDX #$00
 @copy_addr:
     LDA auto_connect_addr+1,X
@@ -1696,8 +1688,15 @@ L8D52:
     CPX auto_connect_addr
     BNE @copy_addr
     STX L9FF0                           ; store length
+    ; Pad to match non-auto path size (alignment)
+    .repeat 47
+        NOP
+    .endrepeat
     JMP L8DA4
 .else
+    LDX #.lobyte(L8CEA)
+    LDY #.hibyte(L8CEA)
+    JSR PRINT_STRING                    ; PRINT_STRING
     LDY #$01
     LDA L9FF0
     BEQ L8D78
