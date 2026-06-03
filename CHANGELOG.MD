@@ -1,3 +1,51 @@
+# 0.13-beta (2026-06-03)
+
+* Protocol:
+	* LINKING: terminal code now downloaded from server on connect (#73).
+	  Server sends 8-byte header (jump/load addresses) followed by terminal
+	  binary (~7.7K) via ACK-paced packets. Download takes ~3 seconds.
+	  "LINKING" status displayed during transfer.
+	* Client SFX reduced from 12K to 5.5K. Terminal no longer bundled —
+	  downloaded on demand. Raw PRG is 7.3K.
+	* Server stores terminal at `server/cfg/terminal.bin`, sent to all
+	  connecting clients after welcome frame.
+	* CNLOAD/CNSAVE: terminal end address stored after LINKING, enabling
+	  disk caching of the downloaded terminal for instant reconnects.
+	  CNSAVE saves from $A000 to terminal end (~31 blocks). CNLOAD
+	  restores it.
+	* Version-aware LINKING: server computes 2-byte hash of terminal.bin.
+	  Hash sent in LINKING header; client stores at $A000/$A001. On
+	  reconnect after CNLOAD, matching hash skips LINKING (~100ms vs
+	  ~3 seconds). Terminal updates automatically re-download.
+	* 8K CRT cartridge build: standard format (EXROM=0, GAME=1), boots to
+	  Compunet BASIC prompt. Works on VICE and C64 Ultimate.
+* Client:
+	* Stripped dead X.25 protocol engine (~2.3K removed). All protocol
+	  handling done by ACIA driver. Only RTS stubs + string constants
+	  remain for ROM jump table compatibility.
+	* ACIA segment now follows CODE directly (no $C900 gap). Combined
+	  CODE+ACIA is 7.2K — fits within 8K for future CRT build.
+* Server:
+	* DIR response: prepend $8E charset byte to Part 1 header. Fixes
+	  lowercase rendering on C64 Ultimate after LINKING.
+	* Fixed: terminal client crash on SHOW (render_frame missing
+	  `_get_server()` call for audit logging).
+* Build:
+	* Exomizer removed. PRG files now use a lightweight BASIC stub +
+	  machine language relocator (gen_sfx.py). No external dependencies.
+	* Simplified outputs: `compunet-reborn.prg` (manual, LOAD+RUN),
+	  `compunet-reborn-live.prg` (auto-connect, LOAD+RUN),
+	  `compunet-reborn.crt` (8K cartridge), `compunet-reborn-live.crt`
+	  (8K auto-connect cartridge), `compunet-reborn.d64` (both PRGs),
+	  `terminal.bin` (server LINKING).
+	* Removed: `compunet-reborn-sfx.prg`, `compunet-reborn-live.d64`,
+	  raw 20K PRG.
+	* Terminal binary extracted from main build and copied to server/cfg/.
+	* Linker config keeps all segments in one MEMORY region for correct
+	  cross-segment label resolution, then splits terminal post-build.
+	* AUTO_CONNECT code path padded to match standard path byte count,
+	  ensuring one terminal.bin works for all client variants.
+
 # 0.12-beta (2026-06-01)
 
 * Partyline:

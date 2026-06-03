@@ -1,52 +1,64 @@
 # Compunet Reborn
 
-A recreation of the Compunet online service protocol and experience using modern systems.
+A recreation of the Compunet online service for the Commodore 64, faithfully preserving the original protocol and user experience over modern TCP/IP.
 
 <img src="website/static/animated-walkthrough.gif" width="768">
 
 [Compunet](https://en.wikipedia.org/wiki/Compunet) (also known as CNet) was a UK-based interactive online service that ran from 1984 to May 1993, primarily serving Commodore 64 users. It was operated by Compunet Teleservices Ltd and developed by Ariadne Software. The service featured user-generated content, electronic mail (Courier), telesoftware downloads, a page editor, and a unique horizontally-scrolling menu system known as the "duckshoot".
 
-Users connected via a custom 1200/75 baud modem (the "brick") that plugged into the C64's cartridge port. The modem contained an 8K ROM that bootstrapped the system — the full terminal software was downloaded from the server during each session ("linking"), or cached locally via the CNSAVE command.
+Users connected via a custom 1200/75 baud modem (the "brick") that plugged into the C64's cartridge port. The modem contained an 8K ROM that bootstrapped the system — the full terminal software was downloaded from the server during each session ("LINKING"), or cached locally via the CNSAVE command.
 
 ## Live Service
 
 The official live instance is running at [https://compunet.live/](https://compunet.live/)
 
-## Current Status
+## Features
 
-**BETA.** Core functionality is working and under active development.
+- Directory browsing with full duckshoot menu
+- Content viewing (multi-page text frames, PETSCII graphics)
+- Telesoftware downloads and uploads
+- Electronic mail (Courier) with send/receive and email notifications
+- User-generated content (The Jungle) with voting
+- Partyline multi-user chat with rooms
+- WHO IS ONLINE (live user list)
+- WHAT'S NEW (most recent uploads)
+- GOTO keyword navigation
+- Frame editor (on-line and off-line)
+- PETSCII terminal mode (server-rendered, any terminal program)
+- 8K cartridge ROM — boots directly like the original hardware
 
-Working features: directory browsing, content viewing, multi-page frames,
-telesoftware downloads/uploads, electronic mail (Courier) with send/receive,
-user-generated content, voting, GOTO navigation, sub-directories, UCAT,
-advert system, partyline chat, WHO IS ONLINE, and the full duckshoot menu.
+## Connection Methods
 
-Two connection methods are available:
-- **Custom client** (port 6400) — full binary protocol, requires SwiftLink emulation
-- **PETSCII terminal** (port 6401) — server-rendered, works with any PETSCII terminal program
+| Method | Port | Description |
+|--------|------|-------------|
+| **C64 Client (CRT)** | 6400 | 8K cartridge — attach and boot. Recommended for VICE / C64 Ultimate. |
+| **C64 Client (PRG)** | 6400 | LOAD + RUN. For real hardware with SwiftLink. |
+| **PETSCII Terminal** | 6401 | Server-rendered. Works with SyncTerm, CCGMS, StrikeTerm, UltimateTerm. |
 
 ## Quick Start
 
-### Option 1: PETSCII Terminal (Easiest)
+### Option 1: CRT Cartridge (Recommended)
 
-Connect with any PETSCII terminal program (e.g. SyncTerm):
-1. Start the server (see below)
-2. In SyncTerm: create entry with Connection Type **Raw**, Font **Commodore 64 (UPPER)**, address `localhost:6401`
-3. Login with TEST/TEST
+1. Download `compunet-reborn-live.crt` from [compunet.live/connect](https://compunet.live/connect)
+2. VICE: File → Attach cartridge image → Reset
+3. C64 Ultimate: Select as cartridge → Reset
+4. Type `CONNECT` — LINKING downloads terminal software (~3 sec first time)
+5. Login with your registered account
 
-### Option 2: Custom Client in VICE
+### Option 2: PETSCII Terminal
 
-1. Copy templates: `cp -R server/data.example server/data && cp server/cfg/users.json.example server/cfg/users.json`
-2. Start server: `./server.sh`
-3. In VICE: Settings → Peripheral Devices → RS232 → Enable ACIA, Device Serial 3
-4. Serial 3: Host `127.0.0.1:6400`, Baud 1200, IP232 unchecked
-5. Load `client/c64/compunet-reborn.d64` — `LOAD "COMPUNET",8` then `RUN`
+Connect with SyncTerm or any PETSCII terminal:
+- Address: `vme.compunet.live:6401`
+- Connection Type: Raw
+- Screen Mode: C64
+- Font: Commodore 64 (LOWER)
 
-### Option 3: C64 Ultimate
+### Option 3: PRG (Real Hardware)
 
-1. Configure Ultimate: Modem Interface → ACIA / SwiftLink, DE00/NMI
-2. Load the auto-connect client (`COMPUNET-LIVE` from D64)
-3. Connects automatically to vme.compunet.live:6400
+1. `LOAD "COMPUNET-REBORN-LIVE",8` then `RUN`
+2. Type `CONNECT`
+3. LINKING downloads terminal software
+4. Login
 
 ## Docker Deployment
 
@@ -71,9 +83,15 @@ cd client/c64/src
 make
 ```
 
-Produces: PRG, SFX (self-extracting), auto-connect live variant, and D64 disk image.
+Produces:
+- `compunet-reborn.prg` — Manual connect (LOAD + RUN)
+- `compunet-reborn-live.prg` — Auto-connect (LOAD + RUN)
+- `compunet-reborn.crt` — 8K cartridge (manual)
+- `compunet-reborn-live.crt` — 8K cartridge (auto-connect)
+- `compunet-reborn.d64` — D64 with both PRGs
+- `terminal.bin` — Terminal binary for server LINKING
 
-Requires: [cc65](https://cc65.github.io/) (ca65/ld65), `c1541` from VICE, `exomizer`.
+Requires: [cc65](https://cc65.github.io/) (ca65/ld65), `c1541` from VICE.
 
 ### Server (local, without Docker)
 
@@ -86,34 +104,43 @@ cd ..
 ./server.sh start
 ```
 
+## Architecture
+
+The client is split into two parts, matching the original Compunet design:
+
+- **ROM** (8K, $8000-$9FFF) — Boot code, BASIC extensions (CONNECT, CNLOAD, CNSAVE, EDITOR), ACIA SwiftLink driver, protocol dispatch
+- **Terminal** (~7.7K, downloaded to $A000+) — Directory rendering, frame display, duckshoot, mail, uploads, partyline link
+
+On first connect, the server sends the terminal via LINKING (~3 seconds). Users can cache it to disk with `CNSAVE` for instant reconnects. The server tracks a version hash — LINKING is skipped if the cached terminal is current.
+
 ## Repository Structure
 
 ### Client
 
 - **[client/c64/src/](client/c64/src/)** — Client source (6502 assembly, ca65)
 - **[client/c64/src/partyline/](client/c64/src/partyline/)** — Partyline chat client
-- **[client/c64/compunet-reborn.d64](client/c64/compunet-reborn.d64)** — Ready-to-run disk image
+- **[client/c64/src/gen_sfx.py](client/c64/src/gen_sfx.py)** — PRG builder (BASIC stub + relocator)
 - **[client/c64/vintage/](client/c64/vintage/)** — Original reverse engineering artefacts
 
 ### Server
 
-- **[server/compunet_server.py](server/compunet_server.py)** — Main server (protocol, API, session management)
+- **[server/compunet_server.py](server/compunet_server.py)** — Main server (protocol, LINKING, API, session management)
 - **[server/terminal.py](server/terminal.py)** — PETSCII terminal mode (port 6401)
 - **[server/partyline.py](server/partyline.py)** — Multi-user partyline chat
-- **[server/cfg/](server/cfg/)** — Configuration (users, bans, templates)
+- **[server/cfg/](server/cfg/)** — Configuration (users, terminal.bin, templates)
 - **[server/data/](server/data/)** — Runtime content (not tracked in git)
 
 ### Website
 
-- **[website/](website/)** — Flask web app (registration, admin panel, password reset)
+- **[website/](website/)** — Flask web app (registration, admin panel, password reset, guide)
 
 ### Documentation
 
 - **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — X.25-derived binary protocol specification
+- **[docs/LINKING.md](docs/LINKING.md)** — Terminal download mechanism and CRT architecture
 - **[docs/TERMINAL.md](docs/TERMINAL.md)** — PETSCII terminal mode architecture
 - **[docs/MODEM.md](docs/MODEM.md)** — Hardware comparison and ACIA driver approach
 - **[docs/partyline.md](docs/partyline.md)** — Partyline chat system design
-- **[docs/ROM-REWRITE.md](docs/ROM-REWRITE.md)** — PRG-based architecture and build system
 
 ### Historical
 
@@ -129,7 +156,7 @@ Historical SEQ file sources:
 - **compunet-sequence-files** — Unknown
 - **neil_shumsky** — Neil Shumsky (256 SEQ files extracted from D64 disk images)
 
-Thanks to Mark Wilson for providing the Welcome screen and other historical frames.
+Thanks to Mark Wilson for providing the Welcome screen, music, and other historical frames.
 
 Thanks to Richard Hawkins (RH18 FROODLE) for helping source some of these files.
 
