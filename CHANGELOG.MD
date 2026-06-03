@@ -30,14 +30,20 @@
 	* Fixed: terminal client crash on SHOW (render_frame missing
 	  `_get_server()` call for audit logging).
 * Build:
-	* Makefile produces trimmed PRG (CODE+ACIA only) for SFX compression.
-	  Avoids exomizer workspace conflict with large zero-filled gaps.
-	* Exomizer default mode (no -x1 flag) — automatic decompressor
-	  placement prevents self-overwrite with compact binary.
-	* Makefile now produces `terminal.bin` alongside PRG/SFX/D64 outputs.
-	  Terminal binary extracted from main build and copied to server/cfg/.
+	* Exomizer removed. PRG files now use a lightweight BASIC stub +
+	  machine language relocator (gen_sfx.py). No external dependencies.
+	* Simplified outputs: `compunet-reborn.prg` (manual, LOAD+RUN),
+	  `compunet-reborn-live.prg` (auto-connect, LOAD+RUN),
+	  `compunet-reborn.crt` (8K cartridge), `compunet-reborn-live.crt`
+	  (8K auto-connect cartridge), `compunet-reborn.d64` (both PRGs),
+	  `terminal.bin` (server LINKING).
+	* Removed: `compunet-reborn-sfx.prg`, `compunet-reborn-live.d64`,
+	  raw 20K PRG.
+	* Terminal binary extracted from main build and copied to server/cfg/.
 	* Linker config keeps all segments in one MEMORY region for correct
 	  cross-segment label resolution, then splits terminal post-build.
+	* AUTO_CONNECT code path padded to match standard path byte count,
+	  ensuring one terminal.bin works for all client variants.
 
 # 0.12-beta (2026-06-01)
 
