@@ -1,3 +1,12 @@
+# 0.13.1-beta (2026-06-04)
+
+* Server:
+	* Fixed: UCAT now pages results 11 entries at a time (#76). Previously
+	  dumped all user pages in one response, overflowing the directory
+	  display. Shows "MORE >>>>" indicator, BACK navigates to previous
+	  UCAT page. Breadcrumb shows current range (e.g. "UPLOADS 1-10").
+	  Added UPLDDATE column.
+
 # 0.13-beta (2026-06-03)
 
 * Protocol:

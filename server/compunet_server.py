@@ -1047,7 +1047,12 @@ class CompunetSession:
 
     def _cmd_back(self):
         """BACK command - go to previous page, or parent directory if on first page."""
-        self._ucat_active = False
+        if getattr(self, '_ucat_active', False):
+            if getattr(self, '_ucat_offset', 0) > 0:
+                # Go back to previous UCAT page
+                self._ucat_offset = max(0, self._ucat_offset - 10)
+                return self._render_ucat()
+            self._ucat_active = False
         if self.mail_mode:
             if self.mail_show_msg is not None:
                 self.mail_show_msg = None
@@ -1710,23 +1715,28 @@ class CompunetSession:
 
     def _cmd_ucat(self):
         """UCAT command - list all pages owned by the current user."""
+        # Paging: advance offset on subsequent calls (MORE)
+        if not getattr(self, '_ucat_active', False):
+            self._ucat_offset = 0
+        else:
+            self._ucat_offset = getattr(self, '_ucat_offset', 0) + len(getattr(self, '_ucat_last_visible', []))
+        return self._render_ucat()
+
+    def _render_ucat(self):
+        """Render UCAT page at current offset."""
         self.last_response_type = RESP_DIR
         user_pages = [p for p in self.directory.pages.values()
                       if p.author == self.user_id]
 
-        # Paging: advance offset on subsequent calls
-        if not getattr(self, '_ucat_active', False):
-            self._ucat_offset = 0
-        else:
-            self._ucat_offset = getattr(self, '_ucat_offset', 0) + 11
-
         visible = user_pages[self._ucat_offset:self._ucat_offset + 11]
         has_more = len(user_pages) > self._ucat_offset + 11
+        # Reserve one slot for MORE indicator when there are more pages
+        if has_more and len(visible) > 10:
+            visible = visible[:10]
 
         data = bytearray()
 
         # Part 1: no header frame
-        data.append(0x8E)
         data.append(0x00)
 
         # Part 2: footer/adverts (empty)
@@ -1739,8 +1749,7 @@ class CompunetSession:
         # Part 4: breadcrumb
         data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
         data.append(0x0D)
-        page_info = f'  YOUR UPLOADS ({self._ucat_offset+1}-{self._ucat_offset+len(visible)} of {len(user_pages)})'
-        data.extend(ascii_to_petscii(page_info[:24]))
+        data.extend(ascii_to_petscii(f'  UPLOADS {self._ucat_offset+1}-{self._ucat_offset+len(visible)}'))
         data.append(0x00)
 
         # Part 5: column headers (PRICE must be first — client checks field 1 for SHOW)
@@ -1810,6 +1819,7 @@ class CompunetSession:
                 data.append(0x0D)
 
         self._ucat_active = True
+        self._ucat_last_visible = visible
         log.info('UCAT: user=%s pages=%d showing=%d-%d',
                  self.user_id, len(user_pages),
                  self._ucat_offset + 1, self._ucat_offset + len(visible))
