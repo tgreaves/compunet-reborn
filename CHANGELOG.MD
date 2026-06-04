@@ -1,11 +1,14 @@
 # 0.13.1-beta (2026-06-04)
 
 * Server:
-	* Fixed: UCAT now pages results 11 entries at a time (#76). Previously
-	  dumped all user pages in one response, overflowing the directory
-	  display. Shows "MORE >>>>" indicator, BACK navigates to previous
-	  UCAT page. Breadcrumb shows current range (e.g. "UPLOADS 1-10").
+	* Fixed: UCAT now pages results (#76). Shows 10 entries + "MORE >>>>"
+	  indicator when more exist. DIR on MORE advances, BACK returns to
+	  previous page. Breadcrumb shows range (e.g. "UPLOADS 1-10").
 	  Added UPLDDATE column.
+* Terminal:
+	* Directory paging: all directories now show "MORE >>>>" when entries
+	  exceed 11. DIR on MORE advances to next page, BACK returns to
+	  previous page. Matches C64 client behaviour.
 
 # 0.13-beta (2026-06-03)
 
