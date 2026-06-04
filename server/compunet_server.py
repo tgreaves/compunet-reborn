@@ -1713,9 +1713,20 @@ class CompunetSession:
         self.last_response_type = RESP_DIR
         user_pages = [p for p in self.directory.pages.values()
                       if p.author == self.user_id]
+
+        # Paging: advance offset on subsequent calls
+        if not getattr(self, '_ucat_active', False):
+            self._ucat_offset = 0
+        else:
+            self._ucat_offset = getattr(self, '_ucat_offset', 0) + 11
+
+        visible = user_pages[self._ucat_offset:self._ucat_offset + 11]
+        has_more = len(user_pages) > self._ucat_offset + 11
+
         data = bytearray()
 
         # Part 1: no header frame
+        data.append(0x8E)
         data.append(0x00)
 
         # Part 2: footer/adverts (empty)
@@ -1728,7 +1739,8 @@ class CompunetSession:
         # Part 4: breadcrumb
         data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
         data.append(0x0D)
-        data.extend(ascii_to_petscii('  YOUR UPLOADS'))
+        page_info = f'  YOUR UPLOADS ({self._ucat_offset+1}-{self._ucat_offset+len(visible)} of {len(user_pages)})'
+        data.extend(ascii_to_petscii(page_info[:24]))
         data.append(0x00)
 
         # Part 5: column headers (PRICE must be first — client checks field 1 for SHOW)
@@ -1739,19 +1751,22 @@ class CompunetSession:
         data.extend(ascii_to_petscii(' VOTE'))
         data.append(0x2C)
         data.extend(ascii_to_petscii(' PAGE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('UPLDDATE'))
         data.append(0x0D)
         data.append(0x00)
 
-        # Part 6: entries
-        if not user_pages:
+        # Part 6: entries (max 11 per page)
+        if not visible:
             data.extend(ascii_to_petscii('      (NO UPLOADS)'))
+            data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x0D)
         else:
-            for page in user_pages:
+            for page in visible:
                 page_str = str(page.page_num).rjust(5) + ' '
                 type_str = page.type_string().ljust(3)
                 title_field = page.title[:18].ljust(18) + type_str
@@ -1770,10 +1785,34 @@ class CompunetSession:
                 data.append(0x2C)
                 # Column 4: PAGE
                 data.extend(ascii_to_petscii(str(page.page_num)))
+                data.append(0x2C)
+                # Column 5: UPLDDATE
+                uploaded = getattr(page, 'uploaded', None)
+                if uploaded:
+                    import datetime
+                    try:
+                        dt = datetime.datetime.fromisoformat(uploaded)
+                        day = str(dt.day)
+                        mon = dt.strftime('%b').upper()
+                        data.extend(ascii_to_petscii(f'{day}-{mon}'.rjust(7)))
+                    except (ValueError, AttributeError):
+                        pass
+                data.append(0x0D)
+
+            # If more pages exist, add "MORE    >>>>" indicator
+            if has_more:
+                data.extend(ascii_to_petscii('        MORE        >>>>'))
+                data.append(0x2C)
+                data.append(0x2C)
+                data.append(0x2C)
+                data.append(0x2C)
+                data.append(0x2C)
                 data.append(0x0D)
 
         self._ucat_active = True
-        log.info('UCAT: user=%s pages=%d', self.user_id, len(user_pages))
+        log.info('UCAT: user=%s pages=%d showing=%d-%d',
+                 self.user_id, len(user_pages),
+                 self._ucat_offset + 1, self._ucat_offset + len(visible))
         return bytes(data)
     
     def _make_dir_response(self):
