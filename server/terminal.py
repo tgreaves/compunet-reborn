@@ -541,10 +541,20 @@ class TerminalSession:
                         self.B_THICK_H * 8 + self.B_TEE_ENTRY_R)
 
         # Rows 10-20: entries (11 rows)
-        visible = page.children[self.dir_offset:self.dir_offset + 11]
+        has_more_pages = len(page.children) > self.dir_offset + 11
+        if has_more_pages:
+            visible = page.children[self.dir_offset:self.dir_offset + 10]
+        else:
+            visible = page.children[self.dir_offset:self.dir_offset + 11]
+        self._dir_has_more = has_more_pages
         self.entries_row = 10
+        num_rows = len(visible) + (1 if has_more_pages else 0)
         for i in range(11):
-            if i < len(visible):
+            is_more_row = has_more_pages and i == len(visible)
+            if is_more_row:
+                content = '      MORE        >>>>'.ljust(29)
+                col_val = ''.ljust(8)
+            elif i < len(visible):
                 child = visible[i]
                 page_num_str = str(child.page_num)
                 title = child.title[:18].ljust(18)
@@ -562,35 +572,36 @@ class TerminalSession:
                 else:
                     col_val = self._format_upload_date(child)
                 col_val = col_val[:8].ljust(8)
-
-                if i == self.dir_cursor:
-                    await self.send(COL_WHITE)
-                    await self.send(self.B_THICK_V)
-                    await self.send(RVS_ON)
-                    await self.send_text(content.ljust(29))
-                    await self.send(RVS_OFF)
-                    await self.send(self.B_THIN_V)
-                    await self.send(RVS_ON)
-                    await self.send_text(col_val)
-                    await self.send(RVS_OFF)
-                    await self.send(self.B_THIN_V)
-                else:
-                    await self.send(COL_WHITE)
-                    await self.send(self.B_THICK_V)
-                    await self.send(COL_BLUE)
-                    await self.send_text(content.ljust(29))
-                    await self.send(COL_WHITE)
-                    await self.send(self.B_THIN_V)
-                    await self.send(COL_BLUE)
-                    await self.send_text(col_val)
-                    await self.send(COL_WHITE)
-                    await self.send(self.B_THICK_V)
             else:
                 await self.send(COL_WHITE)
                 await self.send(self.B_THICK_V)
                 await self.send(b'\x20' * 29)
                 await self.send(self.B_THIN_V)
                 await self.send(b'\x20' * 8)
+                await self.send(self.B_THICK_V)
+                continue
+
+            if i == self.dir_cursor:
+                await self.send(COL_WHITE)
+                await self.send(self.B_THICK_V)
+                await self.send(RVS_ON)
+                await self.send_text(content.ljust(29))
+                await self.send(RVS_OFF)
+                await self.send(self.B_THIN_V)
+                await self.send(RVS_ON)
+                await self.send_text(col_val)
+                await self.send(RVS_OFF)
+                await self.send(self.B_THIN_V)
+            else:
+                await self.send(COL_WHITE)
+                await self.send(self.B_THICK_V)
+                await self.send(COL_BLUE)
+                await self.send_text(content.ljust(29))
+                await self.send(COL_WHITE)
+                await self.send(self.B_THIN_V)
+                await self.send(COL_BLUE)
+                await self.send_text(col_val)
+                await self.send(COL_WHITE)
                 await self.send(self.B_THICK_V)
 
         # Row 21: bottom border
@@ -2505,6 +2516,15 @@ class TerminalSession:
 
         elif cmd == 'DIR':
             page = self.current_page
+            # Check if cursor is on MORE indicator
+            if getattr(self, '_dir_has_more', False):
+                more_visible = page.children[self.dir_offset:self.dir_offset + 10]
+                if self.dir_cursor == len(more_visible):
+                    # Advance to next page
+                    self.dir_offset += len(more_visible)
+                    self.dir_cursor = 0
+                    await self.render_directory()
+                    return
             visible = page.children[self.dir_offset:self.dir_offset + 11]
             if self.dir_cursor < len(visible):
                 child = visible[self.dir_cursor]
@@ -2542,7 +2562,11 @@ class TerminalSession:
             await self.render_directory()
 
         elif cmd == 'BACK':
-            if self._ucat_active and not self.current_page.parent:
+            if self.dir_offset > 0:
+                # Go back to previous page of same directory
+                self.dir_offset = max(0, self.dir_offset - 10)
+                self.dir_cursor = 0
+            elif self._ucat_active and not self.current_page.parent:
                 # Exit UCAT — restore previous location
                 self._ucat_active = False
                 self.current_page = self._ucat_saved_page

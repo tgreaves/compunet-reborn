@@ -1047,7 +1047,12 @@ class CompunetSession:
 
     def _cmd_back(self):
         """BACK command - go to previous page, or parent directory if on first page."""
-        self._ucat_active = False
+        if getattr(self, '_ucat_active', False):
+            if getattr(self, '_ucat_offset', 0) > 0:
+                # Go back to previous UCAT page
+                self._ucat_offset = max(0, self._ucat_offset - 10)
+                return self._render_ucat()
+            self._ucat_active = False
         if self.mail_mode:
             if self.mail_show_msg is not None:
                 self.mail_show_msg = None
@@ -1710,9 +1715,25 @@ class CompunetSession:
 
     def _cmd_ucat(self):
         """UCAT command - list all pages owned by the current user."""
+        # Paging: advance offset on subsequent calls (MORE)
+        if not getattr(self, '_ucat_active', False):
+            self._ucat_offset = 0
+        else:
+            self._ucat_offset = getattr(self, '_ucat_offset', 0) + len(getattr(self, '_ucat_last_visible', []))
+        return self._render_ucat()
+
+    def _render_ucat(self):
+        """Render UCAT page at current offset."""
         self.last_response_type = RESP_DIR
         user_pages = [p for p in self.directory.pages.values()
                       if p.author == self.user_id]
+
+        visible = user_pages[self._ucat_offset:self._ucat_offset + 11]
+        has_more = len(user_pages) > self._ucat_offset + 11
+        # Reserve one slot for MORE indicator when there are more pages
+        if has_more and len(visible) > 10:
+            visible = visible[:10]
+
         data = bytearray()
 
         # Part 1: no header frame
@@ -1728,7 +1749,7 @@ class CompunetSession:
         # Part 4: breadcrumb
         data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
         data.append(0x0D)
-        data.extend(ascii_to_petscii('  YOUR UPLOADS'))
+        data.extend(ascii_to_petscii(f'  UPLOADS {self._ucat_offset+1}-{self._ucat_offset+len(visible)}'))
         data.append(0x00)
 
         # Part 5: column headers (PRICE must be first — client checks field 1 for SHOW)
@@ -1739,19 +1760,22 @@ class CompunetSession:
         data.extend(ascii_to_petscii(' VOTE'))
         data.append(0x2C)
         data.extend(ascii_to_petscii(' PAGE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii('UPLDDATE'))
         data.append(0x0D)
         data.append(0x00)
 
-        # Part 6: entries
-        if not user_pages:
+        # Part 6: entries (max 11 per page)
+        if not visible:
             data.extend(ascii_to_petscii('      (NO UPLOADS)'))
+            data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x0D)
         else:
-            for page in user_pages:
+            for page in visible:
                 page_str = str(page.page_num).rjust(5) + ' '
                 type_str = page.type_string().ljust(3)
                 title_field = page.title[:18].ljust(18) + type_str
@@ -1770,10 +1794,35 @@ class CompunetSession:
                 data.append(0x2C)
                 # Column 4: PAGE
                 data.extend(ascii_to_petscii(str(page.page_num)))
+                data.append(0x2C)
+                # Column 5: UPLDDATE
+                uploaded = getattr(page, 'uploaded', None)
+                if uploaded:
+                    import datetime
+                    try:
+                        dt = datetime.datetime.fromisoformat(uploaded)
+                        day = str(dt.day)
+                        mon = dt.strftime('%b').upper()
+                        data.extend(ascii_to_petscii(f'{day}-{mon}'.rjust(7)))
+                    except (ValueError, AttributeError):
+                        pass
+                data.append(0x0D)
+
+            # If more pages exist, add "MORE    >>>>" indicator
+            if has_more:
+                data.extend(ascii_to_petscii('        MORE        >>>>'))
+                data.append(0x2C)
+                data.append(0x2C)
+                data.append(0x2C)
+                data.append(0x2C)
+                data.append(0x2C)
                 data.append(0x0D)
 
         self._ucat_active = True
-        log.info('UCAT: user=%s pages=%d', self.user_id, len(user_pages))
+        self._ucat_last_visible = visible
+        log.info('UCAT: user=%s pages=%d showing=%d-%d',
+                 self.user_id, len(user_pages),
+                 self._ucat_offset + 1, self._ucat_offset + len(visible))
         return bytes(data)
     
     def _make_dir_response(self):
