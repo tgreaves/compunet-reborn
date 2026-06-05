@@ -1,7 +1,6 @@
 #!/bin/bash
 # Compunet Reborn — Automated VICE test launcher
-# Launches x64sc with the SFX client, injects keystrokes to automate login.
-# VICE autostart handles LOAD + RUN; this script sends CONNECT + credentials.
+# Launches x64sc with the CRT cartridge, injects keystrokes to automate login.
 # Leaves remote monitor open on port 6510 for debug sessions.
 #
 # Usage: ./vice_test.sh <username> <password> [--restart-server]
@@ -9,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-D64="$SCRIPT_DIR/client/c64/compunet-reborn-live.d64"
+CRT="$SCRIPT_DIR/client/c64/compunet-reborn-live.crt"
 MONITOR_PORT=6510
 VICE=x64sc
 
@@ -36,13 +35,11 @@ PASSWORD="${args[1]}"
 
 # --- Preflight checks ---
 
-if [ ! -f "$D64" ]; then
-    echo "Error: D64 not found at $D64"
+if [ ! -f "$CRT" ]; then
+    echo "Error: CRT not found at $CRT"
     echo "Build it first: make -C client/c64/src/"
     exit 1
 fi
-
-PRG="$D64"
 
 if ! command -v "$VICE" &>/dev/null; then
     echo "Error: $VICE not found in PATH"
@@ -67,14 +64,13 @@ fi
 # --- Launch VICE ---
 
 echo "Launching $VICE with remote monitor on port $MONITOR_PORT..."
-echo "  D64:      $D64"
+echo "  CRT:      $CRT"
 echo "  Username: $USERNAME"
 
 $VICE \
     -remotemonitor \
     -remotemonitoraddress ip4://127.0.0.1:$MONITOR_PORT \
-    -8 "$D64" \
-    -autostart "$D64:compunet" &
+    -cartcrt "$CRT" &
 
 VICE_PID=$!
 echo "  VICE PID: $VICE_PID"
@@ -109,19 +105,14 @@ send_keybuf() {
 
 # --- Inject login sequence ---
 # All keystrokes sent via remote monitor for consistent behaviour.
-# Uses the live (auto-connect) D64 — no phone number needed.
+# CRT boots directly to Compunet BASIC — just type CONNECT.
 
-# Step 1: RUN (VICE autostart loads but doesn't RUN for ,8 loads)
-sleep 3
-echo "Sending: RUN"
-send_keybuf "RUN"
-
-# Step 2: Wait for decompression + CONNECT (auto-connect dials automatically)
-sleep 7
+# Step 1: CONNECT (CRT boots to Compunet prompt, auto-connect dials automatically)
+sleep 2
 echo "Sending: CONNECT"
 send_keybuf "CONNECT"
 
-# Step 3: Username (wait for LINKING + welcome screen)
+# Step 2: Username (wait for LINKING + welcome screen)
 sleep 8
 echo "Sending: $USERNAME"
 send_keybuf "$USERNAME"

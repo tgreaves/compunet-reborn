@@ -989,14 +989,15 @@ class CompunetSession:
             log.info('REDUCE: user=%s page=%d ("%s") reduced_by=%d new_life=%d refund=%d',
                      self.user_id, child.page_num, child.title, actual_reduction, child.life, refund)
 
-            # If life reaches 0, delete the page
+            # If life reaches 0, archive and delete the page
             if child.life <= 0:
+                self._archive_page(child, reason='expired')
                 parent = self.current_page
                 if child in parent.children:
                     parent.children.remove(child)
                 if child.page_num in self.directory.pages:
                     del self.directory.pages[child.page_num]
-                log.info('DELETE: page %d ("%s") removed (life=0)', child.page_num, child.title)
+                log.info('DELETE: page %d ("%s") removed (life=0, archived)', child.page_num, child.title)
 
             self._save_user()
             self._save_directory()
@@ -1592,23 +1593,78 @@ class CompunetSession:
 
         return b''
 
+    def _archive_page(self, page, reason='replaced'):
+        """Archive a page's files and metadata before removal."""
+        archive_dir = os.path.join(DATA_DIR, 'archive')
+        slug = CompunetDirectory._make_slug(page.title)
+        timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+        dest = os.path.join(archive_dir, f'{page.page_num}-{slug}-{timestamp}')
+        os.makedirs(dest, exist_ok=True)
+
+        # Copy frame files
+        page_dir = getattr(page, '_dir_path', '')
+        frame_files = getattr(page, '_frame_files', [])
+        for frame_file in frame_files:
+            src_path = os.path.join(page_dir, frame_file)
+            if os.path.exists(src_path):
+                import shutil
+                shutil.copy2(src_path, os.path.join(dest, frame_file))
+
+        # Save metadata
+        metadata = {
+            'page_num': page.page_num,
+            'title': page.title,
+            'type': page.page_type,
+            'author': page.author,
+            'price': page.price,
+            'life': page.life,
+            'uploaded': getattr(page, 'uploaded', None),
+            'archived': timestamp,
+            'reason': reason,
+        }
+        with open(os.path.join(dest, 'metadata.json'), 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        log.info('ARCHIVE: page %d "%s" by %s → %s (%s)',
+                 page.page_num, page.title, page.author, dest, reason)
+
     def _complete_content_upload(self, send):
-        """Add uploaded page to the current directory."""
+        """Add or replace uploaded page in the current directory."""
         if not self._can_upload_here():
             log.info('UPLOAD DISCARDED: user=%s cannot upload to page owned by %s',
                      self.user_id, self.current_page.author)
             return
 
-        if len(self.current_page.children) >= 11:
+        # Check for existing page with same title
+        page_slug = CompunetDirectory._make_slug(send['title'])
+        existing = None
+        for child in self.current_page.children:
+            if CompunetDirectory._make_slug(child.title) == page_slug:
+                existing = child
+                break
+
+        if existing:
+            # Check ownership — only author, admin, or editor can replace
+            if (existing.author != self.user_id and
+                    not self.is_admin and not self.is_editor):
+                log.info('UPLOAD REJECTED: user=%s cannot replace "%s" owned by %s',
+                         self.user_id, existing.title, existing.author)
+                return
+            # Archive the old version
+            self._archive_page(existing, reason='replaced')
+        elif len(self.current_page.children) >= 11:
             log.info('UPLOAD DISCARDED: user=%s directory full (%d entries)',
                      self.user_id, len(self.current_page.children))
             return
 
-        all_pages = list(self.directory.pages.keys())
-        next_page_num = max(all_pages) + 1 if all_pages else 1000
+        # Determine page number (reuse existing or allocate new)
+        if existing:
+            page_num = existing.page_num
+        else:
+            all_pages = list(self.directory.pages.keys())
+            page_num = max(all_pages) + 1 if all_pages else 1000
 
         # Create page folder
-        page_slug = CompunetDirectory._make_slug(send['title'])
         parent_dir = getattr(self.current_page, '_dir_path', ROOT_DIR)
         page_dir = os.path.join(parent_dir, page_slug)
         os.makedirs(page_dir, exist_ok=True)
@@ -1618,8 +1674,6 @@ class CompunetSession:
         is_program = send['type'] == 'P'
         for i, frame_data in enumerate(send['frames']):
             if is_program:
-                # Client sends: [4 padding] [load_lo] [load_hi] [size_lo] [size_hi] [data...]
-                # Store as standard PRG: [load_lo] [load_hi] [data...]
                 frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
                 frame_file = f'{page_slug}.prg' if i == 0 else f'{page_slug}-{i+1}.prg'
             else:
@@ -1635,7 +1689,7 @@ class CompunetSession:
             size = len(send['frames'])
 
         new_page = CompunetPage(
-            page_num=next_page_num,
+            page_num=page_num,
             title=send['title'],
             page_type=send['type'],
             size=size,
@@ -1652,16 +1706,25 @@ class CompunetSession:
             frame_path = os.path.join(page_dir, frame_file)
             with open(frame_path, 'rb') as f:
                 new_page.frames.append(f.read())
-        self.current_page.children.append(new_page)
-        self.directory.pages[next_page_num] = new_page
+
+        if existing:
+            # Replace in children list
+            idx = self.current_page.children.index(existing)
+            self.current_page.children[idx] = new_page
+            self.directory.pages[page_num] = new_page
+            log.info('CONTENT: replaced page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
+                     page_num, send['title'], self.user_id,
+                     len(send['frames']), send['price'], send['lifetime'])
+        else:
+            self.current_page.children.append(new_page)
+            self.directory.pages[page_num] = new_page
+            log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
+                     page_num, send['title'], self.user_id,
+                     len(send['frames']), send['price'], send['lifetime'])
 
         self._save_directory()
-
-        log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
-                 next_page_num, send['title'], self.user_id,
-                 len(send['frames']), send['price'], send['lifetime'])
         audit_log('upload', user=self.user_id, title=send['title'],
-                  page=next_page_num, type=send['type'])
+                  page=page_num, type=send['type'])
         return b''
 
     def _save_directory(self):
@@ -1747,7 +1810,7 @@ class CompunetSession:
         data.append(0x00)
 
         # Part 4: breadcrumb
-        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.extend(ascii_to_petscii('     1 *** COMPUNET ***'))
         data.append(0x0D)
         data.extend(ascii_to_petscii(f'  UPLOADS {self._ucat_offset+1}-{self._ucat_offset+len(visible)}'))
         data.append(0x00)
@@ -1776,20 +1839,21 @@ class CompunetSession:
             data.append(0x0D)
         else:
             for page in visible:
-                page_str = str(page.page_num).rjust(5) + ' '
+                page_str = str(page.page_num).rjust(6) + ' '
                 type_str = page.type_string().ljust(3)
-                title_field = page.title[:18].ljust(18) + type_str
+                title_field = page.title[:17].ljust(17) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
                 # Column 1: PRICE (must be first — client checks this for SHOW)
-                price_str = '{:.2f}'.format(page.price) if page.price > 0 else ''
-                data.extend(ascii_to_petscii(price_str))
+                if page.price > 0:
+                    data.extend(ascii_to_petscii(' ' + '{:.2f}'.format(page.price).rjust(6)))
                 data.append(0x2C)
-                # Column 2: LIFE
-                data.extend(ascii_to_petscii(str(page.life)))
+                # Column 2: LIFE (right-justified, 2-space indent)
+                if page.life > 0:
+                    data.extend(ascii_to_petscii('  ' + str(page.life).rjust(3)))
                 data.append(0x2C)
                 # Column 3: VOTE
-                vote_str = str(page.vote) if page.vote > 0 else ''
+                vote_str = f' {page.vote}' if page.vote > 0 else ''
                 data.extend(ascii_to_petscii(vote_str))
                 data.append(0x2C)
                 # Column 4: PAGE
@@ -1913,9 +1977,9 @@ class CompunetSession:
 
         # --- Part 4: Routing/breadcrumb (stored at $D400, displayed at row 7) ---
         # Shows current directory path inside the box, above entries.
-        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.extend(ascii_to_petscii('     1 *** COMPUNET ***'))
         data.append(0x0D)
-        path_line2 = '  ' + str(page.page_num) + ' ' + (page.title or '')
+        path_line2 = '   ' + str(page.page_num) + ' ' + (page.title or '')
         data.extend(ascii_to_petscii(path_line2[:22].ljust(24)))
         # Unread mail indicator at column 25 (aligned with type field)
         mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
@@ -1932,13 +1996,13 @@ class CompunetSession:
         # F7/F8 cycles through them. $C002 selects which to display.
         data.extend(ascii_to_petscii(' PRICE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii(' LIFE'))
-        data.append(0x2C)
         data.extend(ascii_to_petscii(' AUTHOR'))
         data.append(0x2C)
         data.extend(ascii_to_petscii(' VOTE'))
         data.append(0x2C)
         data.extend(ascii_to_petscii('UPLDDATE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii(' LIFE'))
         data.append(0x0D)
 
         # Separator byte consumed by L_A448's JSR L96CC (value unused)
@@ -1968,31 +2032,27 @@ class CompunetSession:
                 # First 6 chars = page number (5 right-aligned + space)
                 # Then title left-aligned, type right-aligned (20 chars total)
                 # Type suffix must start at screen column 25 (SHOW reads $19)
-                page_str = str(child.page_num).rjust(5) + ' '
+                page_str = str(child.page_num).rjust(6) + ' '
                 type_str = child.type_string().ljust(3)
-                title = child.title[:18]
-                title_field = title.ljust(18) + type_str
+                title = child.title[:17]
+                title_field = title.ljust(17) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
                 # Column 1: PRICE (0 if already purchased)
                 effective_price = 0 if child.page_num in self.purchased else child.price
                 if effective_price > 0:
-                    data.extend(ascii_to_petscii('{:.2f}'.format(effective_price)[:8]))
+                    data.extend(ascii_to_petscii(' ' + '{:.2f}'.format(effective_price).rjust(6)))
                 data.append(0x2C)
-                # Column 2: LIFE
-                if child.life > 0:
-                    data.extend(ascii_to_petscii(str(child.life)[:8]))
-                data.append(0x2C)
-                # Column 3: AUTHOR
+                # Column 2: AUTHOR
                 data.extend(ascii_to_petscii(child.author[:8]))
                 data.append(0x2C)
-                # Column 4: VOTE — "avg (count)" format
+                # Column 3: VOTE — "avg (count)" format
                 if child.vote > 0:
                     vote_count = self._get_vote_count(child.page_num)
-                    vote_str = f'{child.vote} ({vote_count})'
+                    vote_str = f' {child.vote} ({vote_count})'
                     data.extend(ascii_to_petscii(vote_str[:8]))
                 data.append(0x2C)
-                # Column 5: UPLOADED — "DD-MMM" format, hyphen-aligned
+                # Column 4: UPLOADED — "DD-MMM" format, hyphen-aligned
                 uploaded = getattr(child, 'uploaded', None)
                 if uploaded:
                     import datetime
@@ -2004,6 +2064,10 @@ class CompunetSession:
                         data.extend(ascii_to_petscii(date_str))
                     except (ValueError, AttributeError):
                         pass
+                data.append(0x2C)
+                # Column 5: LIFE (last — ROM uses $C001 for upload LIFE preview)
+                if child.life > 0:
+                    data.extend(ascii_to_petscii('  ' + str(child.life).rjust(3)))
                 data.append(0x0D)
         
         log.info('PAGE response: %d bytes hex=%s', len(data), data.hex())
@@ -2069,7 +2133,7 @@ class CompunetSession:
         data.append(0x00)
 
         # Part 4: breadcrumb
-        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.extend(ascii_to_petscii('     1 *** COMPUNET ***'))
         data.append(0x0D)
         data.extend(ascii_to_petscii('  WHO'))
         data.append(0x00)

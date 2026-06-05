@@ -1,3 +1,27 @@
+# 0.13.2-beta (2026-06-05)
+
+* Server:
+	* Upload replace: uploading with the same title as an existing page now
+	  replaces it instead of creating a duplicate (#78). Only the original
+	  author (or admin/editor) can replace. Other users are rejected.
+	  All metadata (price, life, type) and timestamp updated on replace.
+	* Archive on replace/expire: old content is archived to
+	  `server/data/archive/` with metadata before removal. Nothing is
+	  ever permanently deleted.
+	* Directory column justification (#80): PRICE right-justified with
+	  leading space, LIFE right-justified with 2-space indent, VOTE
+	  indented by one space. No leading zeros.
+	* Column order changed to: PRICE, AUTHOR, VOTE, UPLDDATE, LIFE.
+	  LIFE moved to last position to fix ROM upload preview showing
+	  wrong column at "NEW ENTRY OK?" prompt (ROM uses last column
+	  for LIFE preview via $C001).
+	* Fixed: download default filename missing first character (#83).
+	  Title in directory entry was one byte too far left for the ROM's
+	  filename buffer copy. Shifted entry alignment: page number now
+	  rjust(6), title max 17 chars, breadcrumb indented to match.
+* Dev:
+	* `vice_test.sh` updated to use CRT cartridge instead of D64.
+
 # 0.13.1-beta (2026-06-04)
 
 * Server:
