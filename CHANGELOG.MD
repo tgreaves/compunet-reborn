@@ -1,4 +1,4 @@
-# 0.13.1-beta (2026-06-04)
+# 0.13.2-beta (2026-06-05)
 
 * Server:
 	* Upload replace: uploading with the same title as an existing page now
@@ -8,6 +8,10 @@
 	* Archive on replace/expire: old content is archived to
 	  `server/data/archive/` with metadata before removal. Nothing is
 	  ever permanently deleted.
+
+# 0.13.1-beta (2026-06-04)
+
+* Server:
 	* Fixed: UCAT now pages results (#76). Shows 10 entries + "MORE >>>>"
 	  indicator when more exist. DIR on MORE advances, BACK returns to
 	  previous page. Breadcrumb shows range (e.g. "UPLOADS 1-10").
