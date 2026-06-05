@@ -8,6 +8,15 @@
 	* Archive on replace/expire: old content is archived to
 	  `server/data/archive/` with metadata before removal. Nothing is
 	  ever permanently deleted.
+	* Directory column justification (#80): PRICE right-justified with
+	  leading space, LIFE right-justified with 2-space indent, VOTE
+	  indented by one space. No leading zeros.
+	* Column order changed to: PRICE, AUTHOR, VOTE, UPLDDATE, LIFE.
+	  LIFE moved to last position to fix ROM upload preview showing
+	  wrong column at "NEW ENTRY OK?" prompt (ROM uses last column
+	  for LIFE preview via $C001).
+* Dev:
+	* `vice_test.sh` updated to use CRT cartridge instead of D64.
 
 # 0.13.1-beta (2026-06-04)
 

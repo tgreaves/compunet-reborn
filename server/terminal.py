@@ -167,7 +167,7 @@ class TerminalSession:
         self.current_page = directory.root
         self.dir_cursor = 0
         self.dir_offset = 0
-        self.dir_column = 0         # 0=PRICE, 1=LIFE, 2=AUTHOR, 3=VOTE, 4=UPLDDATE
+        self.dir_column = 0         # 0=PRICE, 1=AUTHOR, 2=VOTE, 3=UPLDDATE, 4=LIFE
         self.mail_column = 0        # 0=SENDER, 1=DATE, 2=STATUS
         self.duck_pos = 0
         self.mode = 'login'         # login, directory, frame, mail
@@ -532,7 +532,7 @@ class TerminalSession:
         breadcrumb = f'  {page.page_num} {page.title}'
         await self.send_text(breadcrumb[:29].ljust(29))
         await self.send(self.B_THIN_V)
-        cols = [' PRICE', ' LIFE', ' AUTHOR', ' VOTE', 'UPLDDATE']
+        cols = [' PRICE', ' AUTHOR', ' VOTE', 'UPLDDATE', ' LIFE']
         await self.send_text(cols[self.dir_column].ljust(8)[:8])
         await self.send(self.B_THIN_V)
 
@@ -562,15 +562,15 @@ class TerminalSession:
                 content = f'{page_num_str:>5s} {title}{type_str}'[:29]
 
                 if self.dir_column == 0:
-                    col_val = '{:.2f}'.format(child.price) if child.price > 0 else ''
+                    col_val = ' ' + '{:.2f}'.format(child.price).rjust(6) if child.price > 0 else ''
                 elif self.dir_column == 1:
-                    col_val = str(child.life) if child.life > 0 else ''
-                elif self.dir_column == 2:
                     col_val = child.author[:8]
+                elif self.dir_column == 2:
+                    col_val = f' {child.vote}' if child.vote > 0 else ''
                 elif self.dir_column == 3:
-                    col_val = str(child.vote) if child.vote > 0 else ''
-                else:
                     col_val = self._format_upload_date(child)
+                else:
+                    col_val = '  ' + str(child.life).rjust(3) if child.life > 0 else ''
                 col_val = col_val[:8].ljust(8)
             else:
                 await self.send(COL_WHITE)
@@ -729,7 +729,7 @@ class TerminalSession:
         # Column header at row 8, col 31
         await self.cursor_to(8, 31)
         await self.send(COL_WHITE)
-        cols = [' PRICE', ' LIFE', ' AUTHOR', ' VOTE', 'UPLDDATE']
+        cols = [' PRICE', ' AUTHOR', ' VOTE', 'UPLDDATE', ' LIFE']
         await self.send_text(cols[self.dir_column].ljust(8)[:8])
 
         # Column values for each visible entry
@@ -740,15 +740,15 @@ class TerminalSession:
             if i < len(visible):
                 child = visible[i]
                 if self.dir_column == 0:
-                    col_val = '{:.2f}'.format(child.price) if child.price > 0 else ''
+                    col_val = ' ' + '{:.2f}'.format(child.price).rjust(6) if child.price > 0 else ''
                 elif self.dir_column == 1:
-                    col_val = str(child.life) if child.life > 0 else ''
-                elif self.dir_column == 2:
                     col_val = child.author[:8]
+                elif self.dir_column == 2:
+                    col_val = f' {child.vote}' if child.vote > 0 else ''
                 elif self.dir_column == 3:
-                    col_val = str(child.vote) if child.vote > 0 else ''
-                else:
                     col_val = self._format_upload_date(child)
+                else:
+                    col_val = '  ' + str(child.life).rjust(3) if child.life > 0 else ''
                 col_val = col_val[:8].ljust(8)
                 if i == self.dir_cursor:
                     await self.send(COL_WHITE)
@@ -777,15 +777,15 @@ class TerminalSession:
         content = f'{page_num_str:>5s} {title}{type_str}'[:29]
 
         if self.dir_column == 0:
-            col_val = '{:.2f}'.format(child.price) if child.price > 0 else ''
+            col_val = ' ' + '{:.2f}'.format(child.price).rjust(6) if child.price > 0 else ''
         elif self.dir_column == 1:
-            col_val = str(child.life) if child.life > 0 else ''
-        elif self.dir_column == 2:
             col_val = child.author[:8]
+        elif self.dir_column == 2:
+            col_val = f' {child.vote}' if child.vote > 0 else ''
         elif self.dir_column == 3:
-            col_val = str(child.vote) if child.vote > 0 else ''
-        else:
             col_val = self._format_upload_date(child)
+        else:
+            col_val = '  ' + str(child.life).rjust(3) if child.life > 0 else ''
         col_val = col_val[:8].ljust(8)
 
         if idx == self.dir_cursor:
