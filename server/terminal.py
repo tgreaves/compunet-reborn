@@ -677,6 +677,39 @@ class TerminalSession:
             out.extend(RVS_OFF)
         await self.send(bytes(out))
 
+    def _archive_page_standalone(self, cs, page, reason='replaced'):
+        """Archive a page's files and metadata before removal."""
+        import shutil, json as json_mod
+        archive_dir = os.path.join(cs.DATA_DIR, 'archive')
+        slug = cs.CompunetDirectory._make_slug(page.title)
+        timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+        dest = os.path.join(archive_dir, f'{page.page_num}-{slug}-{timestamp}')
+        os.makedirs(dest, exist_ok=True)
+
+        page_dir = getattr(page, '_dir_path', '')
+        frame_files = getattr(page, '_frame_files', [])
+        for frame_file in frame_files:
+            src_path = os.path.join(page_dir, frame_file)
+            if os.path.exists(src_path):
+                shutil.copy2(src_path, os.path.join(dest, frame_file))
+
+        metadata = {
+            'page_num': page.page_num,
+            'title': page.title,
+            'type': page.page_type,
+            'author': page.author,
+            'price': page.price,
+            'life': page.life,
+            'uploaded': getattr(page, 'uploaded', None),
+            'archived': timestamp,
+            'reason': reason,
+        }
+        with open(os.path.join(dest, 'metadata.json'), 'w') as f:
+            json_mod.dump(metadata, f, indent=2)
+
+        logger.info('ARCHIVE: page %d "%s" by %s → %s (%s)',
+                    page.page_num, page.title, page.author, dest, reason)
+
     def _format_upload_date(self, child):
         """Format upload date as DD-MMM, right-justified so hyphens align."""
         uploaded = getattr(child, 'uploaded', None)
@@ -1878,8 +1911,35 @@ class TerminalSession:
         page = self.current_page
         send = self._upload_pending
 
-        # Create page folder
+        # Check for existing page with same title
         page_slug = cs.CompunetDirectory._make_slug(send['title'])
+        existing = None
+        for child in page.children:
+            if cs.CompunetDirectory._make_slug(child.title) == page_slug:
+                existing = child
+                break
+
+        if existing:
+            users = cs._api_load_users()
+            user_data = users.get(self.user_id, {})
+            is_admin = user_data.get('admin', False)
+            is_editor = user_data.get('editor', False)
+            if existing.author != self.user_id and not is_admin and not is_editor:
+                logger.info('UPLOAD REJECTED: user=%s cannot replace "%s" owned by %s',
+                            self.user_id, existing.title, existing.author)
+                await self.cursor_to(24, 0)
+                await self.send(COL_WHITE)
+                await self.send_text('CANNOT REPLACE (NOT OWNER)'.ljust(39))
+                await self.read_key()
+                await self.cursor_to(24, 0)
+                await self.render_duckshoot()
+                return
+            # Archive old version
+            cs._archive_page = cs.CompunetSession._archive_page
+            # Use a standalone archive call
+            self._archive_page_standalone(cs, existing, 'replaced')
+
+        # Create page folder
         parent_dir = getattr(page, '_dir_path', cs.ROOT_DIR)
         page_dir = os.path.join(parent_dir, page_slug)
         os.makedirs(page_dir, exist_ok=True)
@@ -1893,15 +1953,18 @@ class TerminalSession:
                 f.write(frame_data)
             frame_files.append(frame_file)
 
-        # Allocate page number
-        all_pages = list(self.directory.pages.keys())
-        next_page_num = max(all_pages) + 1 if all_pages else 1000
+        # Determine page number
+        if existing:
+            page_num = existing.page_num
+        else:
+            all_pages = list(self.directory.pages.keys())
+            page_num = max(all_pages) + 1 if all_pages else 1000
 
         size = len(send['frames'])
 
         # Create page object
         new_page = cs.CompunetPage(
-            page_num=next_page_num,
+            page_num=page_num,
             title=send['title'],
             page_type='T',
             size=size,
@@ -1918,18 +1981,26 @@ class TerminalSession:
             frame_path = os.path.join(page_dir, frame_file)
             with open(frame_path, 'rb') as f:
                 new_page.frames.append(f.read())
-        page.children.append(new_page)
-        self.directory.pages[next_page_num] = new_page
+
+        if existing:
+            idx = page.children.index(existing)
+            page.children[idx] = new_page
+            self.directory.pages[page_num] = new_page
+        else:
+            page.children.append(new_page)
+            self.directory.pages[page_num] = new_page
 
         # Save directory
         self._save_directory_tree(cs)
 
+        action = 'replaced' if existing else 'uploaded'
         cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
-                     title=send['title'], page=next_page_num, type='T')
+                     title=send['title'], page=page_num, type='T', action=action)
 
         await self.cursor_to(24, 0)
         await self.send(COL_WHITE)
-        await self.send_text('UPLOAD COMPLETE'.ljust(39))
+        msg = 'UPLOAD REPLACED' if existing else 'UPLOAD COMPLETE'
+        await self.send_text(msg.ljust(39))
         await self.read_key()
 
         self._upload_pending = None
@@ -1981,9 +2052,31 @@ class TerminalSession:
             'frames': [prg_data],  # Raw PRG data (load_lo, load_hi, program bytes)
         }
 
-        # Use the server's _complete_content_upload logic directly
+        # Check for existing page with same title
         page = self.current_page
         page_slug = cs.CompunetDirectory._make_slug(send['title'])
+        existing = None
+        for child in page.children:
+            if cs.CompunetDirectory._make_slug(child.title) == page_slug:
+                existing = child
+                break
+
+        if existing:
+            users = cs._api_load_users()
+            user_data = users.get(self.user_id, {})
+            is_admin = user_data.get('admin', False)
+            is_editor = user_data.get('editor', False)
+            if existing.author != self.user_id and not is_admin and not is_editor:
+                logger.info('UPLOAD REJECTED: user=%s cannot replace "%s" owned by %s',
+                            self.user_id, existing.title, existing.author)
+                await self.cursor_to(24, 0)
+                await self.send_text('CANNOT REPLACE (NOT OWNER)'.ljust(39))
+                await self.read_key()
+                await self.cursor_to(24, 0)
+                await self.render_duckshoot()
+                return
+            self._archive_page_standalone(cs, existing, 'replaced')
+
         parent_dir = getattr(page, '_dir_path', cs.ROOT_DIR)
         page_dir = os.path.join(parent_dir, page_slug)
         os.makedirs(page_dir, exist_ok=True)
@@ -1994,16 +2087,19 @@ class TerminalSession:
         with open(frame_path, 'wb') as f:
             f.write(prg_data)
 
-        # Allocate page number
-        all_pages = list(self.directory.pages.keys())
-        next_page_num = max(all_pages) + 1 if all_pages else 1000
+        # Determine page number
+        if existing:
+            page_num = existing.page_num
+        else:
+            all_pages = list(self.directory.pages.keys())
+            page_num = max(all_pages) + 1 if all_pages else 1000
 
         # Calculate size in K
         size = (len(prg_data) - 2 + 1023) // 1024 if len(prg_data) > 2 else 1
 
         # Create page object
         new_page = cs.CompunetPage(
-            page_num=next_page_num,
+            page_num=page_num,
             title=send['title'],
             page_type=send['type'],
             size=size,
@@ -2017,18 +2113,24 @@ class TerminalSession:
         new_page._dir_path = page_dir
         new_page._adverts = []
         new_page.frames = [prg_data]
-        page.children.append(new_page)
-        self.directory.pages[next_page_num] = new_page
 
-        # Save directory JSON (reuse server's save logic)
-        import json as json_mod
+        if existing:
+            idx = page.children.index(existing)
+            page.children[idx] = new_page
+            self.directory.pages[page_num] = new_page
+        else:
+            page.children.append(new_page)
+            self.directory.pages[page_num] = new_page
+
         self._save_directory_tree(cs)
 
+        action = 'replaced' if existing else 'uploaded'
         cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
-                     title=send['title'], page=next_page_num, type=send['type'])
+                     title=send['title'], page=page_num, type=send['type'], action=action)
 
         await self.cursor_to(24, 0)
-        await self.send_text('UPLOAD COMPLETE'.ljust(39))
+        msg = 'UPLOAD REPLACED' if existing else 'UPLOAD COMPLETE'
+        await self.send_text(msg.ljust(39))
         await self.read_key()
 
         self._upload_pending = None

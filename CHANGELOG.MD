@@ -1,3 +1,14 @@
+# 0.13.2-beta (2026-06-05)
+
+* Server:
+	* Upload replace: uploading with the same title as an existing page now
+	  replaces it instead of creating a duplicate (#78). Only the original
+	  author (or admin/editor) can replace. Other users are rejected.
+	  All metadata (price, life, type) and timestamp updated on replace.
+	* Archive on replace/expire: old content is archived to
+	  `server/data/archive/` with metadata before removal. Nothing is
+	  ever permanently deleted.
+
 # 0.13.1-beta (2026-06-04)
 
 * Server:
