@@ -15,6 +15,10 @@
 	  LIFE moved to last position to fix ROM upload preview showing
 	  wrong column at "NEW ENTRY OK?" prompt (ROM uses last column
 	  for LIFE preview via $C001).
+	* Fixed: download default filename missing first character (#83).
+	  Title in directory entry was one byte too far left for the ROM's
+	  filename buffer copy. Shifted entry alignment: page number now
+	  rjust(6), title max 17 chars, breadcrumb indented to match.
 * Dev:
 	* `vice_test.sh` updated to use CRT cartridge instead of D64.
 

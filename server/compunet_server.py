@@ -1810,7 +1810,7 @@ class CompunetSession:
         data.append(0x00)
 
         # Part 4: breadcrumb
-        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.extend(ascii_to_petscii('     1 *** COMPUNET ***'))
         data.append(0x0D)
         data.extend(ascii_to_petscii(f'  UPLOADS {self._ucat_offset+1}-{self._ucat_offset+len(visible)}'))
         data.append(0x00)
@@ -1839,9 +1839,9 @@ class CompunetSession:
             data.append(0x0D)
         else:
             for page in visible:
-                page_str = str(page.page_num).rjust(5) + ' '
+                page_str = str(page.page_num).rjust(6) + ' '
                 type_str = page.type_string().ljust(3)
-                title_field = page.title[:18].ljust(18) + type_str
+                title_field = page.title[:17].ljust(17) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
                 # Column 1: PRICE (must be first — client checks this for SHOW)
@@ -1977,9 +1977,9 @@ class CompunetSession:
 
         # --- Part 4: Routing/breadcrumb (stored at $D400, displayed at row 7) ---
         # Shows current directory path inside the box, above entries.
-        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.extend(ascii_to_petscii('     1 *** COMPUNET ***'))
         data.append(0x0D)
-        path_line2 = '  ' + str(page.page_num) + ' ' + (page.title or '')
+        path_line2 = '   ' + str(page.page_num) + ' ' + (page.title or '')
         data.extend(ascii_to_petscii(path_line2[:22].ljust(24)))
         # Unread mail indicator at column 25 (aligned with type field)
         mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
@@ -2032,10 +2032,10 @@ class CompunetSession:
                 # First 6 chars = page number (5 right-aligned + space)
                 # Then title left-aligned, type right-aligned (20 chars total)
                 # Type suffix must start at screen column 25 (SHOW reads $19)
-                page_str = str(child.page_num).rjust(5) + ' '
+                page_str = str(child.page_num).rjust(6) + ' '
                 type_str = child.type_string().ljust(3)
-                title = child.title[:18]
-                title_field = title.ljust(18) + type_str
+                title = child.title[:17]
+                title_field = title.ljust(17) + type_str
                 data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
                 # Column 1: PRICE (0 if already purchased)
@@ -2133,7 +2133,7 @@ class CompunetSession:
         data.append(0x00)
 
         # Part 4: breadcrumb
-        data.extend(ascii_to_petscii('    1 *** COMPUNET ***'))
+        data.extend(ascii_to_petscii('     1 *** COMPUNET ***'))
         data.append(0x0D)
         data.extend(ascii_to_petscii('  WHO'))
         data.append(0x00)
