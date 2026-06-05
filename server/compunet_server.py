@@ -1845,14 +1845,15 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(page_str + title_field))
                 data.append(0x2C)
                 # Column 1: PRICE (must be first — client checks this for SHOW)
-                price_str = '{:.2f}'.format(page.price) if page.price > 0 else ''
-                data.extend(ascii_to_petscii(price_str))
+                if page.price > 0:
+                    data.extend(ascii_to_petscii(' ' + '{:.2f}'.format(page.price).rjust(6)))
                 data.append(0x2C)
-                # Column 2: LIFE
-                data.extend(ascii_to_petscii(str(page.life)))
+                # Column 2: LIFE (right-justified, 2-space indent)
+                if page.life > 0:
+                    data.extend(ascii_to_petscii('  ' + str(page.life).rjust(3)))
                 data.append(0x2C)
                 # Column 3: VOTE
-                vote_str = str(page.vote) if page.vote > 0 else ''
+                vote_str = f' {page.vote}' if page.vote > 0 else ''
                 data.extend(ascii_to_petscii(vote_str))
                 data.append(0x2C)
                 # Column 4: PAGE
@@ -1995,13 +1996,13 @@ class CompunetSession:
         # F7/F8 cycles through them. $C002 selects which to display.
         data.extend(ascii_to_petscii(' PRICE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii(' LIFE'))
-        data.append(0x2C)
         data.extend(ascii_to_petscii(' AUTHOR'))
         data.append(0x2C)
         data.extend(ascii_to_petscii(' VOTE'))
         data.append(0x2C)
         data.extend(ascii_to_petscii('UPLDDATE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii(' LIFE'))
         data.append(0x0D)
 
         # Separator byte consumed by L_A448's JSR L96CC (value unused)
@@ -2040,22 +2041,18 @@ class CompunetSession:
                 # Column 1: PRICE (0 if already purchased)
                 effective_price = 0 if child.page_num in self.purchased else child.price
                 if effective_price > 0:
-                    data.extend(ascii_to_petscii('{:.2f}'.format(effective_price)[:8]))
+                    data.extend(ascii_to_petscii(' ' + '{:.2f}'.format(effective_price).rjust(6)))
                 data.append(0x2C)
-                # Column 2: LIFE
-                if child.life > 0:
-                    data.extend(ascii_to_petscii(str(child.life)[:8]))
-                data.append(0x2C)
-                # Column 3: AUTHOR
+                # Column 2: AUTHOR
                 data.extend(ascii_to_petscii(child.author[:8]))
                 data.append(0x2C)
-                # Column 4: VOTE — "avg (count)" format
+                # Column 3: VOTE — "avg (count)" format
                 if child.vote > 0:
                     vote_count = self._get_vote_count(child.page_num)
-                    vote_str = f'{child.vote} ({vote_count})'
+                    vote_str = f' {child.vote} ({vote_count})'
                     data.extend(ascii_to_petscii(vote_str[:8]))
                 data.append(0x2C)
-                # Column 5: UPLOADED — "DD-MMM" format, hyphen-aligned
+                # Column 4: UPLOADED — "DD-MMM" format, hyphen-aligned
                 uploaded = getattr(child, 'uploaded', None)
                 if uploaded:
                     import datetime
@@ -2067,6 +2064,10 @@ class CompunetSession:
                         data.extend(ascii_to_petscii(date_str))
                     except (ValueError, AttributeError):
                         pass
+                data.append(0x2C)
+                # Column 5: LIFE (last — ROM uses $C001 for upload LIFE preview)
+                if child.life > 0:
+                    data.extend(ascii_to_petscii('  ' + str(child.life).rjust(3)))
                 data.append(0x0D)
         
         log.info('PAGE response: %d bytes hex=%s', len(data), data.hex())
