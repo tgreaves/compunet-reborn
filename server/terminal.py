@@ -529,7 +529,7 @@ class TerminalSession:
         # Row 8: breadcrumb + column header
         await self.send(self.B_THICK_V)
         await self.send(COL_WHITE)
-        breadcrumb = f'  {page.page_num} {page.title}'
+        breadcrumb = f'   {page.page_num} {page.title}'
         await self.send_text(breadcrumb[:29].ljust(29))
         await self.send(self.B_THIN_V)
         cols = [' PRICE', ' AUTHOR', ' VOTE', 'UPLDDATE', ' LIFE']
@@ -557,9 +557,9 @@ class TerminalSession:
             elif i < len(visible):
                 child = visible[i]
                 page_num_str = str(child.page_num)
-                title = child.title[:18].ljust(18)
+                title = child.title[:17].ljust(17)
                 type_str = child.type_string()[:5].ljust(5)
-                content = f'{page_num_str:>5s} {title}{type_str}'[:29]
+                content = f'{page_num_str:>6s} {title}{type_str}'[:29]
 
                 if self.dir_column == 0:
                     col_val = ' ' + '{:.2f}'.format(child.price).rjust(6) if child.price > 0 else ''
@@ -772,9 +772,9 @@ class TerminalSession:
 
         child = visible[idx]
         page_num_str = str(child.page_num)
-        title = child.title[:18].ljust(18)
+        title = child.title[:17].ljust(17)
         type_str = child.type_string()[:5].ljust(5)
-        content = f'{page_num_str:>5s} {title}{type_str}'[:29]
+        content = f'{page_num_str:>6s} {title}{type_str}'[:29]
 
         if self.dir_column == 0:
             col_val = ' ' + '{:.2f}'.format(child.price).rjust(6) if child.price > 0 else ''
@@ -1792,7 +1792,7 @@ class TerminalSession:
             await self.set_charset("upper")
             await self.send(self.B_THICK_V)
             type_str = (page_type + str(lifetime) if page_type else '')[:5].ljust(5)
-            content = f'      {title[:18]:<18s}{type_str}'[:29]
+            content = f'       {title[:17]:<17s}{type_str}'[:29]
             await self.send_text(content)
             await self.set_charset("upper")
             await self.send(self.B_THIN_V)
