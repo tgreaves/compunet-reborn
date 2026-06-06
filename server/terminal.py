@@ -532,7 +532,7 @@ class TerminalSession:
         breadcrumb = f'   {page.page_num} {page.title}'
         await self.send_text(breadcrumb[:29].ljust(29))
         await self.send(self.B_THIN_V)
-        cols = [' PRICE', ' AUTHOR', ' VOTE', 'UPLDDATE', ' LIFE']
+        cols = [' PRICE', ' AUTHOR', 'VOTE/NUM', 'UPLDDATE', ' LIFE']
         await self.send_text(cols[self.dir_column].ljust(8)[:8])
         await self.send(self.B_THIN_V)
 
@@ -566,7 +566,7 @@ class TerminalSession:
                 elif self.dir_column == 1:
                     col_val = child.author[:8]
                 elif self.dir_column == 2:
-                    col_val = f' {child.vote}' if child.vote > 0 else ''
+                    col_val = self._format_vote(child)
                 elif self.dir_column == 3:
                     col_val = self._format_upload_date(child)
                 else:
@@ -724,12 +724,29 @@ class TerminalSession:
         except (ValueError, AttributeError):
             return ''
 
+    def _get_vote_count(self, page_num):
+        """Return number of votes cast for a page."""
+        import json as json_mod2
+        votes_path = cs.VOTES_PATH
+        if os.path.exists(votes_path):
+            with open(votes_path, 'r') as f:
+                votes = json_mod2.load(f)
+            return len(votes.get(str(page_num), {}))
+        return 0
+
+    def _format_vote(self, child):
+        """Format vote as score/count (VOTE/NUM column)."""
+        if child.vote > 0:
+            vote_count = self._get_vote_count(child.page_num)
+            return (str(child.vote).rjust(4) + '/' + str(vote_count))[:8]
+        return '    -'
+
     async def redraw_column(self):
         """Redraw just the column header and column values (F7/F8 toggle)."""
         # Column header at row 8, col 31
         await self.cursor_to(8, 31)
         await self.send(COL_WHITE)
-        cols = [' PRICE', ' AUTHOR', ' VOTE', 'UPLDDATE', ' LIFE']
+        cols = [' PRICE', ' AUTHOR', 'VOTE/NUM', 'UPLDDATE', ' LIFE']
         await self.send_text(cols[self.dir_column].ljust(8)[:8])
 
         # Column values for each visible entry
@@ -744,7 +761,7 @@ class TerminalSession:
                 elif self.dir_column == 1:
                     col_val = child.author[:8]
                 elif self.dir_column == 2:
-                    col_val = f' {child.vote}' if child.vote > 0 else ''
+                    col_val = self._format_vote(child)
                 elif self.dir_column == 3:
                     col_val = self._format_upload_date(child)
                 else:
@@ -781,7 +798,7 @@ class TerminalSession:
         elif self.dir_column == 1:
             col_val = child.author[:8]
         elif self.dir_column == 2:
-            col_val = f' {child.vote}' if child.vote > 0 else ''
+            col_val = self._format_vote(child)
         elif self.dir_column == 3:
             col_val = self._format_upload_date(child)
         else:

@@ -1799,11 +1799,27 @@ class CompunetSession:
 
         data = bytearray()
 
-        # Part 1: no header frame
+        # Part 1: header frame (same as root DIR — Compunet logo)
+        data.append(0x8E)
+        header_file = getattr(self.directory.root, 'header', None)
+        if header_file:
+            header_path = os.path.join(ROOT_DIR, header_file)
+            if os.path.exists(header_path):
+                with open(header_path, 'rb') as f:
+                    data.extend(f.read())
         data.append(0x00)
 
-        # Part 2: footer/adverts (empty)
-        data.append(0x0D)
+        # Part 2: footer/adverts
+        advert = self._pick_advert()
+        if advert:
+            lines = advert.split('\n')
+            line1 = lines[0][:40] if len(lines) > 0 else ''
+            line2 = lines[1][:40] if len(lines) > 1 else ''
+            data.extend(ascii_to_petscii(line1))
+            data.append(0x0D)
+            data.extend(ascii_to_petscii(line2))
+        else:
+            data.append(0x0D)
         data.append(0x0D)
 
         # Part 3: field definitions (none)
@@ -1812,19 +1828,20 @@ class CompunetSession:
         # Part 4: breadcrumb
         data.extend(ascii_to_petscii('     1 *** COMPUNET ***'))
         data.append(0x0D)
-        data.extend(ascii_to_petscii(f'  UPLOADS {self._ucat_offset+1}-{self._ucat_offset+len(visible)}'))
+        breadcrumb2 = f'  UPLOADS {self._ucat_offset+1}-{self._ucat_offset+len(visible)}'
+        data.extend(ascii_to_petscii(breadcrumb2[:22].ljust(24)))
         data.append(0x00)
 
-        # Part 5: column headers (PRICE must be first — client checks field 1 for SHOW)
+        # Part 5: column headers (must match DIR: PRICE, AUTHOR, VOTE/NUM, UPLDDATE, LIFE)
         data.extend(ascii_to_petscii(' PRICE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii(' LIFE'))
+        data.extend(ascii_to_petscii(' AUTHOR'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii(' VOTE'))
-        data.append(0x2C)
-        data.extend(ascii_to_petscii(' PAGE'))
+        data.extend(ascii_to_petscii('VOTE/NUM'))
         data.append(0x2C)
         data.extend(ascii_to_petscii('UPLDDATE'))
+        data.append(0x2C)
+        data.extend(ascii_to_petscii(' LIFE'))
         data.append(0x0D)
         data.append(0x00)
 
@@ -1848,18 +1865,18 @@ class CompunetSession:
                 if page.price > 0:
                     data.extend(ascii_to_petscii(' ' + '{:.2f}'.format(page.price).rjust(6)))
                 data.append(0x2C)
-                # Column 2: LIFE (right-justified, 2-space indent)
-                if page.life > 0:
-                    data.extend(ascii_to_petscii('  ' + str(page.life).rjust(3)))
+                # Column 2: AUTHOR
+                data.extend(ascii_to_petscii(page.author[:8]))
                 data.append(0x2C)
-                # Column 3: VOTE
-                vote_str = f' {page.vote}' if page.vote > 0 else ''
-                data.extend(ascii_to_petscii(vote_str))
+                # Column 3: VOTE/NUM — score right-justified pos 0-3, / at pos 4, count from pos 5
+                if page.vote > 0:
+                    vote_count = self._get_vote_count(page.page_num)
+                    vote_str = str(page.vote).rjust(4) + '/' + str(vote_count)
+                    data.extend(ascii_to_petscii(vote_str[:8]))
+                else:
+                    data.extend(ascii_to_petscii('    -'))
                 data.append(0x2C)
-                # Column 4: PAGE
-                data.extend(ascii_to_petscii(str(page.page_num)))
-                data.append(0x2C)
-                # Column 5: UPLDDATE
+                # Column 4: UPLDDATE — "DD-MMM" format, hyphen-aligned
                 uploaded = getattr(page, 'uploaded', None)
                 if uploaded:
                     import datetime
@@ -1870,6 +1887,10 @@ class CompunetSession:
                         data.extend(ascii_to_petscii(f'{day}-{mon}'.rjust(7)))
                     except (ValueError, AttributeError):
                         pass
+                data.append(0x2C)
+                # Column 5: LIFE (last — ROM uses $C001 for upload LIFE preview)
+                if page.life > 0:
+                    data.extend(ascii_to_petscii('  ' + str(page.life).rjust(3)))
                 data.append(0x0D)
 
             # If more pages exist, add "MORE    >>>>" indicator
@@ -1998,7 +2019,7 @@ class CompunetSession:
         data.append(0x2C)
         data.extend(ascii_to_petscii(' AUTHOR'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii(' VOTE'))
+        data.extend(ascii_to_petscii('VOTE/NUM'))
         data.append(0x2C)
         data.extend(ascii_to_petscii('UPLDDATE'))
         data.append(0x2C)
@@ -2046,11 +2067,13 @@ class CompunetSession:
                 # Column 2: AUTHOR
                 data.extend(ascii_to_petscii(child.author[:8]))
                 data.append(0x2C)
-                # Column 3: VOTE — "avg (count)" format
+                # Column 3: VOTE/NUM — score right-justified pos 0-3, / at pos 4, count from pos 5
                 if child.vote > 0:
                     vote_count = self._get_vote_count(child.page_num)
-                    vote_str = f' {child.vote} ({vote_count})'
+                    vote_str = str(child.vote).rjust(4) + '/' + str(vote_count)
                     data.extend(ascii_to_petscii(vote_str[:8]))
+                else:
+                    data.extend(ascii_to_petscii('    -'))
                 data.append(0x2C)
                 # Column 4: UPLOADED — "DD-MMM" format, hyphen-aligned
                 uploaded = getattr(child, 'uploaded', None)
