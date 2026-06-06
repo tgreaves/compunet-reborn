@@ -1820,7 +1820,7 @@ class CompunetSession:
         data.append(0x2C)
         data.extend(ascii_to_petscii(' LIFE'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii(' VOTE'))
+        data.extend(ascii_to_petscii('VOTE/NUM'))
         data.append(0x2C)
         data.extend(ascii_to_petscii(' PAGE'))
         data.append(0x2C)
@@ -1852,9 +1852,13 @@ class CompunetSession:
                 if page.life > 0:
                     data.extend(ascii_to_petscii('  ' + str(page.life).rjust(3)))
                 data.append(0x2C)
-                # Column 3: VOTE
-                vote_str = f' {page.vote}' if page.vote > 0 else ''
-                data.extend(ascii_to_petscii(vote_str))
+                # Column 3: VOTE/NUM — score right-justified pos 0-3, / at pos 4, count from pos 5
+                if page.vote > 0:
+                    vote_count = self._get_vote_count(page.page_num)
+                    vote_str = str(page.vote).rjust(4) + '/' + str(vote_count)
+                    data.extend(ascii_to_petscii(vote_str[:8]))
+                else:
+                    data.extend(ascii_to_petscii('    -'))
                 data.append(0x2C)
                 # Column 4: PAGE
                 data.extend(ascii_to_petscii(str(page.page_num)))
@@ -1998,7 +2002,7 @@ class CompunetSession:
         data.append(0x2C)
         data.extend(ascii_to_petscii(' AUTHOR'))
         data.append(0x2C)
-        data.extend(ascii_to_petscii(' VOTE'))
+        data.extend(ascii_to_petscii('VOTE/NUM'))
         data.append(0x2C)
         data.extend(ascii_to_petscii('UPLDDATE'))
         data.append(0x2C)
@@ -2046,11 +2050,13 @@ class CompunetSession:
                 # Column 2: AUTHOR
                 data.extend(ascii_to_petscii(child.author[:8]))
                 data.append(0x2C)
-                # Column 3: VOTE — "avg (count)" format
+                # Column 3: VOTE/NUM — score right-justified pos 0-3, / at pos 4, count from pos 5
                 if child.vote > 0:
                     vote_count = self._get_vote_count(child.page_num)
-                    vote_str = f' {child.vote} ({vote_count})'
+                    vote_str = str(child.vote).rjust(4) + '/' + str(vote_count)
                     data.extend(ascii_to_petscii(vote_str[:8]))
+                else:
+                    data.extend(ascii_to_petscii('    -'))
                 data.append(0x2C)
                 # Column 4: UPLOADED — "DD-MMM" format, hyphen-aligned
                 uploaded = getattr(child, 'uploaded', None)

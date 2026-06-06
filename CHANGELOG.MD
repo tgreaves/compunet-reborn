@@ -1,3 +1,11 @@
+# 0.13.3-beta (2026-06-06)
+
+* Server:
+	* Voting display format changed to match original Compunet (#86).
+	  Column header: `VOTE/NUM`. Data: score right-justified in positions
+	  0-3, `/` at position 4, vote count left-aligned from position 5.
+	  No votes: `-` at position 4. Applies to DIR, UCAT, and terminal.
+
 # 0.13.2-beta (2026-06-05)
 
 * Server:
