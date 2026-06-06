@@ -5,6 +5,9 @@
 	  Column header: `VOTE/NUM`. Data: score right-justified in positions
 	  0-3, `/` at position 4, vote count left-aligned from position 5.
 	  No votes: `-` at position 4. Applies to DIR, UCAT, and terminal.
+	* UCAT columns now match DIR (#87): same column order (PRICE, AUTHOR,
+	  VOTE/NUM, UPLDDATE, LIFE), header frame (Compunet logo), and adverts.
+	  Removed spurious PAGE column.
 
 # 0.13.2-beta (2026-06-05)
 
