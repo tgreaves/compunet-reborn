@@ -1,3 +1,15 @@
+# 0.13.4-beta (2026-06-07)
+
+* Server:
+	* Fixed: LIFE extend in UCAT mode now targets the correct page (#92).
+	  Previously used the parent directory's children instead of the UCAT
+	  entries, causing extends to fail or hit the wrong page.
+	* Fixed: directory refresh after LIFE extend in UCAT no longer advances
+	  to the next page. Was showing "NO UPLOADS" because it treated the
+	  refresh as a MORE request.
+	* Fixed: pressing UCAT while already in UCAT now resets to page 1
+	  instead of advancing to the next page.
+
 # 0.13.3-beta (2026-06-06)
 
 * Server:

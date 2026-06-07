@@ -786,7 +786,15 @@ class CompunetSession:
             log.info('P cmd: dir_displayed=%s params=%s (not entering subdir)',
                      self.dir_displayed, params.hex() if params else 'none')
         if getattr(self, '_ucat_active', False):
-            return self._cmd_ucat()
+            if params:
+                try:
+                    selected = int(params.decode('ascii'))
+                except (ValueError, UnicodeDecodeError):
+                    selected = 0
+                last_visible = getattr(self, '_ucat_last_visible', [])
+                if selected >= len(last_visible):
+                    return self._cmd_ucat_more()
+            return self._render_ucat()
         return self._make_dir_response()
     
     def _cmd_more(self, params):
@@ -929,9 +937,12 @@ class CompunetSession:
         except (ValueError, UnicodeDecodeError):
             return bytes([0x00])
 
-        # Find the page from current directory
-        offset = getattr(self, 'dir_page_offset', 0)
-        visible_children = self.current_page.children[offset:offset+11]
+        # Find the page from current directory (or UCAT if active)
+        if getattr(self, '_ucat_active', False):
+            visible_children = getattr(self, '_ucat_last_visible', [])
+        else:
+            offset = getattr(self, 'dir_page_offset', 0)
+            visible_children = self.current_page.children[offset:offset+11]
         if entry_idx >= len(visible_children):
             return bytes([0x00])
 
@@ -1777,12 +1788,16 @@ class CompunetSession:
         log.info('DIR: saved directory tree')
 
     def _cmd_ucat(self):
-        """UCAT command - list all pages owned by the current user."""
-        # Paging: advance offset on subsequent calls (MORE)
-        if not getattr(self, '_ucat_active', False):
-            self._ucat_offset = 0
-        else:
-            self._ucat_offset = getattr(self, '_ucat_offset', 0) + len(getattr(self, '_ucat_last_visible', []))
+        """UCAT command - list all pages owned by the current user.
+
+        Always resets to page 1. Paging (MORE) is handled by _cmd_ucat_more.
+        """
+        self._ucat_offset = 0
+        return self._render_ucat()
+
+    def _cmd_ucat_more(self):
+        """Advance UCAT to the next page of entries."""
+        self._ucat_offset = getattr(self, '_ucat_offset', 0) + len(getattr(self, '_ucat_last_visible', []))
         return self._render_ucat()
 
     def _render_ucat(self):
