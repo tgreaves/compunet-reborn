@@ -113,11 +113,11 @@ or messages.
 
 Sample Partyline commands:-
 
-*alias (followed by a name)
+*alias (name, max 8 chars)
 *who  (tells who's in pline)
 *where (user) to find someone
-*enter (any room name) to enter
- a different room
+*enter (room, max 8 chars,
+ no spaces)
 *dice (number) to roll
 *call (user) to call someone
 *save to save chat log
@@ -279,12 +279,14 @@ async def _cmd_help(writer, user_id):
 
 
 async def _cmd_alias(writer, user_id, args):
-    """Set user alias (max 8 characters)."""
+    """Set user alias (max 8 characters, mixed case and spaces allowed)."""
     name = args.strip()[:8]
     if not name:
         await send_line(writer, "Usage: *alias <name>")
         await send_line(writer, "")
         return
+    if len(name) > 8:
+        name = name[:8]
     old_name = display_name(user_id)
     _users[user_id]["alias"] = name
     await send_line(writer, f"Alias set to {name}")
@@ -324,10 +326,14 @@ async def _cmd_where(writer, user_id, args):
 
 
 async def _cmd_enter(writer, user_id, args):
-    """Move user to a different room."""
-    new_room = args.strip()
+    """Move user to a different room (max 8 chars, no spaces)."""
+    new_room = args.strip().split()[0] if args.strip() else ''
     if not new_room:
         await send_line(writer, "Usage: *enter <room>")
+        await send_line(writer, "")
+        return
+    if len(new_room) > 8:
+        await send_line(writer, "Room name max 8 characters")
         await send_line(writer, "")
         return
     old_room = _users[user_id]["room"]
