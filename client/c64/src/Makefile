@@ -85,8 +85,8 @@ open('$(CRT)','wb').write(crt)"
 
 $(TERMINAL_BIN): $(BIN)
 	@dd if=$(BIN) bs=1 skip=$$((0x2000)) count=$$((0x2900)) of=$(TERMINAL_BIN) 2>/dev/null
-	@# Strip trailing zeros
-	@python3 -c "d=open('$(TERMINAL_BIN)','rb').read().rstrip(b'\x00');open('$(TERMINAL_BIN)','wb').write(d)"
+	@# Strip trailing fill zeros, but keep the final meaningful $00 (string terminator)
+	@python3 -c "d=open('$(TERMINAL_BIN)','rb').read().rstrip(b'\x00')+b'\x00';open('$(TERMINAL_BIN)','wb').write(d)"
 
 CRT_ENTRY_ADDR = $(shell python3 -c "d=open('$(BIN)','rb').read();import sys;i=d.find(b'\x78\xa2\xff\x9a\xd8');print(f'{0x8000+i}') if i>=0 else sys.exit(1)")
 
