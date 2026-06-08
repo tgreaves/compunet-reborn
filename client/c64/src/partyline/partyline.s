@@ -478,9 +478,13 @@ display_rx_line:
 
 @scrolled_back:
     ; User is scrolled back — don't update screen.
-    ; Increment scroll_offset so their view stays stable.
+    ; Increment scroll_offset so their view stays stable, but cap at max.
+    LDA scroll_offset
+    CMP #(HIST_MAX_LINES - CHAT_ROWS)
+    BCS @offset_capped
     INC scroll_offset
-    ; But also keep chat_cur_row at maximum (screen is full when scrolled)
+@offset_capped:
+    ; Keep chat_cur_row at maximum (screen is full when scrolled)
     LDA #CHAT_ROWS
     STA chat_cur_row
     RTS
@@ -744,26 +748,26 @@ scroll_forward:
 ; =================================================================
 ; REDRAW_CHAT_FROM_HISTORY — Redraw all 15 chat rows from hist_buf
 ; =================================================================
-; Starting index = (hist_write_idx - scroll_offset - CHAT_ROWS) mod 114
+; Starting index = (hist_write_idx - scroll_offset - CHAT_ROWS) mod HIST_MAX_LINES
 ; Then draw CHAT_ROWS lines sequentially from history.
 
 redraw_chat_from_history:
     ; Calculate starting history index
-    ; start = hist_write_idx - scroll_offset - CHAT_ROWS
+    ; start = (hist_write_idx - scroll_offset - CHAT_ROWS) mod HIST_MAX_LINES
+    ; scroll_offset is capped at HIST_MAX_LINES - CHAT_ROWS (240).
+    ; Worst case: 0 - 240 - 15 = -255. A single add of 255 corrects this.
+    ;
+    ; Chain the two subtractions without resetting carry between them,
+    ; so borrow propagates correctly across both.
     LDA hist_write_idx
     SEC
     SBC scroll_offset
-    SEC
-    SBC #CHAT_ROWS
-    ; A might be negative (wrapped), add HIST_MAX_LINES if so
-    BPL @idx_ok
-@wrap_idx:
-    CLC
-    ADC #HIST_MAX_LINES
-    ; If still negative, wrap again (can happen if total subtraction > 114)
-    BMI @wrap_idx
+    SBC #CHAT_ROWS              ; borrow chains from previous SBC
+    BCS @idx_ok
+    ; Borrow occurred — result wrapped negative. Add HIST_MAX_LINES.
+    ADC #HIST_MAX_LINES         ; C=0 here, so ADC adds 255+0=255
 @idx_ok:
-    ; Ensure index is in range (A could be >= HIST_MAX_LINES due to unsigned)
+    ; Ensure index is in valid range 0..HIST_MAX_LINES-1
     CMP #HIST_MAX_LINES
     BCC @idx_valid
     SEC

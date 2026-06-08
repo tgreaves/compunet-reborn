@@ -7,7 +7,7 @@ REMOTE_URL="git@github.com:tgreaves/compunet-reborn.git"
 CONTAINER_NAME="repo-transfer-sim"
 
 # Only push branches that should exist on the remote
-BRANCHES="main 92-ucat---life-not-extending-still"
+BRANCHES="main 94-partyline-cursor-keys-history-scrolling-crash-other-updates"
 
 echo "==> Bundling repository (active branches + tags)..."
 cd "$REPO_DIR"
