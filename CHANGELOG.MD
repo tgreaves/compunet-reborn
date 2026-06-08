@@ -9,6 +9,10 @@
 	* Partyline: alias max 8 characters, mixed case and spaces allowed.
 	  Room names max 8 characters, no spaces. Enforced server-side
 	  for all clients (C64, terminal, web).
+	* Partyline: room names are now case-insensitive. Entering a room
+	  that exists (in any case) joins it with the original casing.
+	* Partyline: `*alias` and `*enter` now show an error message when
+	  the limit is exceeded, instead of silently truncating.
 
 # 0.13.4-beta (2026-06-07)
 

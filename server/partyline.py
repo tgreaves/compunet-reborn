@@ -280,13 +280,15 @@ async def _cmd_help(writer, user_id):
 
 async def _cmd_alias(writer, user_id, args):
     """Set user alias (max 8 characters, mixed case and spaces allowed)."""
-    name = args.strip()[:8]
+    name = args.strip()
     if not name:
         await send_line(writer, "Usage: *alias <name>")
         await send_line(writer, "")
         return
     if len(name) > 8:
-        name = name[:8]
+        await send_line(writer, "Alias max 8 characters")
+        await send_line(writer, "")
+        return
     old_name = display_name(user_id)
     _users[user_id]["alias"] = name
     await send_line(writer, f"Alias set to {name}")
@@ -337,6 +339,14 @@ async def _cmd_enter(writer, user_id, args):
         await send_line(writer, "")
         return
     old_room = _users[user_id]["room"]
+    # Case-insensitive room match — find existing room with same name
+    existing_room = None
+    for uid, entry in _users.items():
+        if entry["room"].lower() == new_room.lower():
+            existing_room = entry["room"]
+            break
+    if existing_room:
+        new_room = existing_room
     if new_room == old_room:
         await send_line(writer, f"You are already in {old_room}")
         await send_line(writer, "")
