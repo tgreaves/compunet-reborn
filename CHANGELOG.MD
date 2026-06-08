@@ -1,4 +1,4 @@
-# 0.13.5-beta (2026-06-07)
+# 0.13.5-beta (2026-06-08)
 
 * Client:
 	* Fixed: partyline history scrolling crash (#94). `scroll_offset`
