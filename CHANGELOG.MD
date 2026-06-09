@@ -1,5 +1,9 @@
-# 0.13.6-beta (2026-06-08)
+# 0.13.6-beta (2026-06-09)
 
+* Server:
+	* Mail: Courier header frame now displayed on mail screen (#98).
+	  Previously no header was sent, causing the previous page's header
+	  to persist or display garbage (Thanks JS7 for the logo!)
 * Build:
 	* Fixed: ID screen corruption on C64 client (#95). The terminal.bin
 	  build step stripped ALL trailing $00 bytes, including the string
