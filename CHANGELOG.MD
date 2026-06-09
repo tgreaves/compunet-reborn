@@ -1,3 +1,13 @@
+# 0.13.6-beta (2026-06-08)
+
+* Build:
+	* Fixed: ID screen corruption on C64 client (#95). The terminal.bin
+	  build step stripped ALL trailing $00 bytes, including the string
+	  terminator at the end of the ID screen template. The frame renderer
+	  then read past the string into uninitialised memory, displaying
+	  garbage characters after the 5th colon. Fix: preserve one $00 byte
+	  after stripping fill padding.
+
 # 0.13.5-beta (2026-06-08)
 
 * Client:
