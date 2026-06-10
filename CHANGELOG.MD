@@ -1,4 +1,4 @@
-# 0.13.6-beta (2026-06-09)
+# 0.13.6-beta (2026-06-10)
 
 * Server:
 	* VERSION file now uses full semver (`0.13.6-beta`) (#102). Displayed
