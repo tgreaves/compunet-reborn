@@ -2703,13 +2703,7 @@ L9498:
 ; MODEM_STATUS_CHECK — check DCD during duckshoot idle
 ; ============================================================
     TAX
-    LDA ACIA_STATUS
-    AND #$20                            ; Bit 5 = DCD (high = no carrier)
-    BNE @dcd_lost
     RTS
-@dcd_lost:
-    LDX #$00
-    JMP ROMCALL_06                      ; MODEM_SEND_CMD abort path
 L949B:
     LDA $D011
     ASL
@@ -5675,7 +5669,13 @@ NMI_HANDLER:
     PHA
     ORA #$06                            ; Ensure I/O + KERNAL visible
     STA $01
-    LDA ACIA_STATUS                     ; Check if ACIA has data
+    LDA ACIA_STATUS                     ; Read status (clears transition flags)
+    TAX                                 ; Save full status in X
+    AND #$20                            ; DCD bit — latch if set
+    BEQ @no_dcd
+    STA NMI_DCD_FLAG                    ; Latch: carrier lost (persists until main code clears)
+@no_dcd:
+    TXA                                 ; Restore full status
     AND #$08                            ; RDRF set?
     BEQ @not_acia                       ; No — just RTI
     LDA ACIA_DATA                       ; Read data (clears RDRF + IRQ)
@@ -6348,6 +6348,7 @@ RECV_POS        = $C3FF   ; Current read position for PROCESS_CMD
 NODATA_FLAG     = $C3FD   ; End-of-stream flag (reset by FLOW_CONTROL)
 SEND_PKT_LEN    = $C3FC   ; Temp: packet length during ACIA_SEND_PACKET
 EOS_RECEIVED    = $C3FB   ; Set when EOS (zero-length) packet received
+NMI_DCD_FLAG    = $C3FA   ; Latched DCD loss (set by NMI handler, cleared by main code)
 
 ACIA_FLOW_CONTROL:
     ; Ensure DDR is correct (ROM may have zeroed $00, making $01 read-only)
@@ -6361,6 +6362,7 @@ ACIA_FLOW_CONTROL:
     ; Wait for start marker $01
     LDA #$00
     STA EOS_RECEIVED                    ; Clear EOS flag (new stream may follow)
+    STA NMI_DCD_FLAG                    ; Clear DCD latch for fresh receive
     STA $A1                             ; Timeout counter lo
     STA $A2                             ; Timeout counter hi
 @wait_start:
@@ -6370,9 +6372,8 @@ ACIA_FLOW_CONTROL:
     BEQ @got_start
     JMP @wait_start
 @timeout_check:
-    ; Check DCD on each timeout iteration — detect dropped connection early
-    LDA ACIA_STATUS
-    AND #$20                            ; Bit 5 = DCD (high = no carrier)
+    ; Check latched DCD flag (set by NMI handler when carrier drops)
+    LDA NMI_DCD_FLAG
     BNE @carrier_lost
     INC $A1
     BNE @wait_start
@@ -6380,13 +6381,11 @@ ACIA_FLOW_CONTROL:
     LDA $A2
     CMP #$FF                            ; ~65K iterations ≈ 2.7 seconds
     BCC @wait_start
-    ; Final timeout — check DCD one last time
-    LDA ACIA_STATUS
-    AND #$20
-    BNE @carrier_lost
     SEC                                 ; Timeout (but carrier still present)
     RTS
 @carrier_lost:
+    LDA #$00
+    STA NMI_DCD_FLAG                    ; Clear latch
     LDX #$00                            ; Code 0 triggers MODEM_SEND_CMD abort path
     JMP ROMCALL_06                      ; Resets stack, prints "ABORTED", returns to BASIC
 
