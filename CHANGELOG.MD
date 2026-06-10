@@ -1,3 +1,21 @@
+# 0.13.6-beta (2026-06-10)
+
+* Server:
+	* VERSION file now uses full semver (`0.13.6-beta`) (#102). Displayed
+	  on C64 BASIC prompt, terminal login, website footer, and MOTD banner.
+	* MOTD banner: version centering now dynamic (handles any version
+	  length without breaking asterisk alignment).
+	* Mail: Courier header frame now displayed on mail screen (#98).
+	  Previously no header was sent, causing the previous page's header
+	  to persist or display garbage (Thanks JS7 for the logo!)
+* Build:
+	* Fixed: ID screen corruption on C64 client (#95). The terminal.bin
+	  build step stripped ALL trailing $00 bytes, including the string
+	  terminator at the end of the ID screen template. The frame renderer
+	  then read past the string into uninitialised memory, displaying
+	  garbage characters after the 5th colon. Fix: preserve one $00 byte
+	  after stripping fill padding.
+
 # 0.13.5-beta (2026-06-08)
 
 * Client:

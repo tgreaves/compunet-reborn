@@ -1194,7 +1194,12 @@ class CompunetSession:
         self.dir_displayed = True
         data = bytearray()
 
-        # Part 1: no frame header
+        # Part 1: Courier header frame
+        data.append(0x8E)
+        courier_path = os.path.join(CONTENT_DIR, 'courier-header.seq')
+        if os.path.exists(courier_path):
+            with open(courier_path, 'rb') as f:
+                data.extend(f.read())
         data.append(0x00)
 
         # Part 2: footer (empty)
@@ -2600,7 +2605,7 @@ async def tcp_handler(reader, writer):
                             _vf = os.path.join(SERVER_DIR, '..', 'VERSION')
                         _ver = open(_vf).read().strip() if os.path.exists(_vf) else '?'
                         for line in lines:
-                            line = line.replace('{VERSION}', _ver.center(9))
+                            line = line.replace('{VERSION}', _ver.upper().center(37))
                             # Convert to PETSCII lowercase mode: A-Z → $C1-$DA
                             raw = bytearray()
                             for ch in line.upper():

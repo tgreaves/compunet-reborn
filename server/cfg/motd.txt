@@ -1,7 +1,7 @@
 ***************************************
 *                                     *
 *     WELCOME TO COMPUNET REBORN      *
-*             {VERSION}               *
+*{VERSION}*
 *                                     *
 *    THE LIVE ONE LIVES ON -- 2026    *
 *                                     *
