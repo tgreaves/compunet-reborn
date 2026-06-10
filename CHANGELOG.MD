@@ -1,6 +1,10 @@
 # 0.13.6-beta (2026-06-09)
 
 * Server:
+	* VERSION file now uses full semver (`0.13.6-beta`) (#102). Displayed
+	  on C64 BASIC prompt, terminal login, website footer, and MOTD banner.
+	* MOTD banner: version centering now dynamic (handles any version
+	  length without breaking asterisk alignment).
 	* Mail: Courier header frame now displayed on mail screen (#98).
 	  Previously no header was sent, causing the previous page's header
 	  to persist or display garbage (Thanks JS7 for the logo!)
