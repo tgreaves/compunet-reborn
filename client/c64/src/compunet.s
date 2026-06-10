@@ -2700,10 +2700,16 @@ L9498:
     PLA
 
 ; ============================================================
-; MODEM_STATUS_CHECK
+; MODEM_STATUS_CHECK — check DCD during duckshoot idle
 ; ============================================================
     TAX
+    LDA ACIA_STATUS
+    AND #$20                            ; Bit 5 = DCD (high = no carrier)
+    BNE @dcd_lost
     RTS
+@dcd_lost:
+    LDX #$00
+    JMP ROMCALL_06                      ; MODEM_SEND_CMD abort path
 L949B:
     LDA $D011
     ASL
@@ -6364,14 +6370,25 @@ ACIA_FLOW_CONTROL:
     BEQ @got_start
     JMP @wait_start
 @timeout_check:
+    ; Check DCD on each timeout iteration — detect dropped connection early
+    LDA ACIA_STATUS
+    AND #$20                            ; Bit 5 = DCD (high = no carrier)
+    BNE @carrier_lost
     INC $A1
     BNE @wait_start
     INC $A2
     LDA $A2
     CMP #$FF                            ; ~65K iterations ≈ 2.7 seconds
     BCC @wait_start
-    SEC                                 ; Timeout
+    ; Final timeout — check DCD one last time
+    LDA ACIA_STATUS
+    AND #$20
+    BNE @carrier_lost
+    SEC                                 ; Timeout (but carrier still present)
     RTS
+@carrier_lost:
+    LDX #$00                            ; Code 0 triggers MODEM_SEND_CMD abort path
+    JMP ROMCALL_06                      ; Resets stack, prints "ABORTED", returns to BASIC
 
 @got_start:
     ; Read packet bytes until $02 (end marker), de-stuffing as we go
