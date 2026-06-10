@@ -2605,7 +2605,7 @@ async def tcp_handler(reader, writer):
                             _vf = os.path.join(SERVER_DIR, '..', 'VERSION')
                         _ver = open(_vf).read().strip() if os.path.exists(_vf) else '?'
                         for line in lines:
-                            line = line.replace('{VERSION}', _ver.center(9))
+                            line = line.replace('{VERSION}', _ver.upper().center(37))
                             # Convert to PETSCII lowercase mode: A-Z → $C1-$DA
                             raw = bytearray()
                             for ch in line.upper():
