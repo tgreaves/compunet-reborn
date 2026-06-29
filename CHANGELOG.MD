@@ -1,3 +1,7 @@
+# 1.0.0 (2026-06-29)
+
+* Version bumped to 1.0.0 — first stable release.
+
 # 0.13.6-beta (2026-06-10)
 
 * Server:
