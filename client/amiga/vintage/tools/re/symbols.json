@@ -26,7 +26,21 @@
     "0x108086": "frame_rle_getchar",
     "0x1054f8": "render_char",
     "0x106000": "build_font",
-    "0x107000": "blit_char_cell"
+    "0x107000": "blit_char_cell",
+    "0x101688": "strlen",
+    "0x10060e": "sprintf",
+    "0x115000": "show_status_message",
+    "0x12910c": "GetMsg",
+    "0x129134": "WaitPort",
+    "0x1291a4": "SendIO",
+    "0x129120": "ReplyMsg",
+    "0x129090": "Wait",
+    "0x129020": "AllocMem",
+    "0x12b234": "AddGList",
+    "0x12b088": "DrawImage",
+    "0x12b1b0": "SetPointer",
+    "0x12b214": "RefreshGList",
+    "0x12b254": "RemoveGList"
   },
   "globals": {
     "0x11d040": "SysBase",

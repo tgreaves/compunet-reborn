@@ -573,9 +573,9 @@ void FUN_001005f4(undefined1 param_1)
 
 
 
-/* ===== FUN_0010060e @ 0010060e (size 48) ===== */
+/* ===== sprintf @ 0010060e (size 48) ===== */
 
-undefined4 FUN_0010060e(undefined1 *param_1,undefined4 param_2)
+undefined4 sprintf(undefined1 *param_1,undefined4 param_2)
 
 {
   DAT_001231a0 = 0;
@@ -1355,9 +1355,9 @@ char * FUN_00101674(char *param_1,char *param_2)
 
 
 
-/* ===== FUN_00101688 @ 00101688 (size 18) ===== */
+/* ===== strlen @ 00101688 (size 18) ===== */
 
-int FUN_00101688(char *param_1)
+int strlen(char *param_1)
 
 {
   char *pcVar1;
@@ -1526,21 +1526,21 @@ undefined4 load_config(void)
 void FUN_001020ae(void)
 
 {
-  thunk_FUN_0012b1b0(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+  SetPointer(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   if (DAT_0011d078 != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011d07c != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121650 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121698 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011fd70 != 0) {
-    thunk_FUN_0012b1b0(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   return;
 }
@@ -1827,8 +1827,8 @@ undefined4 launch_editor(void)
         DAT_00120160 = g_font_base;
         DAT_00120164 = *(undefined4 *)(DAT_001200f0 + 0x98);
         thunk_FUN_001290f4(iVar2,&DAT_00120146);
-        thunk_FUN_00129134(DAT_00120142);
-        thunk_FUN_0012910c(DAT_00120142);
+        WaitPort(DAT_00120142);
+        GetMsg(DAT_00120142);
         if (DAT_0012015b == '\0') {
           DAT_0012013e = DAT_0012015c;
           DAT_00120168 = DAT_00120160;
@@ -1932,12 +1932,12 @@ void FUN_00102814(void)
         DAT_0011d54c = uVar3;
         DAT_0011d548 = uVar2;
         set_connection_state();
-        while (iVar6 = thunk_FUN_0012910c(DAT_00120100), iVar6 != 0) {
-          thunk_FUN_00129120(iVar6);
+        while (iVar6 = GetMsg(DAT_00120100), iVar6 != 0) {
+          ReplyMsg(iVar6);
         }
         FUN_0010221c();
-        thunk_FUN_00129134(DAT_00120100);
-        iVar7 = thunk_FUN_0012910c(DAT_00120100);
+        WaitPort(DAT_00120100);
+        iVar7 = GetMsg(DAT_00120100);
         uVar2 = DAT_0011d548;
         uVar3 = DAT_0011d54c;
         iVar6 = DAT_0011d550;
@@ -1948,7 +1948,7 @@ void FUN_00102814(void)
       iVar6 = *(int *)(iVar7 + 0x1c);
       uVar2 = *(undefined4 *)(iVar7 + 0x24);
       uVar3 = *(undefined4 *)(iVar7 + 0x28);
-      thunk_FUN_00129120(iVar7);
+      ReplyMsg(iVar7);
       FUN_001020ae();
       if (iVar1 == 0x400) break;
       if (iVar1 == 0x20) {
@@ -2045,9 +2045,9 @@ void thunk_FUN_001290f4(void)
 
 
 
-/* ===== thunk_FUN_00129120 @ 00102a7e (size 6) ===== */
+/* ===== ReplyMsg @ 00102a7e (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -2381,9 +2381,9 @@ void thunk_FUN_0012b014(void)
 
 
 
-/* ===== thunk_FUN_00129134 @ 00102aa2 (size 6) ===== */
+/* ===== WaitPort @ 00102aa2 (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -2426,9 +2426,9 @@ void thunk_FUN_001280b4(void)
 
 
 
-/* ===== thunk_FUN_0012910c @ 00102aba (size 6) ===== */
+/* ===== GetMsg @ 00102aba (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -2598,9 +2598,9 @@ void thunk_FUN_001291d0(void)
 
 
 
-/* ===== thunk_FUN_0012b1b0 @ 00102af6 (size 6) ===== */
+/* ===== SetPointer @ 00102af6 (size 6) ===== */
 
-void thunk_FUN_0012b1b0(void)
+void SetPointer(void)
 
 {
   (**(code **)(IntuitionBase + -0x10e))();    /* = IntuitionBase.SetPointer() */
@@ -2639,8 +2639,8 @@ bool thunk_FUN_00114050(undefined4 param_1)
   DAT_00120160 = 0;
   DAT_00120164 = 0;
   thunk_FUN_001290f4(DAT_0012013e,&DAT_00120146);
-  thunk_FUN_00129134(DAT_00120142);
-  thunk_FUN_0012910c(DAT_00120142);
+  WaitPort(DAT_00120142);
+  GetMsg(DAT_00120142);
   return DAT_0012015b == '\0';
 }
 
@@ -2902,7 +2902,7 @@ bool FUN_001030c6(void)
   bVar1 = DAT_0011d570 != 0;
   if (bVar1) {
     DAT_001201c0 = *(undefined4 *)(DAT_0011d570 + 0x32);
-    thunk_FUN_0012b088(DAT_001201c0,&DAT_0011d5aa,4,0xb);
+    DrawImage(DAT_001201c0,&DAT_0011d5aa,4,0xb);
     thunk_FUN_0012a0b8(DAT_001201c0,1);
     thunk_FUN_0012a088(DAT_001201c0,6);
     thunk_FUN_0012a0a0(DAT_001201c0,1);
@@ -2958,7 +2958,7 @@ undefined4 FUN_00103162(void)
       thunk_FUN_001280f8(5);
     }
     if (iVar1 == -1) {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011d5c0);
+      show_status_message(0x42,s_Carrier_lost_0011d5c0);
       thunk_FUN_00101638(&DAT_00120170,9);
     }
     local_1c = 0;
@@ -3082,7 +3082,7 @@ undefined4 do_connect(void)
   char local_5;
   
   if ((DAT_00120108 == '\0') || (DAT_00120118 == 0)) {
-    thunk_FUN_00115000(1,s_Not_set_up_0011d5e8);
+    show_status_message(1,s_Not_set_up_0011d5e8);
     uVar1 = 0;
   }
   else {
@@ -3091,18 +3091,18 @@ undefined4 do_connect(void)
       iVar2 = FUN_001030c6();
       if (iVar2 == 0) {
         thunk_FUN_00119450();
-        thunk_FUN_00115000(1,s_Can_t_open_logon_window_0011d622);
+        show_status_message(1,s_Can_t_open_logon_window_0011d622);
         uVar1 = 0;
       }
       else {
-        thunk_FUN_0010060e(&DAT_001201c4,s_Dialling__s_0011d63a,&DAT_00120108);
-        sVar4 = thunk_FUN_00101688(&DAT_001201c4);
+        sprintf(&DAT_001201c4,s_Dialling__s_0011d63a,&DAT_00120108);
+        sVar4 = strlen(&DAT_001201c4);
         FUN_00103024(&DAT_001201c4,(int)sVar4);
         iVar2 = thunk_FUN_00119950(&DAT_00120108);
         if (iVar2 == 0) {
           FUN_0010314c();
           thunk_FUN_00119450();
-          thunk_FUN_00115000(1,s_No_answer_0011d646);
+          show_status_message(1,s_No_answer_0011d646);
           uVar1 = 0;
         }
         else {
@@ -3123,7 +3123,7 @@ undefined4 do_connect(void)
           thunk_FUN_001198e0(s_00000000000000_0011d67a,0xf);
           iVar2 = FUN_00103162();
           if (iVar2 == 0) {
-            thunk_FUN_00115000(1,s_Failed_to_connect_0011d68a);
+            show_status_message(1,s_Failed_to_connect_0011d68a);
             FUN_0010314c();
             thunk_FUN_00119450();
             uVar1 = 0;
@@ -3144,7 +3144,7 @@ undefined4 do_connect(void)
               } while (cVar5 != '@');
               FUN_0010314c();
               if ((DAT_0011d078 == 0) && (iVar2 = thunk_FUN_001174d4(), iVar2 == 0)) {
-                thunk_FUN_00115000(1,s_Can_t_open_frame_window_0011d69c);
+                show_status_message(1,s_Can_t_open_frame_window_0011d69c);
                 thunk_FUN_00119450();
                 return 0;
               }
@@ -3155,7 +3155,7 @@ undefined4 do_connect(void)
                 serial_read(&DAT_0012021a,0x2a,&local_5,&uStack_6,auStack_a);
               } while (local_5 == '\0');
               if ((DAT_0011d07c == 0) && (iVar2 = thunk_FUN_001099c0(), iVar2 == 0)) {
-                thunk_FUN_00115000(1,s_Can_t_init_directory_0011d6b4);
+                show_status_message(1,s_Can_t_init_directory_0011d6b4);
                 thunk_FUN_00119450();
                 return 0;
               }
@@ -3172,13 +3172,13 @@ undefined4 do_connect(void)
     }
     else {
       if (cVar5 == '\n') {
-        thunk_FUN_00115000(1,s_Modem_error_0011d5fe);
+        show_status_message(1,s_Modem_error_0011d5fe);
       }
       else if (cVar5 == '\x01') {
-        thunk_FUN_00115000(1,s_No_memory_0011d5f4);
+        show_status_message(1,s_No_memory_0011d5f4);
       }
       else {
-        thunk_FUN_00115000(1,s_Can_t_open_cnet_device_0011d60a);
+        show_status_message(1,s_Can_t_open_cnet_device_0011d60a);
       }
       uVar1 = 0;
     }
@@ -3206,21 +3206,21 @@ bool thunk_FUN_00119950(undefined4 param_1)
 void thunk_FUN_001020ae(void)
 
 {
-  thunk_FUN_0012b1b0(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+  SetPointer(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   if (DAT_0011d078 != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011d07c != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121650 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121698 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011fd70 != 0) {
-    thunk_FUN_0012b1b0(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   return;
 }
@@ -3237,16 +3237,16 @@ undefined4 thunk_FUN_00119a60(void)
   int iVar3;
   
   *(undefined2 *)(g_read_req + 0x1c) = 0xe;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar1 = DAT_00120104 | DAT_001230c6;
   do {
     do {
-      uVar2 = thunk_FUN_00129090(uVar1);
+      uVar2 = Wait(uVar1);
       if ((DAT_00120104 & uVar2) != 0) {
         FUN_00119506();
       }
     } while ((DAT_001230c6 & uVar2) == 0);
-    iVar3 = thunk_FUN_0012910c(DAT_001230ac);
+    iVar3 = GetMsg(DAT_001230ac);
   } while (iVar3 == 0);
   return *(undefined4 *)(g_read_req + 0x20);
 }
@@ -3265,12 +3265,12 @@ undefined4 serial_io_c(undefined4 param_1)
   
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined2 *)(g_read_req + 0x1c) = 0xb;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -3279,18 +3279,18 @@ undefined4 serial_io_c(undefined4 param_1)
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fef2);
+      show_status_message(0x42,s_Carrier_lost_0011fef2);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 0x40;
     }
     if (cVar1 == '\0') {
       cVar1 = *(char *)(g_read_req + 0x2c);
       if (cVar1 == 'B') {
-        thunk_FUN_00115000(0x42,param_1);
+        show_status_message(0x42,param_1);
         thunk_FUN_00101638(&DAT_00120170,0x42);
         return 0x40;
       }
@@ -3300,11 +3300,11 @@ undefined4 serial_io_c(undefined4 param_1)
         }
         return 0x40;
       }
-      thunk_FUN_00115000(0x41,param_1);
+      show_status_message(0x41,param_1);
       return 0x41;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011ff00);
+  show_status_message(0x42,s_Comms_problem_0011ff00);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 0x40;
 }
@@ -3345,9 +3345,9 @@ void thunk_FUN_0012a04c(void)
 
 
 
-/* ===== thunk_FUN_00115000 @ 00103790 (size 6) ===== */
+/* ===== show_status_message @ 00103790 (size 6) ===== */
 
-void thunk_FUN_00115000(char param_1)
+void show_status_message(char param_1)
 
 {
   short sVar1;
@@ -3410,9 +3410,9 @@ void thunk_FUN_0012a088(void)
 
 
 
-/* ===== thunk_FUN_00101688 @ 001037a2 (size 6) ===== */
+/* ===== strlen @ 001037a2 (size 6) ===== */
 
-int thunk_FUN_00101688(char *param_1)
+int strlen(char *param_1)
 
 {
   char *pcVar1;
@@ -3439,9 +3439,9 @@ void thunk_FUN_0012a0f0(void)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 001037ae (size 6) ===== */
+/* ===== DrawImage @ 001037ae (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -3503,16 +3503,16 @@ void thunk_FUN_001198e0(undefined4 param_1,undefined4 param_2)
   *(undefined4 *)(g_write_req + 0x28) = param_1;
   *(undefined4 *)(g_write_req + 0x24) = param_2;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar1 = DAT_00120104 | DAT_001230c2;
   do {
     do {
-      uVar2 = thunk_FUN_00129090(uVar1);
+      uVar2 = Wait(uVar1);
       if ((DAT_00120104 & uVar2) != 0) {
         FUN_00119506();
       }
     } while ((DAT_001230c2 & uVar2) == 0);
-    iVar3 = thunk_FUN_0012910c(DAT_001230b0);
+    iVar3 = GetMsg(DAT_001230b0);
   } while (iVar3 == 0);
   return;
 }
@@ -3532,19 +3532,19 @@ void thunk_FUN_0011998a(undefined4 param_1,ushort param_2)
   iVar3 = g_read_req;
   *(uint *)(g_read_req + 0x24) = (uint)param_2;
   *(undefined2 *)(iVar3 + 0x1c) = 2;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar1 = DAT_00120104 | DAT_001230c6;
   do {
     do {
-      uVar2 = thunk_FUN_00129090(uVar1);
+      uVar2 = Wait(uVar1);
       if ((DAT_00120104 & uVar2) != 0) {
         FUN_00119506();
       }
     } while ((DAT_001230c6 & uVar2) == 0);
-    iVar3 = thunk_FUN_0012910c(DAT_001230ac);
+    iVar3 = GetMsg(DAT_001230ac);
   } while (iVar3 == 0);
   if (*(char *)(g_read_req + 0x1f) == '\t') {
-    thunk_FUN_00115000(0x42,s_Carrier_lost_0011ff0e);
+    show_status_message(0x42,s_Carrier_lost_0011ff0e);
     thunk_FUN_00101638(&DAT_00120170,9);
   }
   return;
@@ -3552,9 +3552,9 @@ void thunk_FUN_0011998a(undefined4 param_1,ushort param_2)
 
 
 
-/* ===== thunk_FUN_0010060e @ 001037d8 (size 6) ===== */
+/* ===== sprintf @ 001037d8 (size 6) ===== */
 
-undefined4 thunk_FUN_0010060e(undefined1 *param_1,undefined4 param_2)
+undefined4 sprintf(undefined1 *param_1,undefined4 param_2)
 
 {
   DAT_001231a0 = 0;
@@ -3576,8 +3576,8 @@ int thunk_FUN_0011754e(int param_1,undefined4 param_2)
   DAT_0012015c = param_1;
   DAT_00120160 = param_2;
   thunk_FUN_001290f4(DAT_0012013e,&DAT_00120146);
-  thunk_FUN_00129134(DAT_00120142);
-  thunk_FUN_0012910c(DAT_00120142);
+  WaitPort(DAT_00120142);
+  GetMsg(DAT_00120142);
   thunk_FUN_001291d0(DAT_00120168 + 0xe);
   if (DAT_0011d080 != 0) {
     *(byte *)(DAT_0011d080 + 0x11) = *(byte *)(DAT_0011d080 + 0x11) & 0xfb;
@@ -3744,12 +3744,12 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined4 *)(g_read_req + 0x24) = param_2;
   *(undefined2 *)(g_read_req + 0x1c) = 2;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -3758,14 +3758,14 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   *param_4 = *(undefined1 *)(g_read_req + 0x2c);
   *param_3 = *(undefined1 *)(g_read_req + 0x2d);
   *param_5 = *(undefined4 *)(g_read_req + 0x20);
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fed6);
+      show_status_message(0x42,s_Carrier_lost_0011fed6);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -3773,7 +3773,7 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fee4);
+  show_status_message(0x42,s_Comms_problem_0011fee4);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -3923,12 +3923,12 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
   *(undefined1 *)(g_write_req + 0x2c) = param_4;
   *(undefined1 *)(g_write_req + 0x2d) = param_3;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar2 = DAT_00120104 | DAT_001230c2 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -3937,11 +3937,11 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230b0), iVar4 == 0));
+  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230b0), iVar4 == 0));
   cVar1 = *(char *)(g_write_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011feba);
+      show_status_message(0x42,s_Carrier_lost_0011feba);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -3949,7 +3949,7 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fec8);
+  show_status_message(0x42,s_Comms_problem_0011fec8);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -4009,10 +4009,10 @@ undefined4 thunk_FUN_00115168(void)
   }
   thunk_FUN_0012b270(&PTR_PTR_0011f960,DAT_00121830,0);
 switchD_001151d8_default:
-  thunk_FUN_00129134(*(undefined4 *)(DAT_00121830 + 0x56));
-  while (iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00121830 + 0x56)), iVar1 != 0) {
+  WaitPort(*(undefined4 *)(DAT_00121830 + 0x56));
+  while (iVar1 = GetMsg(*(undefined4 *)(DAT_00121830 + 0x56)), iVar1 != 0) {
     in_stack_fffffff0 = *(undefined4 **)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
+    ReplyMsg(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
   }
   switch(*(undefined2 *)((int)in_stack_fffffff0 + 0x26)) {
   case 0:
@@ -4053,21 +4053,21 @@ undefined4 FUN_00104000(void)
     uVar1 = 0;
   }
   else {
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_00120254 + 0x32),&DAT_0011d740,0,0);
+    DrawImage(*(undefined4 *)(DAT_00120254 + 0x32),&DAT_0011d740,0,0);
     PTR_s_Amiga_Compunet_Terminal_x_xx_0011d875_1_0011d8a0[0x18] = 0x32;
     PTR_s_Amiga_Compunet_Terminal_x_xx_0011d875_1_0011d8a0[0x1a] = 0x31;
     PTR_s_Amiga_Compunet_Terminal_x_xx_0011d875_1_0011d8a0[0x1b] = 0x20;
     thunk_FUN_0012b168(*(undefined4 *)(DAT_00120254 + 0x32),&DAT_0011d894,0,0);
     thunk_FUN_0012b06c(*(undefined4 *)(DAT_00120254 + 0x32),&DAT_0011d798,0,0);
-    thunk_FUN_0012b234(DAT_00120254,&DAT_0011d714,0xffffffff,0xffffffff,0);
-    thunk_FUN_0012b214(&DAT_0011d714,DAT_00120254,0,0xffffffff);
+    AddGList(DAT_00120254,&DAT_0011d714,0xffffffff,0xffffffff,0);
+    RefreshGList(&DAT_0011d714,DAT_00120254,0,0xffffffff);
     do {
-      thunk_FUN_00129134(*(undefined4 *)(DAT_00120254 + 0x56));
+      WaitPort(*(undefined4 *)(DAT_00120254 + 0x56));
       bVar3 = false;
-      iVar2 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00120254 + 0x56));
+      iVar2 = GetMsg(*(undefined4 *)(DAT_00120254 + 0x56));
       if (iVar2 != 0) {
         iVar4 = *(int *)(iVar2 + 0x1c);
-        thunk_FUN_00129120(iVar2,iVar4,*(undefined4 *)(iVar2 + 0x14),iVar2);
+        ReplyMsg(iVar2,iVar4,*(undefined4 *)(iVar2 + 0x14),iVar2);
         bVar3 = *(short *)(iVar4 + 0x26) == 1;
       }
     } while (!bVar3);
@@ -4080,9 +4080,9 @@ undefined4 FUN_00104000(void)
 
 
 
-/* ===== thunk_FUN_00129120 @ 00104130 (size 6) ===== */
+/* ===== ReplyMsg @ 00104130 (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -4091,9 +4091,9 @@ void thunk_FUN_00129120(void)
 
 
 
-/* ===== thunk_FUN_0012b214 @ 00104136 (size 6) ===== */
+/* ===== RefreshGList @ 00104136 (size 6) ===== */
 
-void thunk_FUN_0012b214(void)
+void RefreshGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
@@ -4102,9 +4102,9 @@ void thunk_FUN_0012b214(void)
 
 
 
-/* ===== thunk_FUN_0012b234 @ 0010413c (size 6) ===== */
+/* ===== AddGList @ 0010413c (size 6) ===== */
 
-void thunk_FUN_0012b234(void)
+void AddGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
@@ -4124,9 +4124,9 @@ void thunk_FUN_0012b06c(void)
 
 
 
-/* ===== thunk_FUN_00129134 @ 00104148 (size 6) ===== */
+/* ===== WaitPort @ 00104148 (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -4135,9 +4135,9 @@ void thunk_FUN_00129134(void)
 
 
 
-/* ===== thunk_FUN_0012910c @ 0010414e (size 6) ===== */
+/* ===== GetMsg @ 0010414e (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -4146,9 +4146,9 @@ void thunk_FUN_0012910c(void)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 00104154 (size 6) ===== */
+/* ===== DrawImage @ 00104154 (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -4848,11 +4848,10 @@ void thunk_FUN_001061e8(int param_1,int param_2,short param_3,short param_4,int 
   DAT_0011d9b0 = ((param_4 - (short)param_2) + 1) * 8;
   DAT_0011d9b2 = ((param_3 - (short)param_1) + 1) * 8;
   if (DAT_0011d9a8 == 0) {
-    thunk_FUN_0012b088(*(undefined4 *)(*param_5 + 0x32),&DAT_0011d9ac,param_2 * 8 + 4,
-                       param_1 * 8 + 10);
+    DrawImage(*(undefined4 *)(*param_5 + 0x32),&DAT_0011d9ac,param_2 * 8 + 4,param_1 * 8 + 10);
   }
   else {
-    thunk_FUN_0012b088(&DAT_001202ac,&DAT_0011d9ac,param_2 << 3,param_1 << 3);
+    DrawImage(&DAT_001202ac,&DAT_0011d9ac,param_2 << 3,param_1 << 3);
   }
   return;
 }
@@ -4967,11 +4966,10 @@ void FUN_001061e8(int param_1,int param_2,short param_3,short param_4,int *param
   DAT_0011d9b0 = ((param_4 - (short)param_2) + 1) * 8;
   DAT_0011d9b2 = ((param_3 - (short)param_1) + 1) * 8;
   if (DAT_0011d9a8 == 0) {
-    thunk_FUN_0012b088(*(undefined4 *)(*param_5 + 0x32),&DAT_0011d9ac,param_2 * 8 + 4,
-                       param_1 * 8 + 10);
+    DrawImage(*(undefined4 *)(*param_5 + 0x32),&DAT_0011d9ac,param_2 * 8 + 4,param_1 * 8 + 10);
   }
   else {
-    thunk_FUN_0012b088(&DAT_001202ac,&DAT_0011d9ac,param_2 << 3,param_1 << 3);
+    DrawImage(&DAT_001202ac,&DAT_0011d9ac,param_2 << 3,param_1 << 3);
   }
   return;
 }
@@ -5011,9 +5009,9 @@ void thunk_FUN_0012a110(void)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 0010628a (size 6) ===== */
+/* ===== DrawImage @ 0010628a (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -5067,7 +5065,7 @@ int thunk_FUN_0011a1ee(int param_1,undefined4 param_2)
 {
   int iVar1;
   
-  iVar1 = thunk_FUN_00129020(param_1 + 0x20,param_2);
+  iVar1 = AllocMem(param_1 + 0x20,param_2);
   if (iVar1 == 0) {
     iVar1 = 0;
   }
@@ -5394,12 +5392,12 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined4 *)(g_read_req + 0x24) = param_2;
   *(undefined2 *)(g_read_req + 0x1c) = 2;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -5408,14 +5406,14 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   *param_4 = *(undefined1 *)(g_read_req + 0x2c);
   *param_3 = *(undefined1 *)(g_read_req + 0x2d);
   *param_5 = *(undefined4 *)(g_read_req + 0x20);
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fed6);
+      show_status_message(0x42,s_Carrier_lost_0011fed6);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -5423,7 +5421,7 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fee4);
+  show_status_message(0x42,s_Comms_problem_0011fee4);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -5464,12 +5462,12 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
   *(undefined1 *)(g_write_req + 0x2c) = param_4;
   *(undefined1 *)(g_write_req + 0x2d) = param_3;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar2 = DAT_00120104 | DAT_001230c2 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -5478,11 +5476,11 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230b0), iVar4 == 0));
+  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230b0), iVar4 == 0));
   cVar1 = *(char *)(g_write_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011feba);
+      show_status_message(0x42,s_Carrier_lost_0011feba);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -5490,7 +5488,7 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fec8);
+  show_status_message(0x42,s_Comms_problem_0011fec8);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -5644,14 +5642,14 @@ void FUN_001091f2(undefined4 *param_1)
   undefined2 uVar1;
   short local_6;
   
-  uVar1 = thunk_FUN_0012b254(*param_1,(int)param_1 + 0xf86,5);
+  uVar1 = RemoveGList(*param_1,(int)param_1 + 0xf86,5);
   for (local_6 = 0; local_6 < 5; local_6 = local_6 + 1) {
     param_1[local_6 * 0xd + 0x3b4] = &DAT_0011e376 + local_6 * 0x14;
     *(undefined4 *)((int)param_1 + local_6 * 0x34 + 0xee2) =
          *(undefined4 *)(&DAT_0011e3da + local_6 * 4);
   }
-  thunk_FUN_0012b234(*param_1,(int)param_1 + 0xf86,uVar1,5,0);
-  thunk_FUN_0012b214((int)param_1 + 0xf86,*param_1,0,5);
+  AddGList(*param_1,(int)param_1 + 0xf86,uVar1,5,0);
+  RefreshGList((int)param_1 + 0xf86,*param_1,0,5);
   return;
 }
 
@@ -5665,14 +5663,14 @@ void FUN_001092a6(undefined4 *param_1)
   undefined2 uVar1;
   short local_6;
   
-  uVar1 = thunk_FUN_0012b254(*param_1,(int)param_1 + 0xf86,5);
+  uVar1 = RemoveGList(*param_1,(int)param_1 + 0xf86,5);
   for (local_6 = 0; local_6 < 5; local_6 = local_6 + 1) {
     param_1[local_6 * 0xd + 0x3b4] = &DAT_0011e2da + local_6 * 0x14;
     *(undefined4 *)((int)param_1 + local_6 * 0x34 + 0xee2) =
          *(undefined4 *)(&DAT_0011e33e + local_6 * 4);
   }
-  thunk_FUN_0012b234(*param_1,(int)param_1 + 0xf86,uVar1,5,0);
-  thunk_FUN_0012b214((int)param_1 + 0xf86,*param_1,0,5);
+  AddGList(*param_1,(int)param_1 + 0xf86,uVar1,5,0);
+  RefreshGList((int)param_1 + 0xf86,*param_1,0,5);
   return;
 }
 
@@ -5939,8 +5937,8 @@ undefined4 FUN_001098e8(int param_1)
   else {
     FUN_00109520(local_a,2);
     DAT_0011d070 = 2;
-    thunk_FUN_0010060e(auStack_12,s_L__6s_0011e3ee,local_6 * 7 + local_a + 0x790);
-    uVar1 = thunk_FUN_00101688(auStack_12);
+    sprintf(auStack_12,s_L__6s_0011e3ee,local_6 * 7 + local_a + 0x790);
+    uVar1 = strlen(auStack_12);
     serial_write(auStack_12,uVar1,1,0x43);
     cVar2 = serial_io_c(&DAT_0012021a);
     if (cVar2 == '@') {
@@ -6035,7 +6033,7 @@ void FUN_00109a5e(undefined4 *param_1)
       *(undefined1 *)((int)param_1 + local_8 * 7 + 0x790) = 0;
     }
     if (*(int *)((int)param_1 + 0xc7a) != 0) {
-      thunk_FUN_0012b254(*param_1,*(int *)((int)param_1 + 0xc7a),0xffffffff);
+      RemoveGList(*param_1,*(int *)((int)param_1 + 0xc7a),0xffffffff);
     }
     local_10 = (undefined4 *)0x0;
     thunk_FUN_0010544e(0x16,0,0x17,0x27,param_1);
@@ -6079,7 +6077,7 @@ void FUN_00109a5e(undefined4 *param_1)
       local_5 = frame_rle_getchar();
     } while (local_5 != 0);
     if (local_a != 0) {
-      thunk_FUN_0012b234(*param_1,(int)param_1 + 0x1022,0xffffffff,0xffffffff,0);
+      AddGList(*param_1,(int)param_1 + 0x1022,0xffffffff,0xffffffff,0);
     }
 LAB_00109cda:
     if (local_5 != 0) {
@@ -6232,7 +6230,7 @@ undefined4 goto_page(void)
   
   DAT_0011d070 = 2;
   if (DAT_0011d074 == 0) {
-    uVar1 = thunk_FUN_00101688(&DAT_0011e3f8);
+    uVar1 = strlen(&DAT_0011e3f8);
     serial_write(&DAT_0011e3f4,uVar1,1,0x43);
     cVar2 = serial_io_c(&DAT_0012021a);
     if (cVar2 == '@') {
@@ -6245,8 +6243,8 @@ undefined4 goto_page(void)
     }
   }
   else {
-    thunk_FUN_0010060e(auStack_8,s_P_02d_0011e3fc,(int)*(short *)(DAT_0011d07c + 0xc78));
-    uVar1 = thunk_FUN_00101688(auStack_8);
+    sprintf(auStack_8,s_P_02d_0011e3fc,(int)*(short *)(DAT_0011d07c + 0xc78));
+    uVar1 = strlen(auStack_8);
     serial_write(auStack_8,uVar1,1,0x43);
     cVar2 = serial_io_c(&DAT_0012021a);
     if (cVar2 == '@') {
@@ -6271,7 +6269,7 @@ bool FUN_0010a29a(void)
   char cVar2;
   
   DAT_0011d070 = 2;
-  uVar1 = thunk_FUN_00101688(&DAT_0011e404);
+  uVar1 = strlen(&DAT_0011e404);
   serial_write(&DAT_0011e402,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -6317,8 +6315,8 @@ undefined4 FUN_0010a310(void)
     uVar2 = 0;
   }
   else {
-    thunk_FUN_0010060e(auStack_c,s_L__6s_0011e410,&DAT_0012157e);
-    uVar2 = thunk_FUN_00101688(auStack_c);
+    sprintf(auStack_c,s_L__6s_0011e410,&DAT_0012157e);
+    uVar2 = strlen(auStack_c);
     serial_write(auStack_c,uVar2,1,0x43);
     cVar3 = serial_io_c(&DAT_0012021a);
     if (cVar3 == '@') {
@@ -6416,9 +6414,9 @@ undefined4 FUN_0010a4ca(int param_1)
 
 
 
-/* ===== thunk_FUN_0012b214 @ 0010a510 (size 6) ===== */
+/* ===== RefreshGList @ 0010a510 (size 6) ===== */
 
-void thunk_FUN_0012b214(void)
+void RefreshGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
@@ -6457,12 +6455,12 @@ undefined4 serial_io_c(undefined4 param_1)
   
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined2 *)(g_read_req + 0x1c) = 0xb;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -6471,18 +6469,18 @@ undefined4 serial_io_c(undefined4 param_1)
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fef2);
+      show_status_message(0x42,s_Carrier_lost_0011fef2);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 0x40;
     }
     if (cVar1 == '\0') {
       cVar1 = *(char *)(g_read_req + 0x2c);
       if (cVar1 == 'B') {
-        thunk_FUN_00115000(0x42,param_1);
+        show_status_message(0x42,param_1);
         thunk_FUN_00101638(&DAT_00120170,0x42);
         return 0x40;
       }
@@ -6492,11 +6490,11 @@ undefined4 serial_io_c(undefined4 param_1)
         }
         return 0x40;
       }
-      thunk_FUN_00115000(0x41,param_1);
+      show_status_message(0x41,param_1);
       return 0x41;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011ff00);
+  show_status_message(0x42,s_Comms_problem_0011ff00);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 0x40;
 }
@@ -6519,9 +6517,9 @@ void thunk_FUN_00105250(int param_1)
 
 
 
-/* ===== thunk_FUN_0012b234 @ 0010a528 (size 6) ===== */
+/* ===== AddGList @ 0010a528 (size 6) ===== */
 
-void thunk_FUN_0012b234(void)
+void AddGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
@@ -6530,9 +6528,9 @@ void thunk_FUN_0012b234(void)
 
 
 
-/* ===== thunk_FUN_00101688 @ 0010a52e (size 6) ===== */
+/* ===== strlen @ 0010a52e (size 6) ===== */
 
-int thunk_FUN_00101688(char *param_1)
+int strlen(char *param_1)
 
 {
   char *pcVar1;
@@ -6610,12 +6608,12 @@ undefined4 download_check(void)
   DAT_0011d070 = 2;
   DAT_001215c4 = *(short *)(DAT_0011d07c + 0xc78);
   cVar1 = *(char *)(DAT_001215c4 * 0x66 + DAT_0011d07c + 0x828);
-  thunk_FUN_0010060e(&DAT_00121588,s_D_02d_0011e5dc,(int)DAT_001215c4);
+  sprintf(&DAT_00121588,s_D_02d_0011e5dc,(int)DAT_001215c4);
   sVar3 = 0x24;
   do {
     sVar3 = sVar3 + -6;
     if (sVar3 < 0) {
-      thunk_FUN_00115000(1,s_Can_t_download_this_0011e5e2);
+      show_status_message(1,s_Can_t_download_this_0011e5e2);
       return 0;
     }
   } while ((short)cVar1 != *(short *)(sVar3 + 0x10b780));
@@ -6636,9 +6634,9 @@ undefined4 validate_login(void)
   char cVar2;
   
   DAT_0011d070 = 5;
-  thunk_FUN_0010060e(&DAT_00121588,s_D_02d_0011ea6a,(int)*(short *)(DAT_0011d07c + 0xc78));
+  sprintf(&DAT_00121588,s_D_02d_0011ea6a,(int)*(short *)(DAT_0011d07c + 0xc78));
   do {
-    uVar1 = thunk_FUN_00101688(&DAT_00121588);
+    uVar1 = strlen(&DAT_00121588);
     serial_write(&DAT_00121588,uVar1,1,0x43);
     cVar2 = serial_io_c(&DAT_0012021a);
     if (cVar2 != '@') {
@@ -6682,7 +6680,7 @@ undefined4 thunk_FUN_0010e188(void)
         return 0;
       }
       thunk_FUN_001020ae();
-      thunk_FUN_0010060e(&DAT_00121588,s_U__16sT_0011ea72,&DAT_00121658);
+      sprintf(&DAT_00121588,s_U__16sT_0011ea72,&DAT_00121658);
       iStack_c = 0x12;
       iStack_14 = 0;
       for (iStack_8 = 0; iStack_8 < 5; iStack_8 = iStack_8 + 1) {
@@ -6705,7 +6703,7 @@ LAB_0010e23e:
         }
       }
       (&DAT_00121588)[iStack_c] = 0;
-      uVar3 = thunk_FUN_00101688(&DAT_00121588);
+      uVar3 = strlen(&DAT_00121588);
       serial_write(&DAT_00121588,uVar3,1,0x43);
       cVar4 = serial_io_c(&DAT_0012021a);
       if (cVar4 != '@') {
@@ -6857,7 +6855,7 @@ bool thunk_FUN_0010e0b4(void)
   char cVar2;
   
   DAT_0011d070 = 5;
-  uVar1 = thunk_FUN_00101688(&DAT_0011ea68);
+  uVar1 = strlen(&DAT_0011ea68);
   serial_write(&DAT_0011ea66,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -6932,7 +6930,7 @@ LAB_0010e50c:
         }
       }
       (&DAT_00121588)[iStack_c] = 0;
-      uVar2 = thunk_FUN_00101688(&DAT_00121588);
+      uVar2 = strlen(&DAT_00121588);
       serial_write(&DAT_00121588,uVar2,1,0x43);
       cVar3 = serial_io_c(&DAT_0012021a);
       if (cVar3 == '@') {
@@ -7023,7 +7021,7 @@ uint thunk_FUN_0010e058(void)
   undefined4 uVar1;
   char cVar2;
   
-  uVar1 = thunk_FUN_00101688(&DAT_0011ea64);
+  uVar1 = strlen(&DAT_0011ea64);
   serial_write(&DAT_0011ea62,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -7088,9 +7086,9 @@ void thunk_FUN_00110306(undefined4 param_1,undefined4 param_2,ushort param_3,und
 
 
 
-/* ===== thunk_FUN_0010060e @ 0010a5a6 (size 6) ===== */
+/* ===== sprintf @ 0010a5a6 (size 6) ===== */
 
-undefined4 thunk_FUN_0010060e(undefined1 *param_1,undefined4 param_2)
+undefined4 sprintf(undefined1 *param_1,undefined4 param_2)
 
 {
   DAT_001231a0 = 0;
@@ -7124,9 +7122,9 @@ void thunk_FUN_0012a0b8(void)
 
 
 
-/* ===== thunk_FUN_0012b254 @ 0010a5be (size 6) ===== */
+/* ===== RemoveGList @ 0010a5be (size 6) ===== */
 
-void thunk_FUN_0012b254(void)
+void RemoveGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1bc))();    /* = IntuitionBase.RemoveGList() */
@@ -7162,12 +7160,12 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
   *(undefined1 *)(g_write_req + 0x2c) = param_4;
   *(undefined1 *)(g_write_req + 0x2d) = param_3;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar2 = DAT_00120104 | DAT_001230c2 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -7176,11 +7174,11 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230b0), iVar4 == 0));
+  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230b0), iVar4 == 0));
   cVar1 = *(char *)(g_write_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011feba);
+      show_status_message(0x42,s_Carrier_lost_0011feba);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -7188,7 +7186,7 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fec8);
+  show_status_message(0x42,s_Comms_problem_0011fec8);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -7238,7 +7236,7 @@ undefined4 thunk_FUN_0010c2f8(void)
   short sVar3;
   
   if (*(short *)(DAT_0011d07c + 0xc76) == 0xb) {
-    thunk_FUN_00115000(1,s_No_room_on_this_page_0011e63e);
+    show_status_message(1,s_No_room_on_this_page_0011e63e);
   }
   else {
     iVar1 = thunk_FUN_0010d0e6();
@@ -7249,12 +7247,12 @@ undefined4 thunk_FUN_0010c2f8(void)
       DAT_0012161a = 0;
       thunk_FUN_00100640(&DAT_0012160e,&DAT_0011e65a,&DAT_0012161a);
       if (DAT_0012161a < 1) {
-        thunk_FUN_00115000(1,s_Invalid_Life_0011e65e);
+        show_status_message(1,s_Invalid_Life_0011e65e);
         thunk_FUN_0010d0d0();
       }
       else {
-        thunk_FUN_0010060e(&DAT_00121588,s_U__16s_c_03d__02d_03d_0011e66c,&DAT_001215f4,
-                           (int)(short)DAT_00121605,DAT_00121612,DAT_00121616,DAT_0012161a);
+        sprintf(&DAT_00121588,s_U__16s_c_03d__02d_03d_0011e66c,&DAT_001215f4,
+                (int)(short)DAT_00121605,DAT_00121612,DAT_00121616,DAT_0012161a);
         sVar3 = 0x1e;
         while (sVar3 = sVar3 + -6, -1 < sVar3) {
           if ((short)DAT_00121605 == *(short *)(sVar3 + 0x10c3c2)) {
@@ -7264,7 +7262,7 @@ undefined4 thunk_FUN_0010c2f8(void)
             return uVar2;
           }
         }
-        thunk_FUN_00115000(1,s_Invalid_page_type_0011e682);
+        show_status_message(1,s_Invalid_page_type_0011e682);
         thunk_FUN_0010d0d0();
       }
     }
@@ -7366,7 +7364,7 @@ bool file_download(void)
     if (local_9 != ' ') break;
     local_8 = local_8 + 1;
   }
-  thunk_FUN_0010060e(auStack_1d,&DAT_0011e41c,local_8);
+  sprintf(auStack_1d,&DAT_0011e41c,local_8);
   iVar1 = thunk_FUN_001104a6(s_WARNING___CHARGED_ITEM_0011e42a,auStack_1d,DAT_001200f8);
   return iVar1 == 1;
 }
@@ -7383,7 +7381,7 @@ bool FUN_0010b06e(void)
   short local_6;
   
   thunk_FUN_00101674(&DAT_001215c6,DAT_001215c4 * 0x66 + DAT_0011d07c + 0x817);
-  local_6 = thunk_FUN_00101688(&DAT_001215c6);
+  local_6 = strlen(&DAT_001215c6);
   while (local_6 = local_6 + -1, (&DAT_001215c6)[local_6] == ' ') {
     (&DAT_001215c6)[local_6] = 0;
   }
@@ -7438,7 +7436,7 @@ undefined4 FUN_0010b174(void)
   undefined1 uStack_6;
   undefined1 uStack_5;
   
-  uVar1 = thunk_FUN_00101688(&DAT_00121588);
+  uVar1 = strlen(&DAT_00121588);
   serial_write(&DAT_00121588,uVar1,1,0x43);
   cVar3 = serial_io_c(&DAT_0012021a);
   if (cVar3 == '@') {
@@ -7446,28 +7444,28 @@ undefined4 FUN_0010b174(void)
     if (DAT_001215e8._0_1_ == '\x02') {
       iVar2 = FUN_0010b0ea(2);
       if (iVar2 == 0) {
-        uVar1 = thunk_FUN_00101688(&DAT_0011e4be);
+        uVar1 = strlen(&DAT_0011e4be);
         serial_write(&DAT_0011e4bc,uVar1,1,0x41);
         return 0;
       }
     }
     else if (((DAT_001215e8._0_1_ != '\x01') && (DAT_001215e8._0_1_ == '\0')) &&
             (iVar2 = FUN_0010b0ea(0), iVar2 == 0)) {
-      uVar1 = thunk_FUN_00101688(&DAT_0011e4ba);
+      uVar1 = strlen(&DAT_0011e4ba);
       serial_write(&DAT_0011e4b8,uVar1,1,0x41);
       return 0;
     }
     do {
       DAT_001215f0 = thunk_FUN_0011a3c6(&DAT_001215c6,0x3ee);
       if (DAT_001215f0 != 0) {
-        uVar1 = thunk_FUN_00101688(&DAT_0011e4f2);
+        uVar1 = strlen(&DAT_0011e4f2);
         serial_write(&DAT_0011e4f0,uVar1,1,0x40);
         return 1;
       }
       iVar2 = thunk_FUN_001104a6(s_File_download_0011e4c0,s_Can_t_open_file___try_again__0011e4ce,
                                  DAT_001200f8);
     } while (iVar2 != 0);
-    uVar1 = thunk_FUN_00101688(&DAT_0011e4ee);
+    uVar1 = strlen(&DAT_0011e4ee);
     serial_write(&DAT_0011e4ec,uVar1,1,0x41);
   }
   return 0;
@@ -7503,7 +7501,7 @@ undefined4 FUN_0010b2e6(void)
       }
     } while (local_6 == '\0');
     if (DAT_001215f0 == 0) {
-      thunk_FUN_00115000(1,s_No_room_for_file_0011e4f4);
+      show_status_message(1,s_No_room_for_file_0011e4f4);
       uVar2 = 0;
     }
     else {
@@ -7536,7 +7534,7 @@ undefined4 FUN_0010b380(void)
     do {
       DAT_001215f0 = thunk_FUN_0011a3c6(&DAT_001215c6,0x3ee);
       if (DAT_001215f0 != 0) {
-        uVar2 = thunk_FUN_00101688(&DAT_00121588);
+        uVar2 = strlen(&DAT_00121588);
         serial_write(&DAT_00121588,uVar2,1,0x43);
         cVar3 = serial_io_c(&DAT_0012021a);
         if (cVar3 != '@') {
@@ -7553,12 +7551,12 @@ undefined4 FUN_0010b380(void)
           }
         } while (local_a == '\0');
         if (DAT_001215f0 == 0) {
-          thunk_FUN_00115000(1,s_No_room_for_temp_file_0011e54e);
+          show_status_message(1,s_No_room_for_temp_file_0011e54e);
           return 0;
         }
         thunk_FUN_0011a3fe(DAT_001215f0);
         if (DAT_001215e8._0_1_ != '\x01') {
-          thunk_FUN_00115000(1,s_Not_for_Amiga__0011e564);
+          show_status_message(1,s_Not_for_Amiga__0011e564);
           return 0;
         }
         local_8 = thunk_FUN_0011a3c6(s_CON_20_10_300_100_Action_Window_0011e574,0x3ee,&DAT_001215e8)
@@ -7629,7 +7627,7 @@ undefined4 FUN_0010b50e(void)
       } while (local_c == 0);
       thunk_FUN_001116ee();
       if (DAT_001215f0 == 0) {
-        thunk_FUN_00115000(1,s_No_room_for_file_0011e594);
+        show_status_message(1,s_No_room_for_file_0011e594);
         uVar2 = 0;
       }
       else {
@@ -7698,20 +7696,20 @@ undefined4 FUN_0010b66a(void)
   char local_6;
   undefined1 uStack_5;
   
-  uVar1 = thunk_FUN_00101688(&DAT_00121588);
+  uVar1 = strlen(&DAT_00121588);
   serial_write(&DAT_00121588,uVar1,1,0x43);
   cVar3 = serial_io_c(&DAT_0012021a);
   if (cVar3 == '@') {
     serial_read(&DAT_001215e8,8,&local_6,&uStack_5,auStack_a);
     if (((local_6 == '\0') || (DAT_001215e8 != 0x1000001)) || (DAT_001215ec != 0)) {
-      thunk_FUN_00115000(1,s_Invalid_link_0011e5c0);
+      show_status_message(1,s_Invalid_link_0011e5c0);
       uVar1 = 0;
     }
     else {
       FUN_0010b602();
       sVar2 = (*DAT_0012016c)(DAT_001200f8,&LAB_0010b814,&LAB_0010b868,thunk_FUN_001198e0);
       if (sVar2 == 0) {
-        thunk_FUN_00115000(0x42,s_Carrier_lost_0011e5ce);
+        show_status_message(0x42,s_Carrier_lost_0011e5ce);
         thunk_FUN_00101638(&DAT_00120170,1);
       }
       FUN_0010b656();
@@ -7739,12 +7737,12 @@ undefined4 download_check(void)
   DAT_0011d070 = 2;
   DAT_001215c4 = *(short *)(DAT_0011d07c + 0xc78);
   cVar1 = *(char *)(DAT_001215c4 * 0x66 + DAT_0011d07c + 0x828);
-  thunk_FUN_0010060e(&DAT_00121588,s_D_02d_0011e5dc,(int)DAT_001215c4);
+  sprintf(&DAT_00121588,s_D_02d_0011e5dc,(int)DAT_001215c4);
   sVar3 = 0x24;
   do {
     sVar3 = sVar3 + -6;
     if (sVar3 < 0) {
-      thunk_FUN_00115000(1,s_Can_t_download_this_0011e5e2);
+      show_status_message(1,s_Can_t_download_this_0011e5e2);
       return 0;
     }
   } while ((short)cVar1 != *(short *)(sVar3 + 0x10b780));
@@ -7780,12 +7778,12 @@ undefined4 serial_io_c(undefined4 param_1)
   
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined2 *)(g_read_req + 0x1c) = 0xb;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -7794,18 +7792,18 @@ undefined4 serial_io_c(undefined4 param_1)
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fef2);
+      show_status_message(0x42,s_Carrier_lost_0011fef2);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 0x40;
     }
     if (cVar1 == '\0') {
       cVar1 = *(char *)(g_read_req + 0x2c);
       if (cVar1 == 'B') {
-        thunk_FUN_00115000(0x42,param_1);
+        show_status_message(0x42,param_1);
         thunk_FUN_00101638(&DAT_00120170,0x42);
         return 0x40;
       }
@@ -7815,11 +7813,11 @@ undefined4 serial_io_c(undefined4 param_1)
         }
         return 0x40;
       }
-      thunk_FUN_00115000(0x41,param_1);
+      show_status_message(0x41,param_1);
       return 0x41;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011ff00);
+  show_status_message(0x42,s_Comms_problem_0011ff00);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 0x40;
 }
@@ -7839,9 +7837,9 @@ void thunk_FUN_001194e8(void)
 
 
 
-/* ===== thunk_FUN_00115000 @ 0010b82c (size 6) ===== */
+/* ===== show_status_message @ 0010b82c (size 6) ===== */
 
-void thunk_FUN_00115000(char param_1)
+void show_status_message(char param_1)
 
 {
   short sVar1;
@@ -7876,9 +7874,9 @@ void thunk_FUN_001116ee(void)
 
 
 
-/* ===== thunk_FUN_00101688 @ 0010b838 (size 6) ===== */
+/* ===== strlen @ 0010b838 (size 6) ===== */
 
-int thunk_FUN_00101688(char *param_1)
+int strlen(char *param_1)
 
 {
   char *pcVar1;
@@ -7976,16 +7974,16 @@ void thunk_FUN_001198e0(undefined4 param_1,undefined4 param_2)
   *(undefined4 *)(g_write_req + 0x28) = param_1;
   *(undefined4 *)(g_write_req + 0x24) = param_2;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar1 = DAT_00120104 | DAT_001230c2;
   do {
     do {
-      uVar2 = thunk_FUN_00129090(uVar1);
+      uVar2 = Wait(uVar1);
       if ((DAT_00120104 & uVar2) != 0) {
         FUN_00119506();
       }
     } while ((DAT_001230c2 & uVar2) == 0);
-    iVar3 = thunk_FUN_0012910c(DAT_001230b0);
+    iVar3 = GetMsg(DAT_001230b0);
   } while (iVar3 == 0);
   return;
 }
@@ -8116,9 +8114,9 @@ void thunk_FUN_00111024(undefined1 param_1)
 
 
 
-/* ===== thunk_FUN_0010060e @ 0010b874 (size 6) ===== */
+/* ===== sprintf @ 0010b874 (size 6) ===== */
 
-undefined4 thunk_FUN_0010060e(undefined1 *param_1,undefined4 param_2)
+undefined4 sprintf(undefined1 *param_1,undefined4 param_2)
 
 {
   DAT_001231a0 = 0;
@@ -8209,12 +8207,12 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined4 *)(g_read_req + 0x24) = param_2;
   *(undefined2 *)(g_read_req + 0x1c) = 2;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -8223,14 +8221,14 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   *param_4 = *(undefined1 *)(g_read_req + 0x2c);
   *param_3 = *(undefined1 *)(g_read_req + 0x2d);
   *param_5 = *(undefined4 *)(g_read_req + 0x20);
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fed6);
+      show_status_message(0x42,s_Carrier_lost_0011fed6);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -8238,7 +8236,7 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fee4);
+  show_status_message(0x42,s_Comms_problem_0011fee4);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -8260,12 +8258,12 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
   *(undefined1 *)(g_write_req + 0x2c) = param_4;
   *(undefined1 *)(g_write_req + 0x2d) = param_3;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar2 = DAT_00120104 | DAT_001230c2 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -8274,11 +8272,11 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230b0), iVar4 == 0));
+  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230b0), iVar4 == 0));
   cVar1 = *(char *)(g_write_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011feba);
+      show_status_message(0x42,s_Carrier_lost_0011feba);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -8286,7 +8284,7 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fec8);
+  show_status_message(0x42,s_Comms_problem_0011fec8);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -8438,7 +8436,7 @@ undefined4 FUN_0010c0ee(void)
     }
     else if (local_8 == 0) {
       thunk_FUN_0010d0d0();
-      thunk_FUN_00115000(1,s_Empty_file_0011e632);
+      show_status_message(1,s_Empty_file_0011e632);
       uVar2 = 0;
     }
     else {
@@ -8451,7 +8449,7 @@ undefined4 FUN_0010c0ee(void)
       }
       else {
         thunk_FUN_001020ae();
-        uVar2 = thunk_FUN_00101688(&DAT_00121588);
+        uVar2 = strlen(&DAT_00121588);
         serial_write(&DAT_00121588,uVar2,1,0x43);
         cVar3 = serial_io_c(&DAT_0012021a);
         if (cVar3 == '@') {
@@ -8503,7 +8501,7 @@ undefined4 FUN_0010c270(void)
   undefined4 uVar1;
   char cVar2;
   
-  uVar1 = thunk_FUN_00101688(&DAT_00121588);
+  uVar1 = strlen(&DAT_00121588);
   serial_write(&DAT_00121588,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -8557,7 +8555,7 @@ undefined4 FUN_0010c2f8(void)
   short sVar3;
   
   if (*(short *)(DAT_0011d07c + 0xc76) == 0xb) {
-    thunk_FUN_00115000(1,s_No_room_on_this_page_0011e63e);
+    show_status_message(1,s_No_room_on_this_page_0011e63e);
   }
   else {
     iVar1 = thunk_FUN_0010d0e6();
@@ -8568,12 +8566,12 @@ undefined4 FUN_0010c2f8(void)
       DAT_0012161a = 0;
       thunk_FUN_00100640(&DAT_0012160e,&DAT_0011e65a,&DAT_0012161a);
       if (DAT_0012161a < 1) {
-        thunk_FUN_00115000(1,s_Invalid_Life_0011e65e);
+        show_status_message(1,s_Invalid_Life_0011e65e);
         thunk_FUN_0010d0d0();
       }
       else {
-        thunk_FUN_0010060e(&DAT_00121588,s_U__16s_c_03d__02d_03d_0011e66c,&DAT_001215f4,
-                           (int)(short)DAT_00121605,DAT_00121612,DAT_00121616,DAT_0012161a);
+        sprintf(&DAT_00121588,s_U__16s_c_03d__02d_03d_0011e66c,&DAT_001215f4,
+                (int)(short)DAT_00121605,DAT_00121612,DAT_00121616,DAT_0012161a);
         sVar3 = 0x1e;
         while (sVar3 = sVar3 + -6, -1 < sVar3) {
           if ((short)DAT_00121605 == *(short *)(sVar3 + 0x10c3c2)) {
@@ -8583,7 +8581,7 @@ undefined4 FUN_0010c2f8(void)
             return uVar2;
           }
         }
-        thunk_FUN_00115000(1,s_Invalid_page_type_0011e682);
+        show_status_message(1,s_Invalid_page_type_0011e682);
         thunk_FUN_0010d0d0();
       }
     }
@@ -8624,7 +8622,7 @@ undefined4 FUN_0010c428(void)
   local_8 = *(short *)(DAT_0011d07c + 0xc78);
   local_5 = *(char *)(local_8 * 0x66 + DAT_0011d07c + 0x828);
   if (local_5 == 'D') {
-    thunk_FUN_00115000(1,s_Can_t_extend_directories_0011e69e);
+    show_status_message(1,s_Can_t_extend_directories_0011e69e);
     uVar1 = 0;
   }
   else {
@@ -8634,8 +8632,8 @@ undefined4 FUN_0010c428(void)
       uVar1 = 0;
     }
     else {
-      thunk_FUN_0010060e(auStack_10,s_X_02d_4_4s_0011e6b8,(int)local_8,&DAT_00121648);
-      uVar1 = thunk_FUN_00101688(auStack_10);
+      sprintf(auStack_10,s_X_02d_4_4s_0011e6b8,(int)local_8,&DAT_00121648);
+      uVar1 = strlen(auStack_10);
       serial_write(auStack_10,uVar1,1,0x43);
       cVar3 = serial_io_c(&DAT_0012021a);
       if (cVar3 == '@') {
@@ -8687,9 +8685,8 @@ undefined4 FUN_0010c510(void)
     uVar2 = 0;
   }
   else {
-    thunk_FUN_0010060e(auStack_c,s_V_02d_s_0011e6ca,(int)*(short *)(DAT_0011d07c + 0xc78),
-                       &DAT_0012164c);
-    uVar2 = thunk_FUN_00101688(auStack_c);
+    sprintf(auStack_c,s_V_02d_s_0011e6ca,(int)*(short *)(DAT_0011d07c + 0xc78),&DAT_0012164c);
+    uVar2 = strlen(auStack_c);
     serial_write(auStack_c,uVar2,1,0x43);
     cVar3 = serial_io_c(&DAT_0012021a);
     if (cVar3 == '@') {
@@ -8722,7 +8719,7 @@ undefined4 FUN_0010c582(void)
   undefined1 uStack_5;
   
   DAT_0011d070 = 2;
-  uVar1 = thunk_FUN_00101688(&DAT_0011e6d4);
+  uVar1 = strlen(&DAT_0011e6d4);
   serial_write(&DAT_0011e6d2,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -8739,7 +8736,7 @@ undefined4 FUN_0010c582(void)
     else {
       pcVar3 = s_credit_0011e6ee;
     }
-    thunk_FUN_0010060e(auStack_47,s_You_are__s_in__s_0011e6d6,acStack_1f + local_e,pcVar3);
+    sprintf(auStack_47,s_You_are__s_in__s_0011e6d6,acStack_1f + local_e,pcVar3);
     thunk_FUN_00110472(s_ACCOUNT_0011e6f6,auStack_47,DAT_001200f8,1,6);
     uVar1 = 1;
   }
@@ -8756,21 +8753,21 @@ undefined4 FUN_0010c582(void)
 void thunk_FUN_001020ae(void)
 
 {
-  thunk_FUN_0012b1b0(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+  SetPointer(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   if (DAT_0011d078 != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011d07c != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121650 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121698 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011fd70 != 0) {
-    thunk_FUN_0012b1b0(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   return;
 }
@@ -8789,12 +8786,12 @@ undefined4 serial_io_c(undefined4 param_1)
   
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined2 *)(g_read_req + 0x1c) = 0xb;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -8803,18 +8800,18 @@ undefined4 serial_io_c(undefined4 param_1)
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fef2);
+      show_status_message(0x42,s_Carrier_lost_0011fef2);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 0x40;
     }
     if (cVar1 == '\0') {
       cVar1 = *(char *)(g_read_req + 0x2c);
       if (cVar1 == 'B') {
-        thunk_FUN_00115000(0x42,param_1);
+        show_status_message(0x42,param_1);
         thunk_FUN_00101638(&DAT_00120170,0x42);
         return 0x40;
       }
@@ -8824,11 +8821,11 @@ undefined4 serial_io_c(undefined4 param_1)
         }
         return 0x40;
       }
-      thunk_FUN_00115000(0x41,param_1);
+      show_status_message(0x41,param_1);
       return 0x41;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011ff00);
+  show_status_message(0x42,s_Comms_problem_0011ff00);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 0x40;
 }
@@ -8872,9 +8869,9 @@ void thunk_FUN_0010d0d0(void)
 
 
 
-/* ===== thunk_FUN_00115000 @ 0010c684 (size 6) ===== */
+/* ===== show_status_message @ 0010c684 (size 6) ===== */
 
-void thunk_FUN_00115000(char param_1)
+void show_status_message(char param_1)
 
 {
   short sVar1;
@@ -8914,9 +8911,9 @@ int thunk_FUN_0011a344(undefined4 param_1,undefined4 param_2)
 
 
 
-/* ===== thunk_FUN_00101688 @ 0010c690 (size 6) ===== */
+/* ===== strlen @ 0010c690 (size 6) ===== */
 
-int thunk_FUN_00101688(char *param_1)
+int strlen(char *param_1)
 
 {
   char *pcVar1;
@@ -8997,9 +8994,9 @@ void thunk_FUN_001103b0(undefined4 param_1,undefined4 param_2,ushort param_3,und
 
 
 
-/* ===== thunk_FUN_0010060e @ 0010c6a8 (size 6) ===== */
+/* ===== sprintf @ 0010c6a8 (size 6) ===== */
 
-undefined4 thunk_FUN_0010060e(undefined1 *param_1,undefined4 param_2)
+undefined4 sprintf(undefined1 *param_1,undefined4 param_2)
 
 {
   DAT_001231a0 = 0;
@@ -9022,10 +9019,10 @@ undefined4 thunk_FUN_0010d0e6(void)
   FUN_0010d000();
   thunk_FUN_0012b270(&PTR_PTR_0011e934,DAT_00121650,0);
 switchD_0010d14c_default:
-  thunk_FUN_00129134(*(undefined4 *)(DAT_00121650 + 0x56));
-  while (iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00121650 + 0x56)), iVar1 != 0) {
+  WaitPort(*(undefined4 *)(DAT_00121650 + 0x56));
+  while (iVar1 = GetMsg(*(undefined4 *)(DAT_00121650 + 0x56)), iVar1 != 0) {
     in_stack_fffffff0 = *(undefined4 **)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
+    ReplyMsg(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
   }
   switch(*(undefined2 *)((int)in_stack_fffffff0 + 0x26)) {
   case 0:
@@ -9039,13 +9036,13 @@ switchD_0010d14c_default:
   default:
     goto switchD_0010d14c_default;
   }
-  DAT_00121654 = thunk_FUN_0012b254(DAT_00121650,&PTR_PTR_0011e934,4);
+  DAT_00121654 = RemoveGList(DAT_00121650,&PTR_PTR_0011e934,4);
   thunk_FUN_0010f1a4(&DAT_001215f4);
   thunk_FUN_0010f1a4(&DAT_00121605);
-  thunk_FUN_0012b234(DAT_00121650,&PTR_PTR_0011e934,DAT_00121654,4,0);
-  thunk_FUN_0012b214(&PTR_PTR_0011e934,DAT_00121650,0,4);
-  DAT_00121654 = thunk_FUN_0012b254(DAT_00121650,&PTR_PTR_0011e934,6);
-  thunk_FUN_0012b088(*(undefined4 *)(DAT_00121650 + 0x32),&DAT_0011ea30,0,0);
+  AddGList(DAT_00121650,&PTR_PTR_0011e934,DAT_00121654,4,0);
+  RefreshGList(&PTR_PTR_0011e934,DAT_00121650,0,4);
+  DAT_00121654 = RemoveGList(DAT_00121650,&PTR_PTR_0011e934,6);
+  DrawImage(*(undefined4 *)(DAT_00121650 + 0x32),&DAT_0011ea30,0,0);
   return 1;
 LAB_0010d158:
   FUN_0010d0d0();
@@ -9081,7 +9078,7 @@ int thunk_FUN_0011a1ee(int param_1,undefined4 param_2)
 {
   int iVar1;
   
-  iVar1 = thunk_FUN_00129020(param_1 + 0x20,param_2);
+  iVar1 = AllocMem(param_1 + 0x20,param_2);
   if (iVar1 == 0) {
     iVar1 = 0;
   }
@@ -9120,12 +9117,12 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined4 *)(g_read_req + 0x24) = param_2;
   *(undefined2 *)(g_read_req + 0x1c) = 2;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -9134,14 +9131,14 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   *param_4 = *(undefined1 *)(g_read_req + 0x2c);
   *param_3 = *(undefined1 *)(g_read_req + 0x2d);
   *param_5 = *(undefined4 *)(g_read_req + 0x20);
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fed6);
+      show_status_message(0x42,s_Carrier_lost_0011fed6);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -9149,7 +9146,7 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fee4);
+  show_status_message(0x42,s_Comms_problem_0011fee4);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -9280,12 +9277,12 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
   *(undefined1 *)(g_write_req + 0x2c) = param_4;
   *(undefined1 *)(g_write_req + 0x2d) = param_3;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar2 = DAT_00120104 | DAT_001230c2 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -9294,11 +9291,11 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230b0), iVar4 == 0));
+  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230b0), iVar4 == 0));
   cVar1 = *(char *)(g_write_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011feba);
+      show_status_message(0x42,s_Carrier_lost_0011feba);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -9306,7 +9303,7 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fec8);
+  show_status_message(0x42,s_Comms_problem_0011fec8);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -9389,11 +9386,11 @@ bool FUN_0010d000(void)
     DAT_00121605 = 0;
     DAT_00121607 = 0;
     DAT_0012160e = 0;
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_00121650 + 0x32),&DAT_0011e960,0,0);
+    DrawImage(*(undefined4 *)(DAT_00121650 + 0x32),&DAT_0011e960,0,0);
     thunk_FUN_0012b168(*(undefined4 *)(DAT_00121650 + 0x32),&DAT_0011ea1c,0,0);
     thunk_FUN_0012b06c(*(undefined4 *)(DAT_00121650 + 0x32),&DAT_0011e9b8,0,0);
-    thunk_FUN_0012b234(DAT_00121650,&PTR_PTR_0011e934,0xffffffff,0xffffffff,0);
-    thunk_FUN_0012b214(&PTR_PTR_0011e934,DAT_00121650,0,0xffffffff);
+    AddGList(DAT_00121650,&PTR_PTR_0011e934,0xffffffff,0xffffffff,0);
+    RefreshGList(&PTR_PTR_0011e934,DAT_00121650,0,0xffffffff);
   }
   return bVar1;
 }
@@ -9425,10 +9422,10 @@ undefined4 FUN_0010d0e6(void)
   FUN_0010d000();
   thunk_FUN_0012b270(&PTR_PTR_0011e934,DAT_00121650,0);
 switchD_0010d14c_default:
-  thunk_FUN_00129134(*(undefined4 *)(DAT_00121650 + 0x56));
-  while (iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00121650 + 0x56)), iVar1 != 0) {
+  WaitPort(*(undefined4 *)(DAT_00121650 + 0x56));
+  while (iVar1 = GetMsg(*(undefined4 *)(DAT_00121650 + 0x56)), iVar1 != 0) {
     in_stack_fffffff0 = *(undefined4 **)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
+    ReplyMsg(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
   }
   switch(*(undefined2 *)((int)in_stack_fffffff0 + 0x26)) {
   case 0:
@@ -9442,13 +9439,13 @@ switchD_0010d14c_default:
   default:
     goto switchD_0010d14c_default;
   }
-  DAT_00121654 = thunk_FUN_0012b254(DAT_00121650,&PTR_PTR_0011e934,4);
+  DAT_00121654 = RemoveGList(DAT_00121650,&PTR_PTR_0011e934,4);
   thunk_FUN_0010f1a4(&DAT_001215f4);
   thunk_FUN_0010f1a4(&DAT_00121605);
-  thunk_FUN_0012b234(DAT_00121650,&PTR_PTR_0011e934,DAT_00121654,4,0);
-  thunk_FUN_0012b214(&PTR_PTR_0011e934,DAT_00121650,0,4);
-  DAT_00121654 = thunk_FUN_0012b254(DAT_00121650,&PTR_PTR_0011e934,6);
-  thunk_FUN_0012b088(*(undefined4 *)(DAT_00121650 + 0x32),&DAT_0011ea30,0,0);
+  AddGList(DAT_00121650,&PTR_PTR_0011e934,DAT_00121654,4,0);
+  RefreshGList(&PTR_PTR_0011e934,DAT_00121650,0,4);
+  DAT_00121654 = RemoveGList(DAT_00121650,&PTR_PTR_0011e934,6);
+  DrawImage(*(undefined4 *)(DAT_00121650 + 0x32),&DAT_0011ea30,0,0);
   return 1;
 LAB_0010d158:
   FUN_0010d0d0();
@@ -9457,9 +9454,9 @@ LAB_0010d158:
 
 
 
-/* ===== thunk_FUN_00129120 @ 0010d214 (size 6) ===== */
+/* ===== ReplyMsg @ 0010d214 (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -9468,9 +9465,9 @@ void thunk_FUN_00129120(void)
 
 
 
-/* ===== thunk_FUN_0012b214 @ 0010d21a (size 6) ===== */
+/* ===== RefreshGList @ 0010d21a (size 6) ===== */
 
-void thunk_FUN_0012b214(void)
+void RefreshGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
@@ -9479,9 +9476,9 @@ void thunk_FUN_0012b214(void)
 
 
 
-/* ===== thunk_FUN_0012b234 @ 0010d220 (size 6) ===== */
+/* ===== AddGList @ 0010d220 (size 6) ===== */
 
-void thunk_FUN_0012b234(void)
+void AddGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
@@ -9501,9 +9498,9 @@ void thunk_FUN_0012b06c(void)
 
 
 
-/* ===== thunk_FUN_00129134 @ 0010d22c (size 6) ===== */
+/* ===== WaitPort @ 0010d22c (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -9512,9 +9509,9 @@ void thunk_FUN_00129134(void)
 
 
 
-/* ===== thunk_FUN_0012910c @ 0010d232 (size 6) ===== */
+/* ===== GetMsg @ 0010d232 (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -9523,9 +9520,9 @@ void thunk_FUN_0012910c(void)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 0010d238 (size 6) ===== */
+/* ===== DrawImage @ 0010d238 (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -9594,9 +9591,9 @@ void thunk_FUN_0010f1a4(int param_1)
 
 
 
-/* ===== thunk_FUN_0012b254 @ 0010d250 (size 6) ===== */
+/* ===== RemoveGList @ 0010d250 (size 6) ===== */
 
-void thunk_FUN_0012b254(void)
+void RemoveGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1bc))();    /* = IntuitionBase.RemoveGList() */
@@ -9637,7 +9634,7 @@ bool FUN_0010e000(void)
   char cVar2;
   
   DAT_0011d070 = 2;
-  uVar1 = thunk_FUN_00101688(&DAT_0011ea60);
+  uVar1 = strlen(&DAT_0011ea60);
   serial_write(&DAT_0011ea5e,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -9658,7 +9655,7 @@ uint FUN_0010e058(void)
   undefined4 uVar1;
   char cVar2;
   
-  uVar1 = thunk_FUN_00101688(&DAT_0011ea64);
+  uVar1 = strlen(&DAT_0011ea64);
   serial_write(&DAT_0011ea62,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -9681,7 +9678,7 @@ bool FUN_0010e0b4(void)
   char cVar2;
   
   DAT_0011d070 = 5;
-  uVar1 = thunk_FUN_00101688(&DAT_0011ea68);
+  uVar1 = strlen(&DAT_0011ea68);
   serial_write(&DAT_0011ea66,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -9702,9 +9699,9 @@ undefined4 validate_login(void)
   char cVar2;
   
   DAT_0011d070 = 5;
-  thunk_FUN_0010060e(&DAT_00121588,s_D_02d_0011ea6a,(int)*(short *)(DAT_0011d07c + 0xc78));
+  sprintf(&DAT_00121588,s_D_02d_0011ea6a,(int)*(short *)(DAT_0011d07c + 0xc78));
   do {
-    uVar1 = thunk_FUN_00101688(&DAT_00121588);
+    uVar1 = strlen(&DAT_00121588);
     serial_write(&DAT_00121588,uVar1,1,0x43);
     cVar2 = serial_io_c(&DAT_0012021a);
     if (cVar2 != '@') {
@@ -9749,7 +9746,7 @@ undefined4 FUN_0010e188(void)
         return 0;
       }
       thunk_FUN_001020ae();
-      thunk_FUN_0010060e(&DAT_00121588,s_U__16sT_0011ea72,&DAT_00121658);
+      sprintf(&DAT_00121588,s_U__16sT_0011ea72,&DAT_00121658);
       local_c = 0x12;
       local_14 = 0;
       for (local_8 = 0; local_8 < 5; local_8 = local_8 + 1) {
@@ -9772,7 +9769,7 @@ LAB_0010e23e:
         }
       }
       (&DAT_00121588)[local_c] = 0;
-      uVar3 = thunk_FUN_00101688(&DAT_00121588);
+      uVar3 = strlen(&DAT_00121588);
       serial_write(&DAT_00121588,uVar3,1,0x43);
       cVar4 = serial_io_c(&DAT_0012021a);
       if (cVar4 != '@') {
@@ -9829,7 +9826,7 @@ undefined4 FUN_0010e398(void)
   undefined4 uVar1;
   char cVar2;
   
-  uVar1 = thunk_FUN_00101688(&DAT_0011ea92);
+  uVar1 = strlen(&DAT_0011ea92);
   serial_write(&DAT_0011ea90,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -9861,7 +9858,7 @@ undefined4 FUN_0010e402(void)
 {
   undefined4 uVar1;
   
-  uVar1 = thunk_FUN_00101688(&DAT_0011ea96);
+  uVar1 = strlen(&DAT_0011ea96);
   serial_write(&DAT_0011ea94,uVar1,1,0x43);
   thunk_FUN_0010f18e();
   DAT_0011d070 = 5;
@@ -9941,7 +9938,7 @@ LAB_0010e50c:
         }
       }
       (&DAT_00121588)[local_c] = 0;
-      uVar2 = thunk_FUN_00101688(&DAT_00121588);
+      uVar2 = strlen(&DAT_00121588);
       serial_write(&DAT_00121588,uVar2,1,0x43);
       cVar3 = serial_io_c(&DAT_0012021a);
       if (cVar3 == '@') {
@@ -10010,21 +10007,21 @@ LAB_0010e50c:
 void thunk_FUN_001020ae(void)
 
 {
-  thunk_FUN_0012b1b0(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+  SetPointer(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   if (DAT_0011d078 != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011d07c != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121650 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121698 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011fd70 != 0) {
-    thunk_FUN_0012b1b0(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   return;
 }
@@ -10043,12 +10040,12 @@ undefined4 serial_io_c(undefined4 param_1)
   
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined2 *)(g_read_req + 0x1c) = 0xb;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -10057,18 +10054,18 @@ undefined4 serial_io_c(undefined4 param_1)
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fef2);
+      show_status_message(0x42,s_Carrier_lost_0011fef2);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 0x40;
     }
     if (cVar1 == '\0') {
       cVar1 = *(char *)(g_read_req + 0x2c);
       if (cVar1 == 'B') {
-        thunk_FUN_00115000(0x42,param_1);
+        show_status_message(0x42,param_1);
         thunk_FUN_00101638(&DAT_00120170,0x42);
         return 0x40;
       }
@@ -10078,11 +10075,11 @@ undefined4 serial_io_c(undefined4 param_1)
         }
         return 0x40;
       }
-      thunk_FUN_00115000(0x41,param_1);
+      show_status_message(0x41,param_1);
       return 0x41;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011ff00);
+  show_status_message(0x42,s_Comms_problem_0011ff00);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 0x40;
 }
@@ -10094,7 +10091,7 @@ undefined4 serial_io_c(undefined4 param_1)
 void thunk_FUN_0010f586(void)
 
 {
-  thunk_FUN_0012b088(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee40,0,0);
+  DrawImage(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee40,0,0);
   return;
 }
 
@@ -10161,7 +10158,7 @@ void thunk_FUN_00109a5e(undefined4 *param_1)
       *(undefined1 *)((int)param_1 + sStack_8 * 7 + 0x790) = 0;
     }
     if (*(int *)((int)param_1 + 0xc7a) != 0) {
-      thunk_FUN_0012b254(*param_1,*(int *)((int)param_1 + 0xc7a),0xffffffff);
+      RemoveGList(*param_1,*(int *)((int)param_1 + 0xc7a),0xffffffff);
     }
     puStack_10 = (undefined4 *)0x0;
     thunk_FUN_0010544e(0x16,0,0x17,0x27,param_1);
@@ -10205,7 +10202,7 @@ void thunk_FUN_00109a5e(undefined4 *param_1)
       bStack_5 = frame_rle_getchar();
     } while (bStack_5 != 0);
     if (sStack_a != 0) {
-      thunk_FUN_0012b234(*param_1,(int)param_1 + 0x1022,0xffffffff,0xffffffff,0);
+      AddGList(*param_1,(int)param_1 + 0x1022,0xffffffff,0xffffffff,0);
     }
 LAB_00109cda:
     if (bStack_5 != 0) {
@@ -10347,9 +10344,9 @@ LAB_00109d92:
 
 
 
-/* ===== thunk_FUN_00101688 @ 0010e6bc (size 6) ===== */
+/* ===== strlen @ 0010e6bc (size 6) ===== */
 
-int thunk_FUN_00101688(char *param_1)
+int strlen(char *param_1)
 
 {
   char *pcVar1;
@@ -10425,9 +10422,9 @@ void thunk_FUN_0010f544(undefined4 param_1,undefined4 param_2,undefined1 param_3
 
 
 
-/* ===== thunk_FUN_0010060e @ 0010e6d4 (size 6) ===== */
+/* ===== sprintf @ 0010e6d4 (size 6) ===== */
 
-undefined4 thunk_FUN_0010060e(undefined1 *param_1,undefined4 param_2)
+undefined4 sprintf(undefined1 *param_1,undefined4 param_2)
 
 {
   DAT_001231a0 = 0;
@@ -10449,8 +10446,8 @@ int thunk_FUN_0011754e(int param_1,undefined4 param_2)
   DAT_0012015c = param_1;
   DAT_00120160 = param_2;
   thunk_FUN_001290f4(DAT_0012013e,&DAT_00120146);
-  thunk_FUN_00129134(DAT_00120142);
-  thunk_FUN_0012910c(DAT_00120142);
+  WaitPort(DAT_00120142);
+  GetMsg(DAT_00120142);
   thunk_FUN_001291d0(DAT_00120168 + 0xe);
   if (DAT_0011d080 != 0) {
     *(byte *)(DAT_0011d080 + 0x11) = *(byte *)(DAT_0011d080 + 0x11) & 0xfb;
@@ -10537,9 +10534,9 @@ bool thunk_FUN_0010f09e(void)
   iVar1 = FUN_0010f000();
   if (iVar1 != 0) {
     thunk_FUN_0012b168(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee00,0,0);
-    thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ed4c,0xffffffff,0xffffffff,0);
-    thunk_FUN_0012b214(&PTR_PTR_0011ed4c,DAT_00121698,0,0xffffffff);
-    DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ed4c,8);
+    AddGList(DAT_00121698,&PTR_PTR_0011ed4c,0xffffffff,0xffffffff,0);
+    RefreshGList(&PTR_PTR_0011ed4c,DAT_00121698,0,0xffffffff);
+    DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ed4c,8);
   }
   return iVar1 != 0;
 }
@@ -10554,14 +10551,14 @@ void thunk_FUN_001092a6(undefined4 *param_1)
   undefined2 uVar1;
   short sStack_6;
   
-  uVar1 = thunk_FUN_0012b254(*param_1,(int)param_1 + 0xf86,5);
+  uVar1 = RemoveGList(*param_1,(int)param_1 + 0xf86,5);
   for (sStack_6 = 0; sStack_6 < 5; sStack_6 = sStack_6 + 1) {
     param_1[sStack_6 * 0xd + 0x3b4] = &DAT_0011e2da + sStack_6 * 0x14;
     *(undefined4 *)((int)param_1 + sStack_6 * 0x34 + 0xee2) =
          *(undefined4 *)(&DAT_0011e33e + sStack_6 * 4);
   }
-  thunk_FUN_0012b234(*param_1,(int)param_1 + 0xf86,uVar1,5,0);
-  thunk_FUN_0012b214((int)param_1 + 0xf86,*param_1,0,5);
+  AddGList(*param_1,(int)param_1 + 0xf86,uVar1,5,0);
+  RefreshGList((int)param_1 + 0xf86,*param_1,0,5);
   return;
 }
 
@@ -10582,12 +10579,12 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
   *(undefined1 *)(g_write_req + 0x2c) = param_4;
   *(undefined1 *)(g_write_req + 0x2d) = param_3;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar2 = DAT_00120104 | DAT_001230c2 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -10596,11 +10593,11 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230b0), iVar4 == 0));
+  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230b0), iVar4 == 0));
   cVar1 = *(char *)(g_write_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011feba);
+      show_status_message(0x42,s_Carrier_lost_0011feba);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -10608,7 +10605,7 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fec8);
+  show_status_message(0x42,s_Comms_problem_0011fec8);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -10626,9 +10623,9 @@ bool thunk_FUN_0010f116(void)
   iVar1 = FUN_0010f000();
   if (iVar1 != 0) {
     thunk_FUN_0012b168(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee18,0,0);
-    thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ecd8,0xffffffff,0xffffffff,0);
-    thunk_FUN_0012b214(&PTR_PTR_0011ecd8,DAT_00121698,0,0xffffffff);
-    DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ecd8,7);
+    AddGList(DAT_00121698,&PTR_PTR_0011ecd8,0xffffffff,0xffffffff,0);
+    RefreshGList(&PTR_PTR_0011ecd8,DAT_00121698,0,0xffffffff);
+    DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ecd8,7);
   }
   return iVar1 != 0;
 }
@@ -10644,13 +10641,13 @@ undefined4 thunk_FUN_0010f3c8(void)
   int iStack_14;
   undefined4 *puStack_10;
   
-  thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ecd8,DAT_0012169c,7,0);
+  AddGList(DAT_00121698,&PTR_PTR_0011ecd8,DAT_0012169c,7,0);
   thunk_FUN_0012b270(&PTR_PTR_0011ecd8,DAT_00121698,0);
 switchD_0010f448_default:
-  thunk_FUN_00129134(*(undefined4 *)(DAT_00121698 + 0x56));
-  while (iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00121698 + 0x56)), iVar1 != 0) {
+  WaitPort(*(undefined4 *)(DAT_00121698 + 0x56));
+  while (iVar1 = GetMsg(*(undefined4 *)(DAT_00121698 + 0x56)), iVar1 != 0) {
     puStack_10 = *(undefined4 **)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1);
+    ReplyMsg(iVar1);
   }
   switch(*(undefined2 *)((int)puStack_10 + 0x26)) {
   case 0:
@@ -10664,16 +10661,16 @@ switchD_0010f448_default:
   default:
     goto switchD_0010f448_default;
   }
-  DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ecd8,5);
+  DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ecd8,5);
   for (iStack_14 = 0; iStack_14 < 5; iStack_14 = iStack_14 + 1) {
     FUN_0010f1a4(&DAT_00121669 + iStack_14 * 9);
   }
-  thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ecd8,DAT_0012169c,5,0);
-  thunk_FUN_0012b214(&PTR_PTR_0011ecd8,DAT_00121698,0,5);
+  AddGList(DAT_00121698,&PTR_PTR_0011ecd8,DAT_0012169c,5,0);
+  RefreshGList(&PTR_PTR_0011ecd8,DAT_00121698,0,5);
   if ((((DAT_00121669 != '\0') || (DAT_00121672 != '\0')) || (DAT_0012167b != '\0')) ||
      ((DAT_00121684 != '\0' || (DAT_0012168d != '\0')))) {
-    DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ecd8,7);
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee54,0,0);
+    DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ecd8,7);
+    DrawImage(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee54,0,0);
     return 1;
   }
   goto switchD_0010f448_default;
@@ -10693,13 +10690,13 @@ undefined4 thunk_FUN_0010f23a(void)
   int iStack_14;
   undefined4 *puStack_10;
   
-  thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ed4c,DAT_0012169c,8,0);
+  AddGList(DAT_00121698,&PTR_PTR_0011ed4c,DAT_0012169c,8,0);
   thunk_FUN_0012b270(&PTR_PTR_0011ed4c,DAT_00121698,0);
 switchD_0010f2ba_default:
-  thunk_FUN_00129134(*(undefined4 *)(DAT_00121698 + 0x56));
-  while (iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00121698 + 0x56)), iVar1 != 0) {
+  WaitPort(*(undefined4 *)(DAT_00121698 + 0x56));
+  while (iVar1 = GetMsg(*(undefined4 *)(DAT_00121698 + 0x56)), iVar1 != 0) {
     puStack_10 = *(undefined4 **)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1);
+    ReplyMsg(iVar1);
   }
   switch(*(undefined2 *)((int)puStack_10 + 0x26)) {
   case 0:
@@ -10713,18 +10710,18 @@ switchD_0010f2ba_default:
   default:
     goto switchD_0010f2ba_default;
   }
-  DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ed4c,6);
+  DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ed4c,6);
   FUN_0010f1a4(&DAT_00121658);
   for (iStack_14 = 0; iStack_14 < 5; iStack_14 = iStack_14 + 1) {
     FUN_0010f1a4(&DAT_00121669 + iStack_14 * 9);
   }
-  thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ed4c,DAT_0012169c,6,0);
-  thunk_FUN_0012b214(&PTR_PTR_0011ed4c,DAT_00121698,0,6);
+  AddGList(DAT_00121698,&PTR_PTR_0011ed4c,DAT_0012169c,6,0);
+  RefreshGList(&PTR_PTR_0011ed4c,DAT_00121698,0,6);
   if ((DAT_00121658 != '\0') &&
      ((((DAT_00121669 != '\0' || (DAT_00121672 != '\0')) || (DAT_0012167b != '\0')) ||
       ((DAT_00121684 != '\0' || (DAT_0012168d != '\0')))))) {
-    DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ed4c,8);
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee54,0,0);
+    DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ed4c,8);
+    DrawImage(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee54,0,0);
     return 1;
   }
   goto switchD_0010f2ba_default;
@@ -10824,14 +10821,14 @@ void thunk_FUN_001091f2(undefined4 *param_1)
   undefined2 uVar1;
   short sStack_6;
   
-  uVar1 = thunk_FUN_0012b254(*param_1,(int)param_1 + 0xf86,5);
+  uVar1 = RemoveGList(*param_1,(int)param_1 + 0xf86,5);
   for (sStack_6 = 0; sStack_6 < 5; sStack_6 = sStack_6 + 1) {
     param_1[sStack_6 * 0xd + 0x3b4] = &DAT_0011e376 + sStack_6 * 0x14;
     *(undefined4 *)((int)param_1 + sStack_6 * 0x34 + 0xee2) =
          *(undefined4 *)(&DAT_0011e3da + sStack_6 * 4);
   }
-  thunk_FUN_0012b234(*param_1,(int)param_1 + 0xf86,uVar1,5,0);
-  thunk_FUN_0012b214((int)param_1 + 0xf86,*param_1,0,5);
+  AddGList(*param_1,(int)param_1 + 0xf86,uVar1,5,0);
+  RefreshGList((int)param_1 + 0xf86,*param_1,0,5);
   return;
 }
 
@@ -10883,7 +10880,7 @@ undefined4 FUN_0010f000(void)
     for (local_6 = 0; local_6 < 5; local_6 = local_6 + 1) {
       (&DAT_00121669)[(short)local_6 * 9] = 0;
     }
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ed78,0,0);
+    DrawImage(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ed78,0,0);
     thunk_FUN_0012b06c(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011edd0,0,0);
     uVar1 = 1;
   }
@@ -10904,9 +10901,9 @@ bool FUN_0010f09e(void)
   iVar1 = FUN_0010f000();
   if (iVar1 != 0) {
     thunk_FUN_0012b168(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee00,0,0);
-    thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ed4c,0xffffffff,0xffffffff,0);
-    thunk_FUN_0012b214(&PTR_PTR_0011ed4c,DAT_00121698,0,0xffffffff);
-    DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ed4c,8);
+    AddGList(DAT_00121698,&PTR_PTR_0011ed4c,0xffffffff,0xffffffff,0);
+    RefreshGList(&PTR_PTR_0011ed4c,DAT_00121698,0,0xffffffff);
+    DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ed4c,8);
   }
   return iVar1 != 0;
 }
@@ -10925,9 +10922,9 @@ bool FUN_0010f116(void)
   iVar1 = FUN_0010f000();
   if (iVar1 != 0) {
     thunk_FUN_0012b168(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee18,0,0);
-    thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ecd8,0xffffffff,0xffffffff,0);
-    thunk_FUN_0012b214(&PTR_PTR_0011ecd8,DAT_00121698,0,0xffffffff);
-    DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ecd8,7);
+    AddGList(DAT_00121698,&PTR_PTR_0011ecd8,0xffffffff,0xffffffff,0);
+    RefreshGList(&PTR_PTR_0011ecd8,DAT_00121698,0,0xffffffff);
+    DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ecd8,7);
   }
   return iVar1 != 0;
 }
@@ -10986,13 +10983,13 @@ undefined4 FUN_0010f23a(void)
   int local_14;
   undefined4 *local_10;
   
-  thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ed4c,DAT_0012169c,8,0);
+  AddGList(DAT_00121698,&PTR_PTR_0011ed4c,DAT_0012169c,8,0);
   thunk_FUN_0012b270(&PTR_PTR_0011ed4c,DAT_00121698,0);
 switchD_0010f2ba_default:
-  thunk_FUN_00129134(*(undefined4 *)(DAT_00121698 + 0x56));
-  while (iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00121698 + 0x56)), iVar1 != 0) {
+  WaitPort(*(undefined4 *)(DAT_00121698 + 0x56));
+  while (iVar1 = GetMsg(*(undefined4 *)(DAT_00121698 + 0x56)), iVar1 != 0) {
     local_10 = *(undefined4 **)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1);
+    ReplyMsg(iVar1);
   }
   switch(*(undefined2 *)((int)local_10 + 0x26)) {
   case 0:
@@ -11006,18 +11003,18 @@ switchD_0010f2ba_default:
   default:
     goto switchD_0010f2ba_default;
   }
-  DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ed4c,6);
+  DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ed4c,6);
   FUN_0010f1a4(&DAT_00121658);
   for (local_14 = 0; local_14 < 5; local_14 = local_14 + 1) {
     FUN_0010f1a4(&DAT_00121669 + local_14 * 9);
   }
-  thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ed4c,DAT_0012169c,6,0);
-  thunk_FUN_0012b214(&PTR_PTR_0011ed4c,DAT_00121698,0,6);
+  AddGList(DAT_00121698,&PTR_PTR_0011ed4c,DAT_0012169c,6,0);
+  RefreshGList(&PTR_PTR_0011ed4c,DAT_00121698,0,6);
   if ((DAT_00121658 != '\0') &&
      ((((DAT_00121669 != '\0' || (DAT_00121672 != '\0')) || (DAT_0012167b != '\0')) ||
       ((DAT_00121684 != '\0' || (DAT_0012168d != '\0')))))) {
-    DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ed4c,8);
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee54,0,0);
+    DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ed4c,8);
+    DrawImage(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee54,0,0);
     return 1;
   }
   goto switchD_0010f2ba_default;
@@ -11037,13 +11034,13 @@ undefined4 FUN_0010f3c8(void)
   int local_14;
   undefined4 *local_10;
   
-  thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ecd8,DAT_0012169c,7,0);
+  AddGList(DAT_00121698,&PTR_PTR_0011ecd8,DAT_0012169c,7,0);
   thunk_FUN_0012b270(&PTR_PTR_0011ecd8,DAT_00121698,0);
 switchD_0010f448_default:
-  thunk_FUN_00129134(*(undefined4 *)(DAT_00121698 + 0x56));
-  while (iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00121698 + 0x56)), iVar1 != 0) {
+  WaitPort(*(undefined4 *)(DAT_00121698 + 0x56));
+  while (iVar1 = GetMsg(*(undefined4 *)(DAT_00121698 + 0x56)), iVar1 != 0) {
     local_10 = *(undefined4 **)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1);
+    ReplyMsg(iVar1);
   }
   switch(*(undefined2 *)((int)local_10 + 0x26)) {
   case 0:
@@ -11057,16 +11054,16 @@ switchD_0010f448_default:
   default:
     goto switchD_0010f448_default;
   }
-  DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ecd8,5);
+  DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ecd8,5);
   for (local_14 = 0; local_14 < 5; local_14 = local_14 + 1) {
     FUN_0010f1a4(&DAT_00121669 + local_14 * 9);
   }
-  thunk_FUN_0012b234(DAT_00121698,&PTR_PTR_0011ecd8,DAT_0012169c,5,0);
-  thunk_FUN_0012b214(&PTR_PTR_0011ecd8,DAT_00121698,0,5);
+  AddGList(DAT_00121698,&PTR_PTR_0011ecd8,DAT_0012169c,5,0);
+  RefreshGList(&PTR_PTR_0011ecd8,DAT_00121698,0,5);
   if ((((DAT_00121669 != '\0') || (DAT_00121672 != '\0')) || (DAT_0012167b != '\0')) ||
      ((DAT_00121684 != '\0' || (DAT_0012168d != '\0')))) {
-    DAT_0012169c = thunk_FUN_0012b254(DAT_00121698,&PTR_PTR_0011ecd8,7);
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee54,0,0);
+    DAT_0012169c = RemoveGList(DAT_00121698,&PTR_PTR_0011ecd8,7);
+    DrawImage(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee54,0,0);
     return 1;
   }
   goto switchD_0010f448_default;
@@ -11099,15 +11096,15 @@ void FUN_0010f544(undefined4 param_1,undefined4 param_2,undefined1 param_3)
 void FUN_0010f586(void)
 
 {
-  thunk_FUN_0012b088(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee40,0,0);
+  DrawImage(*(undefined4 *)(DAT_00121698 + 0x32),&DAT_0011ee40,0,0);
   return;
 }
 
 
 
-/* ===== thunk_FUN_00129120 @ 0010f5a4 (size 6) ===== */
+/* ===== ReplyMsg @ 0010f5a4 (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -11116,9 +11113,9 @@ void thunk_FUN_00129120(void)
 
 
 
-/* ===== thunk_FUN_0012b214 @ 0010f5aa (size 6) ===== */
+/* ===== RefreshGList @ 0010f5aa (size 6) ===== */
 
-void thunk_FUN_0012b214(void)
+void RefreshGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
@@ -11127,9 +11124,9 @@ void thunk_FUN_0012b214(void)
 
 
 
-/* ===== thunk_FUN_0012b234 @ 0010f5b0 (size 6) ===== */
+/* ===== AddGList @ 0010f5b0 (size 6) ===== */
 
-void thunk_FUN_0012b234(void)
+void AddGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
@@ -11164,9 +11161,9 @@ void thunk_FUN_0012b06c(void)
 
 
 
-/* ===== thunk_FUN_00129134 @ 0010f5c2 (size 6) ===== */
+/* ===== WaitPort @ 0010f5c2 (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -11175,9 +11172,9 @@ void thunk_FUN_00129134(void)
 
 
 
-/* ===== thunk_FUN_0012910c @ 0010f5c8 (size 6) ===== */
+/* ===== GetMsg @ 0010f5c8 (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -11186,9 +11183,9 @@ void thunk_FUN_0012910c(void)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 0010f5ce (size 6) ===== */
+/* ===== DrawImage @ 0010f5ce (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -11227,9 +11224,9 @@ void thunk_FUN_0012b168(void)
 
 
 
-/* ===== thunk_FUN_0012b254 @ 0010f5e0 (size 6) ===== */
+/* ===== RemoveGList @ 0010f5e0 (size 6) ===== */
 
-void thunk_FUN_0012b254(void)
+void RemoveGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1bc))();    /* = IntuitionBase.RemoveGList() */
@@ -11307,18 +11304,18 @@ undefined2 FUN_00110042(int param_1,undefined4 param_2)
   }
   else {
     DAT_0011f0ac = DAT_0011ee84 + -8;
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_001216a0 + 0x32),&DAT_0011f0a8,4,2);
+    DrawImage(*(undefined4 *)(DAT_001216a0 + 0x32),&DAT_0011f0a8,4,2);
     thunk_FUN_0012b168(*(undefined4 *)(DAT_001216a0 + 0x32),&DAT_0011f094,4,2);
     FUN_00110000();
     thunk_FUN_0012b06c(*(undefined4 *)(DAT_001216a0 + 0x32),&DAT_0011f018,4,2);
-    thunk_FUN_0012b234(DAT_001216a0,param_2,0,0xffffffff,0);
-    thunk_FUN_0012b214(param_2,DAT_001216a0,0,0xffffffff);
-    thunk_FUN_00129134(*(undefined4 *)(DAT_001216a0 + 0x56));
+    AddGList(DAT_001216a0,param_2,0,0xffffffff,0);
+    RefreshGList(param_2,DAT_001216a0,0,0xffffffff);
+    WaitPort(*(undefined4 *)(DAT_001216a0 + 0x56));
     while( true ) {
-      iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_001216a0 + 0x56));
+      iVar1 = GetMsg(*(undefined4 *)(DAT_001216a0 + 0x56));
       if (iVar1 == 0) break;
       in_stack_fffffff0 = *(int *)(iVar1 + 0x1c);
-      thunk_FUN_00129120(iVar1,iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14));
+      ReplyMsg(iVar1,iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14));
     }
     thunk_FUN_0011a568(DAT_001216a0,0);
     uVar2 = *(undefined2 *)(in_stack_fffffff0 + 0x26);
@@ -11347,12 +11344,12 @@ bool FUN_001101a6(int param_1)
   DAT_001216c6 = thunk_FUN_0011a534(&DAT_0011ee80);
   bVar1 = DAT_001216c6 != 0;
   if (bVar1) {
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_001216c6 + 0x32),&DAT_0011f10c,4,2);
+    DrawImage(*(undefined4 *)(DAT_001216c6 + 0x32),&DAT_0011f10c,4,2);
     thunk_FUN_0012b168(*(undefined4 *)(DAT_001216c6 + 0x32),&DAT_0011eeb0,4,2);
     FUN_00110000();
     thunk_FUN_0012b06c(*(undefined4 *)(DAT_001216c6 + 0x32),&DAT_0011f018,4,2);
-    thunk_FUN_0012b234(DAT_001216c6,&PTR_PTR_0011f0e0,0,0xffffffff,0);
-    thunk_FUN_0012b214(&PTR_PTR_0011f0e0,DAT_001216c6,0,0xffffffff);
+    AddGList(DAT_001216c6,&PTR_PTR_0011f0e0,0,0xffffffff,0);
+    RefreshGList(&PTR_PTR_0011f0e0,DAT_001216c6,0,0xffffffff);
   }
   return bVar1;
 }
@@ -11370,10 +11367,10 @@ undefined4 FUN_00110276(void)
   
   thunk_FUN_0012b270(&PTR_PTR_0011f0e0,DAT_001216c6,0);
   while( true ) {
-    thunk_FUN_00129134(*(undefined4 *)(DAT_001216c6 + 0x56));
-    while (iVar2 = thunk_FUN_0012910c(*(undefined4 *)(DAT_001216c6 + 0x56)), iVar2 != 0) {
+    WaitPort(*(undefined4 *)(DAT_001216c6 + 0x56));
+    while (iVar2 = GetMsg(*(undefined4 *)(DAT_001216c6 + 0x56)), iVar2 != 0) {
       in_stack_fffffff0 = *(int *)(iVar2 + 0x1c);
-      thunk_FUN_00129120(iVar2,in_stack_fffffff0,*(undefined4 *)(iVar2 + 0x14),iVar2);
+      ReplyMsg(iVar2,in_stack_fffffff0,*(undefined4 *)(iVar2 + 0x14),iVar2);
     }
     sVar1 = *(short *)(in_stack_fffffff0 + 0x26);
     if ((sVar1 == 1) || (sVar1 == 2)) break;
@@ -11531,9 +11528,9 @@ void FUN_001104d8(int param_1)
 
 
 
-/* ===== thunk_FUN_00129120 @ 00110504 (size 6) ===== */
+/* ===== ReplyMsg @ 00110504 (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -11542,9 +11539,9 @@ void thunk_FUN_00129120(void)
 
 
 
-/* ===== thunk_FUN_0012b214 @ 0011050a (size 6) ===== */
+/* ===== RefreshGList @ 0011050a (size 6) ===== */
 
-void thunk_FUN_0012b214(void)
+void RefreshGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
@@ -11553,9 +11550,9 @@ void thunk_FUN_0012b214(void)
 
 
 
-/* ===== thunk_FUN_0012b234 @ 00110510 (size 6) ===== */
+/* ===== AddGList @ 00110510 (size 6) ===== */
 
-void thunk_FUN_0012b234(void)
+void AddGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
@@ -11575,9 +11572,9 @@ void thunk_FUN_0012b06c(void)
 
 
 
-/* ===== thunk_FUN_00129134 @ 0011051c (size 6) ===== */
+/* ===== WaitPort @ 0011051c (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -11586,9 +11583,9 @@ void thunk_FUN_00129134(void)
 
 
 
-/* ===== thunk_FUN_0012910c @ 00110522 (size 6) ===== */
+/* ===== GetMsg @ 00110522 (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -11597,9 +11594,9 @@ void thunk_FUN_0012910c(void)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 00110528 (size 6) ===== */
+/* ===== DrawImage @ 00110528 (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -12049,7 +12046,7 @@ void FUN_0011155c(byte param_1)
     DAT_001217d4 = DAT_001217d4 + 1;
     DAT_001217ce = DAT_001217ce + 1;
     if (DAT_001217ce == DAT_001217ac) {
-      thunk_FUN_0012b088(*(undefined4 *)(DAT_0011f128 + 0x32),&DAT_001217d8,0,DAT_001217cc);
+      DrawImage(*(undefined4 *)(DAT_0011f128 + 0x32),&DAT_001217d8,0,DAT_001217cc);
       DAT_001217cc = DAT_001217cc + 1;
       DAT_001217ce = 0;
     }
@@ -12101,7 +12098,7 @@ void FUN_001115e6(byte param_1)
   if (DAT_001217d0 == 0) {
     DAT_001217ce = DAT_001217ce + 1;
     if (DAT_001217ce == DAT_001217ac) {
-      thunk_FUN_0012b088(*(undefined4 *)(DAT_0011f128 + 0x32),&DAT_001217d8,0,DAT_001217cc);
+      DrawImage(*(undefined4 *)(DAT_0011f128 + 0x32),&DAT_001217d8,0,DAT_001217cc);
       DAT_001217cc = DAT_001217cc + 1;
       DAT_001217ce = 0;
     }
@@ -12172,9 +12169,9 @@ int thunk_FUN_00101604(void)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 0011176e (size 6) ===== */
+/* ===== DrawImage @ 0011176e (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -12281,7 +12278,7 @@ int thunk_FUN_0011a1ee(int param_1,undefined4 param_2)
 {
   int iVar1;
   
-  iVar1 = thunk_FUN_00129020(param_1 + 0x20,param_2);
+  iVar1 = AllocMem(param_1 + 0x20,param_2);
   if (iVar1 == 0) {
     iVar1 = 0;
   }
@@ -12373,9 +12370,9 @@ undefined4 save_config(void)
     thunk_FUN_00101674(&DAT_001217ec,&DAT_00120108);
     thunk_FUN_00101674(&DAT_001217fc,&DAT_00120134);
     thunk_FUN_00101674(&DAT_00121805,&DAT_0012011c);
-    thunk_FUN_0010060e(&DAT_00121815,&DAT_0011f77a,DAT_0012012c);
-    thunk_FUN_0010060e(&DAT_0012181b,&DAT_0011f77e,DAT_0012012e);
-    thunk_FUN_0010060e(&DAT_00121821,&DAT_0011f782,DAT_00120132);
+    sprintf(&DAT_00121815,&DAT_0011f77a,DAT_0012012c);
+    sprintf(&DAT_0012181b,&DAT_0011f77e,DAT_0012012e);
+    sprintf(&DAT_00121821,&DAT_0011f782,DAT_00120132);
     DAT_0011f4aa = (uint)DAT_0012012c;
     DAT_0011f436 = (uint)DAT_0012012e;
     DAT_0011f3c2 = (uint)DAT_00120132;
@@ -12389,11 +12386,11 @@ undefined4 save_config(void)
       PTR_DAT_0011f310 = &DAT_0011f2e2;
     }
     DAT_00121826 = (ushort)!bVar2;
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_00121828 + 0x32),&DAT_0011f63a,4,2);
+    DrawImage(*(undefined4 *)(DAT_00121828 + 0x32),&DAT_0011f63a,4,2);
     thunk_FUN_0012b168(*(undefined4 *)(DAT_00121828 + 0x32),&DAT_0011f766,4,2);
     thunk_FUN_0012b06c(*(undefined4 *)(DAT_00121828 + 0x32),&DAT_0011f662,4,2);
-    thunk_FUN_0012b234(DAT_00121828,&PTR_PTR_0011f60e,0,0xffffffff,0);
-    thunk_FUN_0012b214(&PTR_PTR_0011f60e,DAT_00121828,0,0xffffffff);
+    AddGList(DAT_00121828,&PTR_PTR_0011f60e,0,0xffffffff,0);
+    RefreshGList(&PTR_PTR_0011f60e,DAT_00121828,0,0xffffffff);
     uVar1 = 1;
   }
   return uVar1;
@@ -12480,10 +12477,10 @@ undefined4 FUN_001122a6(void)
   save_config();
   thunk_FUN_0012b270(&PTR_PTR_0011f60e,DAT_00121828,0);
   do {
-    thunk_FUN_00129134(*(undefined4 *)(DAT_00121828 + 0x56));
-    while (iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00121828 + 0x56)), iVar1 != 0) {
+    WaitPort(*(undefined4 *)(DAT_00121828 + 0x56));
+    while (iVar1 = GetMsg(*(undefined4 *)(DAT_00121828 + 0x56)), iVar1 != 0) {
       in_stack_fffffff0 = *(undefined4 **)(iVar1 + 0x1c);
-      thunk_FUN_00129120(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
+      ReplyMsg(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
     }
     switch(*(undefined2 *)((int)in_stack_fffffff0 + 0x26)) {
     case 0:
@@ -12506,21 +12503,21 @@ undefined4 FUN_001122a6(void)
     case 5:
       if (DAT_00121826 == 0) {
         DAT_00121826 = 1;
-        DAT_0012182c = thunk_FUN_0012b254(DAT_00121828,&PTR_PTR_0011f356,2);
+        DAT_0012182c = RemoveGList(DAT_00121828,&PTR_PTR_0011f356,2);
         PTR_DAT_0011f370 = &DAT_0011f328;
         PTR_DAT_0011f310 = &DAT_0011f2e2;
-        thunk_FUN_0012b234(DAT_00121828,&PTR_PTR_0011f356,DAT_0012182c,2,0);
-        thunk_FUN_0012b214(&PTR_PTR_0011f356,DAT_00121828,0,2);
+        AddGList(DAT_00121828,&PTR_PTR_0011f356,DAT_0012182c,2,0);
+        RefreshGList(&PTR_PTR_0011f356,DAT_00121828,0,2);
       }
       break;
     case 6:
       if (DAT_00121826 != 0) {
         DAT_00121826 = 0;
-        DAT_0012182c = thunk_FUN_0012b254(DAT_00121828,&PTR_PTR_0011f356,2);
+        DAT_0012182c = RemoveGList(DAT_00121828,&PTR_PTR_0011f356,2);
         PTR_DAT_0011f370 = &DAT_0011f342;
         PTR_DAT_0011f310 = &DAT_0011f2b0;
-        thunk_FUN_0012b234(DAT_00121828,&PTR_PTR_0011f356,DAT_0012182c,2,0);
-        thunk_FUN_0012b214(&PTR_PTR_0011f356,DAT_00121828,0,2);
+        AddGList(DAT_00121828,&PTR_PTR_0011f356,DAT_0012182c,2,0);
+        RefreshGList(&PTR_PTR_0011f356,DAT_00121828,0,2);
       }
     }
   } while( true );
@@ -12528,9 +12525,9 @@ undefined4 FUN_001122a6(void)
 
 
 
-/* ===== thunk_FUN_00129120 @ 00112448 (size 6) ===== */
+/* ===== ReplyMsg @ 00112448 (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -12539,9 +12536,9 @@ void thunk_FUN_00129120(void)
 
 
 
-/* ===== thunk_FUN_0012b214 @ 0011244e (size 6) ===== */
+/* ===== RefreshGList @ 0011244e (size 6) ===== */
 
-void thunk_FUN_0012b214(void)
+void RefreshGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
@@ -12562,9 +12559,9 @@ void thunk_FUN_0011a3fe(undefined4 param_1)
 
 
 
-/* ===== thunk_FUN_0012b234 @ 0011245a (size 6) ===== */
+/* ===== AddGList @ 0011245a (size 6) ===== */
 
-void thunk_FUN_0012b234(void)
+void AddGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
@@ -12584,9 +12581,9 @@ void thunk_FUN_0012b06c(void)
 
 
 
-/* ===== thunk_FUN_00129134 @ 00112466 (size 6) ===== */
+/* ===== WaitPort @ 00112466 (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -12615,9 +12612,9 @@ void thunk_FUN_0011513a(char *param_1)
 
 
 
-/* ===== thunk_FUN_0012910c @ 00112472 (size 6) ===== */
+/* ===== GetMsg @ 00112472 (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -12642,9 +12639,9 @@ void thunk_FUN_001104a6(undefined4 param_1,undefined4 param_2,undefined4 param_3
 
 
 
-/* ===== thunk_FUN_0012b088 @ 0011247e (size 6) ===== */
+/* ===== DrawImage @ 0011247e (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -12724,16 +12721,16 @@ bool thunk_FUN_00114050(undefined4 param_1)
   DAT_00120160 = 0;
   DAT_00120164 = 0;
   thunk_FUN_001290f4(DAT_0012013e,&DAT_00120146);
-  thunk_FUN_00129134(DAT_00120142);
-  thunk_FUN_0012910c(DAT_00120142);
+  WaitPort(DAT_00120142);
+  GetMsg(DAT_00120142);
   return DAT_0012015b == '\0';
 }
 
 
 
-/* ===== thunk_FUN_0010060e @ 001124a2 (size 6) ===== */
+/* ===== sprintf @ 001124a2 (size 6) ===== */
 
-undefined4 thunk_FUN_0010060e(undefined1 *param_1,undefined4 param_2)
+undefined4 sprintf(undefined1 *param_1,undefined4 param_2)
 
 {
   DAT_001231a0 = 0;
@@ -12745,9 +12742,9 @@ undefined4 thunk_FUN_0010060e(undefined1 *param_1,undefined4 param_2)
 
 
 
-/* ===== thunk_FUN_0012b254 @ 001124a8 (size 6) ===== */
+/* ===== RemoveGList @ 001124a8 (size 6) ===== */
 
-void thunk_FUN_0012b254(void)
+void RemoveGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1bc))();    /* = IntuitionBase.RemoveGList() */
@@ -12807,7 +12804,7 @@ undefined4 FUN_00113000(void)
   undefined4 uVar1;
   char cVar2;
   
-  uVar1 = thunk_FUN_00101688(&DAT_00121588);
+  uVar1 = strlen(&DAT_00121588);
   serial_write(&DAT_00121588,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -12834,7 +12831,7 @@ undefined4 FUN_00113062(void)
   undefined4 uVar1;
   char cVar2;
   
-  uVar1 = thunk_FUN_00101688(&DAT_0011f7ce);
+  uVar1 = strlen(&DAT_0011f7ce);
   serial_write(&DAT_0011f7cc,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -12881,12 +12878,12 @@ undefined4 serial_io_c(undefined4 param_1)
   
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined2 *)(g_read_req + 0x1c) = 0xb;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -12895,18 +12892,18 @@ undefined4 serial_io_c(undefined4 param_1)
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fef2);
+      show_status_message(0x42,s_Carrier_lost_0011fef2);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 0x40;
     }
     if (cVar1 == '\0') {
       cVar1 = *(char *)(g_read_req + 0x2c);
       if (cVar1 == 'B') {
-        thunk_FUN_00115000(0x42,param_1);
+        show_status_message(0x42,param_1);
         thunk_FUN_00101638(&DAT_00120170,0x42);
         return 0x40;
       }
@@ -12916,20 +12913,20 @@ undefined4 serial_io_c(undefined4 param_1)
         }
         return 0x40;
       }
-      thunk_FUN_00115000(0x41,param_1);
+      show_status_message(0x41,param_1);
       return 0x41;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011ff00);
+  show_status_message(0x42,s_Comms_problem_0011ff00);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 0x40;
 }
 
 
 
-/* ===== thunk_FUN_00101688 @ 001130ee (size 6) ===== */
+/* ===== strlen @ 001130ee (size 6) ===== */
 
-int thunk_FUN_00101688(char *param_1)
+int strlen(char *param_1)
 
 {
   char *pcVar1;
@@ -12955,8 +12952,8 @@ int thunk_FUN_0011754e(int param_1,undefined4 param_2)
   DAT_0012015c = param_1;
   DAT_00120160 = param_2;
   thunk_FUN_001290f4(DAT_0012013e,&DAT_00120146);
-  thunk_FUN_00129134(DAT_00120142);
-  thunk_FUN_0012910c(DAT_00120142);
+  WaitPort(DAT_00120142);
+  GetMsg(DAT_00120142);
   thunk_FUN_001291d0(DAT_00120168 + 0xe);
   if (DAT_0011d080 != 0) {
     *(byte *)(DAT_0011d080 + 0x11) = *(byte *)(DAT_0011d080 + 0x11) & 0xfb;
@@ -13016,12 +13013,12 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
   *(undefined1 *)(g_write_req + 0x2c) = param_4;
   *(undefined1 *)(g_write_req + 0x2d) = param_3;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar2 = DAT_00120104 | DAT_001230c2 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -13030,11 +13027,11 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230b0), iVar4 == 0));
+  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230b0), iVar4 == 0));
   cVar1 = *(char *)(g_write_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011feba);
+      show_status_message(0x42,s_Carrier_lost_0011feba);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -13042,7 +13039,7 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fec8);
+  show_status_message(0x42,s_Comms_problem_0011fec8);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -13060,8 +13057,8 @@ bool FUN_00114000(void)
   DAT_00120160 = 0;
   DAT_00120164 = 0;
   thunk_FUN_001290f4(DAT_0012013e,&DAT_00120146);
-  thunk_FUN_00129134(DAT_00120142);
-  thunk_FUN_0012910c(DAT_00120142);
+  WaitPort(DAT_00120142);
+  GetMsg(DAT_00120142);
   return DAT_0012015b == '\0';
 }
 
@@ -13078,8 +13075,8 @@ bool FUN_00114050(undefined4 param_1)
   DAT_00120160 = 0;
   DAT_00120164 = 0;
   thunk_FUN_001290f4(DAT_0012013e,&DAT_00120146);
-  thunk_FUN_00129134(DAT_00120142);
-  thunk_FUN_0012910c(DAT_00120142);
+  WaitPort(DAT_00120142);
+  GetMsg(DAT_00120142);
   return DAT_0012015b == '\0';
 }
 
@@ -13096,9 +13093,9 @@ void thunk_FUN_001290f4(void)
 
 
 
-/* ===== thunk_FUN_00129134 @ 001140ae (size 6) ===== */
+/* ===== WaitPort @ 001140ae (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -13107,9 +13104,9 @@ void thunk_FUN_00129134(void)
 
 
 
-/* ===== thunk_FUN_0012910c @ 001140b4 (size 6) ===== */
+/* ===== GetMsg @ 001140b4 (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -13118,9 +13115,9 @@ void thunk_FUN_0012910c(void)
 
 
 
-/* ===== FUN_00115000 @ 00115000 (size 58) ===== */
+/* ===== show_status_message @ 00115000 (size 58) ===== */
 
-void FUN_00115000(char param_1)
+void show_status_message(char param_1)
 
 {
   short sVar1;
@@ -13153,11 +13150,11 @@ bool FUN_00115080(void)
   bVar1 = DAT_00121830 != 0;
   if (bVar1) {
     DAT_0012024d = 0;
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_00121830 + 0x32),&DAT_0011f98c,0,0);
+    DrawImage(*(undefined4 *)(DAT_00121830 + 0x32),&DAT_0011f98c,0,0);
     thunk_FUN_0012b168(*(undefined4 *)(DAT_00121830 + 0x32),&DAT_0011fa1a,0,0);
     thunk_FUN_0012b06c(*(undefined4 *)(DAT_00121830 + 0x32),&DAT_0011f9e4,0,0);
-    thunk_FUN_0012b234(DAT_00121830,&PTR_PTR_0011f960,0,0xffffffff,0);
-    thunk_FUN_0012b214(&PTR_PTR_0011f960,DAT_00121830,0,0xffffffff);
+    AddGList(DAT_00121830,&PTR_PTR_0011f960,0,0xffffffff,0);
+    RefreshGList(&PTR_PTR_0011f960,DAT_00121830,0,0xffffffff);
   }
   return bVar1;
 }
@@ -13212,10 +13209,10 @@ undefined4 FUN_00115168(void)
   }
   thunk_FUN_0012b270(&PTR_PTR_0011f960,DAT_00121830,0);
 switchD_001151d8_default:
-  thunk_FUN_00129134(*(undefined4 *)(DAT_00121830 + 0x56));
-  while (iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_00121830 + 0x56)), iVar1 != 0) {
+  WaitPort(*(undefined4 *)(DAT_00121830 + 0x56));
+  while (iVar1 = GetMsg(*(undefined4 *)(DAT_00121830 + 0x56)), iVar1 != 0) {
     in_stack_fffffff0 = *(undefined4 **)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
+    ReplyMsg(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
   }
   switch(*(undefined2 *)((int)in_stack_fffffff0 + 0x26)) {
   case 0:
@@ -13240,9 +13237,9 @@ LAB_001151e4:
 
 
 
-/* ===== thunk_FUN_00129120 @ 00115224 (size 6) ===== */
+/* ===== ReplyMsg @ 00115224 (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -13251,9 +13248,9 @@ void thunk_FUN_00129120(void)
 
 
 
-/* ===== thunk_FUN_0012b214 @ 0011522a (size 6) ===== */
+/* ===== RefreshGList @ 0011522a (size 6) ===== */
 
-void thunk_FUN_0012b214(void)
+void RefreshGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
@@ -13262,9 +13259,9 @@ void thunk_FUN_0012b214(void)
 
 
 
-/* ===== thunk_FUN_0012b234 @ 00115230 (size 6) ===== */
+/* ===== AddGList @ 00115230 (size 6) ===== */
 
-void thunk_FUN_0012b234(void)
+void AddGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
@@ -13284,9 +13281,9 @@ void thunk_FUN_0012b06c(void)
 
 
 
-/* ===== thunk_FUN_00129134 @ 0011523c (size 6) ===== */
+/* ===== WaitPort @ 0011523c (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -13295,9 +13292,9 @@ void thunk_FUN_00129134(void)
 
 
 
-/* ===== thunk_FUN_0012910c @ 00115242 (size 6) ===== */
+/* ===== GetMsg @ 00115242 (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -13306,9 +13303,9 @@ void thunk_FUN_0012910c(void)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 00115248 (size 6) ===== */
+/* ===== DrawImage @ 00115248 (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -13664,8 +13661,8 @@ int FUN_0011754e(int param_1,undefined4 param_2)
   DAT_0012015c = param_1;
   DAT_00120160 = param_2;
   thunk_FUN_001290f4(DAT_0012013e,&DAT_00120146);
-  thunk_FUN_00129134(DAT_00120142);
-  thunk_FUN_0012910c(DAT_00120142);
+  WaitPort(DAT_00120142);
+  GetMsg(DAT_00120142);
   thunk_FUN_001291d0(DAT_00120168 + 0xe);
   if (DAT_0011d080 != 0) {
     *(byte *)(DAT_0011d080 + 0x11) = *(byte *)(DAT_0011d080 + 0x11) & 0xfb;
@@ -13697,7 +13694,7 @@ undefined4 thunk_FUN_00113062(void)
   undefined4 uVar1;
   char cVar2;
   
-  uVar1 = thunk_FUN_00101688(&DAT_0011f7ce);
+  uVar1 = strlen(&DAT_0011f7ce);
   serial_write(&DAT_0011f7cc,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -13730,9 +13727,9 @@ void thunk_FUN_0010568c(int param_1)
 
 
 
-/* ===== thunk_FUN_00129134 @ 001175e6 (size 6) ===== */
+/* ===== WaitPort @ 001175e6 (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -13748,7 +13745,7 @@ undefined4 thunk_FUN_0010e402(void)
 {
   undefined4 uVar1;
   
-  uVar1 = thunk_FUN_00101688(&DAT_0011ea96);
+  uVar1 = strlen(&DAT_0011ea96);
   serial_write(&DAT_0011ea94,uVar1,1,0x43);
   thunk_FUN_0010f18e();
   DAT_0011d070 = 5;
@@ -13769,9 +13766,9 @@ void thunk_FUN_0011a588(undefined4 param_1,undefined4 param_2)
 
 
 
-/* ===== thunk_FUN_0012910c @ 001175f8 (size 6) ===== */
+/* ===== GetMsg @ 001175f8 (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -13837,12 +13834,12 @@ undefined2 thunk_FUN_001180bc(undefined4 param_1)
   DAT_0011fd68 = param_1;
   thunk_FUN_001104d8(&DAT_0011fd5c,0xd0);
   FUN_00118000();
-  thunk_FUN_00129134(*(undefined4 *)(DAT_001230a0 + 0x56));
+  WaitPort(*(undefined4 *)(DAT_001230a0 + 0x56));
   while( true ) {
-    iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_001230a0 + 0x56));
+    iVar1 = GetMsg(*(undefined4 *)(DAT_001230a0 + 0x56));
     if (iVar1 == 0) break;
     in_stack_fffffff0 = *(int *)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
+    ReplyMsg(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
   }
   FUN_001180a6();
   return *(undefined2 *)(in_stack_fffffff0 + 0x26);
@@ -13858,7 +13855,7 @@ undefined4 thunk_FUN_0010e398(void)
   undefined4 uVar1;
   char cVar2;
   
-  uVar1 = thunk_FUN_00101688(&DAT_0011ea92);
+  uVar1 = strlen(&DAT_0011ea92);
   serial_write(&DAT_0011ea90,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -13949,7 +13946,7 @@ undefined4 thunk_FUN_0010c270(void)
   undefined4 uVar1;
   char cVar2;
   
-  uVar1 = thunk_FUN_00101688(&DAT_00121588);
+  uVar1 = strlen(&DAT_00121588);
   serial_write(&DAT_00121588,uVar1,1,0x43);
   cVar2 = serial_io_c(&DAT_0012021a);
   if (cVar2 == '@') {
@@ -14034,11 +14031,11 @@ bool FUN_00118000(void)
   DAT_001230a0 = thunk_FUN_0011a534(&DAT_0011fb40);
   bVar1 = DAT_001230a0 != 0;
   if (bVar1) {
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_001230a0 + 0x32),&DAT_0011fcfc,4,2);
+    DrawImage(*(undefined4 *)(DAT_001230a0 + 0x32),&DAT_0011fcfc,4,2);
     thunk_FUN_0012b168(*(undefined4 *)(DAT_001230a0 + 0x32),&DAT_0011fd5c,4,2);
     thunk_FUN_0012b06c(*(undefined4 *)(DAT_001230a0 + 0x32),&DAT_0011fd24,4,2);
-    thunk_FUN_0012b234(DAT_001230a0,&PTR_PTR_0011fcd0,0,0xffffffff,0);
-    thunk_FUN_0012b214(&PTR_PTR_0011fcd0,DAT_001230a0,0,0xffffffff);
+    AddGList(DAT_001230a0,&PTR_PTR_0011fcd0,0,0xffffffff,0);
+    RefreshGList(&PTR_PTR_0011fcd0,DAT_001230a0,0,0xffffffff);
   }
   return bVar1;
 }
@@ -14070,12 +14067,12 @@ undefined2 FUN_001180bc(undefined4 param_1)
   DAT_0011fd68 = param_1;
   thunk_FUN_001104d8(&DAT_0011fd5c,0xd0);
   FUN_00118000();
-  thunk_FUN_00129134(*(undefined4 *)(DAT_001230a0 + 0x56));
+  WaitPort(*(undefined4 *)(DAT_001230a0 + 0x56));
   while( true ) {
-    iVar1 = thunk_FUN_0012910c(*(undefined4 *)(DAT_001230a0 + 0x56));
+    iVar1 = GetMsg(*(undefined4 *)(DAT_001230a0 + 0x56));
     if (iVar1 == 0) break;
     in_stack_fffffff0 = *(int *)(iVar1 + 0x1c);
-    thunk_FUN_00129120(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
+    ReplyMsg(iVar1,in_stack_fffffff0,*(undefined4 *)(iVar1 + 0x14),iVar1);
   }
   FUN_001180a6();
   return *(undefined2 *)(in_stack_fffffff0 + 0x26);
@@ -14083,9 +14080,9 @@ undefined2 FUN_001180bc(undefined4 param_1)
 
 
 
-/* ===== thunk_FUN_00129120 @ 00118124 (size 6) ===== */
+/* ===== ReplyMsg @ 00118124 (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -14094,9 +14091,9 @@ void thunk_FUN_00129120(void)
 
 
 
-/* ===== thunk_FUN_0012b214 @ 0011812a (size 6) ===== */
+/* ===== RefreshGList @ 0011812a (size 6) ===== */
 
-void thunk_FUN_0012b214(void)
+void RefreshGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
@@ -14105,9 +14102,9 @@ void thunk_FUN_0012b214(void)
 
 
 
-/* ===== thunk_FUN_0012b234 @ 00118130 (size 6) ===== */
+/* ===== AddGList @ 00118130 (size 6) ===== */
 
-void thunk_FUN_0012b234(void)
+void AddGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
@@ -14127,9 +14124,9 @@ void thunk_FUN_0012b06c(void)
 
 
 
-/* ===== thunk_FUN_00129134 @ 0011813c (size 6) ===== */
+/* ===== WaitPort @ 0011813c (size 6) ===== */
 
-void thunk_FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -14138,9 +14135,9 @@ void thunk_FUN_00129134(void)
 
 
 
-/* ===== thunk_FUN_0012910c @ 00118142 (size 6) ===== */
+/* ===== GetMsg @ 00118142 (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -14149,9 +14146,9 @@ void thunk_FUN_0012910c(void)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 00118148 (size 6) ===== */
+/* ===== DrawImage @ 00118148 (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -14226,7 +14223,7 @@ void FUN_00119000(void)
   DAT_0011fda2 = DAT_001200f8;
   DAT_0011fd70 = thunk_FUN_0011a534(&DAT_0011fd84);
   if (DAT_0011fd70 != 0) {
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_0011fd70 + 0x32),&DAT_0011fdb4,0,0);
+    DrawImage(*(undefined4 *)(DAT_0011fd70 + 0x32),&DAT_0011fdb4,0,0);
     thunk_FUN_0012b168(*(undefined4 *)(DAT_0011fd70 + 0x32),&DAT_0011fe02,0,0);
     thunk_FUN_0011a636(DAT_0011fd70,DAT_00120100);
     thunk_FUN_0012b0a4(DAT_0011fd70,0x120);
@@ -14304,9 +14301,8 @@ void FUN_001190e8(int param_1)
         return;
       }
     }
-    thunk_FUN_0012b088(*(undefined4 *)(DAT_0011fd70 + 0x32),&DAT_0011fdc8,8,0x26);
-    thunk_FUN_0010060e(auStack_2c,s__s__02lx_0011fea4,&DAT_0011fea0,*(undefined4 *)(param_1 + 0x18))
-    ;
+    DrawImage(*(undefined4 *)(DAT_0011fd70 + 0x32),&DAT_0011fdc8,8,0x26);
+    sprintf(auStack_2c,s__s__02lx_0011fea4,&DAT_0011fea0,*(undefined4 *)(param_1 + 0x18));
     DAT_0011fe22 = auStack_2c;
     DAT_0011fe16 = 6;
     thunk_FUN_0012b168(*(undefined4 *)(DAT_0011fd70 + 0x32),&DAT_0011fe16,0x58,(int)local_32);
@@ -14466,12 +14462,12 @@ void FUN_00119506(void)
   ushort uVar3;
   int iVar4;
   
-  iVar4 = thunk_FUN_0012910c(DAT_00120100);
+  iVar4 = GetMsg(DAT_00120100);
   if (iVar4 != 0) {
     iVar1 = *(int *)(iVar4 + 0x14);
     sVar2 = *(short *)(iVar4 + 0x18);
     uVar3 = *(ushort *)(iVar4 + 0x1a);
-    thunk_FUN_00129120(iVar4);
+    ReplyMsg(iVar4);
     if (((iVar1 == 0x400) && (sVar2 == 0x5f)) && ((uVar3 & 0x40) != 0)) {
       thunk_FUN_00101638(&DAT_00120170,1);
     }
@@ -14497,12 +14493,12 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
   *(undefined1 *)(g_write_req + 0x2c) = param_4;
   *(undefined1 *)(g_write_req + 0x2d) = param_3;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar2 = DAT_00120104 | DAT_001230c2 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -14511,11 +14507,11 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230b0), iVar4 == 0));
+  } while (((DAT_001230c2 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230b0), iVar4 == 0));
   cVar1 = *(char *)(g_write_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011feba);
+      show_status_message(0x42,s_Carrier_lost_0011feba);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -14523,7 +14519,7 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fec8);
+  show_status_message(0x42,s_Comms_problem_0011fec8);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -14546,12 +14542,12 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined4 *)(g_read_req + 0x24) = param_2;
   *(undefined2 *)(g_read_req + 0x1c) = 2;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -14560,14 +14556,14 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   *param_4 = *(undefined1 *)(g_read_req + 0x2c);
   *param_3 = *(undefined1 *)(g_read_req + 0x2d);
   *param_5 = *(undefined4 *)(g_read_req + 0x20);
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fed6);
+      show_status_message(0x42,s_Carrier_lost_0011fed6);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 1;
     }
@@ -14575,7 +14571,7 @@ serial_read(undefined4 param_1,undefined4 param_2,undefined1 *param_3,undefined1
       return 1;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011fee4);
+  show_status_message(0x42,s_Comms_problem_0011fee4);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 1;
 }
@@ -14595,12 +14591,12 @@ undefined4 serial_io_c(undefined4 param_1)
   
   *(undefined4 *)(g_read_req + 0x28) = param_1;
   *(undefined2 *)(g_read_req + 0x1c) = 0xb;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar2 = DAT_00120104 | DAT_001230c6 | DAT_001230be;
   do {
-    uVar3 = thunk_FUN_00129090(uVar2);
+    uVar3 = Wait(uVar2);
     if ((DAT_001230be & uVar3) != 0) {
-      iVar4 = thunk_FUN_0012910c(g_device_port);
+      iVar4 = GetMsg(g_device_port);
       if (DAT_0011fd74 != 0) {
         FUN_001190e8(iVar4);
       }
@@ -14609,18 +14605,18 @@ undefined4 serial_io_c(undefined4 param_1)
     if ((DAT_00120104 & uVar3) != 0) {
       FUN_00119506();
     }
-  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = thunk_FUN_0012910c(DAT_001230ac), iVar4 == 0));
+  } while (((DAT_001230c6 & uVar3) == 0) || (iVar4 = GetMsg(DAT_001230ac), iVar4 == 0));
   cVar1 = *(char *)(g_read_req + 0x1f);
   if (cVar1 != '\a') {
     if (cVar1 == '\t') {
-      thunk_FUN_00115000(0x42,s_Carrier_lost_0011fef2);
+      show_status_message(0x42,s_Carrier_lost_0011fef2);
       thunk_FUN_00101638(&DAT_00120170,9);
       return 0x40;
     }
     if (cVar1 == '\0') {
       cVar1 = *(char *)(g_read_req + 0x2c);
       if (cVar1 == 'B') {
-        thunk_FUN_00115000(0x42,param_1);
+        show_status_message(0x42,param_1);
         thunk_FUN_00101638(&DAT_00120170,0x42);
         return 0x40;
       }
@@ -14630,11 +14626,11 @@ undefined4 serial_io_c(undefined4 param_1)
         }
         return 0x40;
       }
-      thunk_FUN_00115000(0x41,param_1);
+      show_status_message(0x41,param_1);
       return 0x41;
     }
   }
-  thunk_FUN_00115000(0x42,s_Comms_problem_0011ff00);
+  show_status_message(0x42,s_Comms_problem_0011ff00);
   thunk_FUN_00101638(&DAT_00120170,7);
   return 0x40;
 }
@@ -14653,16 +14649,16 @@ void FUN_001198e0(undefined4 param_1,undefined4 param_2)
   *(undefined4 *)(g_write_req + 0x28) = param_1;
   *(undefined4 *)(g_write_req + 0x24) = param_2;
   *(undefined2 *)(g_write_req + 0x1c) = 3;
-  thunk_FUN_001291a4(g_write_req);
+  SendIO(g_write_req);
   uVar1 = DAT_00120104 | DAT_001230c2;
   do {
     do {
-      uVar2 = thunk_FUN_00129090(uVar1);
+      uVar2 = Wait(uVar1);
       if ((DAT_00120104 & uVar2) != 0) {
         FUN_00119506();
       }
     } while ((DAT_001230c2 & uVar2) == 0);
-    iVar3 = thunk_FUN_0012910c(DAT_001230b0);
+    iVar3 = GetMsg(DAT_001230b0);
   } while (iVar3 == 0);
   return;
 }
@@ -14696,19 +14692,19 @@ void FUN_0011998a(undefined4 param_1,ushort param_2)
   iVar3 = g_read_req;
   *(uint *)(g_read_req + 0x24) = (uint)param_2;
   *(undefined2 *)(iVar3 + 0x1c) = 2;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar1 = DAT_00120104 | DAT_001230c6;
   do {
     do {
-      uVar2 = thunk_FUN_00129090(uVar1);
+      uVar2 = Wait(uVar1);
       if ((DAT_00120104 & uVar2) != 0) {
         FUN_00119506();
       }
     } while ((DAT_001230c6 & uVar2) == 0);
-    iVar3 = thunk_FUN_0012910c(DAT_001230ac);
+    iVar3 = GetMsg(DAT_001230ac);
   } while (iVar3 == 0);
   if (*(char *)(g_read_req + 0x1f) == '\t') {
-    thunk_FUN_00115000(0x42,s_Carrier_lost_0011ff0e);
+    show_status_message(0x42,s_Carrier_lost_0011ff0e);
     thunk_FUN_00101638(&DAT_00120170,9);
   }
   return;
@@ -14737,16 +14733,16 @@ undefined4 FUN_00119a60(void)
   int iVar3;
   
   *(undefined2 *)(g_read_req + 0x1c) = 0xe;
-  thunk_FUN_001291a4(g_read_req);
+  SendIO(g_read_req);
   uVar1 = DAT_00120104 | DAT_001230c6;
   do {
     do {
-      uVar2 = thunk_FUN_00129090(uVar1);
+      uVar2 = Wait(uVar1);
       if ((DAT_00120104 & uVar2) != 0) {
         FUN_00119506();
       }
     } while ((DAT_001230c6 & uVar2) == 0);
-    iVar3 = thunk_FUN_0012910c(DAT_001230ac);
+    iVar3 = GetMsg(DAT_001230ac);
   } while (iVar3 == 0);
   return *(undefined4 *)(g_read_req + 0x20);
 }
@@ -14758,30 +14754,30 @@ undefined4 FUN_00119a60(void)
 void thunk_FUN_001020ae(void)
 
 {
-  thunk_FUN_0012b1b0(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+  SetPointer(DAT_001200fc,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   if (DAT_0011d078 != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d078,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011d07c != (undefined4 *)0x0) {
-    thunk_FUN_0012b1b0(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(*DAT_0011d07c,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121650 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121650,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_00121698 != 0) {
-    thunk_FUN_0012b1b0(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_00121698,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   if (DAT_0011fd70 != 0) {
-    thunk_FUN_0012b1b0(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
+    SetPointer(DAT_0011fd70,PTR_DAT_0011d068,0xb,0xb,0xfffffffb,0);
   }
   return;
 }
 
 
 
-/* ===== thunk_FUN_00129120 @ 00119aca (size 6) ===== */
+/* ===== ReplyMsg @ 00119aca (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -14801,9 +14797,9 @@ void thunk_FUN_00129190(void)
 
 
 
-/* ===== thunk_FUN_00115000 @ 00119ad6 (size 6) ===== */
+/* ===== show_status_message @ 00119ad6 (size 6) ===== */
 
-void thunk_FUN_00115000(char param_1)
+void show_status_message(char param_1)
 
 {
   short sVar1;
@@ -14853,9 +14849,9 @@ void thunk_FUN_0011a588(undefined4 param_1,undefined4 param_2)
 
 
 
-/* ===== thunk_FUN_0012910c @ 00119ae8 (size 6) ===== */
+/* ===== GetMsg @ 00119ae8 (size 6) ===== */
 
-void thunk_FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -14912,9 +14908,9 @@ int thunk_FUN_0011a80e(undefined4 param_1,undefined4 param_2)
 
 
 
-/* ===== thunk_FUN_0012b088 @ 00119b00 (size 6) ===== */
+/* ===== DrawImage @ 00119b00 (size 6) ===== */
 
-void thunk_FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -14977,9 +14973,9 @@ void thunk_FUN_0011a848(undefined4 param_1)
 
 
 
-/* ===== thunk_FUN_0010060e @ 00119b1e (size 6) ===== */
+/* ===== sprintf @ 00119b1e (size 6) ===== */
 
-undefined4 thunk_FUN_0010060e(undefined1 *param_1,undefined4 param_2)
+undefined4 sprintf(undefined1 *param_1,undefined4 param_2)
 
 {
   DAT_001231a0 = 0;
@@ -15011,9 +15007,9 @@ char thunk_FUN_0011a0b0(void)
 
 
 
-/* ===== thunk_FUN_001291a4 @ 00119b2a (size 6) ===== */
+/* ===== SendIO @ 00119b2a (size 6) ===== */
 
-void thunk_FUN_001291a4(void)
+void SendIO(void)
 
 {
   (**(code **)(SysBase + -0x1ce))();    /* = SysBase.SendIO() */
@@ -15059,9 +15055,9 @@ int thunk_FUN_0011a75c(undefined4 param_1,char param_2)
 
 
 
-/* ===== thunk_FUN_00129090 @ 00119b3c (size 6) ===== */
+/* ===== Wait @ 00119b3c (size 6) ===== */
 
-void thunk_FUN_00129090(void)
+void Wait(void)
 
 {
   (**(code **)(SysBase + -0x13e))();    /* = SysBase.Wait() */
@@ -15272,7 +15268,7 @@ void FUN_0011a16c(undefined4 param_1,undefined4 param_2,undefined4 param_3)
 {
   int iVar1;
   
-  iVar1 = thunk_FUN_00129020(0x1a,0);
+  iVar1 = AllocMem(0x1a,0);
   if (iVar1 != 0) {
     FUN_0011a132(iVar1,param_1,param_2,param_3,iVar1);
   }
@@ -15312,7 +15308,7 @@ int FUN_0011a1ee(int param_1,undefined4 param_2)
 {
   int iVar1;
   
-  iVar1 = thunk_FUN_00129020(param_1 + 0x20,param_2);
+  iVar1 = AllocMem(param_1 + 0x20,param_2);
   if (iVar1 == 0) {
     iVar1 = 0;
   }
@@ -15618,7 +15614,7 @@ void FUN_0011a5d0(int param_1)
   while (local_8 = piVar1, piVar1 = (int *)*local_8, piVar1 != (int *)0x0) {
     if (local_8[0xb] == param_1) {
       thunk_FUN_00129068(local_8);
-      thunk_FUN_00129120(local_8);
+      ReplyMsg(local_8);
     }
   }
   *(undefined4 *)(param_1 + 0x56) = 0;
@@ -15863,7 +15859,7 @@ int thunk_FUN_00125000(int param_1,undefined1 param_2)
     iVar1 = 0;
   }
   else {
-    iVar1 = FUN_00129020(0x22,0x10001);
+    iVar1 = AllocMem(0x22,0x10001);
     if (iVar1 == 0) {
       FUN_001290b8((uint)bVar3);
       iVar1 = 0;
@@ -15889,9 +15885,9 @@ int thunk_FUN_00125000(int param_1,undefined1 param_2)
 
 
 
-/* ===== thunk_FUN_00129120 @ 0011a8c8 (size 6) ===== */
+/* ===== ReplyMsg @ 0011a8c8 (size 6) ===== */
 
-void thunk_FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -15973,7 +15969,7 @@ int thunk_FUN_00127000(int param_1,undefined4 param_2)
 {
   int iVar1;
   
-  if ((param_1 == 0) || (iVar1 = FUN_00129020(param_2,0x10001), iVar1 == 0)) {
+  if ((param_1 == 0) || (iVar1 = AllocMem(param_2,0x10001), iVar1 == 0)) {
     iVar1 = 0;
   }
   else {
@@ -16266,9 +16262,9 @@ void thunk_FUN_0012b0a4(void)
 
 
 
-/* ===== thunk_FUN_00129020 @ 0011a982 (size 6) ===== */
+/* ===== AllocMem @ 0011a982 (size 6) ===== */
 
-void thunk_FUN_00129020(void)
+void AllocMem(void)
 
 {
   (**(code **)(SysBase + -0xc6))();    /* = SysBase.AllocMem() */
@@ -16611,7 +16607,7 @@ int thunk_FUN_0011a1ee(int param_1,undefined4 param_2)
 {
   int iVar1;
   
-  iVar1 = thunk_FUN_00129020(param_1 + 0x20,param_2);
+  iVar1 = AllocMem(param_1 + 0x20,param_2);
   if (iVar1 == 0) {
     iVar1 = 0;
   }
@@ -16752,7 +16748,7 @@ int FUN_00125000(int param_1,undefined1 param_2)
     iVar1 = 0;
   }
   else {
-    iVar1 = FUN_00129020(0x22,0x10001);
+    iVar1 = AllocMem(0x22,0x10001);
     if (iVar1 == 0) {
       FUN_001290b8((uint)bVar3);
       iVar1 = 0;
@@ -16824,7 +16820,7 @@ int FUN_00127000(int param_1,undefined4 param_2)
 {
   int iVar1;
   
-  if ((param_1 == 0) || (iVar1 = FUN_00129020(param_2,0x10001), iVar1 == 0)) {
+  if ((param_1 == 0) || (iVar1 = AllocMem(param_2,0x10001), iVar1 == 0)) {
     iVar1 = 0;
   }
   else {
@@ -17023,9 +17019,9 @@ void FUN_00129010(void)
 
 
 
-/* ===== FUN_00129020 @ 00129020 (size 22) ===== */
+/* ===== AllocMem @ 00129020 (size 22) ===== */
 
-void FUN_00129020(void)
+void AllocMem(void)
 
 {
   (**(code **)(SysBase + -0xc6))();    /* = SysBase.AllocMem() */
@@ -17078,9 +17074,9 @@ void FUN_0012907c(void)
 
 
 
-/* ===== FUN_00129090 @ 00129090 (size 20) ===== */
+/* ===== Wait @ 00129090 (size 20) ===== */
 
-void FUN_00129090(void)
+void Wait(void)
 
 {
   (**(code **)(SysBase + -0x13e))();    /* = SysBase.Wait() */
@@ -17144,9 +17140,9 @@ void FUN_001290f4(void)
 
 
 
-/* ===== FUN_0012910c @ 0012910c (size 20) ===== */
+/* ===== GetMsg @ 0012910c (size 20) ===== */
 
-void FUN_0012910c(void)
+void GetMsg(void)
 
 {
   (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
@@ -17155,9 +17151,9 @@ void FUN_0012910c(void)
 
 
 
-/* ===== FUN_00129120 @ 00129120 (size 20) ===== */
+/* ===== ReplyMsg @ 00129120 (size 20) ===== */
 
-void FUN_00129120(void)
+void ReplyMsg(void)
 
 {
   (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
@@ -17166,9 +17162,9 @@ void FUN_00129120(void)
 
 
 
-/* ===== FUN_00129134 @ 00129134 (size 20) ===== */
+/* ===== WaitPort @ 00129134 (size 20) ===== */
 
-void FUN_00129134(void)
+void WaitPort(void)
 
 {
   (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
@@ -17221,9 +17217,9 @@ void FUN_00129190(void)
 
 
 
-/* ===== FUN_001291a4 @ 001291a4 (size 20) ===== */
+/* ===== SendIO @ 001291a4 (size 20) ===== */
 
-void FUN_001291a4(void)
+void SendIO(void)
 
 {
   (**(code **)(SysBase + -0x1ce))();    /* = SysBase.SendIO() */
@@ -17452,9 +17448,9 @@ void FUN_0012b06c(void)
 
 
 
-/* ===== FUN_0012b088 @ 0012b088 (size 28) ===== */
+/* ===== DrawImage @ 0012b088 (size 28) ===== */
 
-void FUN_0012b088(void)
+void DrawImage(void)
 
 {
   (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
@@ -17584,9 +17580,9 @@ void FUN_0012b198(void)
 
 
 
-/* ===== FUN_0012b1b0 @ 0012b1b0 (size 32) ===== */
+/* ===== SetPointer @ 0012b1b0 (size 32) ===== */
 
-void FUN_0012b1b0(void)
+void SetPointer(void)
 
 {
   (**(code **)(IntuitionBase + -0x10e))();    /* = IntuitionBase.SetPointer() */
@@ -17628,9 +17624,9 @@ void FUN_0012b200(void)
 
 
 
-/* ===== FUN_0012b214 @ 0012b214 (size 30) ===== */
+/* ===== RefreshGList @ 0012b214 (size 30) ===== */
 
-void FUN_0012b214(void)
+void RefreshGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
@@ -17639,9 +17635,9 @@ void FUN_0012b214(void)
 
 
 
-/* ===== FUN_0012b234 @ 0012b234 (size 32) ===== */
+/* ===== AddGList @ 0012b234 (size 32) ===== */
 
-void FUN_0012b234(void)
+void AddGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
@@ -17650,9 +17646,9 @@ void FUN_0012b234(void)
 
 
 
-/* ===== FUN_0012b254 @ 0012b254 (size 26) ===== */
+/* ===== RemoveGList @ 0012b254 (size 26) ===== */
 
-void FUN_0012b254(void)
+void RemoveGList(void)
 
 {
   (**(code **)(IntuitionBase + -0x1bc))();    /* = IntuitionBase.RemoveGList() */

@@ -91,6 +91,28 @@ unchanged — the same seam as the C64 SwiftLink↔TCP swap.
   Needs interactive tracing of the frame-receive → display path (the `CnetTty`
   viewer, still packed, may also be the character-stream renderer).
 
+## Runtime / library helpers (named — high call-frequency)
+
+Common helpers, named from their code + call sites. Naming these clarifies most of
+the client (each is called dozens of times):
+
+| Address | Name | Evidence |
+|---------|------|----------|
+| `0x101688` | `strlen` | walk-to-NUL, returns length; result used as send length |
+| `0x10060e` | `sprintf` | dest+fmt+args; callers pass `"Dialling %s"`, `"P%02d"`, `"L %6s"` |
+| `0x115000` | `show_status_message` | code+string → status-line display dispatcher |
+
+**amiga.lib-style OS-call stubs** (each wraps one LVO; named after the call):
+`0x12910c` GetMsg, `0x129134` WaitPort, `0x1291a4` SendIO, `0x129120` ReplyMsg,
+`0x129090` Wait, `0x129020` AllocMem, `0x12b234` AddGList, `0x12b088` DrawImage,
+`0x12b1b0` SetPointer, `0x12b214` RefreshGList, `0x12b254` RemoveGList.
+
+## Frame display (named — see petscii-frame-format.md)
+
+`0x10800c` read_frame_byte, `0x108086` frame_rle_getchar, `0x1054f8` render_char,
+`0x106000` build_font, `0x107000` blit_char_cell; globals `g_font_base`,
+`c64_charset_upper`, `c64_charset_lower`.
+
 ## Connect / login (traced by disassembly — see login-connect-flow.md)
 
 | Address | Proposed name | Role |
