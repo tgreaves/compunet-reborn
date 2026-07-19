@@ -112,7 +112,10 @@ cnet.device. Login packet uses token `0x43` (COM).
 
 ## Still to identify
 
-- **PETSCII translation** — confirm the mechanism (table / custom font / none).
+- **PETSCII — ANSWERED (see petscii-frame-format.md):** the Amiga uses NO PETSCII.
+  Frames are ASCII + `0x1b`+letter ESC codes + block-graphic bytes (its own format).
+  No translation table in client or cnet.device. Still to pin: the ESC-code
+  interpreter function and the meaning of each ESC letter.
 - The frame/directory parser and X.25 framing/CRC (protocol match vs PROTOCOL.md).
 - Wire up the indirectly-referenced thunks (jump table / function pointers) so the
   `Text()` caller and similar become visible.

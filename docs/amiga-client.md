@@ -201,8 +201,17 @@ Three focus areas drive the current work:
    replaced with TCP/IP so the Amiga client talks to the Reborn server. Identifying
    every point where the client touches the transport (device open, IO send/receive,
    dial/connect, carrier/hangup) is essential groundwork.
-3. **PETSCII handling — how does the Amiga cope?** C64 Compunet content is PETSCII,
-   but the Amiga has no native PETSCII support. **Open question:** does the `Compunet`
+3. **PETSCII handling — ANSWERED: the Amiga does not use PETSCII.** Amiga Compunet
+   frames use their own **ESC-sequence markup** (plain ASCII text + `0x1b`+letter
+   control codes + block-graphic bytes), not PETSCII. No PETSCII translation table
+   exists in the client or `cnet.device`. The original service served
+   format-appropriate frames per client platform. **Implication:** a Reborn Amiga
+   client needs Amiga-format (ESC-code) frames — either the server emits them per
+   client type (like the existing C64-vs-terminal split) or a PETSCII→ESC translation
+   layer is added. See
+   [re/petscii-frame-format.md](../client/amiga/vintage/tools/re/petscii-frame-format.md).
+
+   *(original question, for reference)* does the `Compunet`
    client translate PETSCII ↔ its own display charset (a lookup table or conversion
    routine), render a custom C64-style font, or handle frames some other way? This
    directly affects how Reborn frames (authored as PETSCII) will render on the Amiga.
