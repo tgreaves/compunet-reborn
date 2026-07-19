@@ -97,6 +97,18 @@ ROM protocol engine (`$96C0-$9BFF`) does framing and only the hardware layer
 (`$94E4/$94F0/$94FA`) is swappable. See [docs/PROTOCOL.md](PROTOCOL.md) and
 [docs/MODEM.md](MODEM.md).
 
+> **Correction (later finding — see
+> [re/protocol-analysis.md](../client/amiga/vintage/tools/re/protocol-analysis.md)):**
+> `cnet.device` is **not** a pure passthrough. It contains the canonical CRC-CCITT
+> table (poly `0x1021`) at file offset `0x333c`, byte-identical to the server/C64
+> CRC. So the framing/CRC is (at least partly) **in the device**, not the client.
+> The initial disassembly saw the serial-wrapper skeleton but missed the framing
+> layer. The transport-swap seam for Reborn is therefore likely **at the
+> `cnet.device` level** (a drop-in TCP device that does the same framing), which
+> keeps the `Compunet` client unmodified. The client-side `serial_read`/`serial_write`
+> routines pass a token (`0x22`=DAT, `0x43`=COM, matching PROTOCOL.md) + data buffer
+> to the device.
+
 The abstraction boundary is clean and named: the client does
 `OpenDevice("cnet.device")`, and everything below is bytes over a serial link. That
 is the same seam Reborn already exploits on the C64 (SwiftLink/ACIA ↔ tcpser ↔ TCP).
