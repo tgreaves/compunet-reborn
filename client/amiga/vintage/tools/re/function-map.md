@@ -41,6 +41,31 @@ Device I/O runs through amiga.lib-style thunks on ExecBase:
 (currently UNRESOLVED in the automated pass — need per-function dataflow). The
 docs cite the device-open helper near `0x1192b6`.
 
+### Transport globals (confirmed — named in `lvo.KNOWN_GLOBALS`)
+
+Two serial IORequests + a shared reply port. IORequest offsets confirm the struct:
+`0x1c` io_Command, `0x24` io_Length, `0x28` io_Data, `0x20` io_Actual,
+`0x1f/0x2c/0x2d` IOExtSer status.
+
+| Global | Name | Role |
+|--------|------|------|
+| `DAT_001230b4` | `g_write_req` | write IORequest (io_Command=3 CMD_WRITE) |
+| `DAT_001230b8` | `g_read_req`  | read IORequest (io_Command=2 CMD_READ / 0xb) |
+| `DAT_001230a8` | `g_device_port` | shared reply MsgPort (GetMsg/WaitPort) |
+
+### Serial read/write routines (confirmed)
+
+| Address | Proposed name | Evidence |
+|---------|---------------|----------|
+| `FUN_0011956a` | `serial_write` | sets `g_write_req` io_Command=3, SendIO, waits; "Carrier lost"/"Comms problem" on failure |
+| `FUN_0011967c` | `serial_read`  | sets `g_read_req` io_Command=2, SendIO, waits; carrier-loss detection |
+| `FUN_0011979e` | `serial_io_c`  | third carrier-aware IO routine (variant — confirm) |
+
+These three routines + the two IORequests + reply port are the **complete transport
+surface**. A TCP transport replaces exactly this: instead of `SendIO/DoIO` on
+`cnet.device`, read/write a socket. Everything above (framing, frames, login) is
+unchanged — the same seam as the C64 SwiftLink↔TCP swap.
+
 ## OpenLibrary wrapper chain (confirmed)
 
 `FUN_0011a290` → `FUN_001291b8` → `(**(ExecBase -0x228))()` = **OpenLibrary**.

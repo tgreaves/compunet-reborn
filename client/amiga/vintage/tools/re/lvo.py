@@ -43,6 +43,15 @@ KNOWN_GLOBALS = {
     'DAT_001200d8':  'DOSBase',        # dos.library
     'DAT_001200e8':  'IntuitionBase',  # intuition.library
     'DAT_001200ec':  'GfxBase',        # graphics.library
+
+    # --- Transport (cnet.device) IO — the seam TCP will replace (goal 2) ---
+    # Two IORequests + shared reply port. Structure offsets confirm serial IO:
+    #   0x1c io_Command (2=CMD_READ, 3=CMD_WRITE, 0xb=devspec, 10=setparams)
+    #   0x24 io_Length  0x28 io_Data  0x20 io_Actual
+    #   0x1f/0x2c/0x2d IOExtSer status bytes
+    'DAT_001230b4':  'g_write_req',    # write IORequest (CMD_WRITE=3), DoIO/SendIO target
+    'DAT_001230b8':  'g_read_req',     # read IORequest (CMD_READ=2 / 0xb)
+    'DAT_001230a8':  'g_device_port',  # shared reply MsgPort (GetMsg/WaitPort)
 }
 
 # Friendly library-base name for annotations
