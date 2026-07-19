@@ -1,0 +1,34 @@
+{
+  "_comment": "Confirmed symbol names for the Compunet Amiga client, applied to the Ghidra DB by ApplySymbols.java before decompilation so recon.c reads with real names. Addresses are flat-image addresses (base 0x100000). Evidence for each is in function-map.md / login-connect-flow.md / lvo-notes.md. Extend as more are confirmed.",
+  "functions": {
+    "0x100000": "start",
+    "0x1001c4": "open_dos_library",
+    "0x102000": "load_config",
+    "0x112000": "save_config",
+    "0x1023ec": "set_connection_state",
+    "0x1025de": "launch_editor",
+    "0x1026ae": "launch_tty",
+    "0x10343c": "do_connect",
+    "0x1192b6": "open_transport",
+    "0x10a1e2": "goto_page",
+    "0x10b000": "file_download",
+    "0x10b730": "download_check",
+    "0x10c000": "upload",
+    "0x10e0fc": "validate_login",
+    "0x11956a": "serial_write",
+    "0x11967c": "serial_read",
+    "0x11979e": "serial_io_c",
+    "0x108254": "send_dat_packet",
+    "0x11a290": "open_library_checked",
+    "0x1291b8": "OpenLibrary_thunk"
+  },
+  "globals": {
+    "0x11d040": "SysBase",
+    "0x1200d8": "DOSBase",
+    "0x1200e8": "IntuitionBase",
+    "0x1200ec": "GfxBase",
+    "0x1230b4": "g_write_req",
+    "0x1230b8": "g_read_req",
+    "0x1230a8": "g_device_port"
+  }
+}

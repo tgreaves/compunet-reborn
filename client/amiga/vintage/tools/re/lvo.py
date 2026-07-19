@@ -24,13 +24,20 @@ import re
 
 FD_DIR = os.path.join(os.path.dirname(__file__), 'fd1.3')
 
-# recon global (as it appears in recon.c) -> fd file basename (library)
+# recon base expression (as it appears in recon.c) -> fd file basename (library).
+# Includes both the raw Ghidra DAT_ names and the baked-in symbol names from
+# symbols.json (once ApplySymbols has run, calls read `IntuitionBase + -0xNN`).
 BASE_TO_LIB = {
     '_DAT_00000004': 'exec_lib',
     'DAT_0011d040':  'exec_lib',
     'DAT_001200d8':  'dos_lib',
     'DAT_001200e8':  'intuition_lib',
     'DAT_001200ec':  'graphics_lib',
+    # baked-in names (post ApplySymbols)
+    'SysBase':       'exec_lib',
+    'DOSBase':       'dos_lib',
+    'IntuitionBase': 'intuition_lib',
+    'GfxBase':       'graphics_lib',
 }
 
 # Known global variables → readable names. Currently the confirmed library-base

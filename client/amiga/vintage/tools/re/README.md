@@ -20,18 +20,28 @@ small-data model, a5 stack frames, fully stripped (no symbols). See
    ```
    → `compunet_flat.bin` + `compunet_flat.map` (hunk→address, entry, sizes).
 
-2. **Ghidra headless** — import the flat image as raw `68000:BE:32`, seed each
-   CODE-hunk start, set `A4=0x11d000` (the small-data base) so a4-relative globals
-   and strings resolve, auto-analyse, then decompile every function:
+2. **Ghidra headless** — import the flat image as raw `68000:BE:32`, seed code,
+   set `A4=0x11d000` (the small-data base), auto-analyse, apply confirmed symbol
+   names, then decompile every function:
 
    ```
-   analyzeHeadless <proj> compunet -import compunet_flat.bin \
+   RECON_OUT=<out> RECON_SRC=$(pwd) analyzeHeadless <proj> compunet \
+     -import compunet_flat.bin \
      -processor 68000:BE:32:default -loader BinaryLoader -loader-baseAddr 0x100000 \
-     -scriptPath ghidra_scripts -preScript SeedCode.java -postScript ExportRecon.java
+     -scriptPath ghidra_scripts -preScript SeedCode.java \
+     -postScript ApplySymbols.java -postScript ExportRecon.java
    ```
-   `ghidra_scripts/SeedCode.java` seeds + sets A4; `ghidra_scripts/ExportRecon.java`
-   writes `recon.c` (decompiled C for all functions) and `recon_functions.txt`
-   (per-function address/size/callcount/strings).
+   Requires `JAVA_HOME=/opt/homebrew/opt/openjdk@21` (Ghidra 12.1.2 needs JDK 21).
+
+   - `SeedCode.java` — sets A4; seeds hunk starts; scans CODE ranges for `link.w`
+     prologues; then iteratively seeds `jsr`/`bsr`/`jmp` call targets until the
+     function set is stable. Recovers functions reached only via indirect calls
+     (e.g. `do_connect` @0x10343c) that the original hunk-start-only seeding missed
+     — **444 → 781 functions**, 0 decompile failures.
+   - `ApplySymbols.java` — applies confirmed names from `symbols.json` (functions +
+     globals) to the DB so `recon.c` decompiles with real identifiers (`do_connect`,
+     `serial_write`, `SysBase`, `g_write_req`, …).
+   - `ExportRecon.java` — writes `recon.c` and `recon_functions.txt`.
 
 3. **`a4xref.py`** — capstone scan of the CODE hunks for a4-relative operands,
    resolved against the small-data string table. Fills the gap where Ghidra did
@@ -40,9 +50,12 @@ small-data model, a5 stack frames, fully stripped (no symbols). See
 
 ## Current outputs (checked in)
 
-- `recon.c` — decompiled C, all 444 functions. 0 decompile failures, 0 unrecovered
-  control flow. Canonical Ghidra output — never hand-edited.
+- `recon.c` — decompiled C, all 781 functions, with confirmed names baked in
+  (`symbols.json`). 0 decompile failures. Canonical Ghidra output — never hand-edited;
+  regenerate via the pipeline. New names go in `symbols.json`, not this file.
 - `recon_functions.txt` — function index.
+- `symbols.json` — confirmed address→name map (functions + globals), applied by
+  ApplySymbols. **This is where naming knowledge lives.**
 - `compunet_flat.map` — hunk layout of the flat image.
 
 ## LVO naming (OS-call readability)
