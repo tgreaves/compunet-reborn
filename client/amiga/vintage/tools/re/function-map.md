@@ -91,6 +91,23 @@ unchanged — the same seam as the C64 SwiftLink↔TCP swap.
   Needs interactive tracing of the frame-receive → display path (the `CnetTty`
   viewer, still packed, may also be the character-stream renderer).
 
+## Connect / login (traced by disassembly — see login-connect-flow.md)
+
+| Address | Proposed name | Role |
+|---------|---------------|------|
+| `0x10343c` | `do_connect` | open transport → dispatch status → open logon window |
+| `0x1192b6` | `open_transport` | create ports + IORequests, signal masks; returns status |
+| `0x10e0fc` | `validate_login` | "*** No Such User ***" (server login rejection) |
+
+`open_transport` status codes: 0=ok, 10=Modem error, 1=modem msg, else=can't open
+cnet.device. Login packet uses token `0x43` (COM).
+
+> **Pipeline gap found:** `SeedCode.java` seeds only hunk *starts*, so functions
+> reached solely via indirect/computed calls (e.g. `do_connect` @0x10343c,
+> `open_transport` @0x1192b6) were never created in `recon.c`. A future SeedCode
+> improvement: also seed the targets of `jsr`/`jmp abs` and pointer tables so these
+> appear in the decompiled output. For now they are disassembled directly.
+
 ## Still to identify
 
 - **PETSCII translation** — confirm the mechanism (table / custom font / none).
