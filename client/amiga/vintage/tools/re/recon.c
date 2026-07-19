@@ -1824,7 +1824,7 @@ undefined4 launch_editor(void)
         DAT_00120154 = DAT_00120142;
         DAT_0012015a = 0;
         DAT_0012015c = DAT_001200f8;
-        DAT_00120160 = DAT_00120258;
+        DAT_00120160 = g_font_base;
         DAT_00120164 = *(undefined4 *)(DAT_001200f0 + 0x98);
         thunk_FUN_001290f4(iVar2,&DAT_00120146);
         thunk_FUN_00129134(DAT_00120142);
@@ -1884,7 +1884,7 @@ void launch_tty(void)
     thunk_FUN_0011a11e(0x14);
   }
   thunk_FUN_0011a588(DAT_001200fc,DAT_001201ae);
-  iVar2 = thunk_FUN_00106000();
+  iVar2 = build_font();
   if (iVar2 == 0) {
     thunk_FUN_0011a11e(0x14);
   }
@@ -2520,9 +2520,9 @@ undefined4 thunk_FUN_0011b478(int param_1,short param_2)
 
 
 
-/* ===== thunk_FUN_00106000 @ 00102ade (size 6) ===== */
+/* ===== build_font @ 00102ade (size 6) ===== */
 
-undefined4 thunk_FUN_00106000(void)
+undefined4 build_font(void)
 
 {
   byte bVar1;
@@ -2532,19 +2532,19 @@ undefined4 thunk_FUN_00106000(void)
   short sStack_8;
   short sStack_6;
   
-  DAT_00120258 = thunk_FUN_0011a1ee(0x2000,2);
-  if (DAT_00120258 == 0) {
+  g_font_base = thunk_FUN_0011a1ee(0x2000,2);
+  if (g_font_base == 0) {
     uVar3 = 0;
   }
   else {
     for (sStack_6 = 0; sStack_6 < 0x80; sStack_6 = sStack_6 + 1) {
       for (sStack_8 = 0; sStack_8 < 8; sStack_8 = sStack_8 + 1) {
-        bVar1 = s_<fnn_b<_0011d9c0[(int)sStack_8 + sStack_6 * 8];
-        *(ushort *)(sStack_8 * 2 + sStack_6 * 0x10 + DAT_00120258) = (ushort)bVar1 << 8;
-        iVar4 = sStack_6 * 0x10 + DAT_00120258;
+        bVar1 = c64_charset_upper[(int)sStack_8 + sStack_6 * 8];
+        *(ushort *)(sStack_8 * 2 + sStack_6 * 0x10 + g_font_base) = (ushort)bVar1 << 8;
+        iVar4 = sStack_6 * 0x10 + g_font_base;
         iVar2 = sStack_8 * 2;
         *(ushort *)(iVar4 + iVar2 + 0x800) = ~((ushort)bVar1 << 8);
-        bVar1 = s_<fnn_b<_0011ddc0[(int)sStack_8 + sStack_6 * 8];
+        bVar1 = c64_charset_lower[(int)sStack_8 + sStack_6 * 8];
         *(ushort *)(iVar4 + iVar2 + 0x1000) = (ushort)bVar1 << 8;
         *(ushort *)(iVar2 + iVar4 + 0x1800) = ~((ushort)bVar1 << 8);
       }
@@ -4674,7 +4674,7 @@ void render_char(byte param_1,int param_2)
   *(byte *)(iVar5 + iVar6 + param_2 + 0x10) = bVar4;
   *(undefined1 *)(iVar5 + iVar6 + param_2 + 0x11) = *(undefined1 *)(param_2 + 8);
   if ((bVar4 != 0x20) || (cVar3 != ' ')) {
-    thunk_FUN_00107000((int)sVar1,(int)sVar2,param_2);
+    blit_char_cell((int)sVar1,(int)sVar2,param_2);
   }
   FUN_001051de(param_2);
   *(short *)(param_2 + 10) = (short)(*(short *)(param_2 + 6) == 0);
@@ -4738,7 +4738,7 @@ void thunk_FUN_00107156(undefined4 param_1)
   FUN_001060f6();
   for (uStack_6 = 0; uStack_6 < 0x18; uStack_6 = uStack_6 + 1) {
     for (uStack_8 = 0; uStack_8 < 0x28; uStack_8 = uStack_8 + 1) {
-      FUN_00107000((int)uStack_6,(int)uStack_8,param_1);
+      blit_char_cell((int)uStack_6,(int)uStack_8,param_1);
     }
   }
   FUN_0010617c(param_1);
@@ -4773,9 +4773,9 @@ void thunk_FUN_0012a0f0(void)
 
 
 
-/* ===== thunk_FUN_00107000 @ 001056de (size 6) ===== */
+/* ===== blit_char_cell @ 001056de (size 6) ===== */
 
-void thunk_FUN_00107000(short param_1,short param_2,int param_3)
+void blit_char_cell(short param_1,short param_2,int param_3)
 
 {
   undefined2 uVar1;
@@ -4800,17 +4800,17 @@ void thunk_FUN_00107000(short param_1,short param_2,int param_3)
     uVar5 = (ushort)CONCAT21(uVar1,uVar2);
     if ((bVar7 & bVar3) == 0) {
       if ((bVar7 & bVar4) == 0) {
-        iVar9 = DAT_00120258 + 0x200;
+        iVar9 = g_font_base + 0x200;
       }
       else {
-        iVar9 = (short)(uVar5 ^ 0x80) * 0x10 + DAT_00120258;
+        iVar9 = (short)(uVar5 ^ 0x80) * 0x10 + g_font_base;
       }
     }
     else if ((bVar7 & bVar4) == 0) {
-      iVar9 = (short)uVar5 * 0x10 + DAT_00120258;
+      iVar9 = (short)uVar5 * 0x10 + g_font_base;
     }
     else {
-      iVar9 = DAT_00120258 + 0xa00;
+      iVar9 = g_font_base + 0xa00;
     }
     (&DAT_00120264)[sVar6] = iVar9;
   }
@@ -4870,10 +4870,10 @@ void thunk_FUN_0012a0a0(void)
 
 
 
-/* ===== FUN_00106000 @ 00106000 (size 246) ===== */
+/* ===== build_font @ 00106000 (size 246) ===== */
 /* strings: <fnn`b< */
 
-undefined4 FUN_00106000(void)
+undefined4 build_font(void)
 
 {
   byte bVar1;
@@ -4883,19 +4883,19 @@ undefined4 FUN_00106000(void)
   short local_8;
   short local_6;
   
-  DAT_00120258 = thunk_FUN_0011a1ee(0x2000,2);
-  if (DAT_00120258 == 0) {
+  g_font_base = thunk_FUN_0011a1ee(0x2000,2);
+  if (g_font_base == 0) {
     uVar3 = 0;
   }
   else {
     for (local_6 = 0; local_6 < 0x80; local_6 = local_6 + 1) {
       for (local_8 = 0; local_8 < 8; local_8 = local_8 + 1) {
-        bVar1 = s_<fnn_b<_0011d9c0[(int)local_8 + local_6 * 8];
-        *(ushort *)(local_8 * 2 + local_6 * 0x10 + DAT_00120258) = (ushort)bVar1 << 8;
-        iVar4 = local_6 * 0x10 + DAT_00120258;
+        bVar1 = c64_charset_upper[(int)local_8 + local_6 * 8];
+        *(ushort *)(local_8 * 2 + local_6 * 0x10 + g_font_base) = (ushort)bVar1 << 8;
+        iVar4 = local_6 * 0x10 + g_font_base;
         iVar2 = local_8 * 2;
         *(ushort *)(iVar4 + iVar2 + 0x800) = ~((ushort)bVar1 << 8);
-        bVar1 = s_<fnn_b<_0011ddc0[(int)local_8 + local_6 * 8];
+        bVar1 = c64_charset_lower[(int)local_8 + local_6 * 8];
         *(ushort *)(iVar4 + iVar2 + 0x1000) = (ushort)bVar1 << 8;
         *(ushort *)(iVar2 + iVar4 + 0x1800) = ~((ushort)bVar1 << 8);
       }
@@ -5108,9 +5108,9 @@ char thunk_FUN_0011a000(void)
 
 
 
-/* ===== FUN_00107000 @ 00107000 (size 342) ===== */
+/* ===== blit_char_cell @ 00107000 (size 342) ===== */
 
-void FUN_00107000(short param_1,short param_2,int param_3)
+void blit_char_cell(short param_1,short param_2,int param_3)
 
 {
   undefined2 uVar1;
@@ -5135,17 +5135,17 @@ void FUN_00107000(short param_1,short param_2,int param_3)
     uVar5 = (ushort)CONCAT21(uVar1,uVar2);
     if ((bVar7 & bVar3) == 0) {
       if ((bVar7 & bVar4) == 0) {
-        iVar9 = DAT_00120258 + 0x200;
+        iVar9 = g_font_base + 0x200;
       }
       else {
-        iVar9 = (short)(uVar5 ^ 0x80) * 0x10 + DAT_00120258;
+        iVar9 = (short)(uVar5 ^ 0x80) * 0x10 + g_font_base;
       }
     }
     else if ((bVar7 & bVar4) == 0) {
-      iVar9 = (short)uVar5 * 0x10 + DAT_00120258;
+      iVar9 = (short)uVar5 * 0x10 + g_font_base;
     }
     else {
-      iVar9 = DAT_00120258 + 0xa00;
+      iVar9 = g_font_base + 0xa00;
     }
     (&DAT_00120264)[sVar6] = iVar9;
   }
@@ -5185,7 +5185,7 @@ void FUN_00107156(undefined4 param_1)
   FUN_001060f6();
   for (local_6 = 0; local_6 < 0x18; local_6 = local_6 + 1) {
     for (local_8 = 0; local_8 < 0x28; local_8 = local_8 + 1) {
-      FUN_00107000((int)local_6,(int)local_8,param_1);
+      blit_char_cell((int)local_6,(int)local_8,param_1);
     }
   }
   FUN_0010617c(param_1);
@@ -5549,7 +5549,7 @@ void render_char(byte param_1,int param_2)
   *(byte *)(iVar5 + iVar6 + param_2 + 0x10) = bVar4;
   *(undefined1 *)(iVar5 + iVar6 + param_2 + 0x11) = *(undefined1 *)(param_2 + 8);
   if ((bVar4 != 0x20) || (cVar3 != ' ')) {
-    thunk_FUN_00107000((int)sVar1,(int)sVar2,param_2);
+    blit_char_cell((int)sVar1,(int)sVar2,param_2);
   }
   FUN_001051de(param_2);
   *(short *)(param_2 + 10) = (short)(*(short *)(param_2 + 6) == 0);
@@ -7337,7 +7337,7 @@ void render_char(byte param_1,int param_2)
   *(byte *)(iVar5 + iVar6 + param_2 + 0x10) = bVar4;
   *(undefined1 *)(iVar5 + iVar6 + param_2 + 0x11) = *(undefined1 *)(param_2 + 8);
   if ((bVar4 != 0x20) || (cVar3 != ' ')) {
-    thunk_FUN_00107000((int)sVar1,(int)sVar2,param_2);
+    blit_char_cell((int)sVar1,(int)sVar2,param_2);
   }
   FUN_001051de(param_2);
   *(short *)(param_2 + 10) = (short)(*(short *)(param_2 + 6) == 0);
@@ -10807,7 +10807,7 @@ void render_char(byte param_1,int param_2)
   *(byte *)(iVar5 + iVar6 + param_2 + 0x10) = bVar4;
   *(undefined1 *)(iVar5 + iVar6 + param_2 + 0x11) = *(undefined1 *)(param_2 + 8);
   if ((bVar4 != 0x20) || (cVar3 != ' ')) {
-    thunk_FUN_00107000((int)sVar1,(int)sVar2,param_2);
+    blit_char_cell((int)sVar1,(int)sVar2,param_2);
   }
   FUN_001051de(param_2);
   *(short *)(param_2 + 10) = (short)(*(short *)(param_2 + 6) == 0);

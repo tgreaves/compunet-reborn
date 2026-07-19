@@ -24,7 +24,9 @@
     "0x1291b8": "OpenLibrary_thunk",
     "0x10800c": "read_frame_byte",
     "0x108086": "frame_rle_getchar",
-    "0x1054f8": "render_char"
+    "0x1054f8": "render_char",
+    "0x106000": "build_font",
+    "0x107000": "blit_char_cell"
   },
   "globals": {
     "0x11d040": "SysBase",
@@ -34,6 +36,9 @@
     "0x1230b4": "g_write_req",
     "0x1230b8": "g_read_req",
     "0x1230a8": "g_device_port",
-    "0x11d02c": "exit_cleanup_hook"
+    "0x11d02c": "exit_cleanup_hook",
+    "0x120258": "g_font_base",
+    "0x11d9c0": "c64_charset_upper",
+    "0x11ddc0": "c64_charset_lower"
   }
 }

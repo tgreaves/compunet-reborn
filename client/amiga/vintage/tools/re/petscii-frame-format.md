@@ -73,6 +73,31 @@ much easier path than the "separate Amiga frame format" the earlier note implied
 Combined with the confirmed transport and command matches, a Reborn Amiga client via
 a TCP `cnet.device` looks viable with the **existing** PETSCII frame content.
 
+## Font — embedded C64 character ROM (answers "which font?")
+
+Frame content is **not** drawn with an Amiga font. The client carries its own C64
+character set and builds a bitmap font at runtime:
+
+- `build_font` (`FUN_00106000`) allocates 8 KB CHIP RAM (`g_font_base` /
+  `DAT_00120258`) = 512 glyphs of 16 bytes each.
+- Source glyphs are two embedded 1 KB C64 bitmaps (128 chars × 8 rows, 8×8 px):
+  - `c64_charset_upper` @ `0x11d9c0` — uppercase/graphics set
+  - `c64_charset_lower` @ `0x11ddc0` — lowercase set
+  (These are the bytes that showed up as the junk "string" `<fnn`b<` in early scans —
+  actually C64 char-ROM bitmap data. Verified: rendering glyph 0x01 gives a perfect
+  C64 'A', 0x13 gives 'S', etc.)
+- Each glyph is expanded to Amiga bitplane words (`row << 8`), plus an **inverted**
+  copy at +0x800 / +0x1800 for reverse-video (the PETSCII RVS control).
+- `blit_char_cell` (`FUN_00107000`) indexes the font at `screencode * 0x10` and blits
+  with `BltBitMapRastPort`.
+
+`topaz.font` (string @0x11d084) is used only for Intuition window chrome
+(titles/gadgets/menus), not frame content.
+
+So the Amiga reproduces the C64 display by embedding the C64 character ROM + its own
+PETSCII→screencode conversion + blitter — directly analogous to Reborn's web/terminal
+renderers embedding `charrom.js`.
+
 ## Still to pin
 
 - Enumerate the 0x80-0x9F control table (`PTR_FUN_0011d928`) — the rest of the
