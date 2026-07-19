@@ -226,11 +226,16 @@ Three focus areas drive the current work:
 - **Reconstruct module-by-module**, starting with the transport (`cnet.device`
   open/IO around `0x1192b6` / `0x10343c`) and the protocol/framing code, verifying
   each against its original with the round-trip method.
-- **Protocol match.** Does this Amiga client speak the *same* application-layer
-  protocol (command bytes, frame format, linking/login sequence) that Reborn's
-  server implements? Verify the reconstructed transport/framing against
-  [docs/PROTOCOL.md](PROTOCOL.md) and the C64 linking sequence in
-  [docs/LINKING.md](LINKING.md). This is the critical unknown.
+- **Protocol match — CONFIRMED.** The Amiga client speaks the *same* application-layer
+  protocol as the Reborn server. The X.25 framing engine in `cnet.device` was
+  disassembled and matches [docs/PROTOCOL.md](PROTOCOL.md) field-for-field: `$01`
+  start marker, sequence in range `$20-$5F` with wrap, token bytes (`0x22`=DAT,
+  `0x43`=COM), and a table-driven CRC-CCITT (canonical poly-0x1021 table, byte-identical
+  to the C64/server) appended as `[CRC_hi][CRC_lo]`. Framing/CRC/sequencing live
+  entirely in `cnet.device`, not the client. See
+  [re/protocol-analysis.md](../client/amiga/vintage/tools/re/protocol-analysis.md).
+  **Implication:** an Amiga Reborn client is viable; the cleanest route is a drop-in
+  TCP `cnet.device` (client binary unmodified).
 - **Unpack `CNETTTY`** (cruncher #2) via 68k emulation of its stub, if the TTY
   viewer proves useful.
 

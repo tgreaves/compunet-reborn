@@ -4,7 +4,40 @@ Comparing the Amiga client's wire protocol against [docs/PROTOCOL.md](../../../.
 (the C64/server X.25-derived protocol). **This is the critical unknown** for Reborn:
 does the Amiga client speak the same application-layer protocol the server implements?
 
-## Status: PARTIAL — matching tokens, framing layer not yet confirmed
+## Status: CONFIRMED — the Amiga client speaks the same protocol (framing in cnet.device)
+
+The X.25 framing engine in `cnet.device` was disassembled and matches
+`docs/PROTOCOL.md` field-for-field. See "Framing engine" below. Combined with the
+matching tokens (`0x22`=DAT, `0x43`=COM) and the byte-identical CRC-CCITT table, the
+Amiga client uses the **same application-layer protocol** as the Reborn server. This
+resolves the critical unknown: **an Amiga Reborn client is viable**, and the cleanest
+route is a drop-in TCP `cnet.device` (client binary unmodified).
+
+## Framing engine (cnet.device) — confirmed field-by-field
+
+Disassembled the frame-send routine (CRC table at flat `0x1030a8`, referenced from
+4 CRC sites; send framing around `0x100a00-0x100b20`). It builds exactly the
+PROTOCOL.md wire format `$01 [len][token][seq][payload][CRC_hi][CRC_lo]`:
+
+| PROTOCOL.md field | cnet.device evidence |
+|-------------------|----------------------|
+| `$01` start marker | `move.b #$1,(a0)` @0x100a1e |
+| sequence, range `$20-$5F`, wraps | @0x100a00: inc seq; `cmpi.b #$5f`; if above, reload `#$20` — exact range/wrap |
+| token / length bytes | emitted into the frame buffer (`moveq #$6/#$20` stores) |
+| CRC-CCITT over frame | table-driven loop @0x100ab2 using `table[idx*2]` at `0x1030a8`; table verified canonical (poly 0x1021, MSB-first) |
+| `[CRC_hi][CRC_lo]` appended | @0x100af2: split 16-bit CRC to two bytes, send each via send-byte `0x10094a` |
+
+Send-byte primitive: `0x10094a`. Frame is assembled in a BSS work buffer
+(`$104042`/`$10404a` running pointers, buffer base ~`$10451a`).
+
+Consequence: framing/CRC/sequencing live **entirely in `cnet.device`**, not the
+client. The client hands the device (token, data); the device produces the wire
+frame. This is the transport seam — a TCP `cnet.device` reimplementation that does
+the same framing to the Reborn server leaves the `Compunet` client unmodified.
+
+---
+
+## (earlier notes) PARTIAL — matching tokens, framing layer not yet confirmed
 
 ### Positive evidence (matches PROTOCOL.md)
 
