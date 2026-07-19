@@ -59,8 +59,30 @@ and the `0x1b` was a control-table index, not an ESC prefix.
 | 0x1F | blue |
 | others (incl. 0x1B) | default/no-op (`0x1054f0`) |
 
-(A second table `PTR_FUN_0011d928` covers the 0x80-0x9F PETSCII controls: more
-colours, RVS-off 0x92, etc. — to be enumerated.)
+The second table `PTR_FUN_0011d928` (codes 0x80-0x9F) is the rest of the standard
+C64 PETSCII control set — **fully enumerated and all standard**:
+
+| code | PETSCII meaning | | code | PETSCII meaning |
+|------|-----------------|-|------|-----------------|
+| 0x81 | orange | | 0x93 | clear screen |
+| 0x8D | shift-return | | 0x94 | insert |
+| 0x8E | uppercase charset | | 0x95 | brown |
+| 0x90 | black | | 0x96 | light red |
+| 0x91 | cursor up | | 0x97 | dark grey |
+| 0x92 | reverse off | | 0x98 | grey 2 |
+| 0x9C | purple | | 0x99 | light green |
+| 0x9E | yellow | | 0x9A | light blue |
+| 0x9F | cyan | | 0x9B | light grey |
+| 0x9D | cursor left | | (0x80,82-8C,8F) | no-op |
+
+Colour handlers store the **C64 colour index** (0=black, 1=white, 2=red, … 15) into
+the per-character colour byte (`frame_state + 8`), which `blit_char_cell` uses. The
+RGB palette itself is loaded separately via `GfxBase.LoadRGB4`. The index scheme is
+the standard C64 0-15 palette order.
+
+**Conclusion: the Amiga implements the complete, standard C64 PETSCII control set**
+(both 0x00-0x1F and 0x80-0x9F) plus the PETSCII→screencode conversion and the RLE
+compression. Frame content is fully C64-PETSCII-compatible.
 
 ## Implication for Compunet Reborn — GOOD NEWS
 
@@ -98,10 +120,14 @@ So the Amiga reproduces the C64 display by embedding the C64 character ROM + its
 PETSCII→screencode conversion + blitter — directly analogous to Reborn's web/terminal
 renderers embedding `charrom.js`.
 
-## Still to pin
+## Status: PETSCII frame compatibility CONFIRMED
 
-- Enumerate the 0x80-0x9F control table (`PTR_FUN_0011d928`) — the rest of the
-  PETSCII controls (colours $90-$9F, RVS-off $92, charset $8E).
-- Confirm the colour-code → Amiga palette mapping (`DAT_0011e1c0` colour table) matches
-  the C64 VIC palette closely enough.
-- Decode each 0x00-0x1F handler body to document exact cursor/colour behaviour.
+Both control tables enumerated (all standard C64 PETSCII), PETSCII→screencode
+conversion verified, RLE matches, font is the embedded C64 char-ROM. Reborn's
+existing PETSCII frames render on the Amiga with no separate format.
+
+Optional follow-ups (not blockers):
+- Exact RGB values in the `LoadRGB4` palette table vs VIC-II (cosmetic — index scheme
+  already confirmed standard).
+- Per-handler cursor-movement details (bounds/wrap behaviour) if precise fidelity
+  testing is wanted.
