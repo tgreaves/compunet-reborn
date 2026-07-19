@@ -52,3 +52,31 @@ The stock vbcc m68k-amigaos target ships only C-library headers (`stdio.h`, …)
 `graphics/`, …) come from the NDK. For our KS1.3-era client, the `asig/vbcc` repo's
 `m68k-kick13` includes are the right vintage. When reconstructing OS-calling modules,
 merge the NDK struct headers alongside vbcc's `proto/`/`inline/`/`clib/`.
+
+## Verified reconstruction build (KS1.3) — reproducible recipe
+
+Building vbcc from source on macOS + assembling the KS1.3 headers, used to compile the
+`client/amiga/src/` reconstruction:
+
+1. Build tools from source (host clang):
+   - vbcc: `http://www.ibaug.de/vbcc/vbcc.tar.gz` → `cd vbcc && yes '' | make TARGET=m68k`
+     → `bin/vc`, `bin/vbccm68k`
+   - vasm: `http://sun.hasenbraten.de/vasm/release/vasm.tar.gz` → `make CPU=m68k SYNTAX=mot`
+     → `vasmm68k_mot`
+   - vlink: `http://sun.hasenbraten.de/vlink/release/vlink.tar.gz` → `make` → `vlink`
+2. Target libs/C-headers: `http://phoenix.owl.de/vbcc/2022-05-22/vbcc_target_m68k-amigaos.lha`
+   (extract with `lha x`; provides `targets/m68k-amigaos/{lib,include}` + `config/aos68k*`).
+3. KS1.3 OS headers: from `github.com/asig/vbcc` tarball, merge into the target include dir:
+   - `ndks/amiga/m68k-kick13/includes1.3/include.h/*` (exec/, devices/, intuition/, graphics/, libraries/, …)
+   - `targets/m68k-kick13/include/*` (clib/, proto/)
+4. Custom config `kick13` = copy of `aos68k` with `vincludeos3:` / `vlibos3:` replaced by
+   the concrete `targets/m68k-amigaos/include` and `.../lib` paths.
+
+Compile a reconstruction module:
+```
+VBCC=/path/to/vbcc PATH=$VBCC/bin:$PATH \
+  vc +kick13 -c -I. transport.c -o transport.o
+```
+`transport.c` compiles clean (only harmless `#endif !FOO` warnings from the vintage
+1.3 headers). Output: genuine Amiga HUNK object (`0x3e7` HUNK_UNIT) with `_serial_read`
+/ `_serial_write`.
