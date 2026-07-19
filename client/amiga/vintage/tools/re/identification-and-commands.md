@@ -75,13 +75,15 @@ So across all three layers:
 - **Transport** (framing/CRC/seq/tokens): matches ✓
 - **Application commands** (P/D/A/B/E/M/N/O + ack `@`): matches ✓
 - **Identification handshake**: differs but detectable (see above) ✓
-- **Frame content encoding**: differs — Amiga uses ESC-code frames, not PETSCII
-  (see petscii-frame-format.md) ✗ (needs server to emit Amiga-format frames)
+- **Frame content encoding**: MATCHES — the Amiga renders the same PETSCII frames
+  (same RLE + PETSCII control codes; converted to screen codes in the renderer). See
+  petscii-frame-format.md. ✓ (pending: confirm 0x80-0x9F control table + palette)
 
 **Net:** an unmodified Amiga `Compunet` client, given a TCP `cnet.device` and a server
-that (a) accepts its identification and (b) serves Amiga-format frames, should drive
-the Reborn server using the existing command handlers. The command layer is not a
-blocker; the frame *content* format is the remaining work.
+that accepts its identification, should drive the Reborn server using the existing
+command handlers **and the existing PETSCII frame content**. No separate Amiga frame
+format is needed. Remaining verification: the 0x80-0x9F PETSCII control table and the
+colour palette mapping.
 
 ## (superseded) Command protocol — was: NOT yet confirmed
 

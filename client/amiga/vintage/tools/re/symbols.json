@@ -21,7 +21,10 @@
     "0x11979e": "serial_io_c",
     "0x108254": "send_dat_packet",
     "0x11a290": "open_library_checked",
-    "0x1291b8": "OpenLibrary_thunk"
+    "0x1291b8": "OpenLibrary_thunk",
+    "0x10800c": "read_frame_byte",
+    "0x108086": "frame_rle_getchar",
+    "0x1054f8": "render_char"
   },
   "globals": {
     "0x11d040": "SysBase",

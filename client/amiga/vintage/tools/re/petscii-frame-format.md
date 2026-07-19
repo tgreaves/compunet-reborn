@@ -2,54 +2,81 @@
 
 ## Question
 
-C64 Compunet content is PETSCII. The Amiga has no native PETSCII. So: does the
-Amiga client translate PETSCII, use a custom C64 font, or something else?
+C64 Compunet content is PETSCII. The Amiga has no native PETSCII. Does the Amiga
+client translate PETSCII, use a custom font, or something else?
 
-## Answer: the Amiga does NOT use PETSCII at all
+## Answer: the Amiga DOES use PETSCII — it converts it in the frame renderer
 
-Amiga Compunet frames use their own **ESC-sequence markup format**, not PETSCII.
-Evidence from the sample `Frames/test.frame` (557 bytes):
+**Correction of an earlier interim note.** An initial glance at `Frames/test.frame`
+(ASCII-looking "WELCOME", `s`/`#` bytes, a `0x1b`) suggested a non-PETSCII "ESC-code"
+format. That was wrong. Disassembling the frame renderer shows the Amiga client
+**consumes PETSCII** and converts it to its own screen/font codes on the fly. The
+"ASCII" text is just the PETSCII bytes for those letters (0x20-0x5F overlaps ASCII),
+and the `0x1b` was a control-table index, not an ESC prefix.
 
-```
-0d 0d 0d 14 0a 1b 51 73 73 ... 73 1b 43 1b 4d 20 "WELCOME" 1b 4c 1b 51 20 73 ...
-\r \r \r \x14 \n ESC Q  s  s  ...  s  ESC C ESC M   WELCOME  ESC L ESC Q     s ...
-```
+### The receive → render pipeline
 
-- **Text is plain ASCII** ("WELCOME"), not PETSCII.
-- **Control via `0x1b` (ESC) + a letter**: codes seen are `ESC A B C D E F G L M Q`
-  (colour / attribute / cursor / mode commands — exact meanings TBD).
-- **Block graphics** use printable bytes (e.g. `0x73` 's' as a solid/graphic cell in
-  the terminal's custom font), plus CR (`0x0d`), and a few low control bytes
-  (`0x14`, `0x0a`).
+1. **`read_frame_byte` (`FUN_0010800c`)** — buffered get-byte from the incoming frame
+   stream (0x8f-byte buffer, refilled via `serial_read`).
+2. **RLE de-compressor (`FUN_00108086`)** — same scheme as the C64/server SEQ frames:
+   - `0x06 <n>` → repeat space
+   - `0x07 <char> <n>` → repeat char
+3. **Frame header parse** — reads a high-bit flag, then two colour nibbles indexed
+   through a colour table (`DAT_0011e1c0`), a charset flag (`== 0x0e`).
+4. **`render_char` (`FUN_001054f8`)** — the key routine. Switches on `byte >> 5`:
 
-So Amiga Compunet authored a **separate frame stream** for Amiga terminals — ASCII +
-ESC codes rendered with the terminal's own font/colours — rather than shipping C64
-PETSCII to be translated. Confirmed by absence of any translation table:
+   | byte range | action |
+   |------------|--------|
+   | `0x00-0x1F` | control code → jump table `PTR_FUN_0011d8a8[byte]` |
+   | `0x20-0x3F` | screen code = byte (as-is) |
+   | `0x40-0x5F` | screen code = byte & 0x1F |
+   | `0x60-0x7F` | screen code = (byte & 0x1F) \| 0x40 |
+   | `0x80-0x9F` | control code → jump table `PTR_FUN_0011d928[byte & 0x7F]` |
+   | `0xA0-0xBF` | screen code = (byte & 0x1F) \| 0x60 |
+   | `0xC0-0xDF` | screen code = byte & 0x7F |
+   | `0xE0-0xFF` | screen code = (0x5E if 0xFF else byte & 0x7F) |
 
-- No 256-byte PETSCII↔ASCII/screen translation table exists in the `Compunet`
-  client **or** in `cnet.device` (scanned both; zero candidates).
-- The only byte-indexed tables are the CRC-CCITT table (in `cnet.device`).
+   This is the **canonical PETSCII → C64 screen-code conversion** — verified to match
+   the standard transform for 0x20-0xBF exactly (only 0xFF differs by one). The
+   converted code is written into the screen buffer with the current colour.
 
-## Implication for Compunet Reborn
+### The control-code table = PETSCII controls
 
-Reborn frames are authored as **PETSCII** (for the C64). The Amiga expects its own
-**ESC-code frame format**. These are different content encodings. So a Reborn Amiga
-client cannot simply be fed the C64 PETSCII frames — either:
+`PTR_FUN_0011d8a8` (codes 0x00-0x1F) dispatches exactly the C64 PETSCII controls:
 
-1. The Reborn server must emit Amiga-format (ESC-code) frames when talking to an
-   Amiga client (a per-client content format, like the existing C64-vs-terminal
-   split), or
-2. A translation layer converts PETSCII frames → Amiga ESC-code frames.
+| code | PETSCII meaning |
+|------|-----------------|
+| 0x05 | white |
+| 0x0D | carriage return |
+| 0x0E | switch to lower/mixed charset |
+| 0x11 | cursor down |
+| 0x12 | reverse on |
+| 0x13 | home |
+| 0x14 | delete |
+| 0x1C | red |
+| 0x1D | cursor right |
+| 0x1E | green |
+| 0x1F | blue |
+| others (incl. 0x1B) | default/no-op (`0x1054f0`) |
 
-This is separate from the transport/protocol (which matches — see
-protocol-analysis.md). The wire protocol is identical; the *frame content encoding*
-differs by client type. The original Compunet clearly served format-appropriate
-frames per client platform.
+(A second table `PTR_FUN_0011d928` covers the 0x80-0x9F PETSCII controls: more
+colours, RVS-off 0x92, etc. — to be enumerated.)
+
+## Implication for Compunet Reborn — GOOD NEWS
+
+The Amiga renders **the same PETSCII frames** the C64 does, using the same RLE
+compression and PETSCII control codes. So Reborn's existing PETSCII frame content
+should render on the Amiga **without a separate frame format** — subject to
+confirming the 0x80-0x9F control table and the colour palette mapping. This is a
+much easier path than the "separate Amiga frame format" the earlier note implied.
+
+Combined with the confirmed transport and command matches, a Reborn Amiga client via
+a TCP `cnet.device` looks viable with the **existing** PETSCII frame content.
 
 ## Still to pin
 
-- The frame interpreter function (renders ESC codes to the frame window). Not yet
-  isolated in recon.c — likely a dispatch on `0x1b` then per-letter handling, or a
-  table. Worth locating to document the full ESC command set (needed if Reborn
-  emits Amiga-format frames).
-- Exact meaning of each ESC letter (colour/mode/cursor) and the graphic byte set.
+- Enumerate the 0x80-0x9F control table (`PTR_FUN_0011d928`) — the rest of the
+  PETSCII controls (colours $90-$9F, RVS-off $92, charset $8E).
+- Confirm the colour-code → Amiga palette mapping (`DAT_0011e1c0` colour table) matches
+  the C64 VIC palette closely enough.
+- Decode each 0x00-0x1F handler body to document exact cursor/colour behaviour.

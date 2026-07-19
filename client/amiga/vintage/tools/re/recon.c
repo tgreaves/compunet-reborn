@@ -3688,24 +3688,24 @@ undefined1 * thunk_FUN_0010818a(int param_1,undefined1 *param_2)
   uint uVar1;
   char cVar2;
   
-  DAT_001203b6 = FUN_0010800c;
+  DAT_001203b6 = read_frame_byte;
   DAT_001203a0 = 0;
   DAT_001203a4 = 0;
   DAT_001203ac = 0;
   DAT_001203ae = param_2;
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   DAT_001203b2 = uVar1 & 0x80;
   *param_2 = 0;
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   *(undefined *)(param_1 + 0xe) = (&DAT_0011e1c0)[uVar1 & 0xf];
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   *(undefined *)(param_1 + 0xf) = (&DAT_0011e1c0)[uVar1 & 0xf];
   thunk_FUN_0010568c(param_1);
-  cVar2 = FUN_0010800c();
+  cVar2 = read_frame_byte();
   *(ushort *)(param_1 + 0xc) = (ushort)(cVar2 == '\x0e');
   DAT_001203bb = 0;
-  while (cVar2 = FUN_00108086(), cVar2 != '\0') {
-    thunk_FUN_001054f8(cVar2,param_1);
+  while (cVar2 = frame_rle_getchar(), cVar2 != '\0') {
+    render_char(cVar2,param_1);
   }
   return DAT_001203ae;
 }
@@ -4622,9 +4622,9 @@ void FUN_001054f0(void)
 
 
 
-/* ===== FUN_001054f8 @ 001054f8 (size 358) ===== */
+/* ===== render_char @ 001054f8 (size 358) ===== */
 
-void FUN_001054f8(byte param_1,int param_2)
+void render_char(byte param_1,int param_2)
 
 {
   short sVar1;
@@ -4694,7 +4694,7 @@ void FUN_0010565e(char *param_1,undefined4 param_2)
     cVar1 = *param_1;
     param_1 = param_1 + 1;
     if (cVar1 == '\0') break;
-    FUN_001054f8(cVar1,param_2);
+    render_char(cVar1,param_2);
   }
   return;
 }
@@ -5208,9 +5208,9 @@ undefined1 FUN_00108000(void)
 
 
 
-/* ===== FUN_0010800c @ 0010800c (size 122) ===== */
+/* ===== read_frame_byte @ 0010800c (size 122) ===== */
 
-undefined1 FUN_0010800c(void)
+undefined1 read_frame_byte(void)
 
 {
   undefined1 *puVar1;
@@ -5239,9 +5239,9 @@ undefined1 FUN_0010800c(void)
 
 
 
-/* ===== FUN_00108086 @ 00108086 (size 84) ===== */
+/* ===== frame_rle_getchar @ 00108086 (size 84) ===== */
 
-char FUN_00108086(void)
+char frame_rle_getchar(void)
 
 {
   if (DAT_001203bb == '\0') {
@@ -5283,8 +5283,8 @@ void FUN_001080da(undefined4 param_1,int param_2)
   cVar2 = FUN_00108000();
   *(ushort *)(param_2 + 0xc) = (ushort)(cVar2 == '\x0e');
   DAT_001203bb = 0;
-  while (cVar2 = FUN_00108086(), cVar2 != '\0') {
-    thunk_FUN_001054f8(cVar2,param_2);
+  while (cVar2 = frame_rle_getchar(), cVar2 != '\0') {
+    render_char(cVar2,param_2);
   }
   thunk_FUN_0010617c(param_2);
   return;
@@ -5300,24 +5300,24 @@ undefined1 * FUN_0010818a(int param_1,undefined1 *param_2)
   uint uVar1;
   char cVar2;
   
-  DAT_001203b6 = FUN_0010800c;
+  DAT_001203b6 = read_frame_byte;
   DAT_001203a0 = 0;
   DAT_001203a4 = 0;
   DAT_001203ac = 0;
   DAT_001203ae = param_2;
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   DAT_001203b2 = uVar1 & 0x80;
   *param_2 = 0;
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   *(undefined *)(param_1 + 0xe) = (&DAT_0011e1c0)[uVar1 & 0xf];
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   *(undefined *)(param_1 + 0xf) = (&DAT_0011e1c0)[uVar1 & 0xf];
   thunk_FUN_0010568c(param_1);
-  cVar2 = FUN_0010800c();
+  cVar2 = read_frame_byte();
   *(ushort *)(param_1 + 0xc) = (ushort)(cVar2 == '\x0e');
   DAT_001203bb = 0;
-  while (cVar2 = FUN_00108086(), cVar2 != '\0') {
-    thunk_FUN_001054f8(cVar2,param_1);
+  while (cVar2 = frame_rle_getchar(), cVar2 != '\0') {
+    render_char(cVar2,param_1);
   }
   return DAT_001203ae;
 }
@@ -5497,9 +5497,9 @@ undefined4 serial_write(undefined4 param_1,undefined4 param_2,undefined1 param_3
 
 
 
-/* ===== thunk_FUN_001054f8 @ 0010829e (size 6) ===== */
+/* ===== render_char @ 0010829e (size 6) ===== */
 
-void thunk_FUN_001054f8(byte param_1,int param_2)
+void render_char(byte param_1,int param_2)
 
 {
   short sVar1;
@@ -6018,18 +6018,18 @@ void FUN_00109a5e(undefined4 *param_1)
   DAT_001203ae = 0;
   DAT_001203ac = 0;
   DAT_001203bb = 0;
-  local_5 = thunk_FUN_00108086();
+  local_5 = frame_rle_getchar();
   if (local_5 != '\0') {
     thunk_FUN_0010544e(0,0,5,0x27,param_1);
     thunk_FUN_00105180(param_1);
     do {
-      thunk_FUN_001054f8(local_5,param_1);
-      local_5 = thunk_FUN_00108086();
+      render_char(local_5,param_1);
+      local_5 = frame_rle_getchar();
     } while (local_5 != '\0');
   }
   thunk_FUN_0010544e(10,1,0x14,0x1d,param_1);
   thunk_FUN_0010544e(10,0x1f,0x14,0x26,param_1);
-  local_5 = thunk_FUN_00108086();
+  local_5 = frame_rle_getchar();
   if (local_5 != 0) {
     for (local_8 = 0; local_8 < 8; local_8 = local_8 + 1) {
       *(undefined1 *)((int)param_1 + local_8 * 7 + 0x790) = 0;
@@ -6070,28 +6070,28 @@ void FUN_00109a5e(undefined4 *param_1)
         local_a = local_a + 1;
         local_10 = puVar4;
       }
-      thunk_FUN_001054f8(local_5,param_1);
+      render_char(local_5,param_1);
       if (local_5 == 0xd) {
         local_8 = local_8 + 1;
       }
       local_6 = local_5;
       if (1 < local_8) break;
-      local_5 = thunk_FUN_00108086();
+      local_5 = frame_rle_getchar();
     } while (local_5 != 0);
     if (local_a != 0) {
       thunk_FUN_0012b234(*param_1,(int)param_1 + 0x1022,0xffffffff,0xffffffff,0);
     }
 LAB_00109cda:
     if (local_5 != 0) {
-      local_5 = thunk_FUN_00108086();
+      local_5 = frame_rle_getchar();
       if (local_5 == 0) goto LAB_00109d92;
       sVar3 = local_5 - 0x31;
       if ((-1 < sVar3) && (sVar3 < 8)) {
-        local_5 = thunk_FUN_00108086();
+        local_5 = frame_rle_getchar();
         if (local_5 == 0x3d) {
           local_a = 0;
           while( true ) {
-            local_5 = thunk_FUN_00108086();
+            local_5 = frame_rle_getchar();
             if ((local_5 == 0) || (local_5 == 0xd)) break;
             if (local_a < 6) {
               *(byte *)((int)param_1 + (int)local_a + sVar3 * 7 + 0x790) = local_5;
@@ -6103,26 +6103,26 @@ LAB_00109cda:
         }
       }
       while ((local_5 != 0 && (local_5 != 0xd))) {
-        local_5 = thunk_FUN_00108086();
+        local_5 = frame_rle_getchar();
       }
       goto LAB_00109cda;
     }
   }
 LAB_00109d92:
-  local_5 = thunk_FUN_00108086();
+  local_5 = frame_rle_getchar();
   if (local_5 != '\0') {
     thunk_FUN_0010544e(7,1,8,0x1d,param_1);
     thunk_FUN_001056aa(7,1,param_1);
     thunk_FUN_0010506a(param_1);
     do {
-      thunk_FUN_001054f8(local_5,param_1);
+      render_char(local_5,param_1);
       if (local_5 == '\r') {
         thunk_FUN_001051de(param_1);
       }
-      local_5 = thunk_FUN_00108086();
+      local_5 = frame_rle_getchar();
     } while (local_5 != '\0');
   }
-  local_5 = thunk_FUN_00108086();
+  local_5 = frame_rle_getchar();
   if (local_5 != '\0') {
     local_8 = 0;
     do {
@@ -6132,7 +6132,7 @@ LAB_00109d92:
           *(byte *)((int)param_1 + (int)local_a + local_8 * 9 + 0x7c8) = local_5;
           local_a = local_a + 1;
         }
-        local_5 = thunk_FUN_00108086();
+        local_5 = frame_rle_getchar();
       } while (((local_5 != '\0') && (local_5 != '\r')) && (local_5 != ','));
       for (; local_a < 8; local_a = local_a + 1) {
         *(undefined1 *)((int)param_1 + (int)local_a + local_8 * 9 + 0x7c8) = 0x20;
@@ -6140,19 +6140,19 @@ LAB_00109d92:
       sVar3 = local_8 + 1;
       *(undefined1 *)((int)param_1 + (int)local_a + local_8 * 9 + 0x7c8) = 0;
       if ((local_5 == '\0') || (local_5 == '\r')) break;
-      local_5 = thunk_FUN_00108086();
+      local_5 = frame_rle_getchar();
       local_8 = sVar3;
     } while (local_5 != '\0');
     *(short *)((int)param_1 + 0xc72) = sVar3;
     while (local_5 != '\0') {
-      local_5 = thunk_FUN_00108086();
+      local_5 = frame_rle_getchar();
     }
   }
   *(undefined2 *)(param_1 + 0x31d) = 0;
   thunk_FUN_001056aa(7,0x1f,param_1);
   thunk_FUN_0010506a(param_1);
   thunk_FUN_0010565e(param_1 + 0x1f2,param_1);
-  local_5 = thunk_FUN_00108086();
+  local_5 = frame_rle_getchar();
   if (local_5 != '\0') {
     thunk_FUN_001056aa(10,1,param_1);
     thunk_FUN_00105022(param_1);
@@ -6160,18 +6160,18 @@ LAB_00109d92:
     do {
       for (local_a = 0; local_a < 6; local_a = local_a + 1) {
         *(byte *)((int)param_1 + (int)local_a + local_8 * 0x66 + 0x810) = local_5;
-        local_5 = thunk_FUN_00108086();
+        local_5 = frame_rle_getchar();
       }
       *(undefined1 *)((int)param_1 + (int)local_a + local_8 * 0x66 + 0x810) = 0;
       for (local_a = 0; local_a < 0x10; local_a = local_a + 1) {
-        uVar1 = thunk_FUN_00108086();
+        uVar1 = frame_rle_getchar();
         *(undefined1 *)((int)param_1 + (int)local_a + local_8 * 0x66 + 0x817) = uVar1;
       }
       *(undefined1 *)((int)param_1 + (int)local_a + local_8 * 0x66 + 0x817) = 0;
-      thunk_FUN_00108086();
+      frame_rle_getchar();
       local_a = 0;
       while( true ) {
-        cVar2 = thunk_FUN_00108086();
+        cVar2 = frame_rle_getchar();
         if (cVar2 == ',') break;
         *(char *)((int)param_1 + (int)local_a + local_8 * 0x66 + 0x828) = cVar2;
         local_a = local_a + 1;
@@ -6183,7 +6183,7 @@ LAB_00109d92:
       local_a = 0;
       local_c = 0;
       do {
-        cVar2 = thunk_FUN_00108086();
+        cVar2 = frame_rle_getchar();
         if ((cVar2 == '\r') || (cVar2 == ',')) {
           for (; local_c < 8; local_c = local_c + 1) {
             *(undefined1 *)((int)param_1 + (int)local_c + local_a * 9 + local_8 * 0x66 + 0x82e) =
@@ -6209,7 +6209,7 @@ LAB_00109d92:
       thunk_FUN_00105250(param_1);
       thunk_FUN_0010506a(param_1);
       local_8 = local_8 + 1;
-      local_5 = thunk_FUN_00108086();
+      local_5 = frame_rle_getchar();
     } while (local_5 != '\0');
     *(short *)((int)param_1 + 0xc76) = local_8;
   }
@@ -6438,7 +6438,7 @@ void thunk_FUN_0010565e(char *param_1,undefined4 param_2)
     cVar1 = *param_1;
     param_1 = param_1 + 1;
     if (cVar1 == '\0') break;
-    FUN_001054f8(cVar1,param_2);
+    render_char(cVar1,param_2);
   }
   return;
 }
@@ -6722,11 +6722,11 @@ LAB_0010e23e:
         for (; (&DAT_00121669)[iStack_c * 9] == '\0'; iStack_c = iStack_c + 1) {
         }
         for (iStack_10 = 0; iStack_10 < 8; iStack_10 = iStack_10 + 1) {
-          thunk_FUN_0010800c();
+          read_frame_byte();
         }
         iStack_10 = 0;
         while( true ) {
-          cVar4 = thunk_FUN_0010800c();
+          cVar4 = read_frame_byte();
           acStack_34[iStack_10] = cVar4;
           iVar2 = iStack_10;
           if (cVar4 == '\x1e') break;
@@ -6791,8 +6791,8 @@ void thunk_FUN_001080da(undefined4 param_1,int param_2)
   cVar2 = FUN_00108000();
   *(ushort *)(param_2 + 0xc) = (ushort)(cVar2 == '\x0e');
   DAT_001203bb = 0;
-  while (cVar2 = FUN_00108086(), cVar2 != '\0') {
-    thunk_FUN_001054f8(cVar2,param_2);
+  while (cVar2 = frame_rle_getchar(), cVar2 != '\0') {
+    render_char(cVar2,param_2);
   }
   thunk_FUN_0010617c(param_2);
   return;
@@ -6811,9 +6811,9 @@ void thunk_FUN_0010506a(int param_1)
 
 
 
-/* ===== thunk_FUN_00108086 @ 0010a56a (size 6) ===== */
+/* ===== frame_rle_getchar @ 0010a56a (size 6) ===== */
 
-char thunk_FUN_00108086(void)
+char frame_rle_getchar(void)
 
 {
   if (DAT_001203bb == '\0') {
@@ -6955,7 +6955,7 @@ LAB_0010e50c:
         while ((DAT_001203ac == '\0' || (DAT_001203a0 < DAT_001203a4))) {
           FUN_0010e430(&DAT_0011ea98);
           for (iStack_10 = 0; iStack_10 < 8; iStack_10 = iStack_10 + 1) {
-            cVar3 = thunk_FUN_0010800c();
+            cVar3 = read_frame_byte();
             acStack_34[iStack_10] = cVar3;
           }
           acStack_34[iStack_10] = '\0';
@@ -6963,7 +6963,7 @@ LAB_0010e50c:
           FUN_0010e430(&DAT_0011ea9e);
           iStack_10 = 0;
           while( true ) {
-            cVar3 = thunk_FUN_0010800c();
+            cVar3 = read_frame_byte();
             acStack_34[iStack_10] = cVar3;
             iVar1 = iStack_10;
             if (cVar3 == '\x1e') break;
@@ -7285,9 +7285,9 @@ void thunk_FUN_0012b0a4(void)
 
 
 
-/* ===== thunk_FUN_001054f8 @ 0010a5e8 (size 6) ===== */
+/* ===== render_char @ 0010a5e8 (size 6) ===== */
 
-void thunk_FUN_001054f8(byte param_1,int param_2)
+void render_char(byte param_1,int param_2)
 
 {
   short sVar1;
@@ -7615,7 +7615,7 @@ undefined4 FUN_0010b50e(void)
             local_c = 1;
           }
           if (local_c != 0) break;
-          uVar3 = thunk_FUN_0010800c();
+          uVar3 = read_frame_byte();
           (&DAT_001220fc)[local_8] = uVar3;
           thunk_FUN_00111024((&DAT_001220fc)[local_8]);
         }
@@ -8146,9 +8146,9 @@ void thunk_FUN_00111000(void)
 
 
 
-/* ===== thunk_FUN_0010800c @ 0010b880 (size 6) ===== */
+/* ===== read_frame_byte @ 0010b880 (size 6) ===== */
 
-undefined1 thunk_FUN_0010800c(void)
+undefined1 read_frame_byte(void)
 
 {
   undefined1 *puVar1;
@@ -9789,11 +9789,11 @@ LAB_0010e23e:
         for (; (&DAT_00121669)[local_c * 9] == '\0'; local_c = local_c + 1) {
         }
         for (local_10 = 0; local_10 < 8; local_10 = local_10 + 1) {
-          thunk_FUN_0010800c();
+          read_frame_byte();
         }
         local_10 = 0;
         while( true ) {
-          cVar4 = thunk_FUN_0010800c();
+          cVar4 = read_frame_byte();
           acStack_34[local_10] = cVar4;
           iVar2 = local_10;
           if (cVar4 == '\x1e') break;
@@ -9883,7 +9883,7 @@ void FUN_0010e430(char *param_1)
     if (cVar1 == '\0') break;
     *DAT_0012309c = cVar1;
     DAT_0012309c = DAT_0012309c + 1;
-    thunk_FUN_001054f8(cVar1,DAT_0011d078);
+    render_char(cVar1,DAT_0011d078);
   }
   return;
 }
@@ -9964,7 +9964,7 @@ LAB_0010e50c:
         while ((DAT_001203ac == '\0' || (DAT_001203a0 < DAT_001203a4))) {
           FUN_0010e430(&DAT_0011ea98);
           for (local_10 = 0; local_10 < 8; local_10 = local_10 + 1) {
-            cVar3 = thunk_FUN_0010800c();
+            cVar3 = read_frame_byte();
             acStack_34[local_10] = cVar3;
           }
           acStack_34[local_10] = '\0';
@@ -9972,7 +9972,7 @@ LAB_0010e50c:
           FUN_0010e430(&DAT_0011ea9e);
           local_10 = 0;
           while( true ) {
-            cVar3 = thunk_FUN_0010800c();
+            cVar3 = read_frame_byte();
             acStack_34[local_10] = cVar3;
             iVar1 = local_10;
             if (cVar3 == '\x1e') break;
@@ -10144,18 +10144,18 @@ void thunk_FUN_00109a5e(undefined4 *param_1)
   DAT_001203ae = 0;
   DAT_001203ac = 0;
   DAT_001203bb = 0;
-  bStack_5 = thunk_FUN_00108086();
+  bStack_5 = frame_rle_getchar();
   if (bStack_5 != '\0') {
     thunk_FUN_0010544e(0,0,5,0x27,param_1);
     thunk_FUN_00105180(param_1);
     do {
-      thunk_FUN_001054f8(bStack_5,param_1);
-      bStack_5 = thunk_FUN_00108086();
+      render_char(bStack_5,param_1);
+      bStack_5 = frame_rle_getchar();
     } while (bStack_5 != '\0');
   }
   thunk_FUN_0010544e(10,1,0x14,0x1d,param_1);
   thunk_FUN_0010544e(10,0x1f,0x14,0x26,param_1);
-  bStack_5 = thunk_FUN_00108086();
+  bStack_5 = frame_rle_getchar();
   if (bStack_5 != 0) {
     for (sStack_8 = 0; sStack_8 < 8; sStack_8 = sStack_8 + 1) {
       *(undefined1 *)((int)param_1 + sStack_8 * 7 + 0x790) = 0;
@@ -10196,28 +10196,28 @@ void thunk_FUN_00109a5e(undefined4 *param_1)
         sStack_a = sStack_a + 1;
         puStack_10 = puVar4;
       }
-      thunk_FUN_001054f8(bStack_5,param_1);
+      render_char(bStack_5,param_1);
       if (bStack_5 == 0xd) {
         sStack_8 = sStack_8 + 1;
       }
       bStack_6 = bStack_5;
       if (1 < sStack_8) break;
-      bStack_5 = thunk_FUN_00108086();
+      bStack_5 = frame_rle_getchar();
     } while (bStack_5 != 0);
     if (sStack_a != 0) {
       thunk_FUN_0012b234(*param_1,(int)param_1 + 0x1022,0xffffffff,0xffffffff,0);
     }
 LAB_00109cda:
     if (bStack_5 != 0) {
-      bStack_5 = thunk_FUN_00108086();
+      bStack_5 = frame_rle_getchar();
       if (bStack_5 == 0) goto LAB_00109d92;
       sVar3 = bStack_5 - 0x31;
       if ((-1 < sVar3) && (sVar3 < 8)) {
-        bStack_5 = thunk_FUN_00108086();
+        bStack_5 = frame_rle_getchar();
         if (bStack_5 == 0x3d) {
           sStack_a = 0;
           while( true ) {
-            bStack_5 = thunk_FUN_00108086();
+            bStack_5 = frame_rle_getchar();
             if ((bStack_5 == 0) || (bStack_5 == 0xd)) break;
             if (sStack_a < 6) {
               *(byte *)((int)param_1 + (int)sStack_a + sVar3 * 7 + 0x790) = bStack_5;
@@ -10229,26 +10229,26 @@ LAB_00109cda:
         }
       }
       while ((bStack_5 != 0 && (bStack_5 != 0xd))) {
-        bStack_5 = thunk_FUN_00108086();
+        bStack_5 = frame_rle_getchar();
       }
       goto LAB_00109cda;
     }
   }
 LAB_00109d92:
-  bStack_5 = thunk_FUN_00108086();
+  bStack_5 = frame_rle_getchar();
   if (bStack_5 != '\0') {
     thunk_FUN_0010544e(7,1,8,0x1d,param_1);
     thunk_FUN_001056aa(7,1,param_1);
     thunk_FUN_0010506a(param_1);
     do {
-      thunk_FUN_001054f8(bStack_5,param_1);
+      render_char(bStack_5,param_1);
       if (bStack_5 == '\r') {
         thunk_FUN_001051de(param_1);
       }
-      bStack_5 = thunk_FUN_00108086();
+      bStack_5 = frame_rle_getchar();
     } while (bStack_5 != '\0');
   }
-  bStack_5 = thunk_FUN_00108086();
+  bStack_5 = frame_rle_getchar();
   if (bStack_5 != '\0') {
     sStack_8 = 0;
     do {
@@ -10258,7 +10258,7 @@ LAB_00109d92:
           *(byte *)((int)param_1 + (int)sStack_a + sStack_8 * 9 + 0x7c8) = bStack_5;
           sStack_a = sStack_a + 1;
         }
-        bStack_5 = thunk_FUN_00108086();
+        bStack_5 = frame_rle_getchar();
       } while (((bStack_5 != '\0') && (bStack_5 != '\r')) && (bStack_5 != ','));
       for (; sStack_a < 8; sStack_a = sStack_a + 1) {
         *(undefined1 *)((int)param_1 + (int)sStack_a + sStack_8 * 9 + 0x7c8) = 0x20;
@@ -10266,19 +10266,19 @@ LAB_00109d92:
       sVar3 = sStack_8 + 1;
       *(undefined1 *)((int)param_1 + (int)sStack_a + sStack_8 * 9 + 0x7c8) = 0;
       if ((bStack_5 == '\0') || (bStack_5 == '\r')) break;
-      bStack_5 = thunk_FUN_00108086();
+      bStack_5 = frame_rle_getchar();
       sStack_8 = sVar3;
     } while (bStack_5 != '\0');
     *(short *)((int)param_1 + 0xc72) = sVar3;
     while (bStack_5 != '\0') {
-      bStack_5 = thunk_FUN_00108086();
+      bStack_5 = frame_rle_getchar();
     }
   }
   *(undefined2 *)(param_1 + 0x31d) = 0;
   thunk_FUN_001056aa(7,0x1f,param_1);
   thunk_FUN_0010506a(param_1);
   thunk_FUN_0010565e(param_1 + 0x1f2,param_1);
-  bStack_5 = thunk_FUN_00108086();
+  bStack_5 = frame_rle_getchar();
   if (bStack_5 != '\0') {
     thunk_FUN_001056aa(10,1,param_1);
     thunk_FUN_00105022(param_1);
@@ -10286,18 +10286,18 @@ LAB_00109d92:
     do {
       for (sStack_a = 0; sStack_a < 6; sStack_a = sStack_a + 1) {
         *(byte *)((int)param_1 + (int)sStack_a + sStack_8 * 0x66 + 0x810) = bStack_5;
-        bStack_5 = thunk_FUN_00108086();
+        bStack_5 = frame_rle_getchar();
       }
       *(undefined1 *)((int)param_1 + (int)sStack_a + sStack_8 * 0x66 + 0x810) = 0;
       for (sStack_a = 0; sStack_a < 0x10; sStack_a = sStack_a + 1) {
-        uVar1 = thunk_FUN_00108086();
+        uVar1 = frame_rle_getchar();
         *(undefined1 *)((int)param_1 + (int)sStack_a + sStack_8 * 0x66 + 0x817) = uVar1;
       }
       *(undefined1 *)((int)param_1 + (int)sStack_a + sStack_8 * 0x66 + 0x817) = 0;
-      thunk_FUN_00108086();
+      frame_rle_getchar();
       sStack_a = 0;
       while( true ) {
-        cVar2 = thunk_FUN_00108086();
+        cVar2 = frame_rle_getchar();
         if (cVar2 == ',') break;
         *(char *)((int)param_1 + (int)sStack_a + sStack_8 * 0x66 + 0x828) = cVar2;
         sStack_a = sStack_a + 1;
@@ -10309,7 +10309,7 @@ LAB_00109d92:
       sStack_a = 0;
       sStack_c = 0;
       do {
-        cVar2 = thunk_FUN_00108086();
+        cVar2 = frame_rle_getchar();
         if ((cVar2 == '\r') || (cVar2 == ',')) {
           for (; sStack_c < 8; sStack_c = sStack_c + 1) {
             *(undefined1 *)((int)param_1 + (int)sStack_c + sStack_a * 9 + sStack_8 * 0x66 + 0x82e) =
@@ -10336,7 +10336,7 @@ LAB_00109d92:
       thunk_FUN_00105250(param_1);
       thunk_FUN_0010506a(param_1);
       sStack_8 = sStack_8 + 1;
-      bStack_5 = thunk_FUN_00108086();
+      bStack_5 = frame_rle_getchar();
     } while (bStack_5 != '\0');
     *(short *)((int)param_1 + 0xc76) = sStack_8;
   }
@@ -10385,8 +10385,8 @@ void thunk_FUN_001080da(undefined4 param_1,int param_2)
   cVar2 = FUN_00108000();
   *(ushort *)(param_2 + 0xc) = (ushort)(cVar2 == '\x0e');
   DAT_001203bb = 0;
-  while (cVar2 = FUN_00108086(), cVar2 != '\0') {
-    thunk_FUN_001054f8(cVar2,param_2);
+  while (cVar2 = frame_rle_getchar(), cVar2 != '\0') {
+    render_char(cVar2,param_2);
   }
   thunk_FUN_0010617c(param_2);
   return;
@@ -10463,9 +10463,9 @@ int thunk_FUN_0011754e(int param_1,undefined4 param_2)
 
 
 
-/* ===== thunk_FUN_0010800c @ 0010e6e0 (size 6) ===== */
+/* ===== read_frame_byte @ 0010e6e0 (size 6) ===== */
 
-undefined1 thunk_FUN_0010800c(void)
+undefined1 read_frame_byte(void)
 
 {
   undefined1 *puVar1;
@@ -10502,24 +10502,24 @@ undefined1 * thunk_FUN_0010818a(int param_1,undefined1 *param_2)
   uint uVar1;
   char cVar2;
   
-  DAT_001203b6 = FUN_0010800c;
+  DAT_001203b6 = read_frame_byte;
   DAT_001203a0 = 0;
   DAT_001203a4 = 0;
   DAT_001203ac = 0;
   DAT_001203ae = param_2;
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   DAT_001203b2 = uVar1 & 0x80;
   *param_2 = 0;
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   *(undefined *)(param_1 + 0xe) = (&DAT_0011e1c0)[uVar1 & 0xf];
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   *(undefined *)(param_1 + 0xf) = (&DAT_0011e1c0)[uVar1 & 0xf];
   thunk_FUN_0010568c(param_1);
-  cVar2 = FUN_0010800c();
+  cVar2 = read_frame_byte();
   *(ushort *)(param_1 + 0xc) = (ushort)(cVar2 == '\x0e');
   DAT_001203bb = 0;
-  while (cVar2 = FUN_00108086(), cVar2 != '\0') {
-    thunk_FUN_001054f8(cVar2,param_1);
+  while (cVar2 = frame_rle_getchar(), cVar2 != '\0') {
+    render_char(cVar2,param_1);
   }
   return DAT_001203ae;
 }
@@ -10755,9 +10755,9 @@ char * thunk_FUN_00101674(char *param_1,char *param_2)
 
 
 
-/* ===== thunk_FUN_001054f8 @ 0010e716 (size 6) ===== */
+/* ===== render_char @ 0010e716 (size 6) ===== */
 
-void thunk_FUN_001054f8(byte param_1,int param_2)
+void render_char(byte param_1,int param_2)
 
 {
   short sVar1;
@@ -12977,24 +12977,24 @@ undefined1 * thunk_FUN_0010818a(int param_1,undefined1 *param_2)
   uint uVar1;
   char cVar2;
   
-  DAT_001203b6 = FUN_0010800c;
+  DAT_001203b6 = read_frame_byte;
   DAT_001203a0 = 0;
   DAT_001203a4 = 0;
   DAT_001203ac = 0;
   DAT_001203ae = param_2;
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   DAT_001203b2 = uVar1 & 0x80;
   *param_2 = 0;
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   *(undefined *)(param_1 + 0xe) = (&DAT_0011e1c0)[uVar1 & 0xf];
-  uVar1 = FUN_0010800c();
+  uVar1 = read_frame_byte();
   *(undefined *)(param_1 + 0xf) = (&DAT_0011e1c0)[uVar1 & 0xf];
   thunk_FUN_0010568c(param_1);
-  cVar2 = FUN_0010800c();
+  cVar2 = read_frame_byte();
   *(ushort *)(param_1 + 0xc) = (ushort)(cVar2 == '\x0e');
   DAT_001203bb = 0;
-  while (cVar2 = FUN_00108086(), cVar2 != '\0') {
-    thunk_FUN_001054f8(cVar2,param_1);
+  while (cVar2 = frame_rle_getchar(), cVar2 != '\0') {
+    render_char(cVar2,param_1);
   }
   return DAT_001203ae;
 }
@@ -13817,8 +13817,8 @@ void thunk_FUN_001080da(undefined4 param_1,int param_2)
   cVar2 = FUN_00108000();
   *(ushort *)(param_2 + 0xc) = (ushort)(cVar2 == '\x0e');
   DAT_001203bb = 0;
-  while (cVar2 = FUN_00108086(), cVar2 != '\0') {
-    thunk_FUN_001054f8(cVar2,param_2);
+  while (cVar2 = frame_rle_getchar(), cVar2 != '\0') {
+    render_char(cVar2,param_2);
   }
   thunk_FUN_0010617c(param_2);
   return;

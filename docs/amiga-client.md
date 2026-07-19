@@ -201,14 +201,17 @@ Three focus areas drive the current work:
    replaced with TCP/IP so the Amiga client talks to the Reborn server. Identifying
    every point where the client touches the transport (device open, IO send/receive,
    dial/connect, carrier/hangup) is essential groundwork.
-3. **PETSCII handling — ANSWERED: the Amiga does not use PETSCII.** Amiga Compunet
-   frames use their own **ESC-sequence markup** (plain ASCII text + `0x1b`+letter
-   control codes + block-graphic bytes), not PETSCII. No PETSCII translation table
-   exists in the client or `cnet.device`. The original service served
-   format-appropriate frames per client platform. **Implication:** a Reborn Amiga
-   client needs Amiga-format (ESC-code) frames — either the server emits them per
-   client type (like the existing C64-vs-terminal split) or a PETSCII→ESC translation
-   layer is added. See
+3. **PETSCII handling — ANSWERED: the Amiga DOES use PETSCII (converts it in the
+   renderer).** The frame renderer (`FUN_001054f8`) switches on `byte >> 5` and applies
+   the canonical **PETSCII → C64 screen-code conversion** (verified to match for
+   0x20-0xBF), with PETSCII control codes (colours, cursor, RVS, charset) dispatched
+   through two jump tables (0x00-0x1F, 0x80-0x9F). Frames use the same RLE compression
+   (`0x06`=repeat space, `0x07`=repeat char) as the C64/server SEQ frames.
+   **Implication (good news):** Reborn's existing PETSCII frame content should render
+   on the Amiga with **no separate frame format** — pending confirmation of the
+   0x80-0x9F control table and colour-palette mapping. (An earlier interim note wrongly
+   concluded a non-PETSCII "ESC-code" format; corrected after disassembling the
+   renderer.) See
    [re/petscii-frame-format.md](../client/amiga/vintage/tools/re/petscii-frame-format.md).
 
    *(original question, for reference)* does the `Compunet`
