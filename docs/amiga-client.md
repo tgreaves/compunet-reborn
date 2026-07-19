@@ -242,9 +242,12 @@ Three focus areas drive the current work:
   byte-identical to C64/server). Framing/CRC/sequencing live in `cnet.device`, not the
   client. The **identification handshake differs** from the C64 (`C CNET\r`×2 +
   14-zero field, vs the C64's `{hash}/100\rADP\rNO\rRUN`) but is detectable, so the
-  server can recognise an Amiga client at connect. **Still to verify:** the
-  application-layer command bytes (show-frame, DIR, GOTO, login) the Amiga sends —
-  these may differ from the C64 set the server expects. See
+  server can recognise an Amiga client at connect. **Application commands — CONFIRMED
+  matching:** the Amiga sends single-letter commands + numeric arg in COM frames and
+  waits for ack `@` — `P<nn>`=SHOW (0x50), `D<nn>`=DIR (0x44), `A`/`B`/`E`/`M`/`N`/`O`
+  — the same set the C64 sends and the Reborn server already handles. Selecting a text
+  frame is `P<nn>` = `CMD_SHOW`, identical to the C64. The remaining difference is
+  **frame content encoding** (Amiga ESC-code frames, not PETSCII). See
   [re/protocol-analysis.md](../client/amiga/vintage/tools/re/protocol-analysis.md) and
   [re/identification-and-commands.md](../client/amiga/vintage/tools/re/identification-and-commands.md).
   **Implication:** a drop-in TCP `cnet.device` handles transport and the server can
