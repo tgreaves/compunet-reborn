@@ -102,11 +102,13 @@ unchanged — the same seam as the C64 SwiftLink↔TCP swap.
 `open_transport` status codes: 0=ok, 10=Modem error, 1=modem msg, else=can't open
 cnet.device. Login packet uses token `0x43` (COM).
 
-> **Pipeline gap found:** `SeedCode.java` seeds only hunk *starts*, so functions
-> reached solely via indirect/computed calls (e.g. `do_connect` @0x10343c,
-> `open_transport` @0x1192b6) were never created in `recon.c`. A future SeedCode
-> improvement: also seed the targets of `jsr`/`jmp abs` and pointer tables so these
-> appear in the decompiled output. For now they are disassembled directly.
+> **Pipeline gap — FIXED.** `SeedCode.java` previously seeded only hunk *starts*, so
+> functions reached solely via indirect calls (`do_connect` @0x10343c,
+> `open_transport` @0x1192b6) were missing from `recon.c`. SeedCode now scans CODE
+> ranges for `link.w` prologues and iteratively seeds call targets: **444 → 781
+> functions**. `do_connect` is now a full 662-byte decompiled function exposing the
+> dial/login sequence ("Dialling %s", "Carrier detected.", "No answer", "Failed to
+> connect", "C CNET"). Names are baked in via `symbols.json` + `ApplySymbols.java`.
 
 ## Still to identify
 
