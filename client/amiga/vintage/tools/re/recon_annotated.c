@@ -94,9 +94,9 @@ undefined8 start(int param_1)
   *(undefined4 *)((int)ppuVar10 + -4) = 0x10012a;
   thunk_FUN_0011c000();
   *(undefined4 *)((int)ppuVar10 + -4) = 0;
-  if (DAT_0011d02c != (code *)0x0) {
+  if (exit_cleanup_hook != (code *)0x0) {
     *(undefined4 *)((int)ppuVar10 + -8) = 0x10013e;
-    (*DAT_0011d02c)();
+    (*exit_cleanup_hook)();
   }
   *(undefined4 *)((int)ppuVar10 + -8) = 0x100142;
   FUN_0010041e();
@@ -135,17 +135,17 @@ undefined8 start(int param_1)
 
 
 
-/* ===== FUN_0010012e @ 0010012e (size 128) ===== */
+/* ===== exit @ 0010012e (size 128) ===== */
 
 /* WARNING: Globals starting with '_' overlap smaller symbols at the same address */
 
-undefined8 FUN_0010012e(undefined4 param_1)
+undefined8 exit(undefined4 param_1)
 
 {
   int iVar1;
   
-  if (DAT_0011d02c != (code *)0x0) {
-    (*DAT_0011d02c)();
+  if (exit_cleanup_hook != (code *)0x0) {
+    (*exit_cleanup_hook)();
   }
   FUN_0010041e();
   iVar1 = AbsExecBase;
@@ -204,8 +204,8 @@ int open_dos_library(void)
   if (DOSBase != 0) {
     return DOSBase;
   }
-  if (DAT_0011d02c != (code *)0x0) {
-    (*DAT_0011d02c)();
+  if (exit_cleanup_hook != (code *)0x0) {
+    (*exit_cleanup_hook)();
   }
   FUN_0010041e();
   iVar1 = AbsExecBase;
@@ -1388,7 +1388,7 @@ void FUN_0010169c(undefined4 param_1,undefined4 param_2)
     }
     piVar2 = piVar2 + 2;
   }
-  FUN_0010012e(param_1,param_2);
+  exit(param_1,param_2);
   return;
 }
 
@@ -16718,7 +16718,7 @@ void thunk_FUN_0010169c(undefined4 param_1,undefined4 param_2)
     }
     piVar2 = piVar2 + 2;
   }
-  FUN_0010012e(param_1,param_2);
+  exit(param_1,param_2);
   return;
 }
 

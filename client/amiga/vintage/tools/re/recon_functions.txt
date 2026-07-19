@@ -1,6 +1,6 @@
 # addr  size  name  ncalls  strings
 00100000  302  start  3  
-0010012e  128  FUN_0010012e  1  
+0010012e  128  exit  1  
 001001b2  18  FUN_001001b2  0  
 001001c4  22  open_dos_library  0  dos.library
 001001d8  6  thunk_FUN_0011c000  0  
