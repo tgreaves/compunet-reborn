@@ -15,7 +15,8 @@ the transport can be swapped for TCP (Compunet Reborn).
 |--------|------|-------|
 | Shared types/decls | `compunet.h` | in progress |
 | Transport (cnet.device serial IO) | `transport.c` | **reconstructed + compiles** (serial_read/serial_write) |
-| Connect / login | (todo) | do_connect, open_transport |
+| Connect / transport bring-up | `connect.c` | **reconstructed + compiles** (open_transport: ports, requests, OpenDevice, 1275 baud) |
+| Login / do_connect | (todo) | dial + login sequence (calls open_transport) |
 | Frame display (PETSCII) | (todo) | render_char, build_font, blit_char_cell |
 | Directory / show / goto | (todo) | |
 | Download / upload | (todo) | |
@@ -36,9 +37,14 @@ VBCC=/path/to/vbcc PATH=$VBCC/bin:$PATH \
   vc +kick13 -c -I. transport.c -o transport.o
 ```
 
-`transport.c` currently compiles clean (only harmless `#endif !FOO` warnings from the
-vintage 1.3 headers). The result is a genuine Amiga HUNK object with `_serial_read` /
-`_serial_write`.
+`transport.c` and `connect.c` compile clean (only harmless `#endif !FOO` warnings from
+the vintage 1.3 headers), producing genuine Amiga HUNK objects.
+
+**Struct-offset verification.** `struct CnetRequest` field offsets are asserted at
+compile time (via `offsetof`) to match the decompiled reference exactly:
+`io_Command`=0x1c, `io_Error`=0x1f, `io_Actual`=0x20, `io_Length`=0x24,
+`io_Data`=0x28, `io_Device`=0x14, `io_Offset`=0x2c. So the reconstruction reads/writes
+the same bytes the original did — faithfulness is proven, not assumed.
 
 SAS/C note: the source targets standard Amiga includes, so a `SMakefile` for real
 SAS/C is a drop-in later; vbcc is the modern-host proxy for the compile/verify loop.

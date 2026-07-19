@@ -12,16 +12,14 @@
  * just hands it (data, length, command) and waits. This is the seam a future TCP
  * transport replaces.
  *
- * Struct note: the original stashes two bytes in the request's io_Offset field
- * (offsets +0x2c/+0x2d), which serial.device does not use. We preserve that exactly
- * via the io_Offset byte accessors below rather than inventing field names.
- *   +0x2c = high byte of io_Offset   (write: ser_flags param; read: out_ser_flags)
- *   +0x2d = next byte of io_Offset   (write: status param;   read: out_status)
+ * Struct note: the request is a compact 54-byte cnet.device block (struct
+ * CnetRequest), not stock IOExtSer. The client reuses two serial-unused bytes in
+ * io_Offset as scratch — REQ_SERFLAGS/REQ_STATUS accessors (see compunet.h) — which
+ * we preserve exactly rather than inventing serial field names.
  */
 #include <exec/types.h>
 #include <exec/io.h>
 #include <exec/ports.h>
-#include <devices/serial.h>
 #include <clib/exec_protos.h>
 
 #include "compunet.h"
@@ -31,11 +29,6 @@ extern void  handle_extra_signal(void);            /* was FUN_00119506 */
 extern void  handle_device_message(struct Message *msg); /* was FUN_001190e8 */
 extern BOOL  g_log_device_messages;                /* was DAT_0011fd74 */
 extern void  set_connection_error(int code);       /* was thunk_FUN_00101638(&DAT_00120170,n) */
-
-/* The two scratch bytes the client keeps in io_Offset. io_Offset is a ULONG at
- * +0x2c; byte +0x2c is bits 31..24, byte +0x2d is bits 23..16 (68k big-endian). */
-#define REQ_B2C(req)  (((UBYTE *)&(req)->IOSer.io_Offset)[0])
-#define REQ_B2D(req)  (((UBYTE *)&(req)->IOSer.io_Offset)[1])
 
 /*
  * Wait for the in-flight request on 'my_port' (my_sig) to complete, replying to any
@@ -87,31 +80,31 @@ static LONG report_result(BYTE io_error)
 
 LONG serial_write(APTR data, ULONG length, UBYTE status_hi, UBYTE ser_flags)
 {
-    g_write_req->IOSer.io_Data    = data;
-    g_write_req->IOSer.io_Length  = length;
-    REQ_B2C(g_write_req)          = ser_flags;   /* +0x2c */
-    REQ_B2D(g_write_req)          = status_hi;   /* +0x2d */
-    g_write_req->IOSer.io_Command = CMD_WRITE;   /* 3 */
+    g_write_req->io.io_Data    = data;
+    g_write_req->io.io_Length  = length;
+    REQ_SERFLAGS(g_write_req)  = ser_flags;   /* +0x2c */
+    REQ_STATUS(g_write_req)    = status_hi;   /* +0x2d */
+    g_write_req->io.io_Command = CMD_WRITE;   /* 3 */
 
     SendIO((struct IORequest *)g_write_req);
     wait_for_completion(g_write_port, g_write_sig);
 
-    return report_result(g_write_req->IOSer.io_Error);
+    return report_result(g_write_req->io.io_Error);
 }
 
 LONG serial_read(APTR data, ULONG length,
                  UBYTE *out_ser_flags, UBYTE *out_status_hi, ULONG *out_actual)
 {
-    g_read_req->IOSer.io_Data    = data;
-    g_read_req->IOSer.io_Length  = length;
-    g_read_req->IOSer.io_Command = CMD_READ;     /* 2 */
+    g_read_req->io.io_Data    = data;
+    g_read_req->io.io_Length  = length;
+    g_read_req->io.io_Command = CMD_READ;     /* 2 */
 
     SendIO((struct IORequest *)g_read_req);
     wait_for_completion(g_read_port, g_read_sig);
 
-    *out_ser_flags = REQ_B2C(g_read_req);                /* +0x2c */
-    *out_status_hi = REQ_B2D(g_read_req);                /* +0x2d */
-    *out_actual    = g_read_req->IOSer.io_Actual;        /* +0x20 */
+    *out_ser_flags = REQ_SERFLAGS(g_read_req);           /* +0x2c */
+    *out_status_hi = REQ_STATUS(g_read_req);             /* +0x2d */
+    *out_actual    = g_read_req->io.io_Actual;           /* +0x20 */
 
-    return report_result(g_read_req->IOSer.io_Error);
+    return report_result(g_read_req->io.io_Error);
 }
