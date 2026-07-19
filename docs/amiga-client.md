@@ -235,16 +235,21 @@ Three focus areas drive the current work:
 - **Reconstruct module-by-module**, starting with the transport (`cnet.device`
   open/IO around `0x1192b6` / `0x10343c`) and the protocol/framing code, verifying
   each against its original with the round-trip method.
-- **Protocol match — CONFIRMED.** The Amiga client speaks the *same* application-layer
-  protocol as the Reborn server. The X.25 framing engine in `cnet.device` was
-  disassembled and matches [docs/PROTOCOL.md](PROTOCOL.md) field-for-field: `$01`
-  start marker, sequence in range `$20-$5F` with wrap, token bytes (`0x22`=DAT,
-  `0x43`=COM), and a table-driven CRC-CCITT (canonical poly-0x1021 table, byte-identical
-  to the C64/server) appended as `[CRC_hi][CRC_lo]`. Framing/CRC/sequencing live
-  entirely in `cnet.device`, not the client. See
-  [re/protocol-analysis.md](../client/amiga/vintage/tools/re/protocol-analysis.md).
-  **Implication:** an Amiga Reborn client is viable; the cleanest route is a drop-in
-  TCP `cnet.device` (client binary unmodified).
+- **Protocol match — transport CONFIRMED, application commands OPEN.** The X.25
+  framing engine in `cnet.device` matches [docs/PROTOCOL.md](PROTOCOL.md)
+  field-for-field: `$01` start marker, sequence `$20-$5F` with wrap, tokens
+  (`0x22`=DAT, `0x43`=COM), table-driven CRC-CCITT (canonical poly-0x1021 table,
+  byte-identical to C64/server). Framing/CRC/sequencing live in `cnet.device`, not the
+  client. The **identification handshake differs** from the C64 (`C CNET\r`×2 +
+  14-zero field, vs the C64's `{hash}/100\rADP\rNO\rRUN`) but is detectable, so the
+  server can recognise an Amiga client at connect. **Still to verify:** the
+  application-layer command bytes (show-frame, DIR, GOTO, login) the Amiga sends —
+  these may differ from the C64 set the server expects. See
+  [re/protocol-analysis.md](../client/amiga/vintage/tools/re/protocol-analysis.md) and
+  [re/identification-and-commands.md](../client/amiga/vintage/tools/re/identification-and-commands.md).
+  **Implication:** a drop-in TCP `cnet.device` handles transport and the server can
+  detect Amiga clients (needs a detection branch + Amiga-format frames), but whether
+  the unmodified client can drive the Reborn server hinges on the command match.
 - **Unpack `CNETTTY`** (cruncher #2) via 68k emulation of its stub, if the TTY
   viewer proves useful.
 

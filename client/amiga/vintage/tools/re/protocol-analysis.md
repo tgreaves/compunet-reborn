@@ -4,14 +4,28 @@ Comparing the Amiga client's wire protocol against [docs/PROTOCOL.md](../../../.
 (the C64/server X.25-derived protocol). **This is the critical unknown** for Reborn:
 does the Amiga client speak the same application-layer protocol the server implements?
 
-## Status: CONFIRMED — the Amiga client speaks the same protocol (framing in cnet.device)
+## Status: TRANSPORT confirmed; APPLICATION COMMANDS still open
 
 The X.25 framing engine in `cnet.device` was disassembled and matches
-`docs/PROTOCOL.md` field-for-field. See "Framing engine" below. Combined with the
+`docs/PROTOCOL.md` field-for-field (see "Framing engine" below). Combined with the
 matching tokens (`0x22`=DAT, `0x43`=COM) and the byte-identical CRC-CCITT table, the
-Amiga client uses the **same application-layer protocol** as the Reborn server. This
-resolves the critical unknown: **an Amiga Reborn client is viable**, and the cleanest
-route is a drop-in TCP `cnet.device` (client binary unmodified).
+**transport / framing layer matches** the Reborn server.
+
+**Scope caution — not yet a full "same protocol" claim.** What is confirmed:
+- **Transport** (framing, CRC, sequence, tokens): matches. ✓
+- **Identification handshake**: differs from C64 but is detectable — see
+  [identification-and-commands.md](identification-and-commands.md). ✓
+
+What is **NOT** yet confirmed:
+- **Application-layer commands** — the byte sequences the Amiga sends for user
+  actions (show text frame, DIR, GOTO, login, upload/download). These ride inside
+  DAT/COM frames but their contents may differ from the C64 command set the Reborn
+  server expects. Must be decoded from the client's command senders and compared to
+  PROTOCOL.md before claiming a Reborn Amiga client can drive the existing server.
+
+So: a drop-in TCP `cnet.device` handles the transport, but whether the unmodified
+`Compunet` client can then talk to the Reborn server depends on the application
+command match — still to verify.
 
 ## Framing engine (cnet.device) — confirmed field-by-field
 
