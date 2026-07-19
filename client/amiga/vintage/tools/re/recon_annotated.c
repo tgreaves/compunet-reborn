@@ -22,12 +22,12 @@ undefined8 FUN_00100000(int param_1)
   undefined4 local_38;
   undefined4 uStack_34;
   
-  iVar9 = _DAT_00000004;
+  iVar9 = AbsExecBase;
   DAT_0011d04c = &uStack_34;
-  DAT_0011d040 = _DAT_00000004;
+  SysBase = AbsExecBase;
   DAT_0011d048 = 0;
   local_38 = 0x100028;
-  iVar2 = (**(code **)(_DAT_00000004 + -0x126))();    /* = SysBase.FindTask() */
+  iVar2 = (**(code **)(AbsExecBase + -0x126))();    /* = SysBase.FindTask() */
   DAT_0011d038 = *(undefined4 *)(iVar2 + 0x98);
   if (*(int *)(iVar2 + 0xac) == 0) {
     DAT_0011d004 = (undefined1 *)(*(int *)(iVar2 + 0x3a) + 0x80);
@@ -35,13 +35,13 @@ undefined8 FUN_00100000(int param_1)
     FUN_001001c4();
     local_38 = 0x1000bc;
     uVar3 = FUN_001001b2();
-    iVar7 = DAT_001200d8;
+    iVar7 = DOSBase;
     DAT_0011d048 = uVar3;
     local_38 = uVar3;
     if (*(undefined4 **)(uVar3 + 0x24) != (undefined4 *)0x0) {
       DAT_0011d038 = **(undefined4 **)(uVar3 + 0x24);
       local_3c = 0x1000dc;
-      (**(code **)(DAT_001200d8 + -0x7e))();    /* = DOSBase.CurrentDir() */
+      (**(code **)(DOSBase + -0x7e))();    /* = DOSBase.CurrentDir() */
       iVar9 = iVar7;
     }
     if (*(int *)(uVar3 + 0x20) != 0) {
@@ -86,7 +86,7 @@ undefined8 FUN_00100000(int param_1)
     *(int *)((int)&local_3c + iVar9 + 2) = (int)&local_38 + iVar9 + 2;
   }
   sVar5 = 0xc80;
-  puVar8 = &DAT_001200e8;
+  puVar8 = &IntuitionBase;
   while (sVar5 = sVar5 + -1, sVar5 != -1) {
     *puVar8 = 0;
     puVar8 = puVar8 + 1;
@@ -100,9 +100,9 @@ undefined8 FUN_00100000(int param_1)
   }
   *(undefined4 *)((int)ppuVar10 + -8) = 0x100142;
   FUN_0010041e();
-  iVar9 = _DAT_00000004;
+  iVar9 = AbsExecBase;
   *(undefined4 *)((int)ppuVar10 + -8) = 0x10014e;
-  (**(code **)(_DAT_00000004 + -0x19e))();    /* = SysBase.CloseLibrary() */
+  (**(code **)(AbsExecBase + -0x19e))();    /* = SysBase.CloseLibrary() */
   if (DAT_001200dc != 0) {
     *(undefined4 *)((int)ppuVar10 + -8) = 0x10015c;
     (**(code **)(iVar9 + -0x19e))();
@@ -124,9 +124,9 @@ undefined8 FUN_00100000(int param_1)
       *(undefined4 *)((int)ppuVar10 + -8) = 0x100192;
       (**(code **)(iVar9 + -0x24))();
     }
-    iVar9 = _DAT_00000004;
+    iVar9 = AbsExecBase;
     *(undefined4 *)((int)ppuVar10 + -8) = 0x10019a;
-    (**(code **)(_DAT_00000004 + -0x84))();    /* = SysBase.Forbid() */
+    (**(code **)(AbsExecBase + -0x84))();    /* = SysBase.Forbid() */
     *(undefined4 *)((int)ppuVar10 + -8) = 0x1001a2;
     (**(code **)(iVar9 + -0x17a))();
   }
@@ -148,8 +148,8 @@ undefined8 FUN_0010012e(undefined4 param_1)
     (*DAT_0011d02c)();
   }
   FUN_0010041e();
-  iVar1 = _DAT_00000004;
-  (**(code **)(_DAT_00000004 + -0x19e))();    /* = SysBase.CloseLibrary() */
+  iVar1 = AbsExecBase;
+  (**(code **)(AbsExecBase + -0x19e))();    /* = SysBase.CloseLibrary() */
   if (DAT_001200dc != 0) {
     (**(code **)(iVar1 + -0x19e))();
   }
@@ -166,8 +166,8 @@ undefined8 FUN_0010012e(undefined4 param_1)
     if (DAT_0011d050 != 0) {
       (**(code **)(iVar1 + -0x24))();
     }
-    iVar1 = _DAT_00000004;
-    (**(code **)(_DAT_00000004 + -0x84))();    /* = SysBase.Forbid() */
+    iVar1 = AbsExecBase;
+    (**(code **)(AbsExecBase + -0x84))();    /* = SysBase.Forbid() */
     (**(code **)(iVar1 + -0x17a))();
   }
   return CONCAT44(param_1,*DAT_0011d04c);
@@ -200,16 +200,16 @@ int FUN_001001c4(void)
   int iVar1;
   int unaff_A6;
   
-  DAT_001200d8 = (**(code **)(unaff_A6 + -0x228))();
-  if (DAT_001200d8 != 0) {
-    return DAT_001200d8;
+  DOSBase = (**(code **)(unaff_A6 + -0x228))();
+  if (DOSBase != 0) {
+    return DOSBase;
   }
   if (DAT_0011d02c != (code *)0x0) {
     (*DAT_0011d02c)();
   }
   FUN_0010041e();
-  iVar1 = _DAT_00000004;
-  (**(code **)(_DAT_00000004 + -0x19e))();    /* = SysBase.CloseLibrary() */
+  iVar1 = AbsExecBase;
+  (**(code **)(AbsExecBase + -0x19e))();    /* = SysBase.CloseLibrary() */
   if (DAT_001200dc != 0) {
     (**(code **)(iVar1 + -0x19e))();
   }
@@ -226,8 +226,8 @@ int FUN_001001c4(void)
     if (DAT_0011d050 != 0) {
       (**(code **)(iVar1 + -0x24))();
     }
-    iVar1 = _DAT_00000004;
-    (**(code **)(_DAT_00000004 + -0x84))();    /* = SysBase.Forbid() */
+    iVar1 = AbsExecBase;
+    (**(code **)(AbsExecBase + -0x84))();    /* = SysBase.Forbid() */
     (**(code **)(iVar1 + -0x17a))();
   }
   return 100;
@@ -379,7 +379,7 @@ void FUN_0010041e(void)
   local_8 = DAT_00123190;
   while (local_8 != (undefined4 *)0x0) {
     local_8 = (undefined4 *)*local_8;
-    (**(code **)(_DAT_00000004 + -0xd2))();    /* = SysBase.FreeMem() */
+    (**(code **)(AbsExecBase + -0xd2))();    /* = SysBase.FreeMem() */
   }
   DAT_00123194 = 0;
   DAT_00123190 = (undefined4 *)0x0;
@@ -903,7 +903,7 @@ uint FUN_001016e4(void)
   uint uVar1;
   int iVar2;
   
-  uVar1 = (**(code **)(_DAT_00000004 + -0x132))();    /* = SysBase.SetSignal() */
+  uVar1 = (**(code **)(AbsExecBase + -0x132))();    /* = SysBase.SetSignal() */
   uVar1 = uVar1 & 0x3000;
   if (uVar1 == 0) {
     uVar1 = 0;
@@ -933,9 +933,9 @@ int FUN_00101740(void)
     FUN_001016e4();
   }
   DAT_0011d018 = 0;
-  iVar1 = (**(code **)(DAT_001200d8 + -0x30))();    /* = DOSBase.Write() */
+  iVar1 = (**(code **)(DOSBase + -0x30))();    /* = DOSBase.Write() */
   if (iVar1 == -1) {
-    DAT_0011d018 = (**(code **)(DAT_001200d8 + -0x84))();    /* = DOSBase.IoErr() */
+    DAT_0011d018 = (**(code **)(DOSBase + -0x84))();    /* = DOSBase.IoErr() */
     DAT_00120038 = 5;
   }
   return iVar1;
@@ -954,13 +954,13 @@ int FUN_00101798(undefined4 param_1,int param_2,int param_3)
     FUN_001016e4();
   }
   DAT_0011d018 = 0;
-  iVar1 = (**(code **)(DAT_001200d8 + -0x42))();    /* = DOSBase.Seek() */
+  iVar1 = (**(code **)(DOSBase + -0x42))();    /* = DOSBase.Seek() */
   if (iVar1 == -1) {
-    DAT_0011d018 = (**(code **)(DAT_001200d8 + -0x84))();    /* = DOSBase.IoErr() */
+    DAT_0011d018 = (**(code **)(DOSBase + -0x84))();    /* = DOSBase.IoErr() */
     DAT_00120038 = 0x16;
   }
   if (param_3 == 2) {
-    param_3 = (**(code **)(DAT_001200d8 + -0x42))();    /* = DOSBase.Seek() */
+    param_3 = (**(code **)(DOSBase + -0x42))();    /* = DOSBase.Seek() */
   }
   else if (param_3 == 1) {
     param_3 = param_2 + iVar1;
@@ -981,7 +981,7 @@ undefined4 FUN_0010182c(void)
   if (DAT_0011d030 != 0) {
     FUN_001016e4();
   }
-  (**(code **)(DAT_001200d8 + -0x24))();    /* = DOSBase.Close() */
+  (**(code **)(DOSBase + -0x24))();    /* = DOSBase.Close() */
   return 0;
 }
 
@@ -1355,12 +1355,12 @@ void FUN_001026ae(void)
   int *piVar1;
   int iVar2;
   
-  DAT_001200e8 = thunk_FUN_0011a290(s_intuition_library_0011d51c,0x21);
-  if (DAT_001200e8 == 0) {
+  IntuitionBase = thunk_FUN_0011a290(s_intuition_library_0011d51c,0x21);
+  if (IntuitionBase == 0) {
     thunk_FUN_0011a11e(0x14);
   }
-  DAT_001200ec = thunk_FUN_0011a290(s_graphics_library_0011d52e,0x21);
-  if (DAT_001200ec == 0) {
+  GfxBase = thunk_FUN_0011a290(s_graphics_library_0011d52e,0x21);
+  if (GfxBase == 0) {
     thunk_FUN_0011a11e(0x14);
   }
   DAT_001200f8 = thunk_FUN_0011a4e0(s_Compunet_0011d098 + 10);
@@ -1538,7 +1538,7 @@ void FUN_001029e6(void)
 void thunk_FUN_001290f4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x16e))();    /* = SysBase.PutMsg() */
+  (**(code **)(SysBase + -0x16e))();    /* = SysBase.PutMsg() */
   return;
 }
 
@@ -1549,7 +1549,7 @@ void thunk_FUN_001290f4(void)
 void thunk_FUN_00129120(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x17a))();    /* = SysBase.ReplyMsg() */
+  (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
   return;
 }
 
@@ -1560,7 +1560,7 @@ void thunk_FUN_00129120(void)
 void thunk_FUN_0012b1d0(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x114))();    /* = IntuitionBase.SetWindowTitles() */
+  (**(code **)(IntuitionBase + -0x114))();    /* = IntuitionBase.SetWindowTitles() */
   return;
 }
 
@@ -1571,7 +1571,7 @@ void thunk_FUN_0012b1d0(void)
 void thunk_FUN_0012b128(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xc0))();    /* = IntuitionBase.OnMenu() */
+  (**(code **)(IntuitionBase + -0xc0))();    /* = IntuitionBase.OnMenu() */
   return;
 }
 
@@ -1874,7 +1874,7 @@ undefined4 thunk_FUN_00101624(undefined4 *param_1)
 void thunk_FUN_0012b014(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x3c))();    /* = IntuitionBase.ClearPointer() */
+  (**(code **)(IntuitionBase + -0x3c))();    /* = IntuitionBase.ClearPointer() */
   return;
 }
 
@@ -1885,7 +1885,7 @@ void thunk_FUN_0012b014(void)
 void thunk_FUN_00129134(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x180))();    /* = SysBase.WaitPort() */
+  (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
   return;
 }
 
@@ -1908,7 +1908,7 @@ void thunk_FUN_0011a588(undefined4 param_1,undefined4 param_2)
 void thunk_FUN_0012907c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x126))();    /* = SysBase.FindTask() */
+  (**(code **)(SysBase + -0x126))();    /* = SysBase.FindTask() */
   return;
 }
 
@@ -1919,7 +1919,7 @@ void thunk_FUN_0012907c(void)
 void thunk_FUN_001280b4(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x8a))();    /* = DOSBase.CreateProc() */
+  (**(code **)(DOSBase + -0x8a))();    /* = DOSBase.CreateProc() */
   return;
 }
 
@@ -1930,7 +1930,7 @@ void thunk_FUN_001280b4(void)
 void thunk_FUN_0012910c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x174))();    /* = SysBase.GetMsg() */
+  (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
   return;
 }
 
@@ -1991,7 +1991,7 @@ int thunk_FUN_0011a41e(undefined4 param_1)
 void thunk_FUN_0012b0f4(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xb4))();    /* = IntuitionBase.OffMenu() */
+  (**(code **)(IntuitionBase + -0xb4))();    /* = IntuitionBase.OffMenu() */
   return;
 }
 
@@ -2061,7 +2061,7 @@ undefined4 thunk_FUN_00106000(void)
 void thunk_FUN_0012a01c(void)
 
 {
-  (**(code **)(DAT_001200ec + -0xc0))();    /* = GfxBase.LoadRGB4() */
+  (**(code **)(GfxBase + -0xc0))();    /* = GfxBase.LoadRGB4() */
   return;
 }
 
@@ -2091,7 +2091,7 @@ int thunk_FUN_0011a534(undefined4 param_1)
 void thunk_FUN_001291d0(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x234))();    /* = SysBase.ObtainSemaphore() */
+  (**(code **)(SysBase + -0x234))();    /* = SysBase.ObtainSemaphore() */
   return;
 }
 
@@ -2102,7 +2102,7 @@ void thunk_FUN_001291d0(void)
 void thunk_FUN_0012b1b0(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x10e))();    /* = IntuitionBase.SetPointer() */
+  (**(code **)(IntuitionBase + -0x10e))();    /* = IntuitionBase.SetPointer() */
   return;
 }
 
@@ -2243,7 +2243,7 @@ undefined8 thunk_FUN_00101638(undefined4 *param_1,int param_2)
 void thunk_FUN_0012b050(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x66))();    /* = IntuitionBase.DoubleClick() */
+  (**(code **)(IntuitionBase + -0x66))();    /* = IntuitionBase.DoubleClick() */
   return;
 }
 
@@ -2294,7 +2294,7 @@ char thunk_FUN_0011a000(void)
 void thunk_FUN_0012b10c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xba))();    /* = IntuitionBase.OnGadget() */
+  (**(code **)(IntuitionBase + -0xba))();    /* = IntuitionBase.OnGadget() */
   return;
 }
 
@@ -2305,7 +2305,7 @@ void thunk_FUN_0012b10c(void)
 void thunk_FUN_001291e4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x23a))();    /* = SysBase.ReleaseSemaphore() */
+  (**(code **)(SysBase + -0x23a))();    /* = SysBase.ReleaseSemaphore() */
   return;
 }
 
@@ -2336,7 +2336,7 @@ char * thunk_FUN_00101674(char *param_1,char *param_2)
 void thunk_FUN_0012b0d8(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xae))();    /* = IntuitionBase.OffGadget() */
+  (**(code **)(IntuitionBase + -0xae))();    /* = IntuitionBase.OffGadget() */
   return;
 }
 
@@ -2358,7 +2358,7 @@ void FUN_00103000(void)
 void thunk_FUN_0012a068(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x132))();    /* = GfxBase.RectFill() */
+  (**(code **)(GfxBase + -0x132))();    /* = GfxBase.RectFill() */
   return;
 }
 
@@ -2412,7 +2412,7 @@ undefined4 FUN_00104000(void)
 void thunk_FUN_00129120(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x17a))();    /* = SysBase.ReplyMsg() */
+  (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
   return;
 }
 
@@ -2423,7 +2423,7 @@ void thunk_FUN_00129120(void)
 void thunk_FUN_0012b214(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
+  (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
   return;
 }
 
@@ -2434,7 +2434,7 @@ void thunk_FUN_0012b214(void)
 void thunk_FUN_0012b234(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b6))();    /* = IntuitionBase.AddGList() */
+  (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
   return;
 }
 
@@ -2445,7 +2445,7 @@ void thunk_FUN_0012b234(void)
 void thunk_FUN_0012b06c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x6c))();    /* = IntuitionBase.DrawBorder() */
+  (**(code **)(IntuitionBase + -0x6c))();    /* = IntuitionBase.DrawBorder() */
   return;
 }
 
@@ -2456,7 +2456,7 @@ void thunk_FUN_0012b06c(void)
 void thunk_FUN_00129134(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x180))();    /* = SysBase.WaitPort() */
+  (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
   return;
 }
 
@@ -2467,7 +2467,7 @@ void thunk_FUN_00129134(void)
 void thunk_FUN_0012910c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x174))();    /* = SysBase.GetMsg() */
+  (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
   return;
 }
 
@@ -2478,7 +2478,7 @@ void thunk_FUN_0012910c(void)
 void thunk_FUN_0012b088(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x72))();    /* = IntuitionBase.DrawImage() */
+  (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
   return;
 }
 
@@ -2508,7 +2508,7 @@ int thunk_FUN_0011a534(undefined4 param_1)
 void thunk_FUN_0012b168(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xd8))();    /* = IntuitionBase.PrintIText() */
+  (**(code **)(IntuitionBase + -0xd8))();    /* = IntuitionBase.PrintIText() */
   return;
 }
 
@@ -2804,7 +2804,7 @@ int thunk_FUN_00101604(void)
 void thunk_FUN_0012a0f0(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x18c))();    /* = GfxBase.ScrollRaster() */
+  (**(code **)(GfxBase + -0x18c))();    /* = GfxBase.ScrollRaster() */
   return;
 }
 
@@ -2852,7 +2852,7 @@ void thunk_FUN_00107000(short param_1,short param_2,int param_3)
     (&DAT_00120264)[sVar6] = iVar9;
   }
   if (DAT_0011d9a8 == 0) {
-    (**(code **)(DAT_001200ec + -0x25e))();    /* = GfxBase.BltBitMapRastPort() */
+    (**(code **)(GfxBase + -0x25e))();    /* = GfxBase.BltBitMapRastPort() */
   }
   else {
     param_2 = param_2 + param_1 * 0x140;
@@ -2901,7 +2901,7 @@ void thunk_FUN_001061e8(int param_1,int param_2,short param_3,short param_4,int 
 void thunk_FUN_0012a0a0(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x15c))();    /* = GfxBase.SetBPen() */
+  (**(code **)(GfxBase + -0x15c))();    /* = GfxBase.SetBPen() */
   return;
 }
 
@@ -3020,7 +3020,7 @@ void FUN_001061e8(int param_1,int param_2,short param_3,short param_4,int *param
 void thunk_FUN_0012a038(void)
 
 {
-  (**(code **)(DAT_001200ec + -0xc6))();    /* = GfxBase.InitRastPort() */
+  (**(code **)(GfxBase + -0xc6))();    /* = GfxBase.InitRastPort() */
   return;
 }
 
@@ -3031,7 +3031,7 @@ void thunk_FUN_0012a038(void)
 void thunk_FUN_0012a0d0(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x186))();    /* = GfxBase.InitBitMap() */
+  (**(code **)(GfxBase + -0x186))();    /* = GfxBase.InitBitMap() */
   return;
 }
 
@@ -3042,7 +3042,7 @@ void thunk_FUN_0012a0d0(void)
 void thunk_FUN_0012a110(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x25e))();    /* = GfxBase.BltBitMapRastPort() */
+  (**(code **)(GfxBase + -0x25e))();    /* = GfxBase.BltBitMapRastPort() */
   return;
 }
 
@@ -3053,7 +3053,7 @@ void thunk_FUN_0012a110(void)
 void thunk_FUN_0012b088(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x72))();    /* = IntuitionBase.DrawImage() */
+  (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
   return;
 }
 
@@ -3187,7 +3187,7 @@ void FUN_00107000(short param_1,short param_2,int param_3)
     (&DAT_00120264)[sVar6] = iVar9;
   }
   if (DAT_0011d9a8 == 0) {
-    (**(code **)(DAT_001200ec + -0x25e))();    /* = GfxBase.BltBitMapRastPort() */
+    (**(code **)(GfxBase + -0x25e))();    /* = GfxBase.BltBitMapRastPort() */
   }
   else {
     param_2 = param_2 + param_1 * 0x140;
@@ -4129,7 +4129,7 @@ undefined4 FUN_0010a484(int param_1)
 void thunk_FUN_0012b214(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
+  (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
   return;
 }
 
@@ -4232,7 +4232,7 @@ void thunk_FUN_00105250(int param_1)
 void thunk_FUN_0012b234(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b6))();    /* = IntuitionBase.AddGList() */
+  (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
   return;
 }
 
@@ -4395,7 +4395,7 @@ void thunk_FUN_001056aa(undefined2 param_1,undefined2 param_2,int param_3)
 void thunk_FUN_0012a068(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x132))();    /* = GfxBase.RectFill() */
+  (**(code **)(GfxBase + -0x132))();    /* = GfxBase.RectFill() */
   return;
 }
 
@@ -4431,7 +4431,7 @@ void thunk_FUN_00105022(int param_1)
 void thunk_FUN_0012a0b8(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x162))();    /* = GfxBase.SetDrMd() */
+  (**(code **)(GfxBase + -0x162))();    /* = GfxBase.SetDrMd() */
   return;
 }
 
@@ -4442,7 +4442,7 @@ void thunk_FUN_0012a0b8(void)
 void thunk_FUN_0012b254(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1bc))();    /* = IntuitionBase.RemoveGList() */
+  (**(code **)(IntuitionBase + -0x1bc))();    /* = IntuitionBase.RemoveGList() */
   return;
 }
 
@@ -4983,7 +4983,7 @@ void FUN_0010d0d0(void)
 void thunk_FUN_0012b214(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
+  (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
   return;
 }
 
@@ -4994,7 +4994,7 @@ void thunk_FUN_0012b214(void)
 void thunk_FUN_0012b234(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b6))();    /* = IntuitionBase.AddGList() */
+  (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
   return;
 }
 
@@ -5005,7 +5005,7 @@ void thunk_FUN_0012b234(void)
 void thunk_FUN_0012b06c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x6c))();    /* = IntuitionBase.DrawBorder() */
+  (**(code **)(IntuitionBase + -0x6c))();    /* = IntuitionBase.DrawBorder() */
   return;
 }
 
@@ -5016,7 +5016,7 @@ void thunk_FUN_0012b06c(void)
 void thunk_FUN_0012b088(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x72))();    /* = IntuitionBase.DrawImage() */
+  (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
   return;
 }
 
@@ -5046,7 +5046,7 @@ int thunk_FUN_0011a534(undefined4 param_1)
 void thunk_FUN_0012b168(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xd8))();    /* = IntuitionBase.PrintIText() */
+  (**(code **)(IntuitionBase + -0xd8))();    /* = IntuitionBase.PrintIText() */
   return;
 }
 
@@ -5696,7 +5696,7 @@ void FUN_0010f18e(void)
 void thunk_FUN_0012b06c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x6c))();    /* = IntuitionBase.DrawBorder() */
+  (**(code **)(IntuitionBase + -0x6c))();    /* = IntuitionBase.DrawBorder() */
   return;
 }
 
@@ -5707,7 +5707,7 @@ void thunk_FUN_0012b06c(void)
 void thunk_FUN_0012b088(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x72))();    /* = IntuitionBase.DrawImage() */
+  (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
   return;
 }
 
@@ -5978,7 +5978,7 @@ void FUN_001104d8(int param_1)
 void thunk_FUN_00129120(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x17a))();    /* = SysBase.ReplyMsg() */
+  (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
   return;
 }
 
@@ -5989,7 +5989,7 @@ void thunk_FUN_00129120(void)
 void thunk_FUN_0012b214(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
+  (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
   return;
 }
 
@@ -6000,7 +6000,7 @@ void thunk_FUN_0012b214(void)
 void thunk_FUN_0012b234(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b6))();    /* = IntuitionBase.AddGList() */
+  (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
   return;
 }
 
@@ -6011,7 +6011,7 @@ void thunk_FUN_0012b234(void)
 void thunk_FUN_0012b06c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x6c))();    /* = IntuitionBase.DrawBorder() */
+  (**(code **)(IntuitionBase + -0x6c))();    /* = IntuitionBase.DrawBorder() */
   return;
 }
 
@@ -6022,7 +6022,7 @@ void thunk_FUN_0012b06c(void)
 void thunk_FUN_00129134(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x180))();    /* = SysBase.WaitPort() */
+  (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
   return;
 }
 
@@ -6033,7 +6033,7 @@ void thunk_FUN_00129134(void)
 void thunk_FUN_0012910c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x174))();    /* = SysBase.GetMsg() */
+  (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
   return;
 }
 
@@ -6044,7 +6044,7 @@ void thunk_FUN_0012910c(void)
 void thunk_FUN_0012b088(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x72))();    /* = IntuitionBase.DrawImage() */
+  (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
   return;
 }
 
@@ -6074,7 +6074,7 @@ int thunk_FUN_0011a534(undefined4 param_1)
 void thunk_FUN_0012b168(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xd8))();    /* = IntuitionBase.PrintIText() */
+  (**(code **)(IntuitionBase + -0xd8))();    /* = IntuitionBase.PrintIText() */
   return;
 }
 
@@ -6085,7 +6085,7 @@ void thunk_FUN_0012b168(void)
 void thunk_FUN_0012b200(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x14a))();    /* = IntuitionBase.IntuiTextLength() */
+  (**(code **)(IntuitionBase + -0x14a))();    /* = IntuitionBase.IntuiTextLength() */
   return;
 }
 
@@ -6180,7 +6180,7 @@ void thunk_FUN_0011a568(undefined4 param_1)
 void thunk_FUN_0012b270(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1ce))();    /* = IntuitionBase.ActivateGadget() */
+  (**(code **)(IntuitionBase + -0x1ce))();    /* = IntuitionBase.ActivateGadget() */
   return;
 }
 
@@ -6252,7 +6252,7 @@ undefined4 FUN_00112000(void)
 void thunk_FUN_0012b214(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
+  (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
   return;
 }
 
@@ -6263,7 +6263,7 @@ void thunk_FUN_0012b214(void)
 void thunk_FUN_0012b234(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b6))();    /* = IntuitionBase.AddGList() */
+  (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
   return;
 }
 
@@ -6274,7 +6274,7 @@ void thunk_FUN_0012b234(void)
 void thunk_FUN_0012b06c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x6c))();    /* = IntuitionBase.DrawBorder() */
+  (**(code **)(IntuitionBase + -0x6c))();    /* = IntuitionBase.DrawBorder() */
   return;
 }
 
@@ -6285,7 +6285,7 @@ void thunk_FUN_0012b06c(void)
 void thunk_FUN_0012b088(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x72))();    /* = IntuitionBase.DrawImage() */
+  (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
   return;
 }
 
@@ -6315,7 +6315,7 @@ int thunk_FUN_0011a534(undefined4 param_1)
 void thunk_FUN_0012b168(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xd8))();    /* = IntuitionBase.PrintIText() */
+  (**(code **)(IntuitionBase + -0xd8))();    /* = IntuitionBase.PrintIText() */
   return;
 }
 
@@ -6647,7 +6647,7 @@ bool FUN_00114050(undefined4 param_1)
 void thunk_FUN_001290f4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x16e))();    /* = SysBase.PutMsg() */
+  (**(code **)(SysBase + -0x16e))();    /* = SysBase.PutMsg() */
   return;
 }
 
@@ -6658,7 +6658,7 @@ void thunk_FUN_001290f4(void)
 void thunk_FUN_00129134(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x180))();    /* = SysBase.WaitPort() */
+  (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
   return;
 }
 
@@ -6669,7 +6669,7 @@ void thunk_FUN_00129134(void)
 void thunk_FUN_0012910c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x174))();    /* = SysBase.GetMsg() */
+  (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
   return;
 }
 
@@ -6873,7 +6873,7 @@ int FUN_0011754e(int param_1,undefined4 param_2)
 void thunk_FUN_001290f4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x16e))();    /* = SysBase.PutMsg() */
+  (**(code **)(SysBase + -0x16e))();    /* = SysBase.PutMsg() */
   return;
 }
 
@@ -6912,7 +6912,7 @@ undefined4 thunk_FUN_00113062(void)
 void thunk_FUN_00129134(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x180))();    /* = SysBase.WaitPort() */
+  (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
   return;
 }
 
@@ -6939,7 +6939,7 @@ undefined4 thunk_FUN_0010e402(void)
 void thunk_FUN_0012910c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x174))();    /* = SysBase.GetMsg() */
+  (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
   return;
 }
 
@@ -7036,7 +7036,7 @@ undefined4 thunk_FUN_0010e398(void)
 void thunk_FUN_0012a068(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x132))();    /* = GfxBase.RectFill() */
+  (**(code **)(GfxBase + -0x132))();    /* = GfxBase.RectFill() */
   return;
 }
 
@@ -7047,7 +7047,7 @@ void thunk_FUN_0012a068(void)
 void thunk_FUN_001291d0(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x234))();    /* = SysBase.ObtainSemaphore() */
+  (**(code **)(SysBase + -0x234))();    /* = SysBase.ObtainSemaphore() */
   return;
 }
 
@@ -7109,7 +7109,7 @@ undefined4 thunk_FUN_0010c270(void)
 void thunk_FUN_0012a0b8(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x162))();    /* = GfxBase.SetDrMd() */
+  (**(code **)(GfxBase + -0x162))();    /* = GfxBase.SetDrMd() */
   return;
 }
 
@@ -7135,7 +7135,7 @@ undefined4 thunk_FUN_001130ca(void)
 void thunk_FUN_001291e4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x23a))();    /* = SysBase.ReleaseSemaphore() */
+  (**(code **)(SysBase + -0x23a))();    /* = SysBase.ReleaseSemaphore() */
   return;
 }
 
@@ -7206,7 +7206,7 @@ undefined2 FUN_001180bc(undefined4 param_1)
 void thunk_FUN_00129120(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x17a))();    /* = SysBase.ReplyMsg() */
+  (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
   return;
 }
 
@@ -7217,7 +7217,7 @@ void thunk_FUN_00129120(void)
 void thunk_FUN_0012b214(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
+  (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
   return;
 }
 
@@ -7228,7 +7228,7 @@ void thunk_FUN_0012b214(void)
 void thunk_FUN_0012b234(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b6))();    /* = IntuitionBase.AddGList() */
+  (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
   return;
 }
 
@@ -7239,7 +7239,7 @@ void thunk_FUN_0012b234(void)
 void thunk_FUN_0012b06c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x6c))();    /* = IntuitionBase.DrawBorder() */
+  (**(code **)(IntuitionBase + -0x6c))();    /* = IntuitionBase.DrawBorder() */
   return;
 }
 
@@ -7250,7 +7250,7 @@ void thunk_FUN_0012b06c(void)
 void thunk_FUN_00129134(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x180))();    /* = SysBase.WaitPort() */
+  (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
   return;
 }
 
@@ -7261,7 +7261,7 @@ void thunk_FUN_00129134(void)
 void thunk_FUN_0012910c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x174))();    /* = SysBase.GetMsg() */
+  (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
   return;
 }
 
@@ -7272,7 +7272,7 @@ void thunk_FUN_0012910c(void)
 void thunk_FUN_0012b088(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x72))();    /* = IntuitionBase.DrawImage() */
+  (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
   return;
 }
 
@@ -7302,7 +7302,7 @@ int thunk_FUN_0011a534(undefined4 param_1)
 void thunk_FUN_0012b168(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xd8))();    /* = IntuitionBase.PrintIText() */
+  (**(code **)(IntuitionBase + -0xd8))();    /* = IntuitionBase.PrintIText() */
   return;
 }
 
@@ -7627,7 +7627,7 @@ void thunk_FUN_001020ae(void)
 void thunk_FUN_00129120(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x17a))();    /* = SysBase.ReplyMsg() */
+  (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
   return;
 }
 
@@ -7638,7 +7638,7 @@ void thunk_FUN_00129120(void)
 void thunk_FUN_00129190(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x1c8))();    /* = SysBase.DoIO() */
+  (**(code **)(SysBase + -0x1c8))();    /* = SysBase.DoIO() */
   return;
 }
 
@@ -7684,7 +7684,7 @@ void thunk_FUN_0011a588(undefined4 param_1,undefined4 param_2)
 void thunk_FUN_0012910c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x174))();    /* = SysBase.GetMsg() */
+  (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
   return;
 }
 
@@ -7712,7 +7712,7 @@ undefined4 thunk_FUN_0011a636(int param_1,undefined4 param_2)
 void thunk_FUN_0012b088(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x72))();    /* = IntuitionBase.DrawImage() */
+  (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
   return;
 }
 
@@ -7742,7 +7742,7 @@ int thunk_FUN_0011a534(undefined4 param_1)
 void thunk_FUN_0012b168(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xd8))();    /* = IntuitionBase.PrintIText() */
+  (**(code **)(IntuitionBase + -0xd8))();    /* = IntuitionBase.PrintIText() */
   return;
 }
 
@@ -7767,7 +7767,7 @@ undefined4 thunk_FUN_0010060e(undefined1 *param_1,undefined4 param_2)
 void thunk_FUN_001291a4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x1ce))();    /* = SysBase.SendIO() */
+  (**(code **)(SysBase + -0x1ce))();    /* = SysBase.SendIO() */
   return;
 }
 
@@ -7778,7 +7778,7 @@ void thunk_FUN_001291a4(void)
 void thunk_FUN_00129090(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x13e))();    /* = SysBase.Wait() */
+  (**(code **)(SysBase + -0x13e))();    /* = SysBase.Wait() */
   return;
 }
 
@@ -7806,7 +7806,7 @@ undefined8 thunk_FUN_00101638(undefined4 *param_1,int param_2)
 void thunk_FUN_0012b0a4(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x96))();    /* = IntuitionBase.ModifyIDCMP() */
+  (**(code **)(IntuitionBase + -0x96))();    /* = IntuitionBase.ModifyIDCMP() */
   return;
 }
 
@@ -8283,7 +8283,7 @@ int thunk_FUN_00125000(int param_1,undefined1 param_2)
 void thunk_FUN_00129120(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x17a))();    /* = SysBase.ReplyMsg() */
+  (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
   return;
 }
 
@@ -8294,7 +8294,7 @@ void thunk_FUN_00129120(void)
 void thunk_FUN_00128000(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x1e))();    /* = DOSBase.Open() */
+  (**(code **)(DOSBase + -0x1e))();    /* = DOSBase.Open() */
   return;
 }
 
@@ -8305,7 +8305,7 @@ void thunk_FUN_00128000(void)
 void thunk_FUN_0012b140(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xc6))();    /* = IntuitionBase.OpenScreen() */
+  (**(code **)(IntuitionBase + -0xc6))();    /* = IntuitionBase.OpenScreen() */
   return;
 }
 
@@ -8316,7 +8316,7 @@ void thunk_FUN_0012b140(void)
 void thunk_FUN_0012b154(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xcc))();    /* = IntuitionBase.OpenWindow() */
+  (**(code **)(IntuitionBase + -0xcc))();    /* = IntuitionBase.OpenWindow() */
   return;
 }
 
@@ -8327,7 +8327,7 @@ void thunk_FUN_0012b154(void)
 void thunk_FUN_00129038(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0xd2))();    /* = SysBase.FreeMem() */
+  (**(code **)(SysBase + -0xd2))();    /* = SysBase.FreeMem() */
   return;
 }
 
@@ -8338,7 +8338,7 @@ void thunk_FUN_00129038(void)
 void thunk_FUN_001280d0(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x96))();    /* = DOSBase.LoadSeg() */
+  (**(code **)(DOSBase + -0x96))();    /* = DOSBase.LoadSeg() */
   return;
 }
 
@@ -8349,7 +8349,7 @@ void thunk_FUN_001280d0(void)
 void thunk_FUN_0012801c(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x24))();    /* = DOSBase.Close() */
+  (**(code **)(DOSBase + -0x24))();    /* = DOSBase.Close() */
   return;
 }
 
@@ -8360,7 +8360,7 @@ void thunk_FUN_0012801c(void)
 void thunk_FUN_001291b8(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x228))();    /* = SysBase.OpenLibrary() */
+  (**(code **)(SysBase + -0x228))();    /* = SysBase.OpenLibrary() */
   return;
 }
 
@@ -8371,7 +8371,7 @@ void thunk_FUN_001291b8(void)
 void thunk_FUN_00128084(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x5a))();    /* = DOSBase.UnLock() */
+  (**(code **)(DOSBase + -0x5a))();    /* = DOSBase.UnLock() */
   return;
 }
 
@@ -8382,7 +8382,7 @@ void thunk_FUN_00128084(void)
 void thunk_FUN_00129000(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x84))();    /* = SysBase.Forbid() */
+  (**(code **)(SysBase + -0x84))();    /* = SysBase.Forbid() */
   return;
 }
 
@@ -8393,7 +8393,7 @@ void thunk_FUN_00129000(void)
 void thunk_FUN_00129068(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0xfc))();    /* = SysBase.Remove() */
+  (**(code **)(SysBase + -0xfc))();    /* = SysBase.Remove() */
   return;
 }
 
@@ -8426,7 +8426,7 @@ void thunk_FUN_00100240(undefined4 param_1)
 void thunk_FUN_0012b198(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x108))();    /* = IntuitionBase.SetMenuStrip() */
+  (**(code **)(IntuitionBase + -0x108))();    /* = IntuitionBase.SetMenuStrip() */
   return;
 }
 
@@ -8437,7 +8437,7 @@ void thunk_FUN_0012b198(void)
 void thunk_FUN_00128068(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x54))();    /* = DOSBase.Lock() */
+  (**(code **)(DOSBase + -0x54))();    /* = DOSBase.Lock() */
   return;
 }
 
@@ -8448,7 +8448,7 @@ void thunk_FUN_00128068(void)
 void thunk_FUN_00129010(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x8a))();    /* = SysBase.Permit() */
+  (**(code **)(SysBase + -0x8a))();    /* = SysBase.Permit() */
   return;
 }
 
@@ -8459,7 +8459,7 @@ void thunk_FUN_00129010(void)
 void thunk_FUN_00128098(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x66))();    /* = DOSBase.Examine() */
+  (**(code **)(DOSBase + -0x66))();    /* = DOSBase.Examine() */
   return;
 }
 
@@ -8470,7 +8470,7 @@ void thunk_FUN_00128098(void)
 void thunk_FUN_0012b03c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x48))();    /* = IntuitionBase.CloseWindow() */
+  (**(code **)(IntuitionBase + -0x48))();    /* = IntuitionBase.CloseWindow() */
   return;
 }
 
@@ -8481,7 +8481,7 @@ void thunk_FUN_0012b03c(void)
 void thunk_FUN_00129050(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0xf0))();    /* = SysBase.AddHead() */
+  (**(code **)(SysBase + -0xf0))();    /* = SysBase.AddHead() */
   return;
 }
 
@@ -8492,7 +8492,7 @@ void thunk_FUN_00129050(void)
 void thunk_FUN_00128030(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x2a))();    /* = DOSBase.Read() */
+  (**(code **)(DOSBase + -0x2a))();    /* = DOSBase.Read() */
   return;
 }
 
@@ -8503,7 +8503,7 @@ void thunk_FUN_00128030(void)
 void thunk_FUN_0012b0a4(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x96))();    /* = IntuitionBase.ModifyIDCMP() */
+  (**(code **)(IntuitionBase + -0x96))();    /* = IntuitionBase.ModifyIDCMP() */
   return;
 }
 
@@ -8514,7 +8514,7 @@ void thunk_FUN_0012b0a4(void)
 void thunk_FUN_00129020(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0xc6))();    /* = SysBase.AllocMem() */
+  (**(code **)(SysBase + -0xc6))();    /* = SysBase.AllocMem() */
   return;
 }
 
@@ -9106,7 +9106,7 @@ undefined4 FUN_00127042(int param_1)
 void FUN_00128000(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x1e))();    /* = DOSBase.Open() */
+  (**(code **)(DOSBase + -0x1e))();    /* = DOSBase.Open() */
   return;
 }
 
@@ -9117,7 +9117,7 @@ void FUN_00128000(void)
 void FUN_0012801c(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x24))();    /* = DOSBase.Close() */
+  (**(code **)(DOSBase + -0x24))();    /* = DOSBase.Close() */
   return;
 }
 
@@ -9128,7 +9128,7 @@ void FUN_0012801c(void)
 void FUN_00128030(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x2a))();    /* = DOSBase.Read() */
+  (**(code **)(DOSBase + -0x2a))();    /* = DOSBase.Read() */
   return;
 }
 
@@ -9139,7 +9139,7 @@ void FUN_00128030(void)
 void FUN_0012804c(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x30))();    /* = DOSBase.Write() */
+  (**(code **)(DOSBase + -0x30))();    /* = DOSBase.Write() */
   return;
 }
 
@@ -9150,7 +9150,7 @@ void FUN_0012804c(void)
 void FUN_00128068(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x54))();    /* = DOSBase.Lock() */
+  (**(code **)(DOSBase + -0x54))();    /* = DOSBase.Lock() */
   return;
 }
 
@@ -9161,7 +9161,7 @@ void FUN_00128068(void)
 void FUN_00128084(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x5a))();    /* = DOSBase.UnLock() */
+  (**(code **)(DOSBase + -0x5a))();    /* = DOSBase.UnLock() */
   return;
 }
 
@@ -9172,7 +9172,7 @@ void FUN_00128084(void)
 void FUN_00128098(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x66))();    /* = DOSBase.Examine() */
+  (**(code **)(DOSBase + -0x66))();    /* = DOSBase.Examine() */
   return;
 }
 
@@ -9183,7 +9183,7 @@ void FUN_00128098(void)
 void FUN_001280b4(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x8a))();    /* = DOSBase.CreateProc() */
+  (**(code **)(DOSBase + -0x8a))();    /* = DOSBase.CreateProc() */
   return;
 }
 
@@ -9194,7 +9194,7 @@ void FUN_001280b4(void)
 void FUN_001280d0(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x96))();    /* = DOSBase.LoadSeg() */
+  (**(code **)(DOSBase + -0x96))();    /* = DOSBase.LoadSeg() */
   return;
 }
 
@@ -9205,7 +9205,7 @@ void FUN_001280d0(void)
 void FUN_001280e4(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0x9c))();    /* = DOSBase.UnLoadSeg() */
+  (**(code **)(DOSBase + -0x9c))();    /* = DOSBase.UnLoadSeg() */
   return;
 }
 
@@ -9216,7 +9216,7 @@ void FUN_001280e4(void)
 void FUN_00128120(void)
 
 {
-  (**(code **)(DAT_001200d8 + -0xde))();    /* = DOSBase.Execute() */
+  (**(code **)(DOSBase + -0xde))();    /* = DOSBase.Execute() */
   return;
 }
 
@@ -9227,7 +9227,7 @@ void FUN_00128120(void)
 void FUN_00129000(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x84))();    /* = SysBase.Forbid() */
+  (**(code **)(SysBase + -0x84))();    /* = SysBase.Forbid() */
   return;
 }
 
@@ -9238,7 +9238,7 @@ void FUN_00129000(void)
 void FUN_00129010(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x8a))();    /* = SysBase.Permit() */
+  (**(code **)(SysBase + -0x8a))();    /* = SysBase.Permit() */
   return;
 }
 
@@ -9249,7 +9249,7 @@ void FUN_00129010(void)
 void FUN_00129020(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0xc6))();    /* = SysBase.AllocMem() */
+  (**(code **)(SysBase + -0xc6))();    /* = SysBase.AllocMem() */
   return;
 }
 
@@ -9260,7 +9260,7 @@ void FUN_00129020(void)
 void FUN_00129038(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0xd2))();    /* = SysBase.FreeMem() */
+  (**(code **)(SysBase + -0xd2))();    /* = SysBase.FreeMem() */
   return;
 }
 
@@ -9271,7 +9271,7 @@ void FUN_00129038(void)
 void FUN_00129050(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0xf0))();    /* = SysBase.AddHead() */
+  (**(code **)(SysBase + -0xf0))();    /* = SysBase.AddHead() */
   return;
 }
 
@@ -9282,7 +9282,7 @@ void FUN_00129050(void)
 void FUN_00129068(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0xfc))();    /* = SysBase.Remove() */
+  (**(code **)(SysBase + -0xfc))();    /* = SysBase.Remove() */
   return;
 }
 
@@ -9293,7 +9293,7 @@ void FUN_00129068(void)
 void FUN_0012907c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x126))();    /* = SysBase.FindTask() */
+  (**(code **)(SysBase + -0x126))();    /* = SysBase.FindTask() */
   return;
 }
 
@@ -9304,7 +9304,7 @@ void FUN_0012907c(void)
 void FUN_00129090(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x13e))();    /* = SysBase.Wait() */
+  (**(code **)(SysBase + -0x13e))();    /* = SysBase.Wait() */
   return;
 }
 
@@ -9315,7 +9315,7 @@ void FUN_00129090(void)
 void FUN_001290a4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x14a))();    /* = SysBase.AllocSignal() */
+  (**(code **)(SysBase + -0x14a))();    /* = SysBase.AllocSignal() */
   return;
 }
 
@@ -9326,7 +9326,7 @@ void FUN_001290a4(void)
 void FUN_001290b8(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x150))();    /* = SysBase.FreeSignal() */
+  (**(code **)(SysBase + -0x150))();    /* = SysBase.FreeSignal() */
   return;
 }
 
@@ -9337,7 +9337,7 @@ void FUN_001290b8(void)
 void FUN_001290cc(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x162))();    /* = SysBase.AddPort() */
+  (**(code **)(SysBase + -0x162))();    /* = SysBase.AddPort() */
   return;
 }
 
@@ -9348,7 +9348,7 @@ void FUN_001290cc(void)
 void FUN_001290e0(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x168))();    /* = SysBase.RemPort() */
+  (**(code **)(SysBase + -0x168))();    /* = SysBase.RemPort() */
   return;
 }
 
@@ -9359,7 +9359,7 @@ void FUN_001290e0(void)
 void FUN_001290f4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x16e))();    /* = SysBase.PutMsg() */
+  (**(code **)(SysBase + -0x16e))();    /* = SysBase.PutMsg() */
   return;
 }
 
@@ -9370,7 +9370,7 @@ void FUN_001290f4(void)
 void FUN_0012910c(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x174))();    /* = SysBase.GetMsg() */
+  (**(code **)(SysBase + -0x174))();    /* = SysBase.GetMsg() */
   return;
 }
 
@@ -9381,7 +9381,7 @@ void FUN_0012910c(void)
 void FUN_00129120(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x17a))();    /* = SysBase.ReplyMsg() */
+  (**(code **)(SysBase + -0x17a))();    /* = SysBase.ReplyMsg() */
   return;
 }
 
@@ -9392,7 +9392,7 @@ void FUN_00129120(void)
 void FUN_00129134(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x180))();    /* = SysBase.WaitPort() */
+  (**(code **)(SysBase + -0x180))();    /* = SysBase.WaitPort() */
   return;
 }
 
@@ -9403,7 +9403,7 @@ void FUN_00129134(void)
 void FUN_00129148(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x19e))();    /* = SysBase.CloseLibrary() */
+  (**(code **)(SysBase + -0x19e))();    /* = SysBase.CloseLibrary() */
   return;
 }
 
@@ -9414,7 +9414,7 @@ void FUN_00129148(void)
 void FUN_00129190(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x1c8))();    /* = SysBase.DoIO() */
+  (**(code **)(SysBase + -0x1c8))();    /* = SysBase.DoIO() */
   return;
 }
 
@@ -9425,7 +9425,7 @@ void FUN_00129190(void)
 void FUN_001291a4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x1ce))();    /* = SysBase.SendIO() */
+  (**(code **)(SysBase + -0x1ce))();    /* = SysBase.SendIO() */
   return;
 }
 
@@ -9436,7 +9436,7 @@ void FUN_001291a4(void)
 void FUN_001291b8(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x228))();    /* = SysBase.OpenLibrary() */
+  (**(code **)(SysBase + -0x228))();    /* = SysBase.OpenLibrary() */
   return;
 }
 
@@ -9447,7 +9447,7 @@ void FUN_001291b8(void)
 void FUN_001291d0(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x234))();    /* = SysBase.ObtainSemaphore() */
+  (**(code **)(SysBase + -0x234))();    /* = SysBase.ObtainSemaphore() */
   return;
 }
 
@@ -9458,7 +9458,7 @@ void FUN_001291d0(void)
 void FUN_001291e4(void)
 
 {
-  (**(code **)(DAT_0011d040 + -0x23a))();    /* = SysBase.ReleaseSemaphore() */
+  (**(code **)(SysBase + -0x23a))();    /* = SysBase.ReleaseSemaphore() */
   return;
 }
 
@@ -9469,7 +9469,7 @@ void FUN_001291e4(void)
 void FUN_0012a000(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x3c))();    /* = GfxBase.Text() */
+  (**(code **)(GfxBase + -0x3c))();    /* = GfxBase.Text() */
   return;
 }
 
@@ -9480,7 +9480,7 @@ void FUN_0012a000(void)
 void FUN_0012a01c(void)
 
 {
-  (**(code **)(DAT_001200ec + -0xc0))();    /* = GfxBase.LoadRGB4() */
+  (**(code **)(GfxBase + -0xc0))();    /* = GfxBase.LoadRGB4() */
   return;
 }
 
@@ -9491,7 +9491,7 @@ void FUN_0012a01c(void)
 void FUN_0012a038(void)
 
 {
-  (**(code **)(DAT_001200ec + -0xc6))();    /* = GfxBase.InitRastPort() */
+  (**(code **)(GfxBase + -0xc6))();    /* = GfxBase.InitRastPort() */
   return;
 }
 
@@ -9502,7 +9502,7 @@ void FUN_0012a038(void)
 void FUN_0012a068(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x132))();    /* = GfxBase.RectFill() */
+  (**(code **)(GfxBase + -0x132))();    /* = GfxBase.RectFill() */
   return;
 }
 
@@ -9513,7 +9513,7 @@ void FUN_0012a068(void)
 void FUN_0012a0a0(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x15c))();    /* = GfxBase.SetBPen() */
+  (**(code **)(GfxBase + -0x15c))();    /* = GfxBase.SetBPen() */
   return;
 }
 
@@ -9524,7 +9524,7 @@ void FUN_0012a0a0(void)
 void FUN_0012a0b8(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x162))();    /* = GfxBase.SetDrMd() */
+  (**(code **)(GfxBase + -0x162))();    /* = GfxBase.SetDrMd() */
   return;
 }
 
@@ -9535,7 +9535,7 @@ void FUN_0012a0b8(void)
 void FUN_0012a0d0(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x186))();    /* = GfxBase.InitBitMap() */
+  (**(code **)(GfxBase + -0x186))();    /* = GfxBase.InitBitMap() */
   return;
 }
 
@@ -9546,7 +9546,7 @@ void FUN_0012a0d0(void)
 void FUN_0012a0f0(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x18c))();    /* = GfxBase.ScrollRaster() */
+  (**(code **)(GfxBase + -0x18c))();    /* = GfxBase.ScrollRaster() */
   return;
 }
 
@@ -9557,7 +9557,7 @@ void FUN_0012a0f0(void)
 void FUN_0012a110(void)
 
 {
-  (**(code **)(DAT_001200ec + -0x25e))();    /* = GfxBase.BltBitMapRastPort() */
+  (**(code **)(GfxBase + -0x25e))();    /* = GfxBase.BltBitMapRastPort() */
   return;
 }
 
@@ -9568,7 +9568,7 @@ void FUN_0012a110(void)
 void FUN_0012b000(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x36))();    /* = IntuitionBase.ClearMenuStrip() */
+  (**(code **)(IntuitionBase + -0x36))();    /* = IntuitionBase.ClearMenuStrip() */
   return;
 }
 
@@ -9579,7 +9579,7 @@ void FUN_0012b000(void)
 void FUN_0012b014(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x3c))();    /* = IntuitionBase.ClearPointer() */
+  (**(code **)(IntuitionBase + -0x3c))();    /* = IntuitionBase.ClearPointer() */
   return;
 }
 
@@ -9590,7 +9590,7 @@ void FUN_0012b014(void)
 void FUN_0012b028(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x42))();    /* = IntuitionBase.CloseScreen() */
+  (**(code **)(IntuitionBase + -0x42))();    /* = IntuitionBase.CloseScreen() */
   return;
 }
 
@@ -9601,7 +9601,7 @@ void FUN_0012b028(void)
 void FUN_0012b03c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x48))();    /* = IntuitionBase.CloseWindow() */
+  (**(code **)(IntuitionBase + -0x48))();    /* = IntuitionBase.CloseWindow() */
   return;
 }
 
@@ -9612,7 +9612,7 @@ void FUN_0012b03c(void)
 void FUN_0012b050(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x66))();    /* = IntuitionBase.DoubleClick() */
+  (**(code **)(IntuitionBase + -0x66))();    /* = IntuitionBase.DoubleClick() */
   return;
 }
 
@@ -9623,7 +9623,7 @@ void FUN_0012b050(void)
 void FUN_0012b06c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x6c))();    /* = IntuitionBase.DrawBorder() */
+  (**(code **)(IntuitionBase + -0x6c))();    /* = IntuitionBase.DrawBorder() */
   return;
 }
 
@@ -9634,7 +9634,7 @@ void FUN_0012b06c(void)
 void FUN_0012b088(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x72))();    /* = IntuitionBase.DrawImage() */
+  (**(code **)(IntuitionBase + -0x72))();    /* = IntuitionBase.DrawImage() */
   return;
 }
 
@@ -9645,7 +9645,7 @@ void FUN_0012b088(void)
 void FUN_0012b0a4(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x96))();    /* = IntuitionBase.ModifyIDCMP() */
+  (**(code **)(IntuitionBase + -0x96))();    /* = IntuitionBase.ModifyIDCMP() */
   return;
 }
 
@@ -9656,7 +9656,7 @@ void FUN_0012b0a4(void)
 void FUN_0012b0d8(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xae))();    /* = IntuitionBase.OffGadget() */
+  (**(code **)(IntuitionBase + -0xae))();    /* = IntuitionBase.OffGadget() */
   return;
 }
 
@@ -9667,7 +9667,7 @@ void FUN_0012b0d8(void)
 void FUN_0012b0f4(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xb4))();    /* = IntuitionBase.OffMenu() */
+  (**(code **)(IntuitionBase + -0xb4))();    /* = IntuitionBase.OffMenu() */
   return;
 }
 
@@ -9678,7 +9678,7 @@ void FUN_0012b0f4(void)
 void FUN_0012b10c(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xba))();    /* = IntuitionBase.OnGadget() */
+  (**(code **)(IntuitionBase + -0xba))();    /* = IntuitionBase.OnGadget() */
   return;
 }
 
@@ -9689,7 +9689,7 @@ void FUN_0012b10c(void)
 void FUN_0012b128(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xc0))();    /* = IntuitionBase.OnMenu() */
+  (**(code **)(IntuitionBase + -0xc0))();    /* = IntuitionBase.OnMenu() */
   return;
 }
 
@@ -9700,7 +9700,7 @@ void FUN_0012b128(void)
 void FUN_0012b140(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xc6))();    /* = IntuitionBase.OpenScreen() */
+  (**(code **)(IntuitionBase + -0xc6))();    /* = IntuitionBase.OpenScreen() */
   return;
 }
 
@@ -9711,7 +9711,7 @@ void FUN_0012b140(void)
 void FUN_0012b154(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xcc))();    /* = IntuitionBase.OpenWindow() */
+  (**(code **)(IntuitionBase + -0xcc))();    /* = IntuitionBase.OpenWindow() */
   return;
 }
 
@@ -9722,7 +9722,7 @@ void FUN_0012b154(void)
 void FUN_0012b168(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0xd8))();    /* = IntuitionBase.PrintIText() */
+  (**(code **)(IntuitionBase + -0xd8))();    /* = IntuitionBase.PrintIText() */
   return;
 }
 
@@ -9733,7 +9733,7 @@ void FUN_0012b168(void)
 void FUN_0012b198(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x108))();    /* = IntuitionBase.SetMenuStrip() */
+  (**(code **)(IntuitionBase + -0x108))();    /* = IntuitionBase.SetMenuStrip() */
   return;
 }
 
@@ -9744,7 +9744,7 @@ void FUN_0012b198(void)
 void FUN_0012b1b0(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x10e))();    /* = IntuitionBase.SetPointer() */
+  (**(code **)(IntuitionBase + -0x10e))();    /* = IntuitionBase.SetPointer() */
   return;
 }
 
@@ -9755,7 +9755,7 @@ void FUN_0012b1b0(void)
 void FUN_0012b1d0(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x114))();    /* = IntuitionBase.SetWindowTitles() */
+  (**(code **)(IntuitionBase + -0x114))();    /* = IntuitionBase.SetWindowTitles() */
   return;
 }
 
@@ -9766,7 +9766,7 @@ void FUN_0012b1d0(void)
 void FUN_0012b200(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x14a))();    /* = IntuitionBase.IntuiTextLength() */
+  (**(code **)(IntuitionBase + -0x14a))();    /* = IntuitionBase.IntuiTextLength() */
   return;
 }
 
@@ -9777,7 +9777,7 @@ void FUN_0012b200(void)
 void FUN_0012b214(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
+  (**(code **)(IntuitionBase + -0x1b0))();    /* = IntuitionBase.RefreshGList() */
   return;
 }
 
@@ -9788,7 +9788,7 @@ void FUN_0012b214(void)
 void FUN_0012b234(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1b6))();    /* = IntuitionBase.AddGList() */
+  (**(code **)(IntuitionBase + -0x1b6))();    /* = IntuitionBase.AddGList() */
   return;
 }
 
@@ -9799,7 +9799,7 @@ void FUN_0012b234(void)
 void FUN_0012b254(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1bc))();    /* = IntuitionBase.RemoveGList() */
+  (**(code **)(IntuitionBase + -0x1bc))();    /* = IntuitionBase.RemoveGList() */
   return;
 }
 
@@ -9810,7 +9810,7 @@ void FUN_0012b254(void)
 void FUN_0012b270(void)
 
 {
-  (**(code **)(DAT_001200e8 + -0x1ce))();    /* = IntuitionBase.ActivateGadget() */
+  (**(code **)(IntuitionBase + -0x1ce))();    /* = IntuitionBase.ActivateGadget() */
   return;
 }
 

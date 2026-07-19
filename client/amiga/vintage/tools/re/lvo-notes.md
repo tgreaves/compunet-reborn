@@ -58,8 +58,27 @@ The message-port calls (GetMsg/PutMsg/WaitPort/ReplyMsg) on `DAT_0011d040`
 (=ExecBase) are the `cnet.device` IORequest handling — the transport touch-points
 that TCP will replace.
 
+## Known-global substitution (readability quick win)
+
+`annotate_lvo.py` also substitutes confirmed global variables with readable names
+in `recon_annotated.c` (from `lvo.KNOWN_GLOBALS`):
+
+| recon global | name | notes |
+|--------------|------|-------|
+| `_DAT_00000004` | `AbsExecBase` | ROM pointer at absolute address 4 |
+| `DAT_0011d040`  | `SysBase` | program's ExecBase copy (`SysBase = AbsExecBase` at startup) |
+| `DAT_001200d8`  | `DOSBase` | dos.library |
+| `DAT_001200e8`  | `IntuitionBase` | intuition.library |
+| `DAT_001200ec`  | `GfxBase` | graphics.library |
+
+206 references substituted. Keeping `AbsExecBase` distinct from `SysBase` avoids a
+misleading `SysBase = SysBase` no-op at the startup copy. ~267 other `DAT_` globals
+remain (config fields, window/gadget pointers, the IORequest block, receive buffers)
+— named by usage analysis in later passes; the transport (IORequest) and frame
+buffers among them serve goals 2 and 3.
+
 ## Next
 
-- Write an FD parser + Ghidra prescript that applies these names so the decompiler
-  emits real calls (`OpenDevice(...)`, `DoIO(...)`, etc.).
-- Re-export and diff to confirm only intended calls changed.
+- Name the high-frequency unknown globals by usage (transport state + frame buffers
+  first).
+- Resolve the 22 register-base LVO calls via per-function dataflow.

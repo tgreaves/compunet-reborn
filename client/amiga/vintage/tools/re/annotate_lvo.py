@@ -42,11 +42,21 @@ def main():
                 unresolved += 1
         else:
             out.append(line)
-    open('recon_annotated.c', 'w', encoding='latin-1').write('\n'.join(out))
+    # Quick win: substitute known global variables (confirmed library bases) with
+    # readable names throughout the annotated output. Longest names first so e.g.
+    # DAT_001200e8 is not shadowed by a shorter prefix. Word-boundary anchored.
+    text = '\n'.join(out)
+    glob_subs = 0
+    for g, name in sorted(lvo.KNOWN_GLOBALS.items(), key=lambda kv: -len(kv[0])):
+        pat = re.compile(r'(?<![A-Za-z0-9_])' + re.escape(g) + r'(?![A-Za-z0-9_])')
+        text, k = pat.subn(name, text)
+        glob_subs += k
+    open('recon_annotated.c', 'w', encoding='latin-1').write(text)
     with open('lvo_callsites.txt', 'w') as f:
         f.write('# line\tbase\toffset\tresolved\n')
         f.write('\n'.join(idx) + '\n')
     print(f'resolved {resolved} calls, {unresolved} unresolved (local-register bases)')
+    print(f'substituted {glob_subs} known-global references (library bases)')
     print('wrote recon_annotated.c, lvo_callsites.txt')
 
 if __name__ == '__main__':

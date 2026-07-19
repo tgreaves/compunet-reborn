@@ -33,6 +33,18 @@ BASE_TO_LIB = {
     'DAT_001200ec':  'graphics_lib',
 }
 
+# Known global variables → readable names. Currently the confirmed library-base
+# pointers (from the OpenLibrary/OpenDevice sites — see lvo-notes.md). These four
+# account for the large majority of DAT_ references in recon.c. Extend as more
+# globals are identified by usage analysis.
+KNOWN_GLOBALS = {
+    '_DAT_00000004': 'AbsExecBase',    # the ROM pointer at absolute address 4
+    'DAT_0011d040':  'SysBase',        # program's ExecBase copy (SysBase = AbsExecBase at startup)
+    'DAT_001200d8':  'DOSBase',        # dos.library
+    'DAT_001200e8':  'IntuitionBase',  # intuition.library
+    'DAT_001200ec':  'GfxBase',        # graphics.library
+}
+
 # Friendly library-base name for annotations
 LIB_DISPLAY = {
     'exec_lib':      'SysBase',
