@@ -141,6 +141,7 @@ On first connect, the server sends the terminal via LINKING (~3 seconds). Users 
 - **[docs/TERMINAL.md](docs/TERMINAL.md)** — PETSCII terminal mode architecture
 - **[docs/MODEM.md](docs/MODEM.md)** — Hardware comparison and ACIA driver approach
 - **[docs/partyline.md](docs/partyline.md)** — Partyline chat system design
+- **[docs/amiga-client.md](docs/amiga-client.md)** — Analysis of the recovered vintage Amiga Compunet client
 
 ### Historical
 
