@@ -35,6 +35,10 @@ server/data/content/
 # Virtual environments
 server/venv/
 website/venv/
+client/amiga/vintage/tools/re/.venv/
+
+# Amiga RE generated flat image (regenerate with flatten.py; only the .map is tracked)
+client/amiga/vintage/tools/re/compunet_flat.bin
 
 # Website runtime data
 website/pending.json

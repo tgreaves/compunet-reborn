@@ -40,11 +40,35 @@ small-data model, a5 stack frames, fully stripped (no symbols). See
 
 ## Current outputs (checked in)
 
-- `recon.c` — decompiled C, all 222 functions. 0 decompile failures, 0 unrecovered
-  control flow. Main readability gap: OS/library calls appear as unnamed indirect
-  calls `(**(code**)(libbase + LVO))()` (Amiga LVO naming not yet applied).
+- `recon.c` — decompiled C, all 444 functions. 0 decompile failures, 0 unrecovered
+  control flow. Canonical Ghidra output — never hand-edited.
 - `recon_functions.txt` — function index.
 - `compunet_flat.map` — hunk layout of the flat image.
+
+## LVO naming (OS-call readability)
+
+The decompiler emits OS calls as indirect calls `(**(code**)(libbase + -0xNN))()`.
+These are resolved to named Amiga calls using authoritative **Kickstart 1.3** `.fd`
+files (this binary is 1989; core LVOs are stable across OS versions).
+
+- `fd1.3/` — KS1.3 function-descriptor files (exec/dos/intuition/graphics/…),
+  fetched from the `asig/vbcc` NDK. Parser self-verifies against `OpenLibrary=-0x228`.
+- `lvo.py` — parses `.fd` files → offset→name tables; maps the recon's library-base
+  globals (see `lvo-notes.md`) to their libraries.
+- `annotate_lvo.py` — resolves every LVO callsite; writes:
+  - `recon_annotated.c` — copy of `recon.c` with inline `/* = LibBase.Func() */`
+    comments (188/210 calls resolved; the 22 via local-register bases need
+    per-function dataflow and are listed, not guessed).
+  - `lvo_callsites.txt` — machine-readable callsite index.
+- `lvo-notes.md` — analysis notes: base→library map, verified offsets, transport
+  touch-points.
+
+`recon.c` is left untouched; annotation is a separate, regenerable artifact.
+
+```
+python3 lvo.py            # self-check the fd parser
+python3 annotate_lvo.py   # produce recon_annotated.c + lvo_callsites.txt
+```
 
 ## Program map (partial)
 

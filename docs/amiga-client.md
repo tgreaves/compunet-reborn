@@ -171,11 +171,44 @@ compiler), so fidelity is verified per-function by comparing generated code /
 behaviour, not by a binary diff. Because only the linked binary survives (no original
 `.o` files), the reconstruction is necessarily whole-program.
 
-## Open questions / next steps
+## Goals for Reborn Amiga support
+
+The end goal is a working **Amiga Compunet Reborn client**: the original 1989 client,
+reconstructed as readable C, with the phone-line transport replaced by TCP/IP.
+TCP/IP stacks exist on the Amiga (AmiTCP/Roadshow/bsdsocket.library), so pointing the
+client at the Reborn server over TCP is a valid strategy — the direct analogue of the
+C64 client's SwiftLink/ACIA ↔ TCP seam.
+
+Three focus areas drive the current work:
+
+1. **Readability first — make the C understandable.** Before any reconstruction or
+   transport work, the decompiled `recon.c` must read like real source: named OS
+   calls, sensible function names, and typed structures. Understanding the client
+   completely is the prerequisite for changing it safely.
+2. **Transport swap — modem → TCP/IP.** The modem/`cnet.device` calls will be
+   replaced with TCP/IP so the Amiga client talks to the Reborn server. Identifying
+   every point where the client touches the transport (device open, IO send/receive,
+   dial/connect, carrier/hangup) is essential groundwork.
+3. **PETSCII handling — how does the Amiga cope?** C64 Compunet content is PETSCII,
+   but the Amiga has no native PETSCII support. **Open question:** does the `Compunet`
+   client translate PETSCII ↔ its own display charset (a lookup table or conversion
+   routine), render a custom C64-style font, or handle frames some other way? This
+   directly affects how Reborn frames (authored as PETSCII) will render on the Amiga.
+   Needs investigation in the decompiled display/frame-rendering code.
+
+### Next steps
 
 - **Name the Amiga LVOs** in the Ghidra project (fd-based) so OS calls in `recon.c`
   read as `OpenDevice`/`DoIO`/`Printf`/etc. — the last big readability step before
-  systematic reconstruction.
+  systematic reconstruction. *(Current focus — goal 1.)*
+- **Assign sensible function names** in the recon based on the strings each function
+  references and its call graph, replacing `FUN_00xxxxxx` with meaningful names.
+- **Locate PETSCII handling** (goal 3): search the decompiled code for character
+  translation tables, `$40`/`$60`/`$C0` PETSCII-range remapping, or custom font
+  loading in the frame-display path.
+- **Map the transport touch-points** (goal 2): every `cnet.device` open / `DoIO` /
+  `SendIO` / read / write / dial / carrier-check site, as the set of calls TCP will
+  replace.
 - **Assemble the KS1.3 NDK headers** into the vbcc tree so OS-calling modules
   compile (the base toolchain and pure-logic modules already build).
 - **Reconstruct module-by-module**, starting with the transport (`cnet.device`
