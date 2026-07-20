@@ -22,13 +22,32 @@
 #include <exec/ports.h>
 #include <clib/exec_protos.h>
 
+#include <stddef.h>   /* offsetof */
+
 #include "compunet.h"
+
+/*
+ * Compile-time proof that our struct models the same bytes the original touched.
+ * CTASSERT is a negative-array-size trick (C89-safe; no C11 _Static_assert needed).
+ * These offsets are exactly what recon_annotated.c reads/writes on the request.
+ */
+#define CT_CAT_(a,b) a##b
+#define CT_CAT(a,b)  CT_CAT_(a,b)
+#define CTASSERT(cond) typedef char CT_CAT(ct_assert_,__LINE__)[(cond) ? 1 : -1]
+CTASSERT(offsetof(struct IOStdReq, io_Command) == 0x1c);
+CTASSERT(offsetof(struct IOStdReq, io_Error)   == 0x1f);
+CTASSERT(offsetof(struct IOStdReq, io_Actual)  == 0x20);
+CTASSERT(offsetof(struct IOStdReq, io_Length)  == 0x24);
+CTASSERT(offsetof(struct IOStdReq, io_Data)    == 0x28);
+CTASSERT(offsetof(struct IOStdReq, io_Offset)  == 0x2c);
+CTASSERT(offsetof(struct IOStdReq, io_Device)  == 0x14);
+CTASSERT(sizeof(struct IOStdReq) <= CNET_REQ_SIZE);
 
 extern ULONG g_extra_sig;                          /* was DAT_00120104 (UI/abort signal) */
 extern void  handle_extra_signal(void);            /* was FUN_00119506 */
 extern void  handle_device_message(struct Message *msg); /* was FUN_001190e8 */
 extern BOOL  g_log_device_messages;                /* was DAT_0011fd74 */
-extern void  set_connection_error(int code);       /* was thunk_FUN_00101638(&DAT_00120170,n) */
+/* set_connection_error() is declared in compunet.h */
 
 /*
  * Wait for the in-flight request on 'my_port' (my_sig) to complete, replying to any
@@ -84,7 +103,7 @@ LONG serial_write(APTR data, ULONG length, UBYTE status_hi, UBYTE ser_flags)
     g_write_req->io.io_Length  = length;
     REQ_SERFLAGS(g_write_req)  = ser_flags;   /* +0x2c */
     REQ_STATUS(g_write_req)    = status_hi;   /* +0x2d */
-    g_write_req->io.io_Command = CMD_WRITE;   /* 3 */
+    g_write_req->io.io_Command = CNET_CMD_WRITE;   /* 3 */
 
     SendIO((struct IORequest *)g_write_req);
     wait_for_completion(g_write_port, g_write_sig);
@@ -97,7 +116,7 @@ LONG serial_read(APTR data, ULONG length,
 {
     g_read_req->io.io_Data    = data;
     g_read_req->io.io_Length  = length;
-    g_read_req->io.io_Command = CMD_READ;     /* 2 */
+    g_read_req->io.io_Command = CNET_CMD_READ;     /* 2 */
 
     SendIO((struct IORequest *)g_read_req);
     wait_for_completion(g_read_port, g_read_sig);
@@ -107,4 +126,71 @@ LONG serial_read(APTR data, ULONG length,
     *out_actual    = g_read_req->io.io_Actual;           /* +0x20 */
 
     return report_result(g_read_req->io.io_Error);
+}
+
+/*
+ * serial_io_c — issue a command and read back the server's single-byte ACK.
+ * (recon: FUN_0011979e / serial_io_c). Submits io_Command 0xb on the read
+ * request and waits, then classifies the result:
+ *   io_Error 7 (expected)      -> return the ack byte in io_Offset[0] (+0x2c)
+ *   io_Error 9 (carrier lost)  -> "Carrier lost",  return ACK_OK-as-fail
+ *   io_Error 0 (ok)            -> inspect the ack byte:
+ *        'B' -> error   : show status_text as an error, return ACK_OK (fail)
+ *        'A' -> message : show status_text as a message,  return ACK_MSG
+ *        '@' -> accepted                                  return ACK_OK
+ *   else                       -> "Comms problem", return ACK_OK (fail)
+ *
+ * Callers compare the return against ACK_OK ('@'). ACK_MSG ('A') also counts as
+ * success at some call sites; the original returns the raw ack so callers decide.
+ */
+#define CNET_CMD_IO_ACK  0xb
+
+UBYTE serial_io_c(const char *status_text)
+{
+    UBYTE ack;
+
+    g_read_req->io.io_Data    = (APTR)status_text;
+    g_read_req->io.io_Command = CNET_CMD_IO_ACK;
+    SendIO((struct IORequest *)g_read_req);
+    wait_for_completion(g_read_port, g_read_sig);
+
+    switch (g_read_req->io.io_Error) {
+    case CNET_ERR_EXPECTED:                 /* 7 — normal: ack is meaningful */
+        return REQ_SERFLAGS(g_read_req);    /* +0x2c holds the ack byte      */
+
+    case CNET_ERR_CARRIER:                  /* 9 */
+        show_status_message(0x42, "Carrier lost");
+        set_connection_error(9);
+        return ACK_OK;                      /* != caller's success path      */
+
+    case CNET_ERR_OK:                       /* 0 — classify the ack byte     */
+        ack = REQ_SERFLAGS(g_read_req);     /* +0x2c */
+        if (ack == ACK_ERR) {               /* 'B' */
+            show_status_message(0x42, status_text);
+            set_connection_error(0x42);
+            return ACK_OK;
+        }
+        if (ack == ACK_MSG) {               /* 'A' */
+            show_status_message(0x41, status_text);
+            return ACK_MSG;
+        }
+        return ACK_OK;                      /* '@' or other -> as accepted   */
+
+    default:
+        show_status_message(0x42, "Comms problem");
+        set_connection_error(7);
+        return ACK_OK;
+    }
+}
+
+/*
+ * send_dat_packet — write a frame's payload as a DAT block (recon: FUN_00108254).
+ * The frame block stores its length at +0x12 and its data at +0x16. The original
+ * calls serial_write(frame+0x16, frame->len, 1, TOKEN_DAT).
+ */
+void send_dat_packet(APTR frame)
+{
+    UBYTE *f = (UBYTE *)frame;
+    ULONG  len = *(ULONG *)(f + 0x12);
+    serial_write(f + 0x16, len, 1, TOKEN_DAT);
 }

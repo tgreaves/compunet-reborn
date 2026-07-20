@@ -1,0 +1,4 @@
+# Build artifacts (vbcc / SAS/C)
+*.o
+*.asm
+compunet-client
