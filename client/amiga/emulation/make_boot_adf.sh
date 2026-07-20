@@ -42,13 +42,13 @@ echo "== building client =="
 ( cd "$SRC" && VBCC="${VBCC:-/tmp/vbcc}" ./build.sh >/dev/null )
 
 # 3. startup-sequence: minimal boot -> map DEVS: -> run Compunet -------------
+# Minimal boot: Kickstart 1.3 auto-assigns C:/S:/L:/DEVS:/LIBS: to the boot disk's
+# dirs, so cnet.device (in devs/) is found without an explicit Assign, and we need
+# neither a resident shell nor `mount newcon:` (which aborted the script when its
+# MountList was absent — returncode 10 >= default failat). Just patch ROM and run.
 cat > "$WBX/s/startup-sequence" <<'SEQ'
 c:SetPatch >NIL:
-resident CLI L:Shell-Seg SYSTEM pure add
-resident c:Execute pure
-mount newcon:
-Assign DEVS: SYS:devs
-echo "Compunet Reborn — starting..."
+echo "Compunet Reborn - starting..."
 Compunet
 SEQ
 
