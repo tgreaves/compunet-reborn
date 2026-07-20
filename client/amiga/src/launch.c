@@ -86,26 +86,97 @@ LONG launch_editor(void)
  * fatal_exit(0x14). (The screen/window NewScreen/NewWindow structures and gadget
  * lists are UI-layer data; here we show the ordered bring-up and the guards.)
  */
+/* CLI progress trace (temporary, for bring-up debugging). Writes to the shell's
+ * stdout while it's still visible — the LAST line printed pins which init step
+ * faulted. Remove once bring-up is stable. */
+#include <clib/dos_protos.h>
+static ULONG dbg_len(const char *s){ const char *p=s; while(*p)p++; return (ULONG)(p-s); }
+static void dbg(const char *s)
+{
+    BPTR out = Output();
+    if (out) { Write(out, (APTR)s, (LONG)dbg_len(s)); Write(out, (APTR)"\n", 1); }
+}
+
+/* Faithful transcription of recon FUN_001026ae. Every step and its order matches
+ * the disassembly; data-blob structure addresses are the recon's &DAT_ values.
+ * Extra externs for the steps the earlier draft omitted: */
+extern APTR g_data[];
+#define L_DATA_BASE 0x11d000
+#define LDATA(off) ((APTR)(g_data + ((off) - L_DATA_BASE)))
+
+extern void  load_screen_palette(APTR viewport, APTR coltable, ULONG n); /* GfxBase.LoadRGB4 (FUN_0012a01c) */
+extern APTR  find_task(APTR name);                    /* SysBase.FindTask (FUN_0012907c) */
+extern void  set_menu_strip_tracked(APTR win, APTR menu); /* FUN_0011a588 -> SetMenuStrip + track */
+extern APTR  build_menu_strip(APTR spec);             /* FUN_0011b000 — build Menu/MenuItem tree */
+extern void  set_wait_pointer(void);                  /* FUN_001020ae */
+
+extern APTR  g_main_uport;    /* DAT_00120100 — main window UserPort   */
+extern ULONG g_extra_sig;     /* DAT_00120104 — its signal mask        */
+extern APTR  g_menu_strip;    /* DAT_001201ae — built Menu list        */
+extern ULONG g_menu_extra;    /* DAT_001201b2 */
+extern APTR  g_proc;          /* DAT_001200f0 — our Process            */
+extern APTR  g_saved_windowptr;/* DAT_001200f4 — saved pr_WindowPtr    */
+extern APTR  g_screen_copy;   /* DAT_0011d100 — screen ptr copy        */
+extern ULONG g_tty_seg_bptr;  /* DAT_0012016c — CnetTty seg (BPTR*4+4) */
+
 void launch_tty(void)
 {
+    APTR *sprite;
+    APTR  seg;
+
     IntuitionBase = open_library_checked("intuition.library", 0x21);
     if (IntuitionBase == NULL) fatal_exit(0x14);
 
     GfxBase = open_library_checked("graphics.library", 0x21);
     if (GfxBase == NULL) fatal_exit(0x14);
 
-    g_screen = open_screen_tracked(0 /* NewScreen in globals */);
+    /* Open the custom screen (NewScreen = DAT_0011d098+10). */
+    g_screen = open_screen_tracked(0);
     if (g_screen == NULL) fatal_exit(0x14);
 
-    g_window = open_window_tracked(0 /* NewWindow in globals */);
+    /* Load the screen's 16-colour palette into its ViewPort (screen+0x2c).
+     * recon: LoadRGB4(&screen->ViewPort, &DAT_0011d0c2, 16). */
+    load_screen_palette((UBYTE *)g_screen + 0x2c, LDATA(0x11d0c2), 0x10);
+    g_screen_copy = g_screen;
+
+    /* Open the main window (NewWindow = DAT_0011d0e2). */
+    g_window = open_window_tracked(0);
     if (g_window == NULL) fatal_exit(0x14);
 
+    /* Set the busy pointer on all windows. */
+    set_wait_pointer();
+
+    /* Cache the window's UserPort (window+0x56) and its signal mask. */
+    g_main_uport = *(APTR *)((UBYTE *)g_window + 0x56);
+    g_extra_sig  = 1UL << (*(UBYTE *)((UBYTE *)g_main_uport + 0x0f) & 0x3f);
+
+    /* Build the menu strip from its spec (&PTR_DAT_0011d172) and attach it to the
+     * window. recon: FUN_0011b000 builds a Menu/MenuItem tree and returns a 2-word
+     * result [menu, extra]; SetMenuStrip(window, menu) via FUN_0011a588. */
+    sprite = (APTR *)build_menu_strip(LDATA(0x11d172));
+    g_menu_strip = sprite[0];
+    g_menu_extra = (ULONG)sprite[1];
+    if (g_menu_strip == NULL) fatal_exit(0x14);
+    set_menu_strip_tracked(g_window, g_menu_strip);
+
+    /* Build the C64 font from the embedded charset. */
     if (build_font() == 0) fatal_exit(0x14);
 
-    if (launch_editor() == 0) fatal_exit(0x14);
+    /* Point our Process's pr_WindowPtr (+0xb8) at our window so system requesters
+     * appear on our screen; save the old value to restore on editor-launch failure. */
+    g_proc = find_task(NULL);
+    g_saved_windowptr = *(APTR *)((UBYTE *)g_proc + 0xb8);
+    *(APTR *)((UBYTE *)g_proc + 0xb8) = g_window;
+
+    if (launch_editor() == 0) {
+        *(APTR *)((UBYTE *)g_proc + 0xb8) = g_saved_windowptr;
+        fatal_exit(0x14);
+    }
 
     load_config();
 
-    /* Prepare the CnetTty scroll viewer (LoadSeg; run lazily on demand). */
-    if (load_seg_tracked("CnetTty") == NULL) fatal_exit(0x14);
+    /* LoadSeg the CnetTty viewer; keep its seg (as BPTR*4+4, recon DAT_0012016c). */
+    seg = load_seg_tracked("CnetTty");
+    if (seg == NULL) fatal_exit(0x14);
+    g_tty_seg_bptr = (ULONG)seg * 4 + 4;
 }
