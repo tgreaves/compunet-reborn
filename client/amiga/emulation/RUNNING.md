@@ -22,10 +22,30 @@ VBCC=/path/to/vbcc ./package.sh      # rebuilds the client + both packages
 > The client is **not** a self-booting disk — it has no ROM/Workbench on it. You boot
 > an emulated 1.3 Workbench, then run `Compunet` from our disk/HD.
 
+## Easiest path — the self-booting disk
+
+If you have a Workbench 1.3 ADF, [`make_boot_adf.sh`](make_boot_adf.sh) builds a
+**single self-booting floppy** — `CompunetReborn-boot.adf` — that cherry-picks only
+the minimal boot pieces from your Workbench (shell, serial.device, a few C: commands;
+everything else is Kickstart 1.3 ROM) and launches the client on boot.
+
+```
+cd client/amiga/emulation
+WB="/path/to/Workbench 1.3.adf" ./make_boot_adf.sh
+```
+
+Then in FS-UAE or vAmiga: **A500 + Kickstart 1.3**, put `CompunetReborn-boot.adf` in
+**DF0:**, and boot. It runs `Compunet` automatically (OFS disk, standard 1.3
+bootblock). No Workbench disk, no hard-drive setup needed. ~18% full, so there's room.
+
+> The disk embeds pieces of *your* licensed Workbench for *your* testing; it is not
+> committed to the repo (it's git-ignored, like the other generated images).
+
 ## Stage 1 — launch the UI (no server)
 
 This validates the reconstruction's UI, data blob, font, and PETSCII rendering — the
-bulk of the work — without needing a server.
+bulk of the work — without needing a server. The self-booting disk above is the
+quickest way in; the manual HD/ADF routes below are alternatives.
 
 ### FS-UAE (recommended)
 1. New config: **Amiga Model = A500**, **Kickstart = 1.3**.
