@@ -55,7 +55,17 @@
 extern void (*g_ctrl_lo[32])(APTR page);   /* PTR_FUN_0011d8a8 — codes 0x00-0x1F */
 extern void (*g_ctrl_hi[128])(APTR page);  /* PTR_FUN_0011d928 — codes 0x80-0xFF (& 0x7f) */
 
-extern void frame_advance_cursor(APTR page);/* FUN_001051de — move to next cell */
+/* Rendering helpers reconstructed below (were extern/stub). */
+void frame_advance_cursor(APTR page);   /* FUN_001051de */
+void frame_redraw(APTR page);           /* FUN_00107156 — re-blit all 40x24 cells */
+void frame_clear_region(int r0, int c0, int r1, int c1, APTR page); /* FUN_0010544e */
+void frame_insert_char(APTR page);      /* FUN_0010527e */
+void frame_delete_char(APTR page);      /* FUN_00105376 */
+extern void frame_offscreen_begin(void);/* FUN_001060f6 — set up offscreen bitmap */
+extern void frame_offscreen_end(APTR page);/* FUN_0010617c — blit offscreen to window */
+extern void frame_border(int r0, int c0, int r1, int c1, APTR page); /* FUN_001061e8 */
+extern void gfx_set_bpen(APTR rp, UBYTE pen);       /* GfxBase.SetBPen (FUN_0012a0a0) */
+extern void gfx_scroll_raster(APTR rp, int dx, int dy, int x0, int y0, int x1, int y1); /* FUN_0012a0f0 */
 
 /*
  * Frame byte source: a function pointer the frame parser installs to read either
@@ -275,4 +285,93 @@ void blit_char_cell(WORD row, WORD col, APTR page)
                 dst[r * 0x28] = src[r * 2];
         }
     }
+}
+
+/*
+ * frame_advance_cursor — recon FUN_001051de. Advance the cursor one cell, wrapping
+ * to the next row at column 40 (0x28) and clamping at row 24 (0x17).
+ */
+void frame_advance_cursor(APTR page)
+{
+    if (++PAGE_COL(page) == 0x28) {
+        PAGE_COL(page) = 0;
+        if (PAGE_ROW(page) < 0x17)
+            PAGE_ROW(page)++;
+    }
+    PAGE_WRAP(page) = 0;
+}
+
+/*
+ * frame_redraw — recon FUN_00107156. Re-blit the whole 40x24 grid (used after a
+ * charset switch). Wraps the cell loop in the offscreen-bitmap begin/end pair.
+ */
+void frame_redraw(APTR page)
+{
+    WORD row, col;
+    frame_offscreen_begin();
+    for (row = 0; row < 0x18; row++)
+        for (col = 0; col < 0x28; col++)
+            blit_char_cell(row, col, page);
+    frame_offscreen_end(page);
+}
+
+/*
+ * frame_clear_region — recon FUN_0010544e. Fill a rectangular cell range with
+ * spaces, then repaint that region's border.
+ */
+void frame_clear_region(int r0, int c0, int r1, int c1, APTR page)
+{
+    int r, c;
+    for (r = r0; r <= r1; r++)
+        for (c = c0; c <= c1; c++)
+            PAGE_CELLS(page)[r * 0x50 + c * 2] = 0x20;
+    frame_border(r0, c0, r1, c1, page);
+}
+
+/*
+ * frame_insert_char — recon FUN_0010527e. Shift the current line right from the
+ * cursor (insert a blank), then hardware-scroll the affected screen strip.
+ */
+void frame_insert_char(APTR page)
+{
+    short row = PAGE_ROW(page);
+    short col = PAGE_COL(page);
+    UBYTE *cells = PAGE_CELLS(page);
+    short x;
+
+    if (col > 0 || row > 0) {
+        /* cursor_left (recon FUN_0010521e), inlined */
+        if (--PAGE_COL(page) < 0) {
+            PAGE_COL(page) = 0x27;
+            if (PAGE_ROW(page) > 0) PAGE_ROW(page)--;
+        }
+        PAGE_WRAP(page) = 0;
+        row = PAGE_ROW(page);
+        col = PAGE_COL(page);
+        for (x = col; x < 0x27; x++) {
+            cells[row * 0x50 + x * 2]     = cells[row * 0x50 + (x + 1) * 2];
+            cells[row * 0x50 + x * 2 + 1] = cells[row * 0x50 + (x + 1) * 2 + 1];
+        }
+        cells[row * 0x50 + 0x27 * 2] = 0x20;
+        frame_redraw(page);   /* recon does a targeted SetBPen+ScrollRaster; redraw is behaviour-equivalent */
+    }
+}
+
+/*
+ * frame_delete_char — recon FUN_00105376. Shift the current line left into the
+ * cursor cell (delete), blanking the last column.
+ */
+void frame_delete_char(APTR page)
+{
+    short row = PAGE_ROW(page);
+    short col = PAGE_COL(page);
+    UBYTE *cells = PAGE_CELLS(page);
+    short x;
+
+    for (x = 0x27; x > col; x--) {
+        cells[row * 0x50 + x * 2]     = cells[row * 0x50 + (x - 1) * 2];
+        cells[row * 0x50 + x * 2 + 1] = cells[row * 0x50 + (x - 1) * 2 + 1];
+    }
+    cells[row * 0x50 + col * 2] = 0x20;
+    frame_redraw(page);
 }

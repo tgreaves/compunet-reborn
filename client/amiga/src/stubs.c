@@ -16,8 +16,7 @@
 #include "compunet.h"
 
 /* ---- data globals referenced across modules ---- */
-void (*g_ctrl_lo[32])(APTR page);   /* PTR_FUN_0011d8a8 control table */
-void (*g_ctrl_hi[128])(APTR page);  /* PTR_FUN_0011d928 control table */
+/* g_ctrl_lo / g_ctrl_hi are now real (frame_control.c) */
 APTR  g_editor_port = 0;
 APTR  g_editor_seg  = 0;
 UBYTE g_editor_status = 0;
@@ -29,7 +28,6 @@ BYTE  g_res_level = 0;   /* DAT_0011ff2a */
 /* ---- function stubs ---- */
 LONG  action_download() { return 0; }
 void  apply_serial_params() { }
-void  blt_font_to_rastport() { }
 void  clear_wait_pointer() { }
 void  close_connection_window() { }
 void  close_logon_window() { }
@@ -48,7 +46,6 @@ APTR  file_open_read() { return 0; }
 APTR  file_open_write() { return 0; }
 void  file_read() { }
 void  file_write() { }
-LONG  frame_advance_cursor() { return 0; }
 APTR  frame_display() { return 0; }
 APTR  frame_display_done() { return 0; }
 APTR  frame_display_mem() { return 0; }

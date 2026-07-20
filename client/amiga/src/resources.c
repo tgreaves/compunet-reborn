@@ -45,6 +45,9 @@ struct ResNode {
 extern struct ResNode *g_res_list;   /* PTR_DAT_0011ff1c — head of unwind list */
 extern BYTE            g_res_level;   /* DAT_0011ff2a — current nesting level    */
 
+APTR alloc_tracked(ULONG size, ULONG flags);   /* recon FUN_0011a1ee */
+void free_tracked(APTR ptr);                    /* recon FUN_0011a238 */
+
 /* Register 'ptr' with free function 'fn' at the current level (recon FUN_0011a16c
  * -> FUN_0011a132). */
 static void res_register(void (*fn)(), APTR arg1, APTR arg2)
@@ -117,4 +120,32 @@ BOOL open_device_tracked(const char *name, ULONG unit,
     if (err == 0)
         res_register((void(*)())CloseDevice, req, 0);
     return err;   /* recon returns the OpenDevice error (0 == success) */
+}
+
+/*
+ * alloc_tracked — recon FUN_0011a1ee. AllocMem(size + 0x20), clear it, register a
+ * matching free, and hand back a pointer past the 0x20-byte bookkeeping header
+ * (which stores the size so free_tracked can recover it).
+ */
+APTR alloc_tracked(ULONG size, ULONG flags)
+{
+    UBYTE *p = (UBYTE *)AllocMem(size + 0x20, flags);
+    if (p == NULL)
+        return NULL;
+    /* stash the total size in the header (recon writes it near -0xe) so the tracked
+     * free can call FreeMem with the right length. */
+    *(ULONG *)(p + 0x12) = size + 0x20;
+    res_register((void(*)())free_tracked, p + 0x20, 0);
+    return p + 0x20;
+}
+
+/*
+ * free_tracked — recon FUN_0011a238. Recover the header (ptr - 0x20) and its stored
+ * size, then FreeMem the whole block.
+ */
+void free_tracked(APTR ptr)
+{
+    UBYTE *base = (UBYTE *)ptr - 0x20;
+    ULONG  total = *(ULONG *)(base + 0x12);
+    FreeMem(base, total);
 }
