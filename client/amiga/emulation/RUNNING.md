@@ -54,27 +54,31 @@ in place — just reset the emulated Amiga and re-run `Compunet`, no image rebui
 
 ## Stage 2 — connect to a Reborn server (later)
 
-The binary does `OpenDevice("cnet.device")`, and `cnet.device` dials a **modem** over
-the stock `serial.device`. To reach a Reborn server over TCP you need the same bridge
-the C64 side uses:
+**Decision: no serial→TCP bridge.** We will *not* use a virtual-modem / tcpser
+serial redirect. Instead, native TCP/IP will be added to the client via
+`bsdsocket.library` (AmiTCP / Roadshow / Miami) as a proper transport, at a later
+stage. This keeps the Amiga client architecturally parallel to the C64 (swap only
+the transport) without a modem-emulation kludge.
 
-1. **Serial → TCP.** In FS-UAE set the serial port to a TCP endpoint:
-   ```
-   serial_port = tcp://<host>:<port>
-   ```
-   pointed at a **virtual modem** (e.g. `tcpser`) that answers the AT dial with
-   `CONNECT` and then pipes bytes to the Reborn server's socket. (vAmiga's serial
-   redirection is weaker; prefer FS-UAE for this.)
-2. **Server-side detection.** The Amiga sends a *different* identification handshake
+What that entails when we get to it:
+
+1. **New transport module.** The transport seam is `open_transport` (`connect.c`),
+   `serial_read`/`serial_write` (`transport.c`), and the dial/handshake in `modem.c`.
+   A bsdsocket transport replaces exactly these: `OpenLibrary("bsdsocket.library")`
+   + `connect()` in place of `OpenDevice("cnet.device")`, and `recv`/`send` in place
+   of the serial IO. The modem dial + `C CNET` handshake + carrier polling are
+   **dropped** (a socket connect has no dial). Everything above — `serial_io_c` ack
+   handling, the frame parser, the command layer — is unchanged.
+2. **Runtime requirement.** The emulated Amiga must have a TCP/IP stack installed
+   (AmiTCP/Roadshow) providing `bsdsocket.library`, plus emulator networking enabled.
+3. **Server-side detection.** The Amiga sends a *different* identification handshake
    than the C64 (`C CNET\r` ×2 + a 14-byte zero field, vs the C64's hash/`ADP`/`RUN`).
-   The Reborn server must recognise it and, if it wants correct rendering, treat the
-   client as PETSCII-capable (it is — see `frame_control.c`). This is a **documented,
-   not-yet-made server change**; until then a live login won't complete.
-3. **Config.** The bundled `cnet-configuration` selects `linnet_1200` (1275 split
-   baud) and user `NEW-USER`. Point the modem script / virtual modem at your bridge.
+   The Reborn server must recognise it and treat the client as PETSCII-capable (it is
+   — see `frame_control.c`). This is a **documented, not-yet-made server change**.
 
-So Stage 2 is a two-sided task (emulator serial bridge **and** a small server change),
-not just "run the exe". Stage 1 is independent and worth confirming first.
+Until the bsdsocket transport lands, there is **no connection path** — Stage 1
+(launch + UI) is the current target. Hitting "Connect" will fail at the dial (no
+modem), which is expected.
 
 ## Troubleshooting
 

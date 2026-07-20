@@ -135,18 +135,31 @@ Reborn's premise (per project rules) is "preserve the app-layer protocol, swap o
 the transport — TCP instead of the phone line." The Amiga suite has the same seam,
 so two paths exist:
 
-1. **Reuse the original `Compunet` binary unchanged.** Provide it a transport to the
-   Reborn server, either by:
-   - a drop-in replacement `cnet.device` that speaks TCP to the Reborn server, or
-   - running the binary under WinUAE/vAmiga with serial→TCP redirection (or a
-     virtual/WiFi modem) pointed at the Reborn server.
-
-   If the client's app-layer protocol matches [docs/PROTOCOL.md](PROTOCOL.md), this
-   could work with little or no reverse-engineering of the client. **Highest-value,
-   lowest-effort path.**
+1. **Reuse the original `Compunet` binary unchanged**, providing it a transport to the
+   Reborn server (e.g. a drop-in replacement `cnet.device` that speaks TCP). Lowest
+   effort if the app-layer protocol matches [docs/PROTOCOL.md](PROTOCOL.md).
 
 2. **Reimplement** the Amiga client, using a disassembly of `Compunet` as reference.
-   The binary is now decrunched, so this is unblocked.
+   The binary is now decrunched, so this is unblocked. *(This is the chosen path —
+   see below.)*
+
+### Transport decision — native TCP/IP via bsdsocket.library
+
+**We are NOT using serial→TCP redirection** (no tcpser / virtual-modem / WiFi-modem
+bridge under the emulator). Instead the reconstructed client will get **native TCP/IP
+through `bsdsocket.library`** (AmiTCP / Roadshow / Miami) as a proper transport, added
+at a later stage. This mirrors the C64 SwiftLink↔TCP seam without a modem-emulation
+kludge, and matches "swap only the transport" cleanly.
+
+The transport seam in the reconstruction is `open_transport` (`connect.c`),
+`serial_read`/`serial_write` (`transport.c`), and the dial/handshake (`modem.c`). The
+bsdsocket transport replaces exactly those — `OpenLibrary("bsdsocket.library")` +
+`connect()` for the OpenDevice, `recv`/`send` for the serial IO — and **drops** the
+modem dial, `C CNET` handshake, and carrier polling (a socket connect has no dial).
+The application layer above the seam (`serial_io_c` ack handling, frame parser,
+command dispatch) is unchanged. The server still needs a branch to recognise the
+Amiga identification handshake. See
+[client/amiga/emulation/RUNNING.md](../client/amiga/emulation/RUNNING.md).
 
 ## Chosen approach — understand fully, reconstruct in C
 
