@@ -85,40 +85,98 @@ LONG about_dialog(void)
 }
 
 /*
- * run_requester — recon FUN_00110042/FUN_00110276: open a requester window (NewWindow
- * in the blob), add its gadget list, and loop on IDCMP until the user hits OK/Cancel,
- * returning the selected gadget's GadgetID. Shared by every prompt below.
+ * run_requester — recon FUN_00110042. Open the requester window (NewWindow in the
+ * blob at 0x11ee80), add its gadget list, WaitPort ONCE, drain all queued messages
+ * (keeping the last one's IAddress), close, and return that gadget's GadgetID (+0x26).
+ *
+ * IMPORTANT: the recon applies NO message-class filter — it just returns the last
+ * message's gadget id. The OK/Cancel gadgets are GADGIMMEDIATE (they emit GADGETDOWN,
+ * never GADGETUP), so an earlier `if (cls == GADGETUP)` check never matched and every
+ * prompt hung forever at WaitPort. The window is CUSTOMSCREEN, so its NewWindow.Screen
+ * (0x11ee80 + 0x1e = 0x11ee9e) must be patched with g_screen first, or OpenWindow
+ * returns NULL (recon FUN_00110042 line 11292: DAT_0011ee9e = screen).
+ */
+/*
+ * run_requester — faithful recon FUN_00110042. Open the requester window, draw its
+ * body (box Image + the IntuiText chain + border), add the passed gadget list, then
+ * WaitPort / drain / close. Returns the last message's IAddress->GadgetID.
+ *
+ * Blob structures driven:
+ *   0x11ee80  NewWindow (Width=264, Height=50; Screen at +0x1e = 0x11ee9e)
+ *   0x11f0a8  Image (the dialog box background)
+ *   0x11f094  IntuiText (line 1 — NextText chains to 0x11f080 = line 2)
+ *   0x11f018  Border (button outlines)
+ *   0x11f028  Gadget list (OK only)
+ *   0x11f054  Gadget list (OK + Cancel)
  */
 static LONG run_requester(APTR newwindow, APTR glist)
 {
     struct Window *w;
     struct IntuiMessage *msg;
-    struct Gadget *g;
-    LONG result = 0;
+    struct Gadget *last = NULL;
+
+    /* Patch the NewWindow's Screen field into the blob so it opens on our screen. */
+    *(APTR *)DATA(0x11ee9e) = g_screen;
 
     w = (struct Window *)open_window_tracked(newwindow);
     if (w == NULL)
         return 0;
-    AddGList(w, (struct Gadget *)glist, ~0, ~0, NULL);
+
+    /* Draw the dialog body: box image, text (IntuiText chain at 0x11f094 renders
+     * both lines since its NextText is 0x11f080), and the gadget border. These are
+     * the three draw calls the recon makes before adding gadgets. */
+    DrawImage(w->RPort, (struct Image *)DATA(0x11f0a8), 4, 2);
+    PrintIText(w->RPort, (struct IntuiText *)DATA(0x11f094), 4, 2);
+    DrawBorder(w->RPort, (struct Border *)DATA(0x11f018), 4, 2);
+
+    AddGList(w, (struct Gadget *)glist, 0, ~0, NULL);
     RefreshGList((struct Gadget *)glist, w, NULL, ~0);
 
-    for (;;) {
-        WaitPort(w->UserPort);
-        while ((msg = (struct IntuiMessage *)GetMsg(w->UserPort)) != NULL) {
-            ULONG cls = msg->Class;
-            g = (struct Gadget *)msg->IAddress;
-            ReplyMsg((struct Message *)msg);
-            if (cls == GADGETUP) {
-                result = g->GadgetID;   /* 1 = OK, 2 = Cancel (recon +0x26) */
-                close_window_tracked(w);
-                return result;
-            }
-            if (cls == CLOSEWINDOW) {
-                close_window_tracked(w);
-                return 0;
-            }
-        }
+    /* Block until user clicks a gadget, then drain all queued messages and return
+     * the last one's gadget id (recon: WaitPort + drain loop + read IAddress+0x26). */
+    WaitPort(w->UserPort);
+    while ((msg = (struct IntuiMessage *)GetMsg(w->UserPort)) != NULL) {
+        last = (struct Gadget *)msg->IAddress;
+        ReplyMsg((struct Message *)msg);
     }
+    close_window_tracked(w);
+    return (last != NULL) ? last->GadgetID : 0;
+}
+
+/*
+ * requester_2line — the shared "two text lines + gadget list" requester used by the
+ * OK-only (recon FUN_00110472) and yes/no (recon FUN_001104a6) dialogs. It patches
+ * the two pre-built IntuiText structs in the blob (their .IText fields at 0x11f0a0
+ * [line 1, top] and 0x11f08c [line 2]) with the caller's strings, then runs the
+ * requester core with the chosen gadget list:
+ *   glist 0x11f028 -> OK only ;  glist 0x11f054 -> OK(id 1) + Cancel(id 0).
+ * Returns the clicked gadget's id (OK = 1, Cancel = 0).
+ */
+LONG requester_2line(const char *line1, const char *line2, APTR glist)
+{
+    *(const char **)DATA(0x11f0a0) = line1;   /* IntuiText@0x11f094 .IText */
+    *(const char **)DATA(0x11f08c) = line2;   /* IntuiText@0x11f080 .IText */
+    return run_requester(DATA(0x11ee80), glist);
+}
+
+/* status_ok_dialog — recon FUN_00110472: modal OK requester (two text lines).
+ * Sets FrontPen of both IntuiText structs to param (recon param_5; for the status
+ * dialog it's typically 1 = blue-on-black). */
+void status_ok_dialog(const char *title, const char *body)
+{
+    *(UBYTE *)DATA(0x11f094) = 1;   /* FrontPen of text-1 IntuiText */
+    *(UBYTE *)DATA(0x11f080) = 1;   /* FrontPen of text-2 IntuiText */
+    requester_2line(title, body, DATA(0x11f028 /*OK-only gadget list*/));
+}
+
+/* retry_dialog — recon FUN_001104a6: yes/no requester. Returns 1 = OK, 0 = Cancel.
+ * Sets FrontPen = 7 (white), DAT_0011f0b7 = 6. */
+LONG retry_dialog(const char *title, const char *body)
+{
+    *(UBYTE *)DATA(0x11f0b7) = 6;
+    *(UBYTE *)DATA(0x11f094) = 7;   /* FrontPen of text-1 IntuiText */
+    *(UBYTE *)DATA(0x11f080) = 7;   /* FrontPen of text-2 IntuiText */
+    return requester_2line(title, body, DATA(0x11f054 /*OK+Cancel list*/)) == 1;
 }
 
 /* string_prompt — recon FUN_00110390: open the string requester (title + buffer). */

@@ -214,9 +214,13 @@ static struct Window *g_mail_win;   /* DAT_00121698 */
 
 /* mail_open_window — recon FUN_0010f000: open the mail window (its NewWindow is in
  * the data blob), clear the recipient fields, draw the title/border. */
+extern APTR g_screen;
 LONG mail_open_window(void)
 {
     int i;
+    /* Patch mail NewWindow.Screen (0x11eac8 + 0x1e = 0x11eae6) with g_screen
+     * (CUSTOMSCREEN). recon FUN_0010f000 line 10871: DAT_0011eae6 = g_screen. */
+    *(APTR *)DATAM(0x11eae6) = g_screen;
     g_mail_win = (struct Window *)open_window_tracked(DATAM(0x11eac8 /*mail NewWindow*/));
     if (g_mail_win == NULL)
         return 0;
@@ -253,21 +257,32 @@ void mail_append(const char *s)
 static LONG mail_dialog_loop(void)
 {
     struct IntuiMessage *msg;
-    struct Gadget *g;
+    struct Gadget *last;
     if (g_mail_win == NULL) return 0;
+    /* recon FUN_0010f23a: WaitPort, drain ALL (keep last gadget), then switch on the
+     * gadget's GadgetID (+0x26) with NO class filter — Send/Cancel are GADGIMMEDIATE
+     * (GADGETDOWN), the string fields are RELVERIFY (GADGETUP), so a GADGETUP-only
+     * check matched only the fields and never Send/Cancel. id 0=cancel, 1/2=commit,
+     * 3=activate the next string field and keep looping, default=keep looping. */
     for (;;) {
+        last = NULL;
         WaitPort(g_mail_win->UserPort);
         while ((msg = (struct IntuiMessage *)GetMsg(g_mail_win->UserPort)) != NULL) {
-            ULONG cls = msg->Class;
-            g = (struct Gadget *)msg->IAddress;
+            last = (struct Gadget *)msg->IAddress;
             ReplyMsg((struct Message *)msg);
-            if (cls == GADGETUP) {
-                short id = g->GadgetID;
-                if (id == 1 || id == 2) return 1;   /* send */
-                if (id == 0) return 0;              /* cancel */
-            } else if (cls == CLOSEWINDOW) {
-                return 0;
-            }
+        }
+        if (last == NULL)
+            continue;
+        switch (last->GadgetID) {
+        case 0: return 0;                 /* Cancel */
+        case 1:
+        case 2: return 1;                 /* Send / commit */
+        case 3:
+            /* tab to the next string gadget (recon re-activates it, then loops). */
+            ActivateGadget(last, g_mail_win, NULL);
+            break;
+        default:
+            break;
         }
     }
 }

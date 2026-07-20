@@ -56,7 +56,11 @@ void partyline_open(void)
 {
     struct Window *w;
 
-    g_party_screen = g_screen;
+    /* Patch the partyline NewWindow.Screen (0x11fd84 + 0x1e = 0x11fda2) INTO THE BLOB
+     * with g_screen (CUSTOMSCREEN). recon FUN_00119000 line 14223: DAT_0011fda2 =
+     * g_screen — DAT_0011fda2 IS the NewWindow.Screen field, not a separate copy.
+     * (Writing the detached g_party_screen global left it NULL -> OpenWindow NULL.) */
+    *(APTR *)DATA(0x11fda2) = g_screen;
     w = (struct Window *)open_window_tracked(DATA(0x11fd84));
     g_party_win = (APTR)w;
     if (w == NULL)

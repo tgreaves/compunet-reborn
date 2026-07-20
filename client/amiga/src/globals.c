@@ -143,7 +143,8 @@ APTR   g_click_win    = NULL;   /* DAT_0011d550 */
 /* Extra per-connection window/session handles cleared by disconnect()
  * (recon FUN_00102968). Named by their role in the pointer/title helpers
  * (FUN_001020ae / FUN_0010217a) and the session-alloc sites. */
-APTR   g_edit_proc    = NULL;   /* DAT_00120168 — frame-editor process       */
+APTR   g_edit_proc    = NULL;   /* DAT_00120168 — frame-editor semaphore owner */
+APTR   g_edit_msgport = NULL;   /* DAT_0012013e — editor message port (PutMsg target) */
 
 /*
  * Editor startup message (recon DAT_00120142/46). launch_editor PutMsg's this to the

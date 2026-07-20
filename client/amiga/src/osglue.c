@@ -12,6 +12,7 @@
  *   handle_extra_signal / handle_device_message / mail_state_enter — small hooks.
  */
 #include <exec/types.h>
+#include <stdlib.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <clib/graphics_protos.h>
@@ -61,10 +62,13 @@ void link_lock(APTR dir_page, int row)
 /* fatal_exit — recon FUN_0011a11e: unwind all tracked resources and terminate. */
 void fatal_exit(ULONG code)
 {
-    cleanup_resources();
-    /* The runtime epilogue closes libraries; returning to it with the code is the
-     * faithful behaviour (the original tail-calls the C exit path). */
-    (void)code;
+    /* Free ALL tracked resources in one pass (recon FUN_0011a0f0), then terminate.
+     * The original tail-calls the SAS/C exit epilogue; with vbcc's minstart.o, exit()
+     * restores the entry stack pointer and returns to DOS. (An earlier version looped
+     * on cleanup_resources() level-by-level, which was the wrong unwind primitive.) */
+    extern void cleanup_all_resources(void);
+    cleanup_all_resources();   /* frees the whole list — incl. CloseWindow/CloseScreen */
+    exit((int)code);
 }
 
 /* handle_extra_signal — recon FUN_00119506: service the UI/abort signal that can

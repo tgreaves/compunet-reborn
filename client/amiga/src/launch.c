@@ -37,7 +37,8 @@ extern APTR  g_screen;        /* DAT_001200f8 */
 extern APTR  g_window;        /* DAT_001200fc */
 extern APTR  g_editor_seg;    /* DAT_0011d06c — LoadSeg of CnetEditor */
 extern UBYTE g_editor_msg[];  /* DAT_00120146 — CnetEditor startup message */
-extern APTR  g_edit_proc;     /* DAT_00120168 — the editor's Process (out) */
+extern APTR  g_edit_proc;     /* DAT_00120168 — editor semaphore owner (out) */
+extern APTR  g_edit_msgport;  /* DAT_0012013e — editor message port (out)   */
 extern UBYTE *g_font_base;    /* DAT_00120258 — the built C64 font          */
 extern APTR  g_proc;          /* DAT_001200f0 — our Process (FindTask(NULL)) */
 
@@ -95,9 +96,13 @@ LONG launch_editor(void)
     GetMsg(g_editor_port);
 
     if (EMSG_STATUS == '\0') {
-        /* Editor ready: it wrote its Process back into the screen slot and its
-         * semaphore owner into the font slot (recon $102698-$10269e). */
-        g_edit_proc = EMSG_SCREEN;
+        /* Editor ready (recon lines 1832-1835): it wrote its message port back into
+         * the screen slot (msg+0x16) and its semaphore owner into the font slot
+         * (msg+0x1a). Cache both: g_edit_msgport (DAT_0012013e) is the PutMsg target
+         * for later editor commands (serial setup, frame display, quit teardown);
+         * g_edit_proc (DAT_00120168) is the semaphore owner. */
+        g_edit_msgport = EMSG_SCREEN;
+        g_edit_proc    = EMSG_FONT;
         resource_commit();      /* keep its resources */
         return 1;
     }
@@ -137,40 +142,24 @@ extern APTR  g_proc;          /* DAT_001200f0 — our Process            */
 extern APTR  g_saved_windowptr;/* DAT_001200f4 — saved pr_WindowPtr    */
 extern ULONG g_tty_seg_bptr;  /* DAT_0012016c — CnetTty seg (BPTR*4+4) */
 
-/* TEMP: print a checkpoint line to the boot Shell (DOS Output()). Works before the
- * custom screen opens (the CLI window is still visible) AND after (it stays alive
- * underneath). Flushes each line so the LAST line printed pins the crashing step.
- * Non-static so event_loop.c can share it. */
-#include <clib/dos_protos.h>
-void dbg(const char *s)
-{
-    BPTR out = Output();
-    const char *p = s; ULONG n = 0;
-    while (p[n]) n++;
-    if (out) { Write(out, (APTR)s, (LONG)n); Write(out, (APTR)"\n", 1); }
-}
 
 void launch_tty(void)
 {
     APTR *pair;
     APTR  seg;
 
-    dbg("A: launch_tty enter");
     IntuitionBase = open_library_checked("intuition.library", 0x21);
     if (IntuitionBase == NULL) fatal_exit(0x14);
 
-    dbg("B: intuition ok, open graphics");
     GfxBase = open_library_checked("graphics.library", 0x21);
     if (GfxBase == NULL) fatal_exit(0x14);
 
     /* Open the custom screen (NewScreen = DAT_0011d098+10). */
-    dbg("C: graphics ok, open screen");
     g_screen = open_screen_tracked(0);
     if (g_screen == NULL) fatal_exit(0x14);
 
     /* Load the screen's 16-colour palette into its ViewPort (screen+0x2c).
      * recon: LoadRGB4(&screen->ViewPort, &DAT_0011d0c2, 16). */
-    dbg("D: screen ok, load palette");
     load_screen_palette((UBYTE *)g_screen + 0x2c, LDATA(0x11d0c2), 0x10);
 
     /* Patch the main NewWindow's Screen field (NewWindow@0x11d0e2 + 0x1e = 0x11d100)
@@ -181,18 +170,15 @@ void launch_tty(void)
     *(APTR *)LDATA(0x11d100) = g_screen;
 
     /* Open the main window (NewWindow = DAT_0011d0e2). */
-    dbg("E: palette ok, open window");
     g_window = open_window_tracked(0);
     if (g_window == NULL) fatal_exit(0x14);
 
     /* Set the busy pointer on all windows. */
-    dbg("F: window ok, set wait pointer");
     set_wait_pointer();
 
     /* Cache the window's UserPort (window+0x56) and its signal mask. The recon
      * computes 1 << UserPort->mp_SigBit (port+0x0f) with no mask (raw move.b +
      * asl.l at $10275a-$102766). */
-    dbg("G: pointer ok, cache userport");
     g_main_uport = *(APTR *)((UBYTE *)g_window + 0x56);
     g_extra_sig  = 1UL << *(UBYTE *)((UBYTE *)g_main_uport + 0x0f);
 
@@ -200,38 +186,30 @@ void launch_tty(void)
      * window. recon: FUN_0011b000 builds a Menu/MenuItem tree and returns a 2-long
      * result [menu list, command map] which is copied into DAT_001201ae/b2
      * (g_menu_pair). Bail if the menu list is NULL; SetMenuStrip via FUN_0011a588. */
-    dbg("H: userport ok, build menu strip");
     pair = (APTR *)build_menu_strip(LDATA(0x11d172));
     g_menu_pair[0] = pair[0];
     g_menu_pair[1] = pair[1];
     if (g_menu_pair[0] == NULL) fatal_exit(0x14);
-    dbg("I: menu built, set menu strip");
     set_menu_strip_tracked(g_window, g_menu_pair[0]);
 
     /* Build the C64 font from the embedded charset. */
-    dbg("J: menu strip set, build font");
     if (build_font() == 0) fatal_exit(0x14);
 
     /* Point our Process's pr_WindowPtr (+0xb8) at our window so system requesters
      * appear on our screen; save the old value to restore on editor-launch failure. */
-    dbg("K: font ok, find task + windowptr");
     g_proc = find_task(NULL);
     g_saved_windowptr = *(APTR *)((UBYTE *)g_proc + 0xb8);
     *(APTR *)((UBYTE *)g_proc + 0xb8) = g_window;
 
-    dbg("L: launch editor");
     if (launch_editor() == 0) {
         *(APTR *)((UBYTE *)g_proc + 0xb8) = g_saved_windowptr;
         fatal_exit(0x14);
     }
 
-    dbg("M: editor ok, load config");
     load_config();
 
     /* LoadSeg the CnetTty viewer; keep its seg (as BPTR*4+4, recon DAT_0012016c). */
-    dbg("N: config ok, loadseg tty");
     seg = load_seg_tracked("CnetTty");
     if (seg == NULL) fatal_exit(0x14);
     g_tty_seg_bptr = (ULONG)seg * 4 + 4;
-    dbg("O: launch_tty DONE");
 }

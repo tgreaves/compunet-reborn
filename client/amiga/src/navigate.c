@@ -120,3 +120,26 @@ LONG link_goto(void)
  * ui_state.c — it retitles every window AND drives the per-state menu-enable and
  * directory/frame gadget-enable tables from the data blob. (The earlier title-only
  * approximation that lived here has been removed.) */
+
+/*
+ * leave_page — recon FUN_00103704, the "Leave" menu item. Sets state=2, sends the
+ * single-char "E" command (leave/back) as a TOKEN_COM frame, and reads the ack. On
+ * ack '@' the original then reads the returned frame and hands it to the editor for
+ * display (FUN_0010818a + FUN_0011754e); on a non-'@' ack it disconnects. The
+ * frame-redisplay half depends on the editor message plumbing and is deferred — this
+ * sends the protocol command faithfully (the earlier binding wrongly called
+ * do_connect here, which redialled instead of leaving).
+ */
+extern void disconnect(void);            /* FUN_00102968 */
+LONG leave_page(void)
+{
+    static const char cmd_E[2] = "E";    /* recon DAT_0011d6cc = "E" */
+    g_state = STATE_GOTO;                 /* recon sets DAT_0011d070 = 2 */
+    serial_write((APTR)cmd_E, 1, 1, TOKEN_COM);
+    if (serial_io_c(g_ack_text) != ACK_OK) {
+        disconnect();                     /* recon: non-'@' ack -> FUN_00102968 */
+        return 1;
+    }
+    /* '@': original reads + displays the returned frame via the editor. Deferred. */
+    return 1;
+}

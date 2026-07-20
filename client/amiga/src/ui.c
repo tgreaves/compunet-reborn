@@ -41,6 +41,8 @@ extern UBYTE g_data[];
 extern APTR g_screen;      /* DAT_001200f8 — the custom screen  */
 extern APTR g_window;      /* DAT_001200fc — the main window     */
 extern APTR g_editor_port;
+extern char g_login_userid[];   /* DAT_00120244 */
+extern char g_login_scratch[];  /* DAT_0012024d */
 
 /* Resource-tracked screen/window open+close (recon FUN_0011a4e0 / FUN_0011a534). */
 extern APTR open_screen_tracked(APTR newscreen);   /* FUN_0011a4e0 -> OpenScreen */
@@ -64,25 +66,42 @@ static short  g_logon_y;             /* DAT_001201f0 */
  * those to the blob structures here. Offsets DERIVED FROM THE RECON (not guessed):
  *   NewScreen  = DAT_0011d098 + 10 = 0x11d0a2   (recon FUN_001026ae line 1867)
  *   NewWindow  = DAT_0011d0e2                    (recon FUN_001026ae line 1873) */
+extern void resource_register_free(void (*fn)(), APTR arg1, APTR arg2); /* FUN_0011a16c */
+
 APTR open_screen_tracked(APTR newscreen)
 {
+    struct Screen *s;
     if (newscreen == 0)
         newscreen = DATA(0x11d0a2);   /* NewScreen (recon DAT_0011d098+10) */
-    /* tracked so cleanup closes it; here we call OpenScreen directly + register. */
-    return (APTR)OpenScreen((struct NewScreen *)newscreen);
+    s = OpenScreen((struct NewScreen *)newscreen);
+    /* recon FUN_0011a4e0: on success register CloseScreen so cleanup closes it at exit
+     * (this is why the screen was left on-screen after Quit — the close was missing). */
+    if (s != NULL)
+        resource_register_free((void (*)())CloseScreen, (APTR)s, 0);
+    return (APTR)s;
 }
 
 APTR open_window_tracked(APTR newwindow)
 {
+    struct Window *w;
     if (newwindow == 0)
         newwindow = DATA(0x11d0e2);   /* the main NewWindow (recon DAT_0011d0e2) */
-    return (APTR)OpenWindow((struct NewWindow *)newwindow);
+    w = OpenWindow((struct NewWindow *)newwindow);
+    /* recon FUN_0011a534: on success register CloseWindow. */
+    if (w != NULL)
+        resource_register_free((void (*)())CloseWindow, (APTR)w, 0);
+    return (APTR)w;
 }
 
+extern void resource_unregister(void (*fn)(), APTR arg1);   /* FUN_0011a19c */
 void close_window_tracked(APTR win)
 {
-    if (win)
+    /* recon FUN_0011a568: close the window AND remove its tracker node, so the
+     * exit-time cleanup_all_resources doesn't try to close it a second time. */
+    if (win) {
         CloseWindow((struct Window *)win);
+        resource_unregister((void (*)())CloseWindow, win);
+    }
 }
 
 /* ------------------------------------------------------------------ *
@@ -94,6 +113,10 @@ void close_window_tracked(APTR win)
  * the text cursor. Returns non-zero on success. */
 LONG open_logon_window(void)
 {
+    /* Patch NewWindow.Screen (0x11d57a + 0x1e) with our custom screen before opening;
+     * the window is CUSTOMSCREEN so OpenWindow returns NULL otherwise. recon
+     * FUN_001030c6 line 2900: DAT_0011d598 = g_screen. */
+    *(APTR *)DATA(0x11d598) = g_screen;
     g_logon_win = (struct Window *)open_window_tracked(DATA(0x11d57a));
     if (g_logon_win == NULL)
         return 0;
@@ -137,21 +160,70 @@ void logon_text_append(const char *s, int len)
  * partyline.c: it optionally opens the partyline window and issues the device's
  * "login ready" command (io_Command 9). */
 
-LONG logon_poll(void)          /* recon FUN_00115168 */
+/* uppercase in place — recon FUN_0011513a (a..z -> A..Z). */
+static void str_upper(char *p)
 {
-    /* Poll the logon window's IDCMP for the user pressing return / cancel. Returns
-     * 1 to continue the login handshake, 0 to abort. Reconstructed as a simple
-     * message drain; the detailed field-editing is in the gadget handlers. */
+    for (; *p; p++)
+        if (*p >= 'a' && *p <= 'z')
+            *p -= 0x20;
+}
+
+/*
+ * logon_poll — recon FUN_00115168, the login-CREDENTIALS dialog (not a mere poll).
+ * Opens the credentials window (NewWindow 0x11f81c, Screen patched at +0x1e=0x11f83a),
+ * draws its image/border/text + gadget list, then runs the IDCMP loop: drain all
+ * messages keeping the last gadget, switch on GadgetID (+0x26) — 0 = cancel (return
+ * 0), 1/2 = accept (uppercase userid + scratch, return 1), 3 = activate the next
+ * string field and keep looping, default = keep looping. NO class filter (recon
+ * FUN_00115168). Window credentials window handle is DAT_00121830.
+ */
+static struct Window *g_cred_win;   /* DAT_00121830 */
+LONG logon_poll(void)
+{
     struct IntuiMessage *msg;
-    if (g_logon_win == NULL)
+    struct Gadget *last;
+
+    /* FUN_00115080: open the credentials window with its Screen patched in. */
+    *(APTR *)DATA(0x11f83a) = g_screen;
+    g_cred_win = (struct Window *)open_window_tracked(DATA(0x11f81c));
+    if (g_cred_win == NULL)
         return 0;
-    while ((msg = (struct IntuiMessage *)GetMsg(g_logon_win->UserPort)) != NULL) {
-        ULONG cls = msg->Class;
-        ReplyMsg((struct Message *)msg);
-        if (cls == CLOSEWINDOW)
+    g_login_scratch[0] = 0;
+    DrawImage(g_cred_win->RPort, (struct Image *)DATA(0x11f98c), 0, 0);
+    PrintIText(g_cred_win->RPort, (struct IntuiText *)DATA(0x11fa1a), 0, 0);
+    DrawBorder(g_cred_win->RPort, (struct Border *)DATA(0x11f9e4), 0, 0);
+    AddGList(g_cred_win, (struct Gadget *)DATA(0x11f960), ~0, ~0, NULL);
+    RefreshGList((struct Gadget *)DATA(0x11f960), g_cred_win, NULL, ~0);
+    ActivateGadget((struct Gadget *)DATA(0x11f960), g_cred_win, NULL);
+
+    for (;;) {
+        last = NULL;
+        WaitPort(g_cred_win->UserPort);
+        while ((msg = (struct IntuiMessage *)GetMsg(g_cred_win->UserPort)) != NULL) {
+            last = (struct Gadget *)msg->IAddress;
+            ReplyMsg((struct Message *)msg);
+        }
+        if (last == NULL)
+            continue;
+        switch (last->GadgetID) {
+        case 0:                                 /* Cancel */
+            close_window_tracked(g_cred_win);
+            g_cred_win = NULL;
             return 0;
+        case 1:
+        case 2:                                 /* OK / accept */
+            str_upper(g_login_userid);
+            str_upper(g_login_scratch);
+            close_window_tracked(g_cred_win);
+            g_cred_win = NULL;
+            return 1;
+        case 3:                                 /* tab to next field */
+            ActivateGadget(last, g_cred_win, NULL);
+            break;
+        default:
+            break;
+        }
     }
-    return 1;
 }
 
 /* ------------------------------------------------------------------ *
@@ -160,7 +232,9 @@ LONG logon_poll(void)          /* recon FUN_00115168 */
 
 LONG open_frame_window(void)   /* recon FUN_001174d4 */
 {
-    /* NewWindow = DAT_0011fa3e (recon FUN_001174d4 line 13628) */
+    /* NewWindow = DAT_0011fa3e; patch its Screen (+0x1e = 0x11fa5c) with g_screen
+     * (CUSTOMSCREEN). recon FUN_001174d4 line 13637: DAT_0011fa5c = g_screen. */
+    *(APTR *)DATA(0x11fa5c) = g_screen;
     g_frame_win = (struct Window *)open_window_tracked(DATA(0x11fa3e));
     if (g_frame_win == NULL)
         return 0;
@@ -170,7 +244,9 @@ LONG open_frame_window(void)   /* recon FUN_001174d4 */
 
 LONG init_directory(void)      /* recon FUN_001099c0 */
 {
-    /* NewWindow = DAT_0011e1e2 (recon FUN_001099c0 line 5970) */
+    /* NewWindow = DAT_0011e1e2; patch its Screen (+0x1e = 0x11e200) with g_screen
+     * (CUSTOMSCREEN). recon FUN_001099c0 line 5969: DAT_0011e200 = g_screen. */
+    *(APTR *)DATA(0x11e200) = g_screen;
     g_dir_win = (struct Window *)open_window_tracked(DATA(0x11e1e2));
     if (g_dir_win == NULL)
         return 0;
@@ -249,41 +325,10 @@ void ui_set_title(const char *title)
     }
 }
 
-/* Build a one-line IntuiText for AutoRequest (KS1.3-era requester API). */
-static void mk_itext(struct IntuiText *it, const char *s, WORD x, WORD y)
-{
-    it->FrontPen  = 0;
-    it->BackPen   = 1;
-    it->DrawMode  = JAM2;
-    it->LeftEdge  = x;
-    it->TopEdge   = y;
-    it->ITextFont = NULL;
-    it->IText     = (UBYTE *)s;
-    it->NextText  = NULL;
-}
-
-/* status_ok_dialog — recon FUN_00110472: a modal "OK" requester (title + body).
- * Reconstructed with AutoRequest (the period-correct KS1.3 API). */
-void status_ok_dialog(const char *title, const char *body)
-{
-    struct IntuiText bt, pt, nt;
-    mk_itext(&bt, body,  8, 8);
-    mk_itext(&pt, "OK",  6, 3);
-    mk_itext(&nt, "OK",  6, 3);
-    (void)title;
-    AutoRequest((struct Window *)g_window, &bt, NULL, &nt, 0, 0, 320, 72);
-}
-
-/* retry_dialog — recon FUN_001104a6: a "try again?" requester (returns 1 = retry). */
-LONG retry_dialog(const char *title, const char *body)
-{
-    struct IntuiText bt, pt, nt;
-    mk_itext(&bt, body,    8, 8);
-    mk_itext(&pt, "Retry", 6, 3);
-    mk_itext(&nt, "Cancel",6, 3);
-    (void)title;
-    return AutoRequest((struct Window *)g_window, &bt, &pt, &nt, 0, 0, 320, 72);
-}
+/* status_ok_dialog (recon FUN_00110472) and retry_dialog (recon FUN_001104a6) are
+ * reconstructed in ui_dialogs.c as real requesters over the blob requester core
+ * (FUN_00110042) with the proper OK / OK+Cancel gadget lists — not AutoRequest with
+ * hardcoded "Retry/Cancel" labels (which rendered wrong buttons that did nothing). */
 
 /* ------------------------------------------------------------------ *
  *  Pointer / gadget state helpers (recon FUN_001020ae / FUN_0010221c)

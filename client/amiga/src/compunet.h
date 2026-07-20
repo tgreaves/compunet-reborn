@@ -132,6 +132,8 @@ struct CnetRequest *create_extio_tracked(struct MsgPort *port, ULONG size); /* w
 BOOL             open_device_tracked(const char *name, ULONG unit,
                                      struct IORequest *req, ULONG flags); /* was thunk_FUN_0011a2e8 */
 BYTE             cleanup_resources(void);                        /* was thunk_FUN_0011a0b0 (returns new level) */
+void             cleanup_all_resources(void);                   /* FUN_0011a0f0 — free entire list */
+void             resource_unregister(void (*fn)(), APTR arg1);   /* FUN_0011a19c */
 BYTE             resource_mark(void);                            /* was thunk_FUN_0011a000 (returns new level) */
 void             resource_commit(void);                          /* was thunk_FUN_0011a00a */
 void             resource_register_free(void (*fn)(), APTR arg1, APTR arg2); /* FUN_0011a16c */

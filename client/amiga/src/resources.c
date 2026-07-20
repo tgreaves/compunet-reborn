@@ -110,6 +110,38 @@ BYTE cleanup_resources(void)
     return g_res_level;
 }
 
+/* Remove (without calling) the tracker node matching (freefn, arg1) and free it —
+ * recon FUN_0011a19c. Used by close_window_tracked after it closes the window itself,
+ * so the exit-time cleanup doesn't double-close it. */
+void resource_unregister(void (*fn)(), APTR arg1)
+{
+    struct ResNode **pp = &g_res_list;
+    struct ResNode *n;
+    while ((n = *pp) != NULL) {
+        if (n->freefn == fn && n->arg1 == arg1) {
+            *pp = n->next;
+            FreeMem(n, 0x1a);
+            return;
+        }
+        pp = &n->next;
+    }
+}
+
+/* Free the ENTIRE resource list regardless of level (recon FUN_0011a0f0). Used by
+ * fatal_exit at program termination — walks every node to NULL, not just one level. */
+void cleanup_all_resources(void)
+{
+    struct ResNode *n = g_res_list;
+    while (n != NULL) {
+        struct ResNode *nxt = n->next;
+        if (n->freefn)
+            n->freefn(n->arg1, n->arg2);
+        FreeMem(n, 0x1a);
+        n = nxt;
+    }
+    g_res_list = NULL;
+}
+
 struct MsgPort *create_port_tracked(char *name, LONG pri)
 {
     struct MsgPort *p = CreatePort(name, pri);

@@ -63,17 +63,13 @@ extern void clear_wait_pointer(void);  /* FUN_0010221c */
  * A transport failure calls set_connection_error(code) == longjmp(g_jmpbuf, code),
  * which returns here non-zero and runs disconnect() before re-entering the loop.
  */
-extern void dbg(const char *s);   /* TEMP boot checkpoint (launch.c) */
 
 void client_main(void)
 {
     launch_tty();
-    dbg("P: launch_tty returned, resource_mark");
     g_res_saved_level = resource_mark();
-    dbg("Q: about to setjmp");
     if (setjmp((void *)g_jmpbuf) != 0)
         disconnect();
-    dbg("R: setjmp ok, enter event_loop");
     event_loop();     /* never returns */
 }
 
@@ -92,7 +88,6 @@ void client_main(void)
  */
 void event_loop(void)
 {
-    int trace = 1;   /* TEMP: print checkpoints only until first message dispatched */
 
     for (;;) {
         struct IntuiMessage *msg;
@@ -102,22 +97,16 @@ void event_loop(void)
 
         /* Drain any pending messages, then block until one arrives. */
         for (;;) {
-            if (trace) dbg("S: loop set_connection_state");
             set_connection_state();
-            if (trace) dbg("T: set_conn_state ok, drain msgs");
             while ((msg = (struct IntuiMessage *)GetMsg((struct MsgPort *)g_main_uport)) != NULL)
                 ReplyMsg((struct Message *)msg);
-            if (trace) dbg("U: drained, clear pointer");
             clear_wait_pointer();
-            if (trace) dbg("V: cleared, WaitPort (idle - waiting)");
             WaitPort((struct MsgPort *)g_main_uport);
-            if (trace) dbg("W: WaitPort woke, GetMsg");
             msg = (struct IntuiMessage *)GetMsg((struct MsgPort *)g_main_uport);
             if (msg != NULL)
                 break;
         }
 
-        if (trace) dbg("X: got msg, snapshot fields");
         /* Snapshot the message, reply it, and show the busy pointer while we work. */
         cls    = msg->Class;                                   /* +0x14 */
         code   = msg->Code;                                    /* +0x18 */
@@ -126,9 +115,7 @@ void event_loop(void)
         secs   = msg->Seconds;                                 /* +0x24 */
         micros = msg->Micros;                                  /* +0x28 */
         ReplyMsg((struct Message *)msg);
-        if (trace) dbg("Y: replied, set wait pointer");
         set_wait_pointer();
-        if (trace) { dbg("Z: about to dispatch by class"); trace = 0; }
 
         if (cls == CLS_RAWKEY) {
             /* Left-Amiga (qualifier bit 6) + HELP (raw key $5f) while online aborts
