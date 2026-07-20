@@ -16,10 +16,12 @@
 #include <intuition/intuition.h>
 #include <clib/exec_protos.h>
 #include <clib/intuition_protos.h>
+#include <clib/graphics_protos.h>
 #include <setjmp.h>
 
 #include "compunet.h"
 
+extern APTR  g_screen;
 extern APTR  g_window;
 extern UBYTE g_data[];
 #define DATA_BASE 0x11d000
@@ -27,6 +29,60 @@ extern UBYTE g_data[];
 
 extern APTR open_window_tracked(APTR nw);
 extern void close_window_tracked(APTR win);
+
+/*
+ * about_dialog — recon FUN_00104000. The "About..." menu handler. Opens the About
+ * window (NewWindow in the blob at 0x11d6e4, whose Screen field at 0x11d702 we patch
+ * with our custom screen just like the main window), draws its Image + border +
+ * version IntuiText, adds its OK gadget, and runs a small IDCMP loop until the gadget
+ * (GadgetID 1) is hit, then closes. Returns 1.
+ *
+ * NB: this was previously mis-bound in the data blob to the no-op stub hook_16000
+ * (extract_data CODE_SYM[0x104000] wrongly named "hook_render_entry"), which is why
+ * selecting About did nothing. It is now a real reconstruction; the blob binds
+ * 0x104000 -> about_dialog.
+ */
+LONG about_dialog(void)
+{
+    struct Window *w;
+    struct IntuiMessage *msg;
+    LONG done = 0;
+
+    /* Patch the About NewWindow's Screen field (NewWindow 0x11d6e4 + 0x1e = 0x11d702)
+     * with our custom screen (recon: DAT_0011d702 = g_screen). */
+    *(APTR *)DATA(0x11d702) = g_screen;
+
+    w = (struct Window *)open_window_tracked(DATA(0x11d6e4));
+    if (w == NULL)
+        return 0;
+
+    /* Body image, version text, border (recon DrawImage / PrintIText / DrawBorder). */
+    DrawImage(w->RPort, (struct Image *)DATA(0x11d740), 0, 0);
+    PrintIText(w->RPort, (struct IntuiText *)DATA(0x11d894), 0, 0);
+    DrawBorder(w->RPort, (struct Border *)DATA(0x11d798), 0, 0);
+
+    /* OK gadget list (recon &DAT_0011d714). */
+    AddGList(w, (struct Gadget *)DATA(0x11d714), ~0, ~0, NULL);
+    RefreshGList((struct Gadget *)DATA(0x11d714), w, NULL, ~0);
+
+    /* Run until a message whose IAddress is the OK gadget (GadgetID at +0x26 == 1).
+     * recon FUN_00104000 loop ($102... ): WaitPort, one GetMsg, read IAddress(+0x1c),
+     * ReplyMsg, then exit when gadget->GadgetID == 1 — NO class filter (an earlier
+     * GADGETUP-only check never matched, so OK didn't close the window). */
+    do {
+        WaitPort(w->UserPort);
+        msg = (struct IntuiMessage *)GetMsg(w->UserPort);
+        if (msg != NULL) {
+            struct Gadget *g = (struct Gadget *)msg->IAddress;
+            ReplyMsg((struct Message *)msg);
+            if (g != NULL && g->GadgetID == 1)
+                done = 1;
+        }
+    } while (!done);
+
+    close_window_tracked(w);
+    return 1;
+}
 
 /*
  * run_requester — recon FUN_00110042/FUN_00110276: open a requester window (NewWindow

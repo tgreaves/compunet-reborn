@@ -3,6 +3,7 @@
 ; DO NOT EDIT — regenerate from the original binary.
         section data,data
         xdef _g_data
+        xref _about_dialog
         xref _account
         xref _extend_life
         xref _hook_connect_entry
@@ -27,7 +28,6 @@
         xref _hook_nav_0a43e
         xref _hook_nav_0a484
         xref _hook_nav_0a4ca
-        xref _hook_render_entry
         xref _hook_save_config
         xref _hook_serial_setup
         xref _mail_prepare
@@ -93,7 +93,7 @@ L_016c:
         dc.b $00,$00,$00,$05,$00,$00,$00,$00,$00,$00
         dc.l _g_data+$011e    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l _hook_render_entry    ; ->code
+        dc.l _about_dialog    ; ->code
         dc.b $00,$00
         dc.l _g_data+$0128    ; ->data
         dc.b $00,$00,$00,$00

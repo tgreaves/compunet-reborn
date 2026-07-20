@@ -63,14 +63,6 @@ LONG launch_editor(void)
 {
     APTR proc;
 
-    /* TEMP DIAGNOSTIC: skip launching the CnetEditor child entirely and report
-     * "ready". If the client now reaches idle (offline) without a guru, the crash is
-     * in the editor process / our handshake with it, not in launch_tty or the event
-     * loop. The frame editor is only needed for publishing frames, so the client is
-     * otherwise fully usable without it for this test. */
-    if (1)
-        return 1;
-
     resource_mark();
 
     g_editor_port = create_port_tracked(0, 0);

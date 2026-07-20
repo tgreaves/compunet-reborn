@@ -44,7 +44,8 @@ dbase = h['addr']
 # slots from the blob — the C tables override them. For the remaining code pointers
 # (command dispatch etc.) we bind to named externs the UI code defines.
 CODE_SYM = {
-    0x104000: "hook_render_entry",
+    0x104000: "about_dialog",       # FUN_00104000 — the "About..." menu handler
+                                    # (was wrongly bound to the no-op hook_render_entry)
     0x1122a6: "hook_save_config",
     0x1036d2: "hook_connect_menu",
     0x114000: "hook_serial_setup",

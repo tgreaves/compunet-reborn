@@ -68,7 +68,16 @@ for f in "$WBX"/l/*;    do "$XDFTOOL" "$OUT" write "$f" "l/$(basename "$f")";   
 "$XDFTOOL" "$OUT" write "$SRC/compunet-client"          Compunet
 "$XDFTOOL" "$OUT" write "$VINTAGE/devs/cnet.device"     devs/cnet.device
 "$XDFTOOL" "$OUT" write "$VINTAGE/cnet-configuration"   cnet-configuration
-[ -f "$VINTAGE/CnetEditor" ] && "$XDFTOOL" "$OUT" write "$VINTAGE/CnetEditor" CnetEditor
+# CnetEditor: prefer the DECRUNCHED copy (vintage/decrunched/) so no PowerPacker
+# self-decruncher runs at CreateProc time. The crunched vintage/CnetEditor is a
+# 2-hunk self-decrunching wrapper (524B stub + 33636B compressed payload); the
+# decrunched form is the real 24-hunk program. Fall back to the crunched one only
+# if the decrunched copy is missing.
+if [ -f "$VINTAGE/decrunched/CnetEditor" ]; then
+    "$XDFTOOL" "$OUT" write "$VINTAGE/decrunched/CnetEditor" CnetEditor
+elif [ -f "$VINTAGE/CnetEditor" ]; then
+    "$XDFTOOL" "$OUT" write "$VINTAGE/CnetEditor" CnetEditor
+fi
 [ -f "$VINTAGE/CNETTTY" ]    && "$XDFTOOL" "$OUT" write "$VINTAGE/CNETTTY"    CnetTty
 for m in "$VINTAGE"/devs/cnet_modems/*; do
     "$XDFTOOL" "$OUT" write "$m" "devs/cnet_modems/$(basename "$m")"
