@@ -375,3 +375,109 @@ void frame_delete_char(APTR page)
     cells[row * 0x50 + col * 2] = 0x20;
     frame_redraw(page);
 }
+
+/* ------------------------------------------------------------------ *
+ *  Frame parser — decode a received (or in-memory) frame into a page.
+ * ------------------------------------------------------------------ *
+ * A frame begins with a small header: byte 0 flags (top bit = more pages),
+ * bytes 1-2 border/background colour nibbles (mapped through the 16-entry
+ * PETSCII->Amiga colour table), byte 3 the initial charset. The body is the
+ * RLE-compressed PETSCII cell stream, rendered a char at a time via render_char.
+ */
+extern UBYTE g_palette[16];   /* DAT_0011e1c0 — PETSCII colour -> Amiga pen map */
+
+#define PAGE_MODE(p)  (*(short *)((UBYTE *)(p) + 0x0c))
+#define PAGE_BORDER(p)(*(UBYTE *)((UBYTE *)(p) + 0x0e))
+#define PAGE_BG(p)    (*(UBYTE *)((UBYTE *)(p) + 0x0f))
+
+/* reset the page cursor/mode before rendering (recon FUN_0010568c). */
+static void frame_reset_page(APTR page)
+{
+    PAGE_MODE(page) = 1;
+    *(UBYTE *)((UBYTE *)page + 9) = 0;   /* clear attribute */
+    frame_clear_region(0, 0, 0x17, 0x27, page);
+}
+
+/*
+ * frame_display — recon FUN_0010818a. Parse a frame arriving from the transport
+ * into 'page', capturing the raw bytes into 'out'. Returns the capture end pointer.
+ */
+APTR frame_display(APTR page, APTR out)
+{
+    UBYTE b;
+    char  c;
+
+    g_frame_getbyte = read_frame_byte;
+    g_frame_pos = 0;
+    g_frame_len = 0;
+    g_frame_eof = 0;
+    g_frame_capture = (UBYTE *)out;
+
+    b = read_frame_byte();
+    g_frame_hdr_more = b & 0x80;
+    if (out) *(UBYTE *)out = 0;
+
+    PAGE_BORDER(page) = g_palette[read_frame_byte() & 0x0f];
+    PAGE_BG(page)     = g_palette[read_frame_byte() & 0x0f];
+    frame_reset_page(page);
+    c = (char)read_frame_byte();
+    PAGE_MODE(page) = (c == 0x0e);   /* 0x0e -> lowercase mode */
+
+    g_rle_run = 0;
+    while ((c = frame_rle_getchar()) != '\0')
+        render_char((UBYTE)c, page);
+
+    return g_frame_capture;
+}
+
+/*
+ * frame_display_mem — recon FUN_001080da. Same as frame_display but the byte source
+ * is an in-memory buffer (used by the mail ID-check path), not the transport.
+ */
+extern UBYTE *g_mem_src;        /* DAT_001203a8 — memory read cursor */
+static UBYTE mem_getbyte(void) { return *g_mem_src++; }
+
+void frame_display_mem(APTR src, APTR page)
+{
+    UBYTE b;
+    char  c;
+
+    frame_offscreen_begin();
+    g_mem_src = (UBYTE *)src;
+    g_frame_getbyte = mem_getbyte;
+
+    b = mem_getbyte();
+    (void)b;
+    PAGE_BORDER(page) = g_palette[mem_getbyte() & 0x0f];
+    PAGE_BG(page)     = g_palette[mem_getbyte() & 0x0f];
+    frame_reset_page(page);
+    c = (char)mem_getbyte();
+    PAGE_MODE(page) = (c == 0x0e);
+
+    g_rle_run = 0;
+    while ((c = frame_rle_getchar()) != '\0')
+        render_char((UBYTE)c, page);
+    frame_offscreen_end(page);
+}
+
+/*
+ * frame_display_done — recon FUN_0011754e. Finalise a displayed frame: flush the
+ * offscreen bitmap to the window. 'out'/'len' bound the captured raw frame.
+ */
+void frame_display_done(APTR out, APTR len)
+{
+    (void)out; (void)len;
+    frame_offscreen_end(g_frame_page);
+}
+
+/*
+ * frame_write_string — recon FUN_0010565e. Render a NUL-terminated string through
+ * render_char (used by the directory renderer to draw row text).
+ */
+void frame_write_string(APTR text, APTR page)
+{
+    UBYTE *s = (UBYTE *)text;
+    UBYTE c;
+    while ((c = *s++) != '\0')
+        render_char(c, page);
+}

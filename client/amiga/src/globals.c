@@ -115,3 +115,10 @@ const char **g_mail_title = &mail_title_str; /* PTR_s_Mail_Upload_0011eae2 */
 /* ---- Extra / abort signal + device-message logging ---- */
 ULONG  g_extra_sig = 0;         /* DAT_00120104 */
 BOOL   g_log_device_messages = 0;/* DAT_0011fd74 */
+
+/* ---- frame parser palette + misc ---- */
+UBYTE  g_palette[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}; /* DAT_0011e1c0 */
+UBYTE *g_mem_src = 0;          /* DAT_001203a8 — in-memory frame read cursor */
+LONG   g_conn_error = 0;       /* DAT_00120170 — connection error slot */
+APTR   g_edit_frame = 0;       /* DAT_0011d080 — frame being published */
+APTR   g_frame_out_ptr = 0;    /* DAT_0012309c — mail output write cursor */

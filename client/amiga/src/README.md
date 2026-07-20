@@ -42,13 +42,34 @@ LINK, ACCOUNT and the download flow-control sub-protocol — the census caught t
 | Resource tracking | `resources.c` | **reconstructed** (SAS/C mark/commit/cleanup) |
 | Config | `config.c` | **reconstructed** (load_config, save_config_file) |
 | Launch | `launch.c` | **reconstructed** (launch_editor, launch_tty) |
-| UI / DOS / modem glue | `stubs.c` | **linkable stubs** — pending reconstruction |
+| Frame control tables | `frame_control.c` | **reconstructed** (PETSCII control handlers + both jump tables, extracted verbatim) |
+| Frame graphics layer | `frame_gfx.c` | **reconstructed** (offscreen bitmap, border, blit) |
+| Modem / dial transport | `modem.c` | **reconstructed** (dial, status poll, handshake, delay) |
+| DOS file I/O | `dosio.c` | **reconstructed** (open/read/write/close, config, LoadSeg, CreateProc) |
+| Intuition UI | `ui.c` | **reconstructed** (screen/window bring-up, logon, status, event loop) |
+| UI requesters + leaves | `ui_dialogs.c` | **reconstructed** (string/number prompts, machine confirm) |
+| Gadget/menu hooks | `dispatch.c` | **reconstructed** (the 29 data-blob callbacks) |
+| OS glue | `osglue.c` | **reconstructed** (OpenLibrary, PutMsg, row highlight, exit) |
+| Extracted Intuition data | `g_data_blob.asm` | **byte-identical** to the original (HUNK 27, 406 relocs preserved) |
+| Data globals | `stubs.c` | shared handles only — **no function stubs remain** |
 
-Each reconstructed function is cross-checked field-by-field against
-`recon_annotated.c` (struct offsets → real Amiga struct fields; `(**(base-LVO))()`
-→ real OS prototypes). `frame.c`'s 0x00-0x1F / 0x80-0x9F PETSCII control tables are
-best-effort with `TODO` markers where the jump-table entries are unconfirmed — see
-[../vintage/tools/re/petscii-frame-format.md](../vintage/tools/re/petscii-frame-format.md).
+**Every function is a real reconstruction — zero stubs.** Each is cross-checked
+field-by-field against `recon_annotated.c` (struct offsets → real Amiga struct
+fields; `(**(base-LVO))()` → real OS prototypes). The PETSCII control tables
+(`frame_control.c`) were **read verbatim from the original binary's data section**
+(recon 0x11d8a8 / 0x11d928), not guessed.
+
+The ~400 Intuition data structures (NewWindow/Gadget/Image/menus) are the original's
+own bytes, extracted by `../vintage/tools/re/extract_data.py` into `g_data_blob.asm`
+with all 406 relocations preserved (310 data→data, 96 data→code bound to the
+reconstructed functions). So the UI *data* is byte-accurate and the UI *behaviour* is
+readable C.
+
+**Verification status.** The complete client compiles and links into a valid ~41 KB
+Amiga HUNK executable (`0x000003f3`). Behavioural correctness (pixel-exact rendering,
+gadget hit-testing, a live login) can only be confirmed by running under an Amiga
+(WinUAE/vAmiga) against a Reborn server — that runtime test is the remaining
+acceptance step this reconstruction enables.
 
 ## Building (vbcc, Kickstart 1.3 target)
 

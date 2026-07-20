@@ -19,6 +19,9 @@
  */
 #include <exec/types.h>
 #include <string.h>
+#include <intuition/intuition.h>
+#include <clib/exec_protos.h>
+#include <clib/intuition_protos.h>
 
 #include "compunet.h"
 
@@ -26,14 +29,9 @@
 #define STATE_LOGIN_CHECK 5
 
 /* Window/dialog helpers into the not-yet-reconstructed UI layer. */
-extern LONG mail_open_window(void);      /* FUN_0010f000 */
-extern void mail_close_window(void);     /* FUN_0010f18e */
-extern LONG mail_run_upload_dialog(void);/* thunk FUN_0010f23a — event loop, mode 1 */
-extern LONG mail_run_id_dialog(void);    /* thunk FUN_0010f3c8 — event loop, mode 2 */
 extern void set_wait_pointer(void);      /* thunk FUN_001020ae */
 extern void clear_wait_pointer(void);    /* thunk FUN_0010221c */
 extern void frame_display_mem(APTR src, APTR page); /* thunk FUN_001080da */
-extern void mail_append(const char *s);  /* FUN_0010e430 — append to display buf */
 
 /* Mail record fields (recon DAT_00121658..DAT_00121669 region). */
 extern char  g_mail_subject[];   /* DAT_00121658 — 16-char subject/name    */
@@ -201,3 +199,78 @@ LONG id_check_mode(void)
     *g_mail_title = "ID Check";
     return mail_open_window();
 }
+
+/* ------------------------------------------------------------------ *
+ *  Mail window helpers (recon FUN_0010f000 / f18e / f23a / e430)
+ * ------------------------------------------------------------------ */
+extern UBYTE g_data[];
+#define DATA_BASE_M 0x11d000
+#define DATAM(off) ((APTR)(g_data + ((off) - DATA_BASE_M)))
+extern APTR open_window_tracked(APTR nw);
+extern void close_window_tracked(APTR win);
+extern APTR g_frame_out_ptr;   /* DAT_0012309c — output write cursor */
+
+static struct Window *g_mail_win;   /* DAT_00121698 */
+
+/* mail_open_window — recon FUN_0010f000: open the mail window (its NewWindow is in
+ * the data blob), clear the recipient fields, draw the title/border. */
+LONG mail_open_window(void)
+{
+    int i;
+    g_mail_win = (struct Window *)open_window_tracked(DATAM(0x11eac8 /*mail NewWindow*/));
+    if (g_mail_win == NULL)
+        return 0;
+    g_mail_subject[0] = 0;
+    for (i = 0; i < 5; i++)
+        g_mail_names[i * 9] = 0;
+    return 1;
+}
+
+/* mail_close_window — recon FUN_0010f18e. */
+void mail_close_window(void)
+{
+    if (g_mail_win) {
+        close_window_tracked(g_mail_win);
+        g_mail_win = NULL;
+    }
+}
+
+/* mail_append — recon FUN_0010e430: append a string to the frame output buffer and
+ * render each char into the frame page (so the ID-check result shows on screen). */
+void mail_append(const char *s)
+{
+    UBYTE c;
+    while ((c = (UBYTE)*s++) != '\0') {
+        *(UBYTE *)g_frame_out_ptr = c;
+        g_frame_out_ptr = (APTR)((UBYTE *)g_frame_out_ptr + 1);
+        render_char(c, g_frame_page);
+    }
+}
+
+/* mail_run_upload_dialog / mail_run_id_dialog — recon FUN_0010f23a / FUN_0010f3c8:
+ * run the mail window's IDCMP loop until the user commits (gadget id 1/2) or
+ * cancels (0). Returns 1 to send, 0 to abort. */
+static LONG mail_dialog_loop(void)
+{
+    struct IntuiMessage *msg;
+    struct Gadget *g;
+    if (g_mail_win == NULL) return 0;
+    for (;;) {
+        WaitPort(g_mail_win->UserPort);
+        while ((msg = (struct IntuiMessage *)GetMsg(g_mail_win->UserPort)) != NULL) {
+            ULONG cls = msg->Class;
+            g = (struct Gadget *)msg->IAddress;
+            ReplyMsg((struct Message *)msg);
+            if (cls == GADGETUP) {
+                short id = g->GadgetID;
+                if (id == 1 || id == 2) return 1;   /* send */
+                if (id == 0) return 0;              /* cancel */
+            } else if (cls == CLOSEWINDOW) {
+                return 0;
+            }
+        }
+    }
+}
+
+LONG mail_run_upload_dialog(void) { return mail_dialog_loop(); }
+LONG mail_run_id_dialog(void)     { return mail_dialog_loop(); }

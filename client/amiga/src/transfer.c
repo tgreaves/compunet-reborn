@@ -219,3 +219,64 @@ LONG upload_file(void)
     dir_action_cleanup();
     return 0;
 }
+
+/*
+ * action_download — recon FUN_0010b380. Download an "action" (executable) to a temp
+ * file, verify it's an Amiga file (header byte 1), then Execute() it in a CON window.
+ * "Not for Amiga!" if the machine type is wrong; "No room for temp file" on disk full.
+ */
+extern LONG dos_execute(const char *cmd, APTR in, APTR out);  /* thunk FUN_00128120 */
+
+LONG action_download(void)
+{
+    UBYTE ser_flags, status_hi;
+    ULONG actual;
+    APTR  con;
+
+    strcpy(g_dl_filename, "RAM:temp");
+    if (download_filename_prompt() == 0)
+        return 0;
+
+    for (;;) {
+        g_dl_file = file_open_write(g_dl_filename, 0x3ee);
+        if (g_dl_file != NULL)
+            break;
+        if (retry_dialog("Action download", "Can't open file - try again?") == 0)
+            return 0;
+    }
+
+    serial_write(g_cmd_buf, strlen(g_cmd_buf), 1, TOKEN_COM);
+    if (serial_io_c(g_ack_text) != ACK_OK) {
+        file_close(g_dl_file);
+        return 0;
+    }
+
+    serial_read(g_dl_header, 8, &ser_flags, &status_hi, &actual);
+    do {
+        serial_read(g_xfer_buf, 4000, &ser_flags, &status_hi, &actual);
+        if (g_dl_file != NULL &&
+            file_write(g_dl_file, g_xfer_buf, actual) != (LONG)actual) {
+            file_close(g_dl_file);
+            g_dl_file = NULL;
+        }
+    } while (ser_flags == '\0');
+
+    if (g_dl_file == NULL) {
+        show_status_message(1, "No room for temp file");
+        return 0;
+    }
+    file_close(g_dl_file);
+
+    if (g_dl_header[0] != 1) {          /* machine type must be Amiga */
+        show_status_message(1, "Not for Amiga!");
+        return 0;
+    }
+
+    con = file_open_write("CON:20/10/300/100/Action Window", 0x3ee);
+    if (con != NULL) {
+        dos_execute(g_dl_filename, NULL, con);
+        file_close(con);
+        return 1;
+    }
+    return 0;
+}

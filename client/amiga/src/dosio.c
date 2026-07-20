@@ -132,3 +132,10 @@ ULONG upload_read_file(const char *name)
     Close(fh);
     return (ULONG)size;
 }
+
+/* dos_execute — recon thunk FUN_00128120 = AmigaDOS Execute(). Runs a command with
+ * the given input/output streams (used by action_download to launch the file). */
+LONG dos_execute(const char *cmd, APTR in, APTR out)
+{
+    return Execute((STRPTR)cmd, (BPTR)in, (BPTR)out);
+}

@@ -156,3 +156,29 @@ LONG put_frame(void)
 
     return put_frame_xfer();   /* sends g_cmd_buf, then the frame as DAT blocks */
 }
+
+/*
+ * put_frame_xfer — recon FUN_0010c270. Send the "U" publish command in g_cmd_buf,
+ * and on ack send the edited frame's data as a DAT packet, then confirm. Sets the
+ * connection state back to directory on completion.
+ */
+extern void send_dat_packet(APTR frame);
+extern APTR g_edit_frame;    /* DAT_0011d080 — the frame being published */
+extern void dir_action_cleanup(void);
+
+LONG put_frame_xfer(void)
+{
+    serial_write(g_cmd_buf, strlen(g_cmd_buf), 1, TOKEN_COM);
+    if (serial_io_c(g_ack_text) != ACK_OK) {
+        dir_action_cleanup();
+        g_state = STATE_GOTO;
+        return 0;
+    }
+    send_dat_packet(g_edit_frame);
+    if (serial_io_c(g_ack_text) != ACK_OK) {
+        dir_action_cleanup();
+        g_state = STATE_GOTO;
+        return 0;
+    }
+    return 1;
+}

@@ -26,32 +26,3 @@ APTR  g_res_list = 0;    /* PTR_DAT_0011ff1c */
 BYTE  g_res_level = 0;   /* DAT_0011ff2a */
 
 /* ---- function stubs ---- */
-LONG  action_download() { return 0; }
-void  apply_serial_params() { }
-void  dir_action_cleanup() { }
-LONG  download_machine_prompt() { return 0; }
-LONG  extend_by_prompt() { return 0; }
-void  fatal_exit() { }
-APTR  frame_display() { return 0; }
-APTR  frame_display_done() { return 0; }
-APTR  frame_display_mem() { return 0; }
-LONG  goto_page_prompt() { return 0; }
-void  mail_state_enter() { }
-void  frame_write_string() { }
-void  handle_device_message() { }
-void  handle_extra_signal() { }
-void  link_lock() { }
-void  mail_append() { }
-void  mail_close_window() { }
-LONG  mail_open_window() { return 0; }
-LONG  mail_run_id_dialog() { return 0; }
-LONG  mail_run_upload_dialog() { return 0; }
-APTR  open_dos_library() { return 0; }
-APTR  open_library_checked() { return 0; }
-LONG  put_frame_type_ok() { return 0; }
-LONG  put_frame_xfer() { return 0; }
-void  put_msg() { }
-void  set_connection_error() { }
-void  ui_set_title() { }
-LONG  upload_filename_prompt() { return 0; }
-LONG  vote_choice_prompt() { return 0; }
