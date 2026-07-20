@@ -16,6 +16,7 @@
 #include <intuition/intuition.h>
 #include <clib/exec_protos.h>
 #include <clib/intuition_protos.h>
+#include <setjmp.h>
 
 #include "compunet.h"
 
@@ -121,13 +122,17 @@ LONG download_machine_prompt(char type)
 
 /* ---- pure-logic leaves ---- */
 
-/* set_connection_error — recon FUN_00101638: record an abort/error code in the
- * connection-state block and trigger the pending-disconnect flag. */
-extern LONG g_conn_error;   /* DAT_00120170 region — the error slot */
+/* set_connection_error — recon FUN_00101638. Despite the name this reconstruction
+ * originally gave it, the raw disassembly shows FUN_00101638 is longjmp: it restores
+ * d1-d7/a1-a7 and the return PC from the buffer and returns the code. DAT_00120170
+ * is the abort jmp_buf that client_main (FUN_001029e6) arms with setjmp; every
+ * transport-error call site (serial_read/write/io_c, login, mail, ...) longjmps here
+ * to unwind straight back to the top level, which runs disconnect(). A zero code is
+ * bumped to 1 so setjmp's caller always sees a non-zero (abort) return. */
+extern ULONG g_jmpbuf[];    /* DAT_00120170 — abort jmp_buf (globals.c) */
 void set_connection_error(int code)
 {
-    if (code == 0) code = 1;
-    g_conn_error = code;
+    longjmp((void *)g_jmpbuf, code ? code : 1);
 }
 
 /* dir_action_cleanup — recon FUN_0010d0d0: after a directory action, restore the
@@ -147,12 +152,9 @@ void apply_serial_params(UWORD bits)
     g_dev_param2e = bits;
 }
 
-/* ui_set_title — recon FUN_0010217a: set the main window title across all windows. */
-extern void show_status_message(UBYTE code, const char *text);
-void ui_set_title(const char *title)
-{
-    show_status_message(1, title);
-}
+/* ui_set_title (recon FUN_0010217a) is reconstructed in ui.c, where it iterates the
+ * full six-window set the original touches. (The earlier one-window stub here has
+ * been removed.) */
 
 /* put_frame_type_ok — recon jump-table at FUN_0010c2f8: whether a page type accepts
  * a published frame. The original dispatches per type; valid types are the frame

@@ -61,12 +61,13 @@ static short  g_logon_y;             /* DAT_001201f0 */
 
 /* open_screen_tracked / open_window_tracked are the tracked OpenScreen/OpenWindow.
  * launch_tty passes 0 (meaning "the NewScreen/NewWindow in the data blob"); resolve
- * those to the blob structures here. The NewScreen is at DATA(0x0d2), NewWindow at
- * DATA(0x0e2) (recon &DAT_0011d0e2). */
+ * those to the blob structures here. Offsets DERIVED FROM THE RECON (not guessed):
+ *   NewScreen  = DAT_0011d098 + 10 = 0x11d0a2   (recon FUN_001026ae line 1867)
+ *   NewWindow  = DAT_0011d0e2                    (recon FUN_001026ae line 1873) */
 APTR open_screen_tracked(APTR newscreen)
 {
     if (newscreen == 0)
-        newscreen = DATA(0x11d0c2);   /* the client's NewScreen (recon DAT_0011d0c2) */
+        newscreen = DATA(0x11d0a2);   /* NewScreen (recon DAT_0011d098+10) */
     /* tracked so cleanup closes it; here we call OpenScreen directly + register. */
     return (APTR)OpenScreen((struct NewScreen *)newscreen);
 }
@@ -132,11 +133,9 @@ void logon_text_append(const char *s, int len)
         ScrollRaster(g_logon_rp, 0, 8, 4, 0xb, 0x143, 0xaa);
 }
 
-void logon_window_ready(void)  /* recon FUN_0011949a */
-{
-    /* The original flips the logon window to its "connected" state; the visible
-     * effect is just enabling input — handled by the caller's state machine. */
-}
+/* logon_window_ready (recon FUN_0011949a) is reconstructed faithfully in
+ * partyline.c: it optionally opens the partyline window and issues the device's
+ * "login ready" command (io_Command 9). */
 
 LONG logon_poll(void)          /* recon FUN_00115168 */
 {
@@ -161,7 +160,8 @@ LONG logon_poll(void)          /* recon FUN_00115168 */
 
 LONG open_frame_window(void)   /* recon FUN_001174d4 */
 {
-    g_frame_win = (struct Window *)open_window_tracked(DATA(0x11d3aa /*frame NewWindow*/));
+    /* NewWindow = DAT_0011fa3e (recon FUN_001174d4 line 13628) */
+    g_frame_win = (struct Window *)open_window_tracked(DATA(0x11fa3e));
     if (g_frame_win == NULL)
         return 0;
     g_frame_page = (APTR)&g_frame_win;
@@ -170,31 +170,53 @@ LONG open_frame_window(void)   /* recon FUN_001174d4 */
 
 LONG init_directory(void)      /* recon FUN_001099c0 */
 {
-    g_dir_win = (struct Window *)open_window_tracked(DATA(0x11d3ba /*dir NewWindow*/));
+    /* NewWindow = DAT_0011e1e2 (recon FUN_001099c0 line 5970) */
+    g_dir_win = (struct Window *)open_window_tracked(DATA(0x11e1e2));
     if (g_dir_win == NULL)
         return 0;
     g_dir_page = (APTR)&g_dir_win;
     return 1;
 }
 
-/* directory_repaint — recon FUN_001096c8: redraw the directory listing, highlighting
- * the currently-selected row. The row text is drawn through the frame render
- * primitives (render_char via frame's text writer). The detailed per-row layout is
- * in the directory page's row table; this repaints the visible window from it. */
-extern void frame_write_string(APTR text, APTR page);   /* recon FUN_0010565e */
-void directory_repaint(APTR dir_page)
-{
-    /* recon walks the row table at dir_page+0x7c8/+0x82e drawing each row's name via
-     * frame_write_string, then boxes the selected row. Behaviourally: repaint. */
-    if (dir_page == NULL) return;
-    frame_redraw(dir_page);
-}
+/* directory_repaint (recon FUN_001096c8) now lives in directory_select.c, and
+ * directory_refresh — which is really the full directory-frame PARSER
+ * (recon FUN_00109a5e) — lives in directory_parse.c. The earlier approximations
+ * that stood here (a plain frame_redraw) have been removed. */
+extern void parse_directory_frame(APTR page);   /* directory_parse.c — FUN_00109a5e */
 
-/* directory_refresh — recon FUN_00109a5e (large): reload + repaint after navigation.
- * Delegates to directory_repaint for the visible redraw. */
+/* directory_refresh — the name navigate.c / mail.c call after a nav ack; it IS the
+ * directory-frame parser (recon FUN_00109a5e). Thin alias to keep those call sites. */
 void directory_refresh(APTR dir_page)
 {
-    directory_repaint(dir_page);
+    parse_directory_frame(dir_page);
+}
+
+/* ------------------------------------------------------------------ *
+ *  The window set every UI-state helper iterates (recon: a4-relative slots
+ *  touched by FUN_001020ae / FUN_0010221c / FUN_0010217a in the same order).
+ * ------------------------------------------------------------------ *
+ * Six windows: the main window (DAT_001200fc, held directly), the frame page and
+ * directory page (DAT_0011d078 / DAT_0011d07c — page structs whose first field is
+ * the window), and the courier / secondary-directory / partyline windows
+ * (DAT_00121650 / DAT_00121698 / DAT_0011fd70, held directly). ui_each_window()
+ * yields each live window pointer in the recon's order. */
+extern APTR g_frame_page;    /* DAT_0011d078 — frame page (page[0] = window)   */
+extern APTR g_dir_page;      /* DAT_0011d07c — directory page (page[0]=window)  */
+extern APTR g_courier_win;   /* DAT_00121650 */
+extern APTR g_dir2_win;      /* DAT_00121698 */
+extern APTR g_party_win;     /* DAT_0011fd70 */
+
+static struct Window *ui_window(int i)
+{
+    switch (i) {
+    case 0: return (struct Window *)g_window;
+    case 1: return g_frame_page ? *(struct Window **)g_frame_page : NULL;
+    case 2: return g_dir_page   ? *(struct Window **)g_dir_page   : NULL;
+    case 3: return (struct Window *)g_courier_win;
+    case 4: return (struct Window *)g_dir2_win;
+    case 5: return (struct Window *)g_party_win;
+    default: return NULL;
+    }
 }
 
 /* ------------------------------------------------------------------ *
@@ -207,10 +229,24 @@ void show_status_message(UBYTE code, const char *text)
 {
     if (g_window == NULL)
         return;
-    /* The original picks a colour/line by code; behaviourally it sets the window
-     * title bar text to the message. */
-    SetWindowTitles((struct Window *)g_window, (STRPTR)text, (STRPTR)-1);
+    /* The window is a borderless backdrop window, so the visible text is the SCREEN
+     * title (3rd arg); window title (2nd arg) stays unchanged (-1). recon
+     * FUN_0010217a: SetWindowTitles(win, -1, text). */
+    SetWindowTitles((struct Window *)g_window, (STRPTR)-1, (STRPTR)text);
     (void)code;
+}
+
+/* ui_set_title — recon FUN_0010217a: set the SCREEN title on every live window
+ * (SetWindowTitles(win, -1, title): window title unchanged, screen title = text —
+ * that's the text visible in the top bar of the backdrop screen). */
+void ui_set_title(const char *title)
+{
+    int i;
+    for (i = 0; i < 6; i++) {
+        struct Window *w = ui_window(i);
+        if (w)
+            SetWindowTitles(w, (STRPTR)-1, (STRPTR)title);
+    }
 }
 
 /* Build a one-line IntuiText for AutoRequest (KS1.3-era requester API). */
@@ -254,62 +290,30 @@ LONG retry_dialog(const char *title, const char *body)
  * ------------------------------------------------------------------ */
 void set_wait_pointer(void)    /* recon FUN_001020ae — busy pointer on all windows */
 {
-    if (g_window)    SetPointer((struct Window *)g_window, (UWORD *)DATA(0x11d068), 0xb, 0xb, -5, 0);
-    if (g_frame_win) SetPointer(g_frame_win, (UWORD *)DATA(0x11d068), 0xb, 0xb, -5, 0);
-    if (g_dir_win)   SetPointer(g_dir_win,   (UWORD *)DATA(0x11d068), 0xb, 0xb, -5, 0);
+    int i;
+    /* Busy pointer sprite at DATA(0x11d068), size 0xb x 0xb, hotspot (-5, 0). */
+    for (i = 0; i < 6; i++) {
+        struct Window *w = ui_window(i);
+        if (w)
+            SetPointer(w, (UWORD *)DATA(0x11d068), 0xb, 0xb, -5, 0);
+    }
 }
 
 void clear_wait_pointer(void)  /* recon FUN_0010221c — restore default pointer */
 {
-    if (g_window)    ClearPointer((struct Window *)g_window);
-    if (g_frame_win) ClearPointer(g_frame_win);
-    if (g_dir_win)   ClearPointer(g_dir_win);
+    int i;
+    for (i = 0; i < 6; i++) {
+        struct Window *w = ui_window(i);
+        if (w)
+            ClearPointer(w);
+    }
 }
 
 /* ------------------------------------------------------------------ *
- *  Main IDCMP event loop — recon FUN_00102814
+ *  Main IDCMP event loop
  * ------------------------------------------------------------------ *
- * Wait on the window's UserPort, dispatch gadget/menu/key events to the command
- * handlers, and repaint the connection state. This is the client's top-level loop
- * (entered from main() via launch). Menu selections map to the command functions
- * (goto_page, download_check, vote, extend_life, account, mail, upload, put_frame).
+ * The client's top-level IDCMP loop (recon FUN_00102814) and its abort/disconnect
+ * teardown now live in event_loop.c, faithfully transcribed with the real gadget
+ * double-click dispatch, RAWKEY abort (longjmp), and menu command-map dispatch. The
+ * earlier hand-rolled approximation that lived here has been removed.
  */
-extern LONG upload_file(void);
-extern LONG mail_submit(void);
-extern LONG mail_read(void);
-
-void main_event_loop(void)
-{
-    struct IntuiMessage *msg;
-
-    for (;;) {
-        set_connection_state();
-
-        if (g_window == NULL)
-            return;
-        WaitPort(((struct Window *)g_window)->UserPort);
-        while ((msg = (struct IntuiMessage *)GetMsg(((struct Window *)g_window)->UserPort)) != NULL) {
-            ULONG  cls  = msg->Class;
-            UWORD  code = msg->Code;
-            ReplyMsg((struct Message *)msg);
-
-            if (cls == CLOSEWINDOW)
-                return;
-            if (cls == MENUPICK && code != MENUNULL) {
-                /* Menu number -> command. The blob's menu strip drives these; the
-                 * exact item ordering is in the extracted MenuItem structures. */
-                switch (MENUNUM(code)) {
-                case 0: goto_page();      break;
-                case 1: download_check(); break;
-                case 2: vote();           break;
-                case 3: extend_life();    break;
-                case 4: account();        break;
-                case 5: mail_submit();    break;
-                case 6: upload_file();    break;
-                case 7: put_frame();      break;
-                default: break;
-                }
-            }
-        }
-    }
-}

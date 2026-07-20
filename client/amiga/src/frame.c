@@ -481,3 +481,49 @@ void frame_write_string(APTR text, APTR page)
     while ((c = *s++) != '\0')
         render_char(c, page);
 }
+
+/* ------------------------------------------------------------------ *
+ *  Cursor / pen setters used by the directory-frame parser
+ * ------------------------------------------------------------------ *
+ * Small leaf helpers that just poke the page struct's cursor (row/col at +4/+6),
+ * wrap flag (+0xa) and pen/attr (+8/+9). Transcribed verbatim from the recon.
+ */
+
+/* frame_home — recon FUN_00105180. Reset cursor to (0,0) and clear the wrap flag. */
+void frame_home(APTR page)
+{
+    PAGE_ROW(page)  = 0;
+    PAGE_COL(page)  = 0;
+    PAGE_WRAP(page) = 0;
+}
+
+/* frame_set_cursor — recon FUN_001056aa. Set cursor to (row,col), clear wrap. */
+void frame_set_cursor(WORD row, WORD col, APTR page)
+{
+    PAGE_ROW(page)  = row;
+    PAGE_COL(page)  = col;
+    PAGE_WRAP(page) = 0;
+}
+
+/* frame_pen_lower — recon FUN_00105022. Select the "lower/normal" text pen (2). */
+void frame_pen_lower(APTR page)
+{
+    PAGE_COLOUR(page) = 2;
+}
+
+/* frame_pen_upper — recon FUN_0010506a. Select the "upper/highlight" text pen (6). */
+void frame_pen_upper(APTR page)
+{
+    PAGE_COLOUR(page) = 6;
+}
+
+/* frame_row_newline — recon FUN_00105250. Advance to the next row (unless wrapped or
+ * already at the bottom row 0x17), reset column, clear wrap + attr. */
+void frame_row_newline(APTR page)
+{
+    if (PAGE_WRAP(page) == 0 && PAGE_ROW(page) < 0x17)
+        PAGE_ROW(page)++;
+    PAGE_COL(page)  = 0;
+    PAGE_WRAP(page) = 0;
+    PAGE_ATTR(page) = 0;
+}

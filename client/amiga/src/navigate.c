@@ -6,8 +6,7 @@
  *   link_follow    (FUN_001098e8) — the L command: follow the link under a gadget
  *                  (6-char link code stored in the directory page).
  *   link_goto      (FUN_0010a310) — the L command: prompt for a link code and go.
- *   set_connection_state (FUN_0010217a wrapper FUN_001023ec) — update the window
- *                  title / menu strip for the current connection state.
+ *   (set_connection_state, recon FUN_001023ec, now lives in ui_state.c.)
  *
  * All server commands go out through serial_write(..., TOKEN_COM) and wait for the
  * '@' ack via serial_io_c — the same command/ack pattern as the C64 client.
@@ -117,34 +116,7 @@ LONG link_goto(void)
     return 0;
 }
 
-/*
- * set_connection_state — recon FUN_001023ec. Update window title + gadget/menu
- * state to reflect g_state (offline/logging-on/online/courier/upload). The
- * original drives three parallel UI element lists; here we express the state ->
- * title mapping and delegate the gadget updates to the UI helpers, matching the
- * observed behaviour. The full gadget-list plumbing is UI-layer and stubbed.
- */
-extern void ui_set_title(const char *title);          /* FUN_0010217a */
-extern void ui_set_gadgets(APTR list);                /* FUN_0010227c */
-extern UWORD g_state_shadow;   /* DAT_0011d46e — last-rendered state */
-extern UWORD g_online_shadow;  /* DAT_0011d472 — last-rendered online flag */
-
-void set_connection_state(void)
-{
-    if (g_state == g_state_shadow && g_online == g_online_shadow)
-        return;
-    g_state_shadow  = g_state;
-    g_online_shadow = g_online;
-
-    switch (g_state) {
-    case 0: ui_set_title("Compunet - offline");     break;
-    case 1: ui_set_title("Compunet - logging on");  break;
-    case 2:
-    case 3: ui_set_title("Compunet - online");      break;
-    case 5:
-    case 6: ui_set_title("Compunet - courier");     break;
-    case 7: ui_set_title("Send to upload, Done to finish"); break;
-    case 8: ui_set_title("Dir or Goto for new directory");  break;
-    default: break;
-    }
-}
+/* set_connection_state (recon FUN_001023ec) is reconstructed faithfully in
+ * ui_state.c — it retitles every window AND drives the per-state menu-enable and
+ * directory/frame gadget-enable tables from the data blob. (The earlier title-only
+ * approximation that lived here has been removed.) */

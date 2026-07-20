@@ -20,7 +20,7 @@
 #include "compunet.h"
 
 extern APTR DOSBase;                 /* set by runtime; opened here if needed */
-extern void cleanup_resources(void);
+extern BYTE cleanup_resources(void);
 extern APTR alloc_tracked(ULONG, ULONG);
 extern void free_tracked(APTR);
 
@@ -82,9 +82,6 @@ void handle_device_message(struct Message *msg)
     (void)msg;   /* debug logging path; no-op unless g_log_device_messages is set */
 }
 
-/* mail_state_enter — recon FUN_001091f2: switch the directory window into mail/
- * courier presentation after entering mail mode. */
-void mail_state_enter(APTR dir_page)
-{
-    (void)dir_page;   /* repaint into courier layout; visual-only */
-}
+/* mail_state_enter (recon FUN_001091f2) is reconstructed faithfully in
+ * directory_select.c — it re-labels the directory window's 5 action gadgets for
+ * mail/courier mode and refreshes them. */

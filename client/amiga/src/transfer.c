@@ -35,8 +35,7 @@ extern LONG  retry_dialog(const char *title, const char *body); /* thunk FUN_001
 extern LONG  upload_filename_prompt(void);                   /* upload() FUN_0010c000 */
 extern ULONG upload_read_file(const char *name);             /* FUN_0010c0b4 -> size */
 extern void  dir_action_cleanup(void);                       /* thunk FUN_0010d0d0 */
-extern void  resource_mark(void);
-extern void  cleanup_resources(void);
+/* resource_mark / cleanup_resources declared in compunet.h. */
 
 extern short g_sel_row;      /* DAT_001215c4 — selected directory row       */
 extern char  g_dl_filename[];/* DAT_001215c6 — download filename buffer     */

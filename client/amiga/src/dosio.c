@@ -24,8 +24,7 @@
 
 #include "compunet.h"
 
-extern void resource_mark(void);
-extern void cleanup_resources(void);
+/* resource_mark / cleanup_resources declared in compunet.h. */
 
 /* Tracked-resource registration reused from resources.c. */
 extern APTR alloc_tracked(ULONG size, ULONG flags);

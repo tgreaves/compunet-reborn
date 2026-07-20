@@ -131,9 +131,10 @@ struct MsgPort  *create_port_tracked(char *name, LONG pri);      /* was thunk_FU
 struct CnetRequest *create_extio_tracked(struct MsgPort *port, ULONG size); /* was thunk_FUN_0011a80e */
 BOOL             open_device_tracked(const char *name, ULONG unit,
                                      struct IORequest *req, ULONG flags); /* was thunk_FUN_0011a2e8 */
-void             cleanup_resources(void);                        /* was thunk_FUN_0011a0b0 */
-void             resource_mark(void);                            /* was thunk_FUN_0011a000 */
+BYTE             cleanup_resources(void);                        /* was thunk_FUN_0011a0b0 (returns new level) */
+BYTE             resource_mark(void);                            /* was thunk_FUN_0011a000 (returns new level) */
 void             resource_commit(void);                          /* was thunk_FUN_0011a00a */
+void             resource_register_free(void (*fn)(), APTR arg1, APTR arg2); /* FUN_0011a16c */
 
 /* ------------------------------------------------------------------ *
  *  Status / UI helpers
@@ -171,6 +172,9 @@ extern UBYTE  c64_charset_lower[]; /* was c64_charset_lower (0x11ddc0)    */
 LONG goto_page(void);        /* P — was FUN_0010a1e2 */
 LONG link_follow(APTR gadget);/* L — was FUN_001098e8 */
 LONG link_goto(void);        /* L — was FUN_0010a310 */
+void parse_directory_frame(APTR page); /* was FUN_00109a5e — parse a directory frame */
+void directory_repaint(APTR page);     /* was FUN_001096c8 — repaint selected row     */
+LONG dir_select(APTR gadget, LONG mode);/* was FUN_0010935a — selection gadget handler*/
 LONG vote(void);             /* V — was FUN_0010c510 */
 LONG extend_life(void);      /* X — was FUN_0010c428 */
 LONG account(void);          /* ACCOUNT — was FUN_0010c582 */
@@ -197,6 +201,11 @@ LONG id_check_mode(void);    /* was FUN_0010f116 */
 LONG load_config(void);      /* was FUN_00102000 */
 LONG launch_editor(void);    /* was FUN_001025de */
 void launch_tty(void);       /* was FUN_001026ae */
+void client_main(void);      /* was FUN_001029e6 — top-level: launch + setjmp + loop */
+void event_loop(void);       /* was FUN_00102814 — Intuition IDCMP dispatch loop     */
+void disconnect(void);       /* was FUN_00102968 — abort/disconnect teardown         */
+LONG menu_dispatch(APTR menu_pair, UWORD number); /* was FUN_0011b478 */
+APTR build_menu_strip(APTR spec);                 /* was FUN_0011b000 */
 
 /* ------------------------------------------------------------------ *
  *  Client global state (the DAT_* the modules share). Defined in globals.c.

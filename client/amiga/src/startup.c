@@ -20,18 +20,15 @@
 
 extern APTR SysBase;
 extern APTR AbsExecBase;             /* set by the runtime startup */
-extern void main_event_loop(void);   /* recon FUN_00102814 — Intuition IDCMP loop */
 extern void open_dos_library(void);  /* recon FUN_001001c4 */
 
 int main(void)
 {
-    /* The runtime has already set SysBase and the a4 small-data base. Open DOS,
-     * then bring up the whole client. */
+    /* The runtime (vbcc minstart.o) has set SysBase and the a4 small-data base and
+     * called us. Open DOS, then hand off to the reconstructed top level (recon
+     * FUN_001029e6): launch_tty() brings up the UI, an abort setjmp is armed, and the
+     * Intuition event loop runs forever. client_main() does not return. */
     open_dos_library();
-    launch_tty();          /* opens libraries, screen, window, font; loads config */
-
-    /* Enter the Intuition event loop. It only returns when the user quits, at
-     * which point the SAS/C runtime epilogue (or our cleanup) frees everything. */
-    main_event_loop();
+    client_main();
     return 0;
 }

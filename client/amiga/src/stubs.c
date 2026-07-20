@@ -19,7 +19,7 @@
 /* g_ctrl_lo / g_ctrl_hi are now real (frame_control.c) */
 APTR  g_editor_port = 0;
 APTR  g_editor_seg  = 0;
-UBYTE g_editor_status = 0;
+/* g_editor_status is a byte inside the startup message (globals.c: g_editor_msg[0x15]). */
 APTR  g_screen = 0;
 APTR  g_window = 0;
 APTR  g_res_list = 0;    /* PTR_DAT_0011ff1c */

@@ -16,8 +16,13 @@
 #include "compunet.h"
 
 /* ---- Library bases (recon 0x11d040 / 0x1200d8 / 0x1200e8 / 0x1200ec) ----
- * SysBase and DOSBase are supplied by the C runtime startup (SAS/C's c.o or vbcc's
- * startup.o), so we only define the two the client opens itself. */
+ * We link with vbcc's MINIMAL startup (minstart.o), because the full startup.o's
+ * CLI/DOS init crashes on Kickstart 1.3 (verified: a do-nothing flasher gurus with
+ * startup.o but runs with minstart.o). minstart.o sets _SysBase and calls main(),
+ * but does NOT open dos.library — so unlike with startup.o we must define DOSBase
+ * ourselves; open_dos_library() (called first thing in main) fills it in.
+ * IntuitionBase/GfxBase are opened by launch_tty as before. */
+APTR DOSBase       = NULL;   /* opened by open_dos_library() at startup */
 APTR IntuitionBase = NULL;
 APTR GfxBase       = NULL;
 
@@ -116,9 +121,61 @@ const char **g_mail_title = &mail_title_str; /* PTR_s_Mail_Upload_0011eae2 */
 ULONG  g_extra_sig = 0;         /* DAT_00120104 */
 BOOL   g_log_device_messages = 0;/* DAT_0011fd74 */
 
+/* ---- Top-level UI bring-up state (launch.c / ui.c) ---- */
+APTR   g_main_uport      = NULL; /* DAT_00120100 — main window UserPort         */
+APTR   g_proc            = NULL; /* DAT_001200f0 — our Process (FindTask(NULL))  */
+APTR   g_saved_windowptr = NULL; /* DAT_001200f4 — saved pr_WindowPtr           */
+ULONG  g_tty_seg_bptr    = 0;    /* DAT_0012016c — CnetTty seg (BPTR*4+4)        */
+BYTE   g_res_saved_level = 0;    /* DAT_001201ac — resource level saved for abort*/
+
+/* The built menu strip + its command map. These MUST be contiguous: the event
+ * loop dispatches a MENUPICK by calling menu_dispatch(&g_menu_pair, num), and
+ * menu_dispatch reads the command map at (&g_menu_pair)[1]. In the original they
+ * are the adjacent longs DAT_001201ae (menu list) and DAT_001201b2 (command map). */
+APTR   g_menu_pair[2] = { NULL, NULL };
+
+/* Last-click state for Intuition DoubleClick() detection in the event loop
+ * (recon DAT_0011d548 secs / DAT_0011d54c micros / DAT_0011d550 window). */
+ULONG  g_click_secs   = 0;      /* DAT_0011d548 */
+ULONG  g_click_micros = 0;      /* DAT_0011d54c */
+APTR   g_click_win    = NULL;   /* DAT_0011d550 */
+
+/* Extra per-connection window/session handles cleared by disconnect()
+ * (recon FUN_00102968). Named by their role in the pointer/title helpers
+ * (FUN_001020ae / FUN_0010217a) and the session-alloc sites. */
+APTR   g_edit_proc    = NULL;   /* DAT_00120168 — frame-editor process       */
+
+/*
+ * Editor startup message (recon DAT_00120142/46). launch_editor PutMsg's this to the
+ * CnetEditor child and waits for the reply. It is a Message header + payload; the
+ * original lays it out as raw bytes in the small-data section, so we mirror that with
+ * a byte buffer and offset accessors (avoids any C struct-padding mismatch):
+ *   +0x00..0x0d  Message/Node header (mn_Node etc.)
+ *   +0x0e  APTR  mn_ReplyPort   = g_editor_port
+ *   +0x15  UBYTE status         (editor writes 0 = ready, non-zero = fail)
+ *   +0x16  APTR  screen (in)    / editor's Process (out, -> g_edit_proc)
+ *   +0x1a  APTR  font base (in) / semaphore owner (out, -> DAT_00120168 region)
+ *   +0x1e  APTR  pr_CurrentDir  (our process's current dir)
+ * mn_Length would normally be set too; the child only reads the fields above.
+ */
+UBYTE  g_editor_msg[0x24];      /* DAT_00120146 — CnetEditor startup message  */
+APTR   g_logon_win_h  = NULL;   /* DAT_0011d570 — logon window handle        */
+APTR   g_courier_win  = NULL;   /* DAT_00121650 — courier/mail window        */
+APTR   g_dir2_win     = NULL;   /* DAT_00121698 — secondary directory window */
+APTR   g_party_win    = NULL;   /* DAT_0011fd70 — partyline window           */
+APTR   g_party_screen = NULL;   /* DAT_0011fda2 — screen ptr copy for party  */
+UBYTE  g_party_active = 0;      /* DAT_0011fd74 — partyline active flag       */
+APTR   g_sess_a       = NULL;   /* DAT_0011f120 — session buffer/handle A    */
+APTR   g_sess_b       = NULL;   /* DAT_0011f124 — session buffer/handle B    */
+APTR   g_sess_c       = NULL;   /* DAT_0011f128 — session buffer/handle C    */
+
 /* ---- frame parser palette + misc ---- */
 UBYTE  g_palette[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}; /* DAT_0011e1c0 */
 UBYTE *g_mem_src = 0;          /* DAT_001203a8 — in-memory frame read cursor */
-LONG   g_conn_error = 0;       /* DAT_00120170 — connection error slot */
+/* DAT_00120170 is a setjmp/longjmp buffer (recon FUN_00101624=setjmp saves
+ * d1-d7/a1-a7 + return PC here; FUN_00101638=longjmp restores them). The top level
+ * (recon FUN_001029e6) does setjmp(g_jmpbuf); a transport abort longjmps back with a
+ * non-zero code to trigger disconnect(). Sized for PC + 14 saved regs (15 longs). */
+ULONG  g_jmpbuf[16];           /* DAT_00120170 — abort jmp_buf */
 APTR   g_edit_frame = 0;       /* DAT_0011d080 — frame being published */
 APTR   g_frame_out_ptr = 0;    /* DAT_0012309c — mail output write cursor */

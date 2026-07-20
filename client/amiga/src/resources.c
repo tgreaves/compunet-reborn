@@ -65,9 +65,19 @@ static void res_register(void (*fn)(), APTR arg1, APTR arg2)
     g_res_list = n;
 }
 
-void resource_mark(void)
+/* Public register: attach an arbitrary free-fn(arg1) to the current level. Used by
+ * set_menu_strip_tracked (register ClearMenuStrip) etc. (recon FUN_0011a16c). */
+void resource_register_free(void (*fn)(), APTR arg1, APTR arg2)
+{
+    res_register(fn, arg1, arg2);
+}
+
+/* Enter a new nesting level; returns it (recon FUN_0011a000 returns DAT_0011ff2a).
+ * The top level saves this so a longjmp'd disconnect can unwind back to it. */
+BYTE resource_mark(void)
 {
     g_res_level++;
+    return g_res_level;
 }
 
 /* Leave the level, keeping its resources: demote each node at this level to the
@@ -82,8 +92,10 @@ void resource_commit(void)
     g_res_level--;
 }
 
-/* Leave the level, freeing every resource registered at it. */
-void cleanup_resources(void)
+/* Leave the level, freeing every resource registered at it. Returns the new
+ * (decremented) level — the disconnect handler loops on this to unwind several
+ * levels back to a saved mark (recon thunk_FUN_0011a0b0 returns DAT_0011ff2a). */
+BYTE cleanup_resources(void)
 {
     struct ResNode *n = g_res_list;
     while (n != NULL && n->level == g_res_level && n->next != NULL) {
@@ -95,6 +107,7 @@ void cleanup_resources(void)
     }
     g_res_list = n;
     g_res_level--;
+    return g_res_level;
 }
 
 struct MsgPort *create_port_tracked(char *name, LONG pri)
