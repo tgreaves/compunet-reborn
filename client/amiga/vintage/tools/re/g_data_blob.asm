@@ -4,14 +4,32 @@
         section data,data
         xdef _g_data
         xref _account
-        xref _ext_connect_entry
-        xref _ext_connect_menu
-        xref _ext_link_entry
-        xref _ext_main_menu
-        xref _ext_render_entry
-        xref _ext_save_config_dlg
-        xref _ext_serial_setup
         xref _extend_life
+        xref _hook_connect_entry
+        xref _hook_connect_menu
+        xref _hook_dir_0956c
+        xref _hook_dir_095b0
+        xref _hook_dir_095f6
+        xref _hook_dir_0963c
+        xref _hook_dir_09682
+        xref _hook_dir_0984c
+        xref _hook_dir_09898
+        xref _hook_ed_172f4
+        xref _hook_ed_1733a
+        xref _hook_ed_17380
+        xref _hook_ed_173c6
+        xref _hook_ed_1740c
+        xref _hook_ed_17470
+        xref _hook_link_entry
+        xref _hook_main_menu
+        xref _hook_nav_0a3d0
+        xref _hook_nav_0a3f8
+        xref _hook_nav_0a43e
+        xref _hook_nav_0a484
+        xref _hook_nav_0a4ca
+        xref _hook_render_entry
+        xref _hook_save_config
+        xref _hook_serial_setup
         xref _mail_prepare
         xref _vote
 _g_data:
@@ -22,7 +40,7 @@ _g_data:
         dc.b $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
         dc.b $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$64,$6f,$73,$2e
         dc.b $6c,$69,$62,$72,$61,$72,$79,$00
-        dc.l 0                ; ->code 0x116400 (unmapped)
+        dc.l _hook_16400    ; ->code (unmapped)
         dc.b $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
         dc.b $00,$00,$00,$00,$00,$00,$00,$00
 L_0084:
@@ -75,23 +93,23 @@ L_016c:
         dc.b $00,$00,$00,$05,$00,$00,$00,$00,$00,$00
         dc.l _g_data+$011e    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l _ext_render_entry    ; ->code
+        dc.l _hook_render_entry    ; ->code
         dc.b $00,$00
         dc.l _g_data+$0128    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l _ext_save_config_dlg    ; ->code
+        dc.l _hook_save_config    ; ->code
         dc.b $00,$00
         dc.l _g_data+$012e    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l _ext_connect_menu    ; ->code
+        dc.l _hook_connect_menu    ; ->code
         dc.b $43,$00
         dc.l _g_data+$0136    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l _ext_serial_setup    ; ->code
+        dc.l _hook_serial_setup    ; ->code
         dc.b $45,$00
         dc.l _g_data+$013e    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l _ext_main_menu    ; ->code
+        dc.l _hook_main_menu    ; ->code
         dc.b $51,$00
         dc.l _g_data+$0144    ; ->data
         dc.b $00,$00,$00,$06,$00,$00,$00,$00,$00,$00
@@ -101,7 +119,7 @@ L_016c:
         dc.b $4d,$00
         dc.l _g_data+$0152    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l _ext_link_entry    ; ->code
+        dc.l _hook_link_entry    ; ->code
         dc.b $55,$00
         dc.l _g_data+$0158    ; ->data
         dc.b $00,$00,$00,$00
@@ -117,7 +135,7 @@ L_016c:
         dc.b $41,$00
         dc.l _g_data+$016c    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l _ext_connect_entry    ; ->code
+        dc.l _hook_connect_entry    ; ->code
         dc.b $4c,$00,$00,$00,$ff,$e0,$00,$01,$00,$00,$f8,$00,$00,$01,$00,$00
         dc.b $f8,$20,$00,$01,$00,$00,$f8,$40,$00,$01,$00,$00,$f8,$60,$00,$01
         dc.b $00,$00,$f8,$80,$00,$01,$00,$00,$ff,$e1,$00,$00,$00,$00,$ff,$ff
@@ -467,7 +485,7 @@ L_11d0:
         dc.l _g_data+$11d0    ; ->data
         dc.b $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
         dc.b $00,$0f,$00,$00,$00,$00,$00,$3c,$00,$10,$00,$04
-        dc.l 0                ; ->code 0x116000 (unmapped)
+        dc.l _hook_16000    ; ->code (unmapped)
         dc.b $ff,$00,$00,$00,$00,$00,$00,$f4,$ff,$8e,$07,$0d,$05,$05,$d5,$07
         dc.b $c3,$1b,$c0,$b2,$07,$c0,$07,$c9,$0d,$dd,$06,$1c,$dd,$06,$07,$dd
         dc.b $0d,$dd,$06,$1c,$c2,$06,$07,$c2,$0d,$ab,$07,$c3,$15,$07,$c0,$06
@@ -499,13 +517,13 @@ L_12d4:
         dc.b $00,$00,$00,$00,$06,$09,$00,$00,$00,$0e,$00,$04,$00,$00,$00,$00
         dc.l _g_data+$12d4    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l 0                ; ->code 0x10956c (unmapped)
-        dc.l 0                ; ->code 0x1095b0 (unmapped)
-        dc.l 0                ; ->code 0x1095f6 (unmapped)
-        dc.l 0                ; ->code 0x10963c (unmapped)
-        dc.l 0                ; ->code 0x109682 (unmapped)
-        dc.l 0                ; ->code 0x10984c (unmapped)
-        dc.l 0                ; ->code 0x109898 (unmapped)
+        dc.l _hook_dir_0956c    ; ->code
+        dc.l _hook_dir_095b0    ; ->code
+        dc.l _hook_dir_095f6    ; ->code
+        dc.l _hook_dir_0963c    ; ->code
+        dc.l _hook_dir_09682    ; ->code
+        dc.l _hook_dir_0984c    ; ->code
+        dc.l _hook_dir_09898    ; ->code
 L_135a:
         dc.b $44,$6f,$6e,$65,$00,$00
 L_1360:
@@ -527,11 +545,11 @@ L_1370:
         dc.b $00,$00,$00,$00,$06,$09,$00,$00,$00,$0e,$00,$04,$00,$00,$00,$00
         dc.l _g_data+$1370    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l 0                ; ->code 0x10a3d0 (unmapped)
-        dc.l 0                ; ->code 0x10a3f8 (unmapped)
-        dc.l 0                ; ->code 0x10a43e (unmapped)
-        dc.l 0                ; ->code 0x10a484 (unmapped)
-        dc.l 0                ; ->code 0x10a4ca (unmapped)
+        dc.l _hook_nav_0a3d0    ; ->code
+        dc.l _hook_nav_0a3f8    ; ->code
+        dc.l _hook_nav_0a43e    ; ->code
+        dc.l _hook_nav_0a484    ; ->code
+        dc.l _hook_nav_0a4ca    ; ->code
         dc.b $4c,$25,$2e,$36,$73,$00,$50,$30,$30,$00,$50,$30,$30,$00,$50,$25
         dc.b $30,$32,$64,$00,$42,$00,$42,$00,$47,$6f,$74,$6f,$20,$50,$61,$67
         dc.b $65,$00,$4c,$25,$2e,$36,$73,$00,$43,$00,$43,$00,$00,$00,$42,$75
@@ -1360,7 +1378,7 @@ L_2a30:
         dc.l _g_data+$2a30    ; ->data
         dc.b $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
         dc.b $00,$0f,$00,$00,$00,$00,$00,$32,$00,$10,$00,$04
-        dc.l 0                ; ->code 0x116200 (unmapped)
+        dc.l _hook_16200    ; ->code (unmapped)
         dc.b $ff,$00,$00,$00,$00,$00
 L_2a82:
         dc.b $4e,$65,$78,$74,$00,$00
@@ -1387,12 +1405,12 @@ L_2a9e:
         dc.b $00,$00,$00,$00,$06,$09,$00,$00,$00,$09,$00,$04,$00,$00,$00,$00
         dc.l _g_data+$2a9e    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l 0                ; ->code 0x1172f4 (unmapped)
-        dc.l 0                ; ->code 0x11733a (unmapped)
-        dc.l 0                ; ->code 0x117380 (unmapped)
-        dc.l 0                ; ->code 0x1173c6 (unmapped)
-        dc.l 0                ; ->code 0x11740c (unmapped)
-        dc.l 0                ; ->code 0x117470 (unmapped)
+        dc.l _hook_ed_172f4    ; ->code
+        dc.l _hook_ed_1733a    ; ->code
+        dc.l _hook_ed_17380    ; ->code
+        dc.l _hook_ed_173c6    ; ->code
+        dc.l _hook_ed_1740c    ; ->code
+        dc.l _hook_ed_17470    ; ->code
         dc.b $4e,$45,$58,$54,$00,$00,$4c,$41,$53,$54,$00,$00,$00,$0b,$00,$0d
         dc.b $00,$d8,$00,$3a,$02,$01,$00,$00,$00,$20,$00,$02,$10,$00,$00,$00
         dc.b $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00

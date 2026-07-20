@@ -168,6 +168,28 @@ LONG mail_read(void)
  */
 extern const char **g_mail_title;   /* PTR_s_Mail_Upload_0011eae2 */
 
+/*
+ * mail_prepare — recon FUN_0010e000. Enter mail/courier mode: send the short mail
+ * command, and on ack refresh the directory and switch to the login-check state.
+ * (Referenced by a menu hook in the data blob.)
+ */
+extern char g_mail_cmd[];            /* DAT_0011ea5e — the mail-enter command */
+extern void directory_refresh(APTR dir_page);
+extern void mail_state_enter(APTR dir_page);   /* thunk FUN_001091f2 */
+
+LONG mail_prepare(void)
+{
+    g_state = STATE_ONLINE;
+    serial_write(g_mail_cmd, strlen(g_mail_cmd), 1, TOKEN_COM);
+    if (serial_io_c(g_ack_text) == ACK_OK) {
+        directory_refresh(g_dir_page);
+        mail_state_enter(g_dir_page);
+        g_state = STATE_LOGIN_CHECK;
+        return 1;
+    }
+    return 0;
+}
+
 LONG mail_upload_mode(void)
 {
     *g_mail_title = "Mail Upload";

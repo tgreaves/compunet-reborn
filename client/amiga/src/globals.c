@@ -108,6 +108,7 @@ char   g_ul_hdr[8];             /* DAT_00121640 */
 /* ---- Mail fields ---- */
 char        g_mail_subject[24];      /* DAT_00121658 */
 char        g_mail_names[5 * 9];     /* DAT_00121669 */
+char        g_mail_cmd[8] = "M";     /* DAT_0011ea5e — mail-enter command */
 static const char *mail_title_str = "Mail Upload";
 const char **g_mail_title = &mail_title_str; /* PTR_s_Mail_Upload_0011eae2 */
 

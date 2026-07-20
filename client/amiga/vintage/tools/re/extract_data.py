@@ -44,17 +44,27 @@ dbase = h['addr']
 # slots from the blob — the C tables override them. For the remaining code pointers
 # (command dispatch etc.) we bind to named externs the UI code defines.
 CODE_SYM = {
-    0x104000: "ext_render_entry",   # hunk4 code — frame render entry (kept extern)
-    0x1122a6: "ext_save_config_dlg",
-    0x1036d2: "ext_connect_menu",
-    0x114000: "ext_serial_setup",
-    0x102a0a: "ext_main_menu",
+    0x104000: "hook_render_entry",
+    0x1122a6: "hook_save_config",
+    0x1036d2: "hook_connect_menu",
+    0x114000: "hook_serial_setup",
+    0x102a0a: "hook_main_menu",
     0x10e000: "mail_prepare",
-    0x10a384: "ext_link_entry",
+    0x10a384: "hook_link_entry",
+    0x103704: "hook_connect_entry",
     0x10c428: "extend_life",
     0x10c510: "vote",
     0x10c582: "account",
-    0x103704: "ext_connect_entry",
+    0x10956c: "hook_dir_0956c", 0x1095b0: "hook_dir_095b0",
+    0x1095f6: "hook_dir_095f6", 0x10963c: "hook_dir_0963c",
+    0x109682: "hook_dir_09682", 0x10984c: "hook_dir_0984c",
+    0x109898: "hook_dir_09898",
+    0x10a3d0: "hook_nav_0a3d0", 0x10a3f8: "hook_nav_0a3f8",
+    0x10a43e: "hook_nav_0a43e", 0x10a484: "hook_nav_0a484",
+    0x10a4ca: "hook_nav_0a4ca",
+    0x1172f4: "hook_ed_172f4", 0x11733a: "hook_ed_1733a",
+    0x117380: "hook_ed_17380", 0x1173c6: "hook_ed_173c6",
+    0x11740c: "hook_ed_1740c", 0x117470: "hook_ed_17470",
 }
 
 reloc = {off: tgt for (off, tgt) in h['relocs']}
@@ -111,7 +121,7 @@ while i < n:
         sym = CODE_SYM.get(tgt)
         if sym:
             out.append("        dc.l _%s    ; ->code" % sym); i += 4; continue
-        out.append("        dc.l 0                ; ->code 0x%x (unmapped)" % tgt); i += 4; continue
+        out.append("        dc.l _hook_%05x    ; ->code (unmapped)" % (tgt & 0xfffff)); i += 4; continue
     # find run until next special offset
     nxt = n
     for s in (labels, selfrel, codeptr):

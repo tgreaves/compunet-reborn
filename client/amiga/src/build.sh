@@ -19,7 +19,7 @@ export VBCC
 PATH="$VBCC/bin:$PATH"
 export PATH
 
-MODS="startup globals transport connect login frame frame_control frame_gfx navigate directory transfer mail resources config launch modem dosio stubs"
+MODS="startup globals transport connect login frame frame_control frame_gfx navigate directory transfer mail resources config launch modem dosio ui dispatch stubs"
 
 OBJS=""
 for f in $MODS; do
@@ -27,6 +27,11 @@ for f in $MODS; do
     vc +kick13 -c -I. "$f.c" -o "$f.o"
     OBJS="$OBJS $f.o"
 done
+
+# The extracted Intuition data section (byte-identical to the original binary).
+echo "  ASM  g_data_blob.asm"
+vasmm68k_mot -Fhunk -phxass -o g_data_blob.o g_data_blob.asm
+OBJS="$OBJS g_data_blob.o"
 
 echo "  LINK compunet-client"
 vc +kick13 -o compunet-client $OBJS -lamiga
