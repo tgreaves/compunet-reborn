@@ -34,6 +34,10 @@ vasmm68k_mot -Fhunk -phxass -o g_data_blob.o g_data_blob.asm
 OBJS="$OBJS g_data_blob.o"
 
 echo "  LINK compunet-client"
+# NOTE: the kick13 vbcc config MUST link with -Rstd, not the default -Rshort.
+# vlink's RELOC32SHORT (0x3f7) hunks are a Kickstart 2.0+ type that the 1.3 loader
+# rejects with error 121 ("not an object module"). Set `-ldnodb=-s -Rstd` in
+# $VBCC/config/kick13 (see ../vintage/tools/re/toolchain.md).
 vc +kick13 -o compunet-client $OBJS -lamiga
 
 echo "Built compunet-client ($(wc -c < compunet-client) bytes)"

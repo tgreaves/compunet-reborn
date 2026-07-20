@@ -71,6 +71,16 @@ Building vbcc from source on macOS + assembling the KS1.3 headers, used to compi
    - `targets/m68k-kick13/include/*` (clib/, proto/)
 4. Custom config `kick13` = copy of `aos68k` with `vincludeos3:` / `vlibos3:` replaced by
    the concrete `targets/m68k-amigaos/include` and `.../lib` paths.
+5. **Force old-style relocations (required for a Kickstart 1.3-loadable executable).**
+   In `$VBCC/config/kick13`, the link-without-debug line must use `-Rstd`, not the
+   default `-Rshort`:
+   ```
+   -ldnodb=-s -Rstd
+   ```
+   vlink's default `-Rshort` emits `RELOC32SHORT` hunks (type `0x3f7`), a Kickstart
+   2.0+ format. The 1.3 loader doesn't understand it and refuses the binary with
+   **AmigaDOS error 121 ("... is not an object module")**. `-Rstd` emits classic
+   `RELOC32` (`0x3ec`) hunks, which load on 1.3. (The executable is a little larger.)
 
 Compile a reconstruction module:
 ```
