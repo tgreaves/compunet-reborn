@@ -40,7 +40,7 @@ LONG load_config(void)
     APTR buf;
     short i;
 
-    g_login_userid[0] = 0;
+    g_config[0x2c] = 0;   /* recon 0x102004: clr.b config+0x2c (g_cfg_userid), NOT g_login_userid */
 
     buf = config_open_read("cnet-configuration");
     if (buf == NULL) {
@@ -65,18 +65,28 @@ LONG load_config(void)
 }
 
 /*
- * save_config_file — recon FUN_00112250. Open the config file for writing and emit
- * the current 0x36-byte config block. (The GUI "Save configuration" dialog gathers
- * the fields into g_config first; this routine performs the write.)
+ * save_config_file — recon FUN_00112250. Open "cnet-configuration" (MODE_NEWFILE),
+ * Write the 0x36-byte g_config block, Close. On open failure, pop the yes/no requester
+ * "Can't open file - try again?" (title "Save configuration") and retry if the user
+ * says yes; otherwise give up. (recon: retry_dialog at $112276, Write 0x36 bytes from
+ * 0x120108 at $112290, Close at $11229c.)
  */
+extern LONG retry_dialog(const char *title, const char *body);   /* FUN_001104a6 */
+extern LONG file_write(APTR fh, APTR buf, ULONG len);
+extern void config_close_write(APTR fh);   /* tracked Close + unregister (dosio.c) */
+
 LONG save_config_file(void)
 {
-    APTR fh = config_open_write("cnet-configuration");
-    if (fh == NULL) {
-        show_status_message(1, "Can't open file - try again?");
-        return 0;
+    APTR fh;
+    for (;;) {
+        fh = config_open_write("cnet-configuration");
+        if (fh != NULL)
+            break;
+        /* open failed — offer retry (recon FUN_001104a6). */
+        if (retry_dialog("Save configuration", "Can't open file - try again?") == 0)
+            return 0;
     }
-    /* recon writes the block via the same DOS Write used elsewhere; the field
-     * marshalling ("%02lx" baud strings etc.) happens in the dialog handler. */
+    file_write(fh, g_config, 0x36);   /* Write the whole config block (recon 0x36 @0x120108) */
+    config_close_write(fh);           /* tracked close: Close + unregister (recon 0x11a3fe) */
     return 1;
 }

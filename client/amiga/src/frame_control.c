@@ -120,8 +120,11 @@ void (*g_ctrl_hi[128])(APTR page) = {
     /*88*/ ctrl_nop,        /*89*/ ctrl_nop,        /*8a*/ ctrl_nop,  /*8b*/ ctrl_nop,
     /*8c*/ ctrl_nop,        /*8d*/ carriage_return, /*8e*/ charset_upper,/*8f*/ ctrl_nop,
     /*90*/ set_colour_black,/*91*/ cursor_up,       /*92*/ reverse_off,/*93*/ clear_screen,
-    /*94*/ delete_char,     /*95*/ set_colour_lt_red,/*96*/ set_colour_grey3,/*97*/ set_colour_grey2,
-    /*98*/ set_colour_lt_grn,/*99*/ set_colour_lt_blu,/*9a*/ set_colour_grey1,/*9b*/ set_colour_brown,
+    /* 0x97/0x98/0x99 verified against the original handlers (0x1050c4/d6/e8): they set
+     * pen 14/12/13 respectively — NOT the 12/13/14 an earlier binding used. Bind to the
+     * helpers whose value matches: pen14=lt_blu, pen12=grey2, pen13=lt_grn. */
+    /*94*/ delete_char,     /*95*/ set_colour_lt_red,/*96*/ set_colour_grey3,/*97*/ set_colour_lt_blu,
+    /*98*/ set_colour_grey2,/*99*/ set_colour_lt_grn,/*9a*/ set_colour_grey1,/*9b*/ set_colour_brown,
     /*9c*/ set_colour_purple,/*9d*/ cursor_left,    /*9e*/ set_colour_yellow,/*9f*/ set_colour_cyan
     /* 0x20-0x7f: unused (font data in original) — zero-initialised, never indexed */
 };

@@ -148,6 +148,7 @@ void set_connection_state(void)
         ui_set_title(S_COURIER);
         menu_enable((UBYTE *)DATA(0x11d3c6));
         break;
+    case 4:  /* state 4 mirrors state 7 (recon jump table: both -> 0x1024c4) */
     case 7:
         ui_set_title(S_UPLOAD);
         menu_enable((UBYTE *)DATA(0x11d420));
@@ -157,7 +158,7 @@ void set_connection_state(void)
         menu_enable((UBYTE *)DATA(0x11d356));
         break;
     default:
-        break;                       /* case 4: no menu change */
+        break;
     }
 
     /* Directory-window gadget enable, per state. */
@@ -173,6 +174,7 @@ void set_connection_state(void)
         case 6:
             dir_gadgets_enable(g_dir_page, (UBYTE *)DATA(0x11d41a));
             break;
+        case 4:  /* state 4 mirrors state 7 (recon jump table: both -> 0x102552) */
         case 7:
             dir_gadgets_enable(g_dir_page, (UBYTE *)DATA(0x11d450));
             break;
@@ -180,7 +182,7 @@ void set_connection_state(void)
             dir_gadgets_enable(g_dir_page, (UBYTE *)DATA(0x11d3ba));
             break;
         default:
-            break;                   /* cases 0/1/4: no dir gadget change */
+            break;                   /* cases 0/1: no dir gadget change */
         }
     }
 

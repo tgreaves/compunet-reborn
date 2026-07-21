@@ -24,7 +24,7 @@
 /* UI prompt helpers (dialogs) into the not-yet-reconstructed UI layer. */
 extern LONG  vote_choice_prompt(void);  /* FUN_0010c4ca — read a 1-digit choice   */
 extern LONG  extend_by_prompt(void);    /* FUN_0010c404 — "Extend By" dialog       */
-extern void  status_ok_dialog(const char *title, const char *body); /* FUN_00110472 */
+extern void  status_ok_dialog(const char *line1, const char *line2, UBYTE p4, UBYTE p5); /* FUN_00110472 */
 extern void  dir_action_cleanup(void);  /* thunk FUN_0010d0d0 */
 
 extern char  g_vote_choice[];   /* DAT_0012164c — the vote string       */
@@ -95,7 +95,10 @@ LONG account(void)
     const char *side;
 
     g_state = STATE_GOTO;
-    serial_write("ACCOUNT", strlen("ACCOUNT"), 1, TOKEN_COM);
+    /* Wire command is the single byte 'A' (recon serial_write("A",1,1,TOKEN_COM) —
+     * strlen of "A" = 1). "ACCOUNT" is ONLY the requester title below, NOT the
+     * command sent to the server. */
+    serial_write("A", 1, 1, TOKEN_COM);
     if (serial_io_c(g_ack_text) != ACK_OK)
         return 0;
 
@@ -112,7 +115,7 @@ LONG account(void)
     }
 
     sprintf(msg, "You are %s in %s", balance + i, side);
-    status_ok_dialog("ACCOUNT", msg);
+    status_ok_dialog("ACCOUNT", msg, 1, 6);   /* recon: p4=1, p5=6 (FrontPen 6) */
     return 1;
 }
 

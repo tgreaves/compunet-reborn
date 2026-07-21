@@ -41,8 +41,10 @@ LONG goto_page(void)
     g_state = STATE_GOTO;
 
     if (g_online == 0) {
-        len = strlen(g_link_code);       /* recon DAT_0011e3f8: bare "D" request */
-        serial_write(g_link_code, len, 1, TOKEN_COM);
+        /* Offline: request page 0 with the literal "P00" (recon serial_write("P00",3,
+         * 1,TOKEN_COM) — the string at DAT_0011e3f4). An earlier version sent
+         * g_link_code, a different global with variable content — wrong command. */
+        serial_write("P00", 3, 1, TOKEN_COM);
         if (serial_io_c(g_ack_text) != ACK_OK)
             return 0;
         directory_refresh(g_dir_page);

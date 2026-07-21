@@ -159,14 +159,17 @@ LONG requester_2line(const char *line1, const char *line2, APTR glist)
     return run_requester(DATA(0x11ee80), glist);
 }
 
-/* status_ok_dialog — recon FUN_00110472: modal OK requester (two text lines).
- * Sets FrontPen of both IntuiText structs to param (recon param_5; for the status
- * dialog it's typically 1 = blue-on-black). */
-void status_ok_dialog(const char *title, const char *body)
+/* status_ok_dialog — recon FUN_00110472. Modal OK requester (two text lines). The
+ * original takes 5 args: (line1, line2, screen, p4, p5) where p4 -> DAT_0011f0b7 and
+ * p5 -> BOTH IntuiText FrontPens (DAT_0011f080 / DAT_0011f094). Callers vary the pen:
+ * show_status_message passes p4=2,p5=1; account passes p4=1,p5=6. (screen is consumed
+ * by the requester core via the blob NewWindow.Screen patch in run_requester.) */
+void status_ok_dialog(const char *line1, const char *line2, UBYTE p4, UBYTE p5)
 {
-    *(UBYTE *)DATA(0x11f094) = 1;   /* FrontPen of text-1 IntuiText */
-    *(UBYTE *)DATA(0x11f080) = 1;   /* FrontPen of text-2 IntuiText */
-    requester_2line(title, body, DATA(0x11f028 /*OK-only gadget list*/));
+    *(UBYTE *)DATA(0x11f0b7) = p4;
+    *(UBYTE *)DATA(0x11f094) = p5;   /* FrontPen of text-1 IntuiText */
+    *(UBYTE *)DATA(0x11f080) = p5;   /* FrontPen of text-2 IntuiText */
+    requester_2line(line1, line2, DATA(0x11f028 /*OK-only gadget list*/));
 }
 
 /* retry_dialog — recon FUN_001104a6: yes/no requester. Returns 1 = OK, 0 = Cancel.
@@ -179,19 +182,26 @@ LONG retry_dialog(const char *title, const char *body)
     return requester_2line(title, body, DATA(0x11f054 /*OK+Cancel list*/)) == 1;
 }
 
-/* string_prompt — recon FUN_00110390: open the string requester (title + buffer). */
-static LONG string_prompt(const char *title, char *buf)
-{
-    (void)title; (void)buf;   /* title/buffer are set into the blob's gadget by caller */
-    return run_requester(DATA(0x11ee80 /*requester NewWindow*/),
-                         DATA(0x11f0e0 /*string gadget list*/)) == 1;
-}
-
-/* number_prompt — recon FUN_00110306: same requester, integer gadget. */
+/*
+ * number_prompt — recon FUN_00110306. Wire the caller's title, edit buffer, and field
+ * width into the shared string gadget (all blob-resident), then open+run the requester.
+ * Verified offsets: title -> 0x11eebc, StringInfo.Buffer -> 0x11f0bc, MaxChars = width+1
+ * -> 0x11f0c6, gadget pixel width -> 0x11f0e8 (width>=0x10 ? 0x88 : (width+1)*8).
+ * Returns 1 if OK (GadgetID 1). WITHOUT this wiring the user's input never reached the
+ * caller's buffer (g_vote_choice / g_ul_name / g_goto_page_no / ...). */
 static LONG number_prompt(const char *title, char *buf, int width)
 {
-    (void)title; (void)buf; (void)width;
+    *(APTR  *)DATA(0x11eebc) = (APTR)title;         /* gadget title            */
+    *(APTR  *)DATA(0x11f0bc) = (APTR)buf;           /* StringInfo.Buffer       */
+    *(UWORD *)DATA(0x11f0c6) = (UWORD)(width + 1);  /* MaxChars                */
+    *(UWORD *)DATA(0x11f0e8) = (UWORD)(width >= 0x10 ? 0x88 : (width + 1) * 8);
     return run_requester(DATA(0x11ee80), DATA(0x11f0e0)) == 1;
+}
+
+/* string_prompt — recon FUN_00110390: number_prompt with a fixed width of 0x20 (32). */
+static LONG string_prompt(const char *title, char *buf)
+{
+    return number_prompt(title, buf, 0x20);
 }
 
 /* ---- per-command prompt wrappers (the stubs, now real) ---- */
@@ -225,13 +235,19 @@ LONG upload_filename_prompt(void)    /* recon FUN_0010c000 "Upload filename" */
     return string_prompt("Upload filename", g_ul_name);
 }
 
-/* download_machine_prompt — recon FUN_0010b0ea: confirm the file's machine type
- * (0=C64, 2=ST need a yes/no; 1=Amiga auto-yes). Uses the OK/Cancel requester. */
+/* download_machine_prompt — recon FUN_0010b0ea: confirm the file's machine type via a
+ * yes/no retry_dialog with a type-specific two-line message. type 1 (Amiga) auto-yes;
+ * type 0 = "Commodore 64 file", type 2 = "Atart ST file" (original's typo), any other =
+ * "Unrecognised machine type"; all titled "File download". Returns 1 if the user
+ * confirms. (Was a bare textless OK/Cancel window handling only type 0/1/2.) */
 LONG download_machine_prompt(char type)
 {
-    if (type == 1)
-        return 1;                     /* Amiga: no confirmation */
-    return run_requester(DATA(0x11ee80), DATA(0x11f054 /*OK/Cancel list*/)) == 1;
+    switch (type) {
+    case 1:  return 1;                                                    /* Amiga */
+    case 0:  return retry_dialog("File download", "Commodore 64 file");
+    case 2:  return retry_dialog("File download", "Atart ST file");
+    default: return retry_dialog("File download", "Unrecognised machine type");
+    }
 }
 
 /* ---- pure-logic leaves ---- */

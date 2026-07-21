@@ -298,18 +298,24 @@ static struct Window *ui_window(int i)
 /* ------------------------------------------------------------------ *
  *  Status line + simple dialogs — recon FUN_00115000 / FUN_00110042 / FUN_00110472
  * ------------------------------------------------------------------ *
- * show_status_message(code, text): the original dispatches on the status code via a
- * small table (info line / message / error). We render into the main window's title
- * / status area. Codes: 1 = info, 0x41 = message, 0x42 = error. */
+ * show_status_message(code, text): recon FUN_00115000 selects an error-class PREFIX
+ * string from the code and pops a modal OK requester (status_ok_dialog) with that
+ * prefix as the title and the caller's text as the body. It is NOT a title-bar write.
+ * The code->prefix table (verified from the relocated jump table at 0x11501a and the
+ * blob strings): 0x41 = "Host error", 0x42 = "Fatal error", 0x01 = "Local error",
+ * 0x02 = "Comms error"; any other code -> no prefix (plain requester). */
+extern void status_ok_dialog(const char *line1, const char *line2, UBYTE p4, UBYTE p5); /* FUN_00110472 */
 void show_status_message(UBYTE code, const char *text)
 {
-    if (g_window == NULL)
-        return;
-    /* The window is a borderless backdrop window, so the visible text is the SCREEN
-     * title (3rd arg); window title (2nd arg) stays unchanged (-1). recon
-     * FUN_0010217a: SetWindowTitles(win, -1, text). */
-    SetWindowTitles((struct Window *)g_window, (STRPTR)-1, (STRPTR)text);
-    (void)code;
+    const char *prefix;
+    switch (code) {
+    case 0x41: prefix = "Host error";  break;
+    case 0x42: prefix = "Fatal error"; break;
+    case 0x01: prefix = "Local error"; break;
+    case 0x02: prefix = "Comms error"; break;
+    default:   prefix = "";            break;   /* recon default: plain requester */
+    }
+    status_ok_dialog(prefix, text, 2, 1);   /* recon: p4=2, p5=1 (FrontPen 1) */
 }
 
 /* ui_set_title — recon FUN_0010217a: set the SCREEN title on every live window

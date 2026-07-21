@@ -156,11 +156,15 @@ LONG hook_connect_entry(APTR g) { (void)g; return leave_page(); }
 
 LONG hook_link_entry(APTR g)    { return link_follow(g); }
 LONG hook_render_entry(APTR g)  { (void)g; return 1; }   /* frame render trampoline */
-LONG hook_save_config(APTR g)   { (void)g; return 1; }   /* opens the save-config dlg */
+
+/* hook_save_config — the "Setup" menu item (recon FUN_001122a6). Opens the serial/login
+ * configuration dialog. */
+extern LONG settings_dialog(void);
+LONG hook_save_config(APTR g)   { (void)g; return settings_dialog(); }
 
 /* hook_serial_setup — recon FUN_00114000, the "Editor" menu item: tell the editor
- * process to enter its setup/edit mode (command byte 2, arg = g_edit_frame at +0x16,
- * clear +0x1a/+0x1e), PutMsg + wait, return 1 if the editor reports ready (status 0). */
+ * process to enter its setup/edit mode (command 2 at msg+0x14, arg = g_edit_frame at
+ * +0x16), PutMsg + wait, return 1 if the editor reports ready (status 0). */
 LONG hook_serial_setup(APTR g)
 {
     (void)g;

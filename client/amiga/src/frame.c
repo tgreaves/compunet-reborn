@@ -253,10 +253,16 @@ extern void   blt_font_to_rastport(void); /* GfxBase.BltBitMapRastPort() path   
 void blit_char_cell(WORD row, WORD col, APTR page)
 {
     UBYTE *cell = PAGE_CELLS(page) + row * 0x50 + col * 2;
-    UBYTE  code  = cell[0];
     UBYTE  colour = cell[1];
     UBYTE  attr  = *(UBYTE *)((UBYTE *)page + 0x0f);  /* background attr */
     WORD   plane;
+    /* Font index = screencode OR (charset/lowercase-mode flag at page+0x0c) shifted
+     * into bit 8 (recon 0x107032-0x10703e: move.w $c(a0); asl.l #8; or.l cell[0]).
+     * So mode=1 selects the lowercase banks build_font lays down at +0x1000/+0x1800.
+     * The reverse path XORs 0x80 into this (mode-extended) index (recon 0x10708c
+     * eori.w #$80). Reading only cell[0] as a byte made the lowercase banks
+     * unreachable — lowercase frames rendered in upper-case. */
+    WORD   idx = (WORD)cell[0] | (WORD)(*(WORD *)((UBYTE *)page + 0x0c) << 8);
 
     /* Select a font source for each of the 4 bitplanes. */
     for (plane = 0; plane < 4; plane++) {
@@ -265,9 +271,9 @@ void blit_char_cell(WORD row, WORD col, APTR page)
             if ((mask & attr) == 0)
                 g_plane_src[plane] = g_font_base + 0x200;             /* blank */
             else
-                g_plane_src[plane] = g_font_base + ((code ^ 0x80) * 0x10);
+                g_plane_src[plane] = g_font_base + ((idx ^ 0x80) * 0x10);
         } else if ((mask & attr) == 0) {
-            g_plane_src[plane] = g_font_base + (code * 0x10);         /* normal */
+            g_plane_src[plane] = g_font_base + (idx * 0x10);          /* normal */
         } else {
             g_plane_src[plane] = g_font_base + 0xa00;                 /* solid */
         }
@@ -390,12 +396,18 @@ extern UBYTE g_palette[16];   /* DAT_0011e1c0 — PETSCII colour -> Amiga pen ma
 #define PAGE_BORDER(p)(*(UBYTE *)((UBYTE *)(p) + 0x0e))
 #define PAGE_BG(p)    (*(UBYTE *)((UBYTE *)(p) + 0x0f))
 
-/* reset the page cursor/mode before rendering (recon FUN_0010568c). */
+/* reset the page cursor/mode before rendering (recon FUN_0010568c). Sets mode (+0x0c)
+ * = 1, clears attr (+9), then clear_screen (0x1054bc): frame_clear_region over the whole
+ * grid AND homes the cursor (row/col/wrap = 0 at +4/+6/+0xa). The cursor-home was
+ * previously omitted (frame_clear_region alone doesn't reset it). */
 static void frame_reset_page(APTR page)
 {
     PAGE_MODE(page) = 1;
     *(UBYTE *)((UBYTE *)page + 9) = 0;   /* clear attribute */
     frame_clear_region(0, 0, 0x17, 0x27, page);
+    PAGE_ROW(page)  = 0;                  /* clear_screen homes the cursor */
+    PAGE_COL(page)  = 0;
+    PAGE_WRAP(page) = 0;
 }
 
 /*

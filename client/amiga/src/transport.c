@@ -78,22 +78,23 @@ static void wait_for_completion(struct MsgPort *my_port, ULONG my_sig)
     } while (!(got & my_sig) || (GetMsg(my_port) == NULL));
 }
 
-/* Classify io_Error and show the appropriate message. The original returns 1 from
- * every path (success and error alike). */
+/* Classify io_Error (read from the request at +0x1f) and act. VERIFIED against the
+ * relocated disasm of serial_read (0x119744) and serial_io_c (0x119834): io_Error 0
+ * is SUCCESS; io_Error 9 is carrier lost; io_Error 7 OR any other non-zero value is a
+ * comms error. (An earlier reconstruction wrongly treated 7 as "expected/normal" and
+ * silently returned success on it — so a genuine comms failure was ignored instead of
+ * aborting.) The error paths set_connection_error(...) which longjmps back to the
+ * top-level; the function only "returns 1" on the success path. */
 static LONG report_result(BYTE io_error)
 {
-    if (io_error == CNET_ERR_EXPECTED)
+    if (io_error == 0)                      /* success */
         return 1;
-    if (io_error == CNET_ERR_CARRIER) {
+    if (io_error == 9) {                    /* carrier lost */
         show_status_message(0x42, "Carrier lost");
-        set_connection_error(9);
-        return 1;
+        set_connection_error(9);            /* longjmp — no return */
     }
-    if (io_error == CNET_ERR_OK)
-        return 1;
-
-    show_status_message(0x42, "Comms problem");
-    set_connection_error(7);
+    show_status_message(0x42, "Comms problem");   /* 7 or any other non-zero */
+    set_connection_error(7);                /* longjmp — no return */
     return 1;
 }
 
@@ -154,29 +155,29 @@ UBYTE serial_io_c(const char *status_text)
     SendIO((struct IORequest *)g_read_req);
     wait_for_completion(g_read_port, g_read_sig);
 
+    /* io_Error (at +0x1f): VERIFIED (recon 0x119834) — 0 = success (classify the ack
+     * byte at +0x2c); 9 = carrier lost; 7 or any other non-zero = comms error. (Was
+     * inverted: treated 7 as the success/ack path.) */
     switch (g_read_req->io.io_Error) {
-    case CNET_ERR_EXPECTED:                 /* 7 — normal: ack is meaningful */
-        return REQ_SERFLAGS(g_read_req);    /* +0x2c holds the ack byte      */
-
-    case CNET_ERR_CARRIER:                  /* 9 */
-        show_status_message(0x42, "Carrier lost");
-        set_connection_error(9);
-        return ACK_OK;                      /* != caller's success path      */
-
-    case CNET_ERR_OK:                       /* 0 — classify the ack byte     */
+    case 0:                                 /* success — classify the ack byte */
         ack = REQ_SERFLAGS(g_read_req);     /* +0x2c */
-        if (ack == ACK_ERR) {               /* 'B' */
+        if (ack == ACK_ERR) {               /* 'B' — error with message */
             show_status_message(0x42, status_text);
             set_connection_error(0x42);
             return ACK_OK;
         }
-        if (ack == ACK_MSG) {               /* 'A' */
+        if (ack == ACK_MSG) {               /* 'A' — accepted with message */
             show_status_message(0x41, status_text);
             return ACK_MSG;
         }
-        return ACK_OK;                      /* '@' or other -> as accepted   */
+        return ACK_OK;                      /* '@' (0x40) or other -> accepted */
 
-    default:
+    case 9:                                 /* carrier lost */
+        show_status_message(0x42, "Carrier lost");
+        set_connection_error(9);
+        return ACK_OK;
+
+    default:                                /* 7 or any other non-zero -> comms error */
         show_status_message(0x42, "Comms problem");
         set_connection_error(7);
         return ACK_OK;

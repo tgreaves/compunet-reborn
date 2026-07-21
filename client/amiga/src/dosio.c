@@ -90,9 +90,27 @@ void config_free(APTR buf)
         free_tracked(buf);
 }
 
+/* config_open_write — recon FUN_0011a3c6: Open(name, MODE_NEWFILE) and, on success,
+ * register a tracked Close (recon 0x11a3ea) so cleanup unwinds the file handle. */
+extern void resource_register_free(void (*fn)(), APTR arg1, APTR arg2);
+extern void resource_unregister(void (*fn)(), APTR arg1);
+static void close_bptr(APTR fh){ if (fh) Close((BPTR)fh); }
 APTR config_open_write(const char *name)
 {
-    return (APTR)Open((STRPTR)name, MODE_NEWFILE);
+    APTR fh = (APTR)Open((STRPTR)name, MODE_NEWFILE);
+    if (fh != NULL)
+        resource_register_free((void (*)())close_bptr, fh, 0);
+    return fh;
+}
+
+/* config_close_write — recon FUN_0011a3fe: Close the handle AND remove its tracker node
+ * (so the exit-time cleanup doesn't double-close it). Pairs with config_open_write. */
+void config_close_write(APTR fh)
+{
+    if (fh) {
+        Close((BPTR)fh);
+        resource_unregister((void (*)())close_bptr, fh);
+    }
 }
 
 /*

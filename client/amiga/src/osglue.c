@@ -33,10 +33,16 @@ APTR open_dos_library(void)
     return DOSBase;
 }
 
-/* open_library_checked — recon FUN_0011a290: OpenLibrary + track. */
+/* open_library_checked — recon FUN_0011a290: OpenLibrary, and on success register a
+ * tracked CloseLibrary so cleanup_resources unwinds it (recon 0x11a2b4: register
+ * CloseLibrary(lib)). The bare OpenLibrary left opened libraries untracked. */
+extern void resource_register_free(void (*fn)(), APTR arg1, APTR arg2);
 APTR open_library_checked(const char *name, ULONG ver)
 {
-    return (APTR)OpenLibrary((STRPTR)name, ver);
+    APTR lib = (APTR)OpenLibrary((STRPTR)name, ver);
+    if (lib != NULL)
+        resource_register_free((void (*)())CloseLibrary, lib, 0);
+    return lib;
 }
 
 /* put_msg — send the editor startup message (recon thunk_FUN_001290f4 = PutMsg). */

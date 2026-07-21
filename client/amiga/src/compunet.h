@@ -82,15 +82,18 @@ struct CnetRequest {
 /* ------------------------------------------------------------------ *
  *  Transport layer — cnet.device serial I/O
  * ------------------------------------------------------------------ *
- * io_Error values observed on the request:
- *   7  = expected/normal completion       (recon: '\a')
- *   9  = carrier lost                      (recon: '\t')
- *   0  = ok / no error
- * anything else is treated as "Comms problem".
+ * io_Error values on the request (read at +0x1f). VERIFIED against the relocated
+ * disasm of serial_read (0x119744) and serial_io_c (0x119834):
+ *   0  = SUCCESS (raw I/O completes; serial_io_c then classifies the ack byte)
+ *   9  = carrier lost           -> "Carrier lost",  set_connection_error(9)
+ *   7  = comms error            -> "Comms problem", set_connection_error(7)
+ *   any other non-zero          -> also "Comms problem"
+ * (An earlier reconstruction wrongly documented 7 as "expected/normal" and treated
+ * it as success — the disassembly shows 7 is the error path.)
  */
-#define CNET_ERR_OK        0
-#define CNET_ERR_EXPECTED  7   /* normal completion */
+#define CNET_ERR_OK        0   /* success */
 #define CNET_ERR_CARRIER   9   /* carrier lost */
+#define CNET_ERR_COMMS     7   /* comms error */
 
 /* Transport request/port state (was g_read_req/g_write_req/g_device_port etc). */
 extern struct CnetRequest *g_read_req;   /* read  request (CMD_READ)  */
@@ -213,8 +216,20 @@ APTR build_menu_strip(APTR spec);                 /* was FUN_0011b000 */
  *  Client global state (the DAT_* the modules share). Defined in globals.c.
  *  Names reflect their observed role; see recon_annotated.c for raw addresses.
  * ------------------------------------------------------------------ */
-extern char   g_phone_number[];  /* DAT_00120108 — modem dial string       */
-extern LONG   g_baud_setting;    /* DAT_00120118 — configured link rate     */
+/* The single config block (globals.c). The original keeps phone/baud/flags/userid in
+ * ONE 0x36-byte record at 0x120108; these accessors alias into it at the verified
+ * field offsets so config-file load/save, the device baud, and the Settings dialog all
+ * share the same memory (recon: save writes 0x36 bytes from 0x120108; open_transport
+ * reads baud from block+0x24). */
+extern UBYTE  g_config[];        /* DAT_00120108 — the 0x36-byte config block */
+#define g_phone_number  ((char  *)(g_config + 0x00)) /* DAT_00120108 dial string   */
+#define g_baud_setting  (*(LONG  *)(g_config + 0x10)) /* DAT_00120118 link rate     */
+#define g_modem_name    ((char  *)(g_config + 0x14)) /* DAT_0012011c modem name    */
+#define g_baud_up       (*(UWORD *)(g_config + 0x24)) /* DAT_0012012c 75            */
+#define g_baud_down     (*(UWORD *)(g_config + 0x26)) /* DAT_0012012e 1200          */
+#define g_open_flags    (*(UWORD *)(g_config + 0x28)) /* DAT_00120130 OpenDevice fl */
+#define g_data_bits     (*(UWORD *)(g_config + 0x2a)) /* DAT_00120132 data bits     */
+#define g_cfg_userid    ((char  *)(g_config + 0x2c)) /* DAT_00120134 userid        */
 extern UWORD  g_state;           /* DAT_0011d070 — connection state enum    */
 extern UWORD  g_online;          /* DAT_0011d074 — online flag              */
 extern APTR   g_dir_page;        /* DAT_0011d07c — current directory page   */

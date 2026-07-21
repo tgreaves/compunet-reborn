@@ -81,6 +81,20 @@ Building vbcc from source on macOS + assembling the KS1.3 headers, used to compi
    2.0+ format. The 1.3 loader doesn't understand it and refuses the binary with
    **AmigaDOS error 121 ("... is not an object module")**. `-Rstd` emits classic
    `RELOC32` (`0x3ec`) hunks, which load on 1.3. (The executable is a little larger.)
+6. **Link with `minstart.o`, NOT the full `startup.o` (required for a KS1.3 boot).**
+   In `$VBCC/config/kick13`, change the `-ld` and `-ldv` lines to use
+   `targets/m68k-amigaos/lib/minstart.o` instead of `.../startup.o`:
+   ```
+   -ld=vlink ... -mrel <libdir>/minstart.o %s %s -L<libdir> -lvc -o %s
+   -ldv=vlink ... -mrel <libdir>/minstart.o %s %s -L<libdir> -lvc -o %s
+   ```
+   vbcc's full `startup.o` (its CLI/DOS/argv init) **gurus on Kickstart 1.3** — proven
+   by a do-nothing colour-flasher: linked with `startup.o` it gurus identically before
+   `main()`; linked with `minstart.o` it runs. `minstart.o` sets `_SysBase`, calls
+   `main()`, and its `exit()` restores the entry stack pointer and returns to DOS.
+   It does **not** open dos.library, so the reconstruction defines `DOSBase` itself
+   (globals.c) and opens it first thing in `main()` (open_dos_library). See
+   [../../src/startup.c] and the boot-debug memory note.
 
 Compile a reconstruction module:
 ```

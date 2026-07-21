@@ -48,6 +48,20 @@ small-data model, a5 stack frames, fully stripped (no symbols). See
    not auto-create references for some `disp(a4)` string loads; maps strings →
    referencing functions.
 
+## Verifying a reconstruction against the original
+
+- **`disasm_fn.py <name|0xADDR>`** — dump a function's **correctly-relocated** m68k
+  disassembly from `compunet_flat.bin` (the ground truth the CPU executes: real
+  offsets, constants, and `jsr -$NN(a6)` annotated with the OS call). Add `--our` to
+  also compile our reconstruction (`vc -S`) and print it beside the original for
+  eyeball comparison. This is the reliable check — the bugs this project hits
+  (SetWindowTitles arg order, editor msg+0x14 command offset, menu-table field widths,
+  the g_data ×4 type mismatch) are all cases where reading the *lossy Ghidra decompile*
+  misled us; a relocated disassembly is 1:1 with the binary. NOTE: for a foreign
+  binary (e.g. `decrunched/CnetEditor`) always `flatten.py` it FIRST — disassembling
+  un-relocated hunk bytes decodes garbage (mid-instruction / `jmp $0`).
+  Requires `$VBCC` for the `--our` side.
+
 ## Current outputs (checked in)
 
 - `recon.c` — decompiled C, all 781 functions, with confirmed names baked in

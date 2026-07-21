@@ -36,16 +36,23 @@ ULONG               g_device_sig  = 0;
 ULONG               g_read_sig    = 0;
 ULONG               g_write_sig   = 0;
 
-/* ---- Serial parameters loaded from config (recon 0x12012c-0x120130) ---- */
-UWORD  g_baud_up     = 0x4b;    /* 75   */
-UWORD  g_baud_down   = 0x4b0;   /* 1200 */
-UWORD  g_dev_param2e = 0;
-ULONG  g_open_flags  = 4;
 struct Device *g_cnet_device = NULL;
+UWORD  g_dev_param2e = 0;        /* DAT_0012012e-ish device param scratch (not in block) */
+
+/* ---- THE config block — the single 0x36-byte record at recon 0x120108 ----
+ * In the original this ONE block is: loaded from / saved to cnet-configuration
+ * verbatim (0x36 bytes), read by open_transport for the device baud (block+0x24),
+ * and edited by the Settings dialog. The reconstruction previously split it into
+ * separate g_phone_number / g_baud_up / g_baud_down / g_baud_setting / g_open_flags
+ * globals that nothing kept in sync (so config-file baud never reached the device).
+ * They are now ACCESSOR MACROS into g_config (see compunet.h), so all consumers
+ * share this one memory exactly as the original does. Field layout (block+offset):
+ *   +0x00 char[16] phone   +0x10 LONG baud_setting  +0x14 char[16] modem
+ *   +0x24 UWORD baud_up     +0x26 UWORD baud_down    +0x28 UWORD open_flags
+ *   +0x2a UWORD data_bits   +0x2c char[..] userid */
+UBYTE  g_config[0x36];
 
 /* ---- Connection / session state ---- */
-char   g_phone_number[64];      /* DAT_00120108 */
-LONG   g_baud_setting = 0;      /* DAT_00120118 */
 UWORD  g_state        = 0;      /* DAT_0011d070 */
 UWORD  g_online       = 0;      /* DAT_0011d074 */
 UWORD  g_state_shadow = 0xffff; /* DAT_0011d46e */
@@ -57,13 +64,10 @@ APTR   g_frame_page   = NULL;   /* DAT_0011d078 */
 char   g_cmd_buf[256];          /* DAT_00121588 — shared command buffer */
 char   g_ack_text[64];          /* DAT_0012021a — status text passed to acks */
 
-/* ---- Login record fields ---- */
+/* ---- Login record fields (separate buffers at 0x120244, filled from config) ---- */
 char   g_login_userid[16];      /* DAT_00120244 */
 char   g_login_scratch[16];     /* DAT_0012024d */
 UBYTE  g_frame_indent = 0;      /* placeholder for DAT_0011d078 indent check */
-
-/* ---- Config block (0x36 bytes, recon &DAT_00120108 aliases the head) ---- */
-UBYTE  g_config[0x36];
 
 /* ---- Frame display state (recon 0x1203a0-0x1203bb, 0x120258, charset) ---- */
 UBYTE *g_font_base = NULL;      /* 0x120258 */

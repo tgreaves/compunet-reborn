@@ -24,10 +24,10 @@
  *   g_dev_name_param : string param stored in the request (+0x2e region)
  *   g_baud_up/g_baud_down : 75 / 1200 (DAT_0012012c / DAT_0012012e)
  *   g_open_flags     : OpenDevice flags (DAT_00120130); bit 1 passed to OpenDevice */
-extern UWORD  g_baud_up;       /* was DAT_0012012c = 0x4b  (75)   */
-extern UWORD  g_baud_down;     /* was DAT_0012012e = 0x4b0 (1200) */
-extern UWORD  g_dev_param2e;   /* was DAT_0012012c-adjacent config word at req+0x2e */
-extern ULONG  g_open_flags;    /* was DAT_00120130 */
+/* g_baud_up / g_baud_down / g_open_flags are now accessor macros into g_config
+ * (compunet.h) — the single config block, so the device baud comes straight from the
+ * loaded/edited config, matching the original (open_transport reads block+0x24). */
+extern UWORD  g_dev_param2e;   /* config word written to the request at +0x2e */
 extern struct Device *g_cnet_device;  /* was DAT_001230a4 (req->io_Device after open) */
 
 char open_transport(void)

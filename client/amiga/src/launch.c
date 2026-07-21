@@ -14,10 +14,22 @@
  */
 #include <exec/types.h>
 #include <clib/exec_protos.h>
+#include <clib/dos_protos.h>
 #include <intuition/intuition.h>
 #include <clib/graphics_protos.h>
 
 #include "compunet.h"
+
+/* TEMP debug: print a line to the boot Shell (DOS Output()). Visible before the custom
+ * screen opens and after (Shell stays alive underneath). Non-static so other modules
+ * can call it. Remove with its callers once the feature under test is stable. */
+void dbg(const char *s)
+{
+    BPTR out = Output();
+    const char *p = s; ULONG n = 0;
+    while (p[n]) n++;
+    if (out) { Write(out, (APTR)s, (LONG)n); Write(out, (APTR)"\n", 1); }
+}
 
 /* Library bases (defined in globals.c). */
 extern APTR IntuitionBase;
@@ -42,8 +54,14 @@ extern APTR  g_edit_msgport;  /* DAT_0012013e — editor message port (out)   */
 extern UBYTE *g_font_base;    /* DAT_00120258 — the built C64 font          */
 extern APTR  g_proc;          /* DAT_001200f0 — our Process (FindTask(NULL)) */
 
-/* Editor startup-message field accessors (see globals.c for the layout). */
+/* Editor startup-message field accessors (see globals.c for the layout).
+ * NOTE: msg+0x14 is the OPCODE/input byte the editor reads in its command loop;
+ * msg+0x15 is the STATUS byte the editor writes back. launch_editor must CLEAR +0x14
+ * (recon 0x10264c: clr.b msg+0x14) so the editor's first read sees opcode 0, then
+ * check +0x15 for readiness. (An earlier version cleared +0x15 and left +0x14
+ * uninitialised — the editor then received a garbage startup opcode.) */
 #define EMSG_REPLYPORT  (*(APTR *)(g_editor_msg + 0x0e))
+#define EMSG_OPCODE     (g_editor_msg[0x14])
 #define EMSG_STATUS     (g_editor_msg[0x15])
 #define EMSG_SCREEN     (*(APTR *)(g_editor_msg + 0x16))   /* in: screen / out: proc */
 #define EMSG_FONT       (*(APTR *)(g_editor_msg + 0x1a))   /* in: font  / out: owner  */
@@ -84,9 +102,11 @@ LONG launch_editor(void)
         return 0;
     }
 
-    /* Populate the startup message (recon fills these fields at $102646-$102660). */
+    /* Populate the startup message (recon fills these fields at $102646-$102660).
+     * Clear the OPCODE byte (+0x14) — recon 0x10264c clr.b msg+0x14 — so the editor's
+     * command loop reads opcode 0 (idle) on the startup message, not garbage. */
     EMSG_REPLYPORT = g_editor_port;
-    EMSG_STATUS    = 0;
+    EMSG_OPCODE    = 0;
     EMSG_SCREEN    = g_screen;
     EMSG_FONT      = (APTR)g_font_base;
     EMSG_CURDIR    = *(APTR *)((UBYTE *)g_proc + 0x98);   /* pr_CurrentDir */
