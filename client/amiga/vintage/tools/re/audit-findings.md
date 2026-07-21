@@ -198,9 +198,33 @@ fix below re-verified against the raw bytes before applying.
   which is actually an editor command (opcode 5), not a serial-param setter — separate
   invented-reconstruction to fix later.
 
+## TRANSPORT — audited + fixed this pass (disasm-verified)
+
+The byte-moving layer beneath connect/login. Each finding re-verified against the raw
+disasm before applying.
+
+- **[FIXED] serial_read (FUN_0011967c) — out-params swapped.** Original (0x11971c-0x119730)
+  delivers 3rd arg <- req[+0x2d] and 4th arg <- req[+0x2c] — the OPPOSITE of ours. Every
+  read caller got its two status bytes exchanged. Confirmed against read_frame_byte
+  (0x108026: &g_frame_eof is the 3rd arg, so g_frame_eof must come from req[+0x2d]). Fixed:
+  *out_ser_flags = REQ_STATUS (+0x2d), *out_status_hi = REQ_SERFLAGS (+0x2c).
+- **[FIXED] wait_for_completion device-drain — wrong field.** Original (0x1195f0/0x1196ee/
+  0x119806) does `clr.w (msg+0x14)` (WORD, io_Device hi word); ours wrote mn_ReplyPort (LONG
+  @+0xe). Fixed to `*(UWORD*)(msg+0x14)=0`. Shared by serial_write/read/io_c.
+- **[FIXED] serial_io_variant (FUN_0011998a, modem.c) — two fixes:** set_connection_error(9)
+  not (1) (recon 0x119a12 pea $9); and io_Length takes only the low word of len (param is
+  UWORD, recon 0x11999a move.w). (These were from the download-subsystem reconstruction.)
+- **[VERIFIED CLEAN] serial_write (FUN_0011956a):** g_write_req, io_Data +0x28 / io_Length
+  +0x24, +0x2c<-ser_flags / +0x2d<-status_hi, io_Command 3, wait mask write|device|extra,
+  io_Error 0/9/7 handling — all byte-exact.
+- **[VERIFIED CLEAN] serial_io_c (FUN_0011979e):** io_Command 0xb on g_read_req, ack byte
+  from +0x2c, io_Error classify (7/9/comms), 'B'/'A'/'@' dispatch with correct strings and
+  set_connection_error codes — byte-exact (aside from the shared clr.w fix above).
+- **[VERIFIED CLEAN] send_dat_packet (FUN_00108254):** serial_write(frame+0x16,
+  *(LONG*)(frame+0x12), 1, 0x22) — data/length offsets and TOKEN_DAT verified byte-exact.
+
 ## NOT YET AUDITED (agents stopped)
 
-transport.c (serial_write/read/io_c, send_dat_packet, report_result),
 ui.c / ui_state.c / ui_dialogs.c / menu.c / event_loop.c.
 
 Tooling: `disasm_fn.py <name|0xADDR> [--our]` (this dir) is the verified original-vs-ours

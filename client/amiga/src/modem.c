@@ -110,16 +110,16 @@ void modem_send_delayed(const char *data, ULONG len)
 extern void set_connection_error(int code);   /* longjmp FUN_00101638 */
 extern void show_status_message(UBYTE code, const char *text);
 
-void serial_io_variant(APTR buf, LONG len)
+void serial_io_variant(APTR buf, UWORD len)
 {
     g_read_req->io.io_Data    = (APTR)buf;
-    g_read_req->io.io_Length  = len;
+    g_read_req->io.io_Length  = len;             /* recon reads only low word of len */
     g_read_req->io.io_Command = CNET_CMD_READ;   /* 2 */
     SendIO((struct IORequest *)g_read_req);
     wait_read();
     if (((UBYTE *)g_read_req)[0x1f] == 9) {       /* io_Error == carrier lost */
         show_status_message(0x42, "Carrier lost");
-        set_connection_error(1);
+        set_connection_error(9);                  /* recon 0x119a12: pea $9 */
     }
 }
 

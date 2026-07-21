@@ -67,9 +67,9 @@ static void wait_for_completion(struct MsgPort *my_port, ULONG my_sig)
             msg = GetMsg(g_device_port);
             if (g_log_device_messages)
                 handle_device_message(msg);
-            /* original clears (msg + 0x14): the io_Device word of the returned
-             * request, used here as a scratch reset. */
-            ((struct IORequest *)msg)->io_Message.mn_ReplyPort = NULL;
+            /* recon 0x119806: clr.w (msg + 0x14) — clears the WORD at +0x14 (the high
+             * word of io_Device) as a scratch reset. NOT mn_ReplyPort (+0xe). */
+            *(UWORD *)((UBYTE *)msg + 0x14) = 0;
         }
 
         if (got & g_extra_sig)
@@ -122,8 +122,14 @@ LONG serial_read(APTR data, ULONG length,
     SendIO((struct IORequest *)g_read_req);
     wait_for_completion(g_read_port, g_read_sig);
 
-    *out_ser_flags = REQ_SERFLAGS(g_read_req);           /* +0x2c */
-    *out_status_hi = REQ_STATUS(g_read_req);             /* +0x2d */
+    /* recon 0x11971c-0x119730: the 3rd arg receives req[+0x2d] and the 4th arg receives
+     * req[+0x2c] — the OPPOSITE pairing to a naive read. An earlier reconstruction had
+     * these swapped, so every caller's two status bytes were exchanged (e.g. the frame
+     * end-of-data flag). Match the original exactly:
+     *   3rd param (out_ser_flags) <- req[+0x2d]  (REQ_STATUS)
+     *   4th param (out_status_hi) <- req[+0x2c]  (REQ_SERFLAGS) */
+    *out_ser_flags = REQ_STATUS(g_read_req);             /* +0x2d -> 3rd param */
+    *out_status_hi = REQ_SERFLAGS(g_read_req);           /* +0x2c -> 4th param */
     *out_actual    = g_read_req->io.io_Actual;           /* +0x20 */
 
     return report_result(g_read_req->io.io_Error);

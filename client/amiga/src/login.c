@@ -127,7 +127,7 @@ void send_login_record(void)
  *     (failure -> 0). Verified strings: 0x11d5ce "*con", 0x11d5d4 "@ okayxk",
  *     0x11d5de "NO CARRI", 0x11d5c0 "Carrier lost".
  */
-extern void  serial_io_variant(APTR buf, LONG len);   /* FUN_0011998a */
+extern void  serial_io_variant(APTR buf, UWORD len);  /* FUN_0011998a */
 extern char  g_hs_line[];        /* DAT_001201c4 */
 extern UWORD g_hs_line_len;      /* DAT_001201ee */
 extern UBYTE g_hs_read[];        /* DAT_001201f2 */
@@ -162,7 +162,7 @@ LONG wait_connect_handshake(void)
             chunk = status - got;
             if (chunk > 0x28) chunk = 0x28;
             got += chunk;
-            serial_io_variant(g_hs_read, (LONG)chunk);
+            serial_io_variant(g_hs_read, (UWORD)chunk);
 
             for (j = 0; j < chunk; j++) {
                 UBYTE c = g_hs_read[j] & 0x7f;

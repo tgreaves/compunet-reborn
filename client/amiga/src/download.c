@@ -636,7 +636,7 @@ LONG download_program(void)
  * loss the viewer returns 0 -> "Carrier lost" (host-error) + longjmp to disconnect.
  */
 extern LONG   modem_read_status(void);                  /* FUN_00119a60 */
-extern void   serial_io_variant(APTR buf, LONG len);    /* FUN_0011998a */
+extern void   serial_io_variant(APTR buf, UWORD len);   /* FUN_0011998a */
 extern void   modem_send_delayed(const char *s, ULONG len); /* FUN_001198e0 */
 extern UBYTE  g_link_char;                              /* DAT_001230bc */
 
