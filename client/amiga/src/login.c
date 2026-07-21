@@ -23,6 +23,7 @@
 #include <string.h>
 
 #include "compunet.h"
+#include "net.h"
 
 /* Connection-state enum values used by set_connection_state (recon DAT_0011d070). */
 #define STATE_OFFLINE     0
@@ -92,9 +93,16 @@ void send_login_record(void)
      * separate local array that was never sent, leaving rec[0x15..0x1a] uninitialised
      * garbage in the transmitted login record. */
     {
-        struct Device *dev = g_write_req->io.io_Device;
-        UWORD ver = *(UWORD *)((UBYTE *)dev + 0x14);
-        UWORD rev = *(UWORD *)((UBYTE *)dev + 0x16);
+        /* TCP mode has no cnet.device (g_write_req is NULL); use the cnet.device 2.1
+         * version/revision so the "AM21" terminal id + digits are still well-formed.
+         * (These bytes become the server's cnload hash check, which an Amiga client
+         * never matches anyway, so LINKING is simply not skipped.) */
+        UWORD ver = 2, rev = 1;
+        if (!g_tcp_mode) {
+            struct Device *dev = g_write_req->io.io_Device;
+            ver = *(UWORD *)((UBYTE *)dev + 0x14);
+            rev = *(UWORD *)((UBYTE *)dev + 0x16);
+        }
         rec[0x15] = 'A';
         rec[0x16] = 'M';
         rec[0x17] = '2';
@@ -204,8 +212,9 @@ LONG do_connect(void)
     ULONG actual;
     char  dial_msg[64];
 
-    /* Must be configured: phone number and a valid baud setting. */
-    if (g_phone_number[0] == '\0' || g_baud_setting == 0) {
+    /* Must be configured: either a TCPHOST server address (Reborn TCP), or a phone
+     * number + valid baud setting (legacy modem path). */
+    if (!net_host_configured() && (g_phone_number[0] == '\0' || g_baud_setting == 0)) {
         show_status_message(1, "Not set up");
         return 0;
     }
@@ -274,12 +283,17 @@ LONG do_connect(void)
 
     logon_window_ready();
 
-    /* Send the login record and wait for it to be accepted. */
-    ack = serial_io_c(g_ack_text);
-    if (ack != ACK_OK) {
-        close_connection_window();
-        close_logon_window();
-        return 0;
+    /* Pre-login host ack: the original Compunet PAD sent an initial ack after "*con",
+     * before the login record. The Reborn server instead waits for the login frame after
+     * *CON, so reading here would deadlock — skip it in TCP mode and go straight to the
+     * send-login loop below (which sends the record first, then reads the ack). */
+    if (!g_tcp_mode) {
+        ack = serial_io_c(g_ack_text);
+        if (ack != ACK_OK) {
+            close_connection_window();
+            close_logon_window();
+            return 0;
+        }
     }
 
     /* Poll the logon window; resend the login record until the host acks it. */

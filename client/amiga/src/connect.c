@@ -19,6 +19,7 @@
 #include <clib/exec_protos.h>
 
 #include "compunet.h"
+#include "net.h"
 
 /* Serial parameters, loaded from config at startup (recon globals):
  *   g_dev_name_param : string param stored in the request (+0x2e region)
@@ -32,6 +33,14 @@ extern struct Device *g_cnet_device;  /* was DAT_001230a4 (req->io_Device after 
 
 char open_transport(void)
 {
+    /* Reborn TCP transport: if a bsdsocket.library stack is present, use native TCP
+     * instead of cnet.device. net_open() creates the socket and sets g_tcp_mode; the
+     * actual connect() happens in dial_modem (net_connect) with the TCPHOST address.
+     * All the transport seams (serial_read/write/io_c, modem_*) branch on g_tcp_mode.
+     * If no stack is available, fall through to the original cnet.device path. */
+    if (net_open())
+        return XPORT_OK;
+
     resource_mark();                              /* thunk_FUN_0011a000 */
 
     /* Three reply ports: device, read-completion, write-completion. */

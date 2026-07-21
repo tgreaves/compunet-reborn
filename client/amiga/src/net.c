@@ -34,6 +34,7 @@ typedef struct fd_set fd_set;   /* incomplete — WaitSelect (unused) only */
  * and implement the calls). Keeps the build toolchain-patch-free on every host. */
 #define CLIB_SOCKET_PROTOS_H
 #include <proto/socket.h>
+#include <proto/dos.h>       /* for net_load_host: reads the TCPHOST config file */
 #include <string.h>
 
 #include "net.h"
@@ -122,6 +123,7 @@ BOOL net_open(void)
         net_close();
         return FALSE;
     }
+    g_tcp_mode = TRUE;      /* commit to TCP; the actual connect() is in net_connect */
     return TRUE;
 }
 
@@ -311,6 +313,56 @@ LONG net_recv_frame(UBYTE *out_token, UBYTE *out_seq, void *payload, ULONG maxle
     return plen;
 }
 
+/* ---- Reborn read model (streaming DAT frames, empty-DAT = EOS) ------------- */
+/* Retained frame remainder between calls, plus a 1-byte pushback for the ack peek. */
+static UBYTE g_rx_frame[NET_FRAME_MAX];   /* current frame's payload */
+static int   g_rx_have = 0;               /* bytes remaining in g_rx_frame */
+static int   g_rx_pos  = 0;               /* read cursor within g_rx_frame */
+static UBYTE g_rx_token = 0;              /* current/last frame token */
+static int   g_pb_valid = 0;              /* pushback byte present? */
+static UBYTE g_pb_byte  = 0;
+
+void net_unread_byte(UBYTE b)
+{
+    g_pb_byte  = b;
+    g_pb_valid = 1;
+}
+
+LONG net_read_stream(void *buf, ULONG maxlen, UBYTE *eof, UBYTE *token)
+{
+    UBYTE *out = (UBYTE *)buf;
+    ULONG  filled = 0;
+    UBYTE  seq;
+    LONG   plen;
+
+    if (eof) *eof = 0;
+
+    if (g_pb_valid && filled < maxlen) {   /* replay a pushed-back byte first */
+        out[filled++] = g_pb_byte;
+        g_pb_valid = 0;
+    }
+
+    while (filled < maxlen) {
+        if (g_rx_pos >= g_rx_have) {       /* need another frame */
+            plen = net_recv_frame(&g_rx_token, &seq, g_rx_frame, sizeof g_rx_frame);
+            if (plen < 0)
+                return (filled > 0) ? (LONG)filled : -1;
+            net_send_ack(seq);             /* flow control: server waits for this */
+            if (plen == 0) {               /* empty DAT frame = end-of-data */
+                if (eof) *eof = 1;
+                break;
+            }
+            g_rx_have = (int)plen;
+            g_rx_pos  = 0;
+        }
+        while (g_rx_pos < g_rx_have && filled < maxlen)
+            out[filled++] = g_rx_frame[g_rx_pos++];
+    }
+
+    if (token) *token = g_rx_token;
+    return (LONG)filled;
+}
+
 /* ---- Config host:port parse ------------------------------------------------ */
 UWORD net_parse_hostport(const char *cfg, char *host_out, int host_sz)
 {
@@ -334,4 +386,44 @@ UWORD net_parse_hostport(const char *cfg, char *host_out, int host_sz)
             port = p;
     }
     return port;
+}
+
+/*
+ * net_load_host — read the server address from the TCPHOST config file (the phone-number
+ * config field is only ~15 bytes, too small for a hostname). Looks in the current dir,
+ * then ENV:, then S:. Writes host into host_out (host_sz) and the port into *port.
+ * Returns TRUE if a non-empty host was read. Uses the client's DOSBase (globals.c).
+ */
+LONG net_load_host(char *host_out, int host_sz, UWORD *port)
+{
+    char  cfg[128];
+    BPTR  fh;
+    LONG  n;
+    int   i;
+
+    fh = Open("TCPHOST", MODE_OLDFILE);
+    if (fh == 0) fh = Open("ENV:CompunetHost", MODE_OLDFILE);
+    if (fh == 0) fh = Open("S:TCPHOST", MODE_OLDFILE);
+    if (fh == 0) return FALSE;
+
+    n = Read(fh, cfg, sizeof cfg - 1);
+    Close(fh);
+    if (n <= 0) return FALSE;
+    cfg[n] = '\0';
+    for (i = (int)n - 1; i >= 0 && (cfg[i] == '\n' || cfg[i] == '\r' ||
+                                    cfg[i] == ' '  || cfg[i] == '\t'); i--)
+        cfg[i] = '\0';
+    if (cfg[0] == '\0') return FALSE;
+
+    *port = net_parse_hostport(cfg, host_out, host_sz);
+    return host_out[0] != '\0';
+}
+
+/* net_host_configured — TRUE if a TCPHOST server address is available (used to gate the
+ * "Not set up" check so a TCP client works without a dial-string in the config). */
+LONG net_host_configured(void)
+{
+    char  host[128];
+    UWORD port;
+    return net_load_host(host, sizeof host, &port);
 }

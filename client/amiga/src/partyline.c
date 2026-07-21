@@ -26,6 +26,7 @@
 #include <clib/intuition_protos.h>
 
 #include "compunet.h"
+#include "net.h"
 
 extern APTR  g_screen;        /* DAT_001200f8 */
 extern APTR  g_main_uport;    /* DAT_00120100 — main window UserPort */
@@ -73,10 +74,13 @@ void partyline_open(void)
     set_menu_strip_tracked(w, g_menu_pair[0]);
     set_wait_pointer();
 
-    /* Prime the device: io_Command 10 opens the partyline stream. */
-    g_write_req->io.io_Data    = (APTR)g_device_port;   /* +0x28 (recon literal) */
-    g_write_req->io.io_Command = 10;                     /* +0x1c */
-    DoIO((struct IORequest *)g_write_req);
+    /* Prime the device: io_Command 10 opens the partyline stream. (No cnet.device in
+     * TCP mode; partyline-over-TCP is not yet handled, so skip the device priming.) */
+    if (!g_tcp_mode) {
+        g_write_req->io.io_Data    = (APTR)g_device_port;   /* +0x28 (recon literal) */
+        g_write_req->io.io_Command = 10;                     /* +0x1c */
+        DoIO((struct IORequest *)g_write_req);
+    }
     g_party_active = 1;
 }
 
@@ -88,6 +92,11 @@ void logon_window_ready(void)
 {
     if (CFG_OPENFLAGS & 4)
         partyline_open();
+
+    /* io_Command 9 (+0x2c=1) switched cnet.device into framed read mode ("login record
+     * ready"). net_read_stream is always framed, so this is implicit in TCP mode. */
+    if (g_tcp_mode)
+        return;
 
     REQ_SERFLAGS(g_write_req)  = 1;    /* +0x2c io_Offset[0] */
     g_write_req->io.io_Command = 9;    /* +0x1c */

@@ -45,8 +45,27 @@ LONG net_recv_frame(UBYTE *out_token, UBYTE *out_seq,
                     void *payload, ULONG maxlen);  /* read one frame; payload len, -1 err */
 LONG net_send_ack(UBYTE seq);                      /* send a $20 ACK frame for seq */
 
+/*
+ * Reborn read model (see cnet-device-re.md). The Amiga device ended a read on a
+ * token&$40 terminal frame; the Reborn server instead streams DAT frames (token $22)
+ * and marks end-of-data with an empty DAT frame. net_read_stream reproduces what
+ * cnet.device's $1017fa handed the client, sourced from the Reborn wire model:
+ *   - accumulate DAT-frame payloads into buf (up to maxlen), ACKing each frame ($20);
+ *   - on an empty DAT frame (payload 0) set *eof = 1 (end-of-data) and stop;
+ *   - if buf fills first, *eof = 0 (more pending) and the frame remainder is retained
+ *     for the next call.
+ * *token receives the last frame's token. Returns bytes delivered, or -1 on error.
+ */
+LONG net_read_stream(void *buf, ULONG maxlen, UBYTE *eof, UBYTE *token);
+void net_unread_byte(UBYTE b);   /* push one byte back so the next read returns it first */
+
 /* Config: parse the repurposed phone-number field "host" or "host:port". Writes the
  * host into host_out (host_sz) and returns the port (REBORN_DEFAULT_PORT if none). */
 UWORD net_parse_hostport(const char *cfg, char *host_out, int host_sz);
+
+/* Read the server address from the TCPHOST file (current dir / ENV: / S:). The config
+ * phone field is too small (~15 bytes) for a hostname, so the host lives in a file. */
+LONG  net_load_host(char *host_out, int host_sz, UWORD *port);
+LONG  net_host_configured(void);   /* TRUE if a TCPHOST address is available */
 
 #endif /* NET_H */

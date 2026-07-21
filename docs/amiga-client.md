@@ -41,7 +41,7 @@ The Compunet client components — identified both by name and by what the decru
 | `Registration` | 1 KB | PowerPacker data → **decrunched** | Registration / demo-login text |
 | `Frames/test.frame` | 557 B | binary | Sample frame for the editor |
 | `devs/cnet_modems/*` | — | text | Hayes modem init scripts |
-| `cnet-configuration` | 54 B | binary | Saved config: user ID `019975422`, modem `linnet_1200`, `NEW-USER` |
+| `cnet-configuration` | 54 B | binary | Saved config: phone `019975422` (dial string, `+0x00`), modem `linnet_1200`, user ID `NEW-USER` (`+0x2c`) |
 
 `Converse` (a standalone ARexx utility), `serial.device` (the stock Amiga device
 that `cnet.device` wraps), `Access!`/`access!me`, and `supertex`/`stex` are **not**
@@ -126,8 +126,9 @@ The `cnet_modems` scripts use the format `detect,speed:rx:tx:AT-init`. The Compu
 The `75,1200` line is the **1275 split-baud** mode (75 baud up / 1200 baud down)
 that was Compunet's signature line rate — the same asymmetric link the C64
 "brick" modem used. A dedicated `dumb_1275` driver is also present. The saved
-`cnet-configuration` selects `linnet_1200` with a 9-digit Compunet user ID and the
-`NEW-USER` account, matching the Compunet login model.
+`cnet-configuration` selects `linnet_1200` with the 9-digit dial number `019975422`
+(`+0x00`) and the `NEW-USER` demo account as the user ID (`+0x2c`), matching the
+Compunet login model.
 
 ## Feasibility — paths to an Amiga Reborn client
 

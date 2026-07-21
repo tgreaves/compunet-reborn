@@ -24,6 +24,7 @@
 #include <clib/dos_protos.h>
 
 #include "compunet.h"
+#include "net.h"
 
 #define CNET_CMD_WRITE_M  3
 #define CNET_CMD_DIAL     0xc
@@ -70,6 +71,17 @@ static void wait_read(void)
  */
 LONG dial_modem(char *number)
 {
+    /* TCP: "dialling" is a socket connect() to the TCPHOST address (there is no modem
+     * dial). Returns TRUE on a successful connection, like the modem path. */
+    if (g_tcp_mode) {
+        char  host[128];
+        UWORD port;
+        (void)number;
+        if (!net_load_host(host, sizeof host, &port))
+            return 0;
+        return net_connect(host, port) ? 1 : 0;
+    }
+
     g_write_req->io.io_Data    = (APTR)number;
     g_write_req->io.io_Command = CNET_CMD_DIAL;
     DoIO((struct IORequest *)g_write_req);
@@ -82,6 +94,13 @@ LONG dial_modem(char *number)
  */
 ULONG modem_read_status(void)
 {
+    /* TCP: bytes-waiting via net_avail (FIONREAD); -1 signals carrier lost (socket
+     * closed), matching the modem status convention the handshake loop expects. */
+    if (g_tcp_mode) {
+        LONG a = net_avail();
+        return (a < 0) ? (ULONG)-1 : (ULONG)a;
+    }
+
     g_read_req->io.io_Command = CNET_CMD_STATUS;
     SendIO((struct IORequest *)g_read_req);
     wait_read();
@@ -94,6 +113,12 @@ ULONG modem_read_status(void)
  */
 void modem_send_delayed(const char *data, ULONG len)
 {
+    /* TCP: raw send (the "C CNET" identification etc. cross the wire unframed). */
+    if (g_tcp_mode) {
+        net_send_raw(data, len);
+        return;
+    }
+
     g_write_req->io.io_Data    = (APTR)data;
     g_write_req->io.io_Length  = len;
     g_write_req->io.io_Command = CNET_CMD_WRITE_M;
@@ -112,6 +137,23 @@ extern void show_status_message(UBYTE code, const char *text);
 
 void serial_io_variant(APTR buf, UWORD len)
 {
+    /* TCP: raw read of exactly len bytes (handshake path; the caller only asks for as
+     * many bytes as modem_read_status reported available, so recv won't block long). */
+    if (g_tcp_mode) {
+        UBYTE *p = (UBYTE *)buf;
+        ULONG  got = 0;
+        while (got < len) {
+            LONG n = net_recv_raw(p + got, (ULONG)len - got);
+            if (n <= 0) {
+                show_status_message(0x42, "Carrier lost");
+                set_connection_error(9);
+                return;
+            }
+            got += (ULONG)n;
+        }
+        return;
+    }
+
     g_read_req->io.io_Data    = (APTR)buf;
     g_read_req->io.io_Length  = len;             /* recon reads only low word of len */
     g_read_req->io.io_Command = CNET_CMD_READ;   /* 2 */
@@ -130,6 +172,11 @@ void serial_io_variant(APTR buf, UWORD len)
  */
 void link_viewer_exit(void)
 {
+    /* TCP: this set cnet.device's read mode (raw vs framed); net_read_stream is always
+     * framed, so there is nothing to switch. No-op. */
+    if (g_tcp_mode)
+        return;
+
     ((UBYTE *)g_write_req)[0x2c] = 1;
     g_write_req->io.io_Command = 9;
     DoIO((struct IORequest *)g_write_req);

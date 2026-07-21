@@ -34,6 +34,10 @@ echo "== building nettest (TCP/IP connectivity smoke test) =="
 [ -f "$SRC/nettest" ] || { echo "build produced no nettest"; exit 1; }
 
 echo "== assembling $HDD =="
+# Preserve a TCPHOST address across the wipe (rm -rf below would otherwise delete it,
+# defeating the "keep existing" seed check).
+SAVED_TCPHOST=""
+[ -f "$HDD/TCPHOST" ] && SAVED_TCPHOST=$(cat "$HDD/TCPHOST")
 rm -rf "$HDD"
 mkdir -p "$HDD/devs/cnet_modems" "$HDD/s"
 
@@ -42,9 +46,11 @@ cp "$SRC/nettest"                  "$HDD/nettest"
 cp "$VINTAGE/devs/cnet.device"     "$HDD/devs/cnet.device"
 cp "$VINTAGE/cnet-configuration"   "$HDD/cnet-configuration"
 
-# Seed a TCPHOST placeholder for the connectivity test (nettest reads it). Preserve
-# an existing one so a real address you set isn't clobbered on rebuild.
-if [ ! -f "$HDD/TCPHOST" ]; then
+# TCPHOST address for nettest and the client. Restore a preserved one, else seed a
+# placeholder. (nettest and Compunet both read this file for the server address.)
+if [ -n "$SAVED_TCPHOST" ]; then
+    printf '%s\n' "$SAVED_TCPHOST" > "$HDD/TCPHOST"
+elif [ ! -f "$HDD/TCPHOST" ]; then
     printf 'CHANGE-ME:6400\n' > "$HDD/TCPHOST"
 fi
 

@@ -2572,25 +2572,43 @@ async def tcp_handler(reader, writer):
                     printable_field = ''.join(chr(b) if 32 <= b < 127 else f'[{b:02X}]' for b in field)
                     log.info('TCP:   field[%d]: %r (%s)', i, printable_field, field.hex())
                 
+                # Classify the client. C64/Reborn identify with "{hash}/100" (contains
+                # '/'); the native Amiga client sends "C CNET\r" TWICE plus a 14-zero
+                # field and has NO '/'. The client may deliver these in separate TCP
+                # segments (the two "C CNET" lines, then a 5s pause, then the zeros), so
+                # wait until we can actually tell them apart rather than judging a partial
+                # identification. Detecting Amiga lets us skip the C64 hash gate + LINKING;
+                # this is harmless to C64 clients (their field[1] always carries '/').
+                ident_blob = bytes(rx_buffer)
+                has_slash = b'/' in ident_blob
+                is_amiga  = (ident_blob.count(b'CNET') >= 2
+                             or b'00000000000000' in ident_blob)
+                if not has_slash and not is_amiga:
+                    continue   # identification incomplete — keep buffering
+
+                session.is_amiga = is_amiga
                 ident_received = True
                 rx_buffer.clear()
 
-                # Check client version (field[1] = "{hash}/100")
-                field1 = fields[1].decode('ascii', errors='ignore').strip() if len(fields) > 1 else ''
-                client_hash = field1.split('/')[0] if '/' in field1 else ''
-                client_version_path = os.path.join(CFG_DIR, 'client_version.txt')
-                if os.path.exists(client_version_path):
-                    expected_hash = open(client_version_path).read().strip().upper()
-                    if not client_hash or client_hash.upper() != expected_hash:
-                        log.warning('TCP: client version mismatch: got=%r expected=%s',
-                                    client_hash, expected_hash)
-                        # Send error message and close
-                        msg = b'*PLEASE DOWNLOAD LATEST CLIENT\x0d'
-                        writer.write(msg)
-                        await writer.drain()
-                        await asyncio.sleep(3.0)
-                        writer.close()
-                        return
+                if is_amiga:
+                    log.info('TCP: *** Amiga client detected — skipping hash check + LINKING ***')
+                else:
+                    # Check client version (field[1] = "{hash}/100") — C64/Reborn clients.
+                    field1 = fields[1].decode('ascii', errors='ignore').strip() if len(fields) > 1 else ''
+                    client_hash = field1.split('/')[0] if '/' in field1 else ''
+                    client_version_path = os.path.join(CFG_DIR, 'client_version.txt')
+                    if os.path.exists(client_version_path):
+                        expected_hash = open(client_version_path).read().strip().upper()
+                        if not client_hash or client_hash.upper() != expected_hash:
+                            log.warning('TCP: client version mismatch: got=%r expected=%s',
+                                        client_hash, expected_hash)
+                            # Send error message and close
+                            msg = b'*PLEASE DOWNLOAD LATEST CLIENT\x0d'
+                            writer.write(msg)
+                            await writer.drain()
+                            await asyncio.sleep(3.0)
+                            writer.close()
+                            return
 
                 # Send MOTD (if present) before *CON
                 # Each line must start with '*' to activate client display.
@@ -2742,35 +2760,41 @@ async def tcp_handler(reader, writer):
                             await writer.drain()
                             log.info('TCP: sent welcome frame (%d bytes + EOS)', len(response))
 
-                        # LINKING: send terminal binary or header-only (if client is current)
-                        terminal_path = os.path.join(CFG_DIR, 'terminal.bin')
-                        linking_header = bytes([TERMINAL_HASH[0], TERMINAL_HASH[1],
-                                               0x05, 0xA0, 0x00, 0xA0, 0x00, 0x00])
-                        if not skip_linking and os.path.exists(terminal_path):
-                            with open(terminal_path, 'rb') as f:
-                                terminal_data = f.read()
-                            linking_stream = linking_header + terminal_data
+                        # LINKING: the native Amiga client has its own terminal and does
+                        # NOT load 6502 code, so skip LINKING entirely for it (sending even
+                        # a header-only stream would desync its frame reader). C64/Reborn
+                        # clients get the terminal binary or header-only stream as before.
+                        if getattr(session, 'is_amiga', False):
+                            log.info('LINKING: skipped (Amiga native client)')
                         else:
-                            # Header + 1 padding byte — avoids EOS pre-fetch timeout.
-                            # The 1 byte writes $00 to $A000 but the hash PLA overwrites it after.
-                            linking_stream = linking_header + b'\x00'
-                            if skip_linking:
-                                log.info('LINKING: skipped (client has current terminal)')
-                        MAX_PAYLOAD = 100
-                        offset = 0
-                        pkt_num = 0
-                        while offset < len(linking_stream):
-                            chunk = linking_stream[offset:offset + MAX_PAYLOAD]
-                            pkt = x25.make_data_packet(chunk, TOKEN_DAT)
-                            await send_pkt_with_ack(pkt)
-                            pkt_num += 1
-                            offset += MAX_PAYLOAD
-                        eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
-                        writer.write(eos_pkt)
-                        await writer.drain()
-                        if not skip_linking:
-                            log.info('LINKING: sent terminal (%d bytes, %d packets)',
-                                     len(linking_stream), pkt_num)
+                            terminal_path = os.path.join(CFG_DIR, 'terminal.bin')
+                            linking_header = bytes([TERMINAL_HASH[0], TERMINAL_HASH[1],
+                                                   0x05, 0xA0, 0x00, 0xA0, 0x00, 0x00])
+                            if not skip_linking and os.path.exists(terminal_path):
+                                with open(terminal_path, 'rb') as f:
+                                    terminal_data = f.read()
+                                linking_stream = linking_header + terminal_data
+                            else:
+                                # Header + 1 padding byte — avoids EOS pre-fetch timeout.
+                                # The 1 byte writes $00 to $A000 but the hash PLA overwrites it after.
+                                linking_stream = linking_header + b'\x00'
+                                if skip_linking:
+                                    log.info('LINKING: skipped (client has current terminal)')
+                            MAX_PAYLOAD = 100
+                            offset = 0
+                            pkt_num = 0
+                            while offset < len(linking_stream):
+                                chunk = linking_stream[offset:offset + MAX_PAYLOAD]
+                                pkt = x25.make_data_packet(chunk, TOKEN_DAT)
+                                await send_pkt_with_ack(pkt)
+                                pkt_num += 1
+                                offset += MAX_PAYLOAD
+                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                            writer.write(eos_pkt)
+                            await writer.drain()
+                            if not skip_linking:
+                                log.info('LINKING: sent terminal (%d bytes, %d packets)',
+                                         len(linking_stream), pkt_num)
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it

@@ -25,6 +25,7 @@
 #include <stddef.h>   /* offsetof */
 
 #include "compunet.h"
+#include "net.h"
 
 /*
  * Compile-time proof that our struct models the same bytes the original touched.
@@ -100,6 +101,13 @@ static LONG report_result(BYTE io_error)
 
 LONG serial_write(APTR data, ULONG length, UBYTE status_hi, UBYTE ser_flags)
 {
+    /* TCP: ser_flags is the protocol token (TOKEN_DAT $22 / TOKEN_COM $43). Build the
+     * X.25 frame and send it over the socket (net.c does framing/CRC/stuffing). */
+    if (g_tcp_mode) {
+        (void)status_hi;
+        return (net_send_frame(ser_flags, data, length) < 0) ? 0 : 1;
+    }
+
     g_write_req->io.io_Data    = data;
     g_write_req->io.io_Length  = length;
     REQ_SERFLAGS(g_write_req)  = ser_flags;   /* +0x2c */
@@ -115,6 +123,22 @@ LONG serial_write(APTR data, ULONG length, UBYTE status_hi, UBYTE ser_flags)
 LONG serial_read(APTR data, ULONG length,
                  UBYTE *out_ser_flags, UBYTE *out_status_hi, ULONG *out_actual)
 {
+    /* TCP: accumulate DAT-frame payloads (ACKing each), map the device's outputs
+     * (cnet-device-re.md): out_ser_flags(+0x2d) = end-of-data flag (empty-DAT EOS),
+     * out_status_hi(+0x2c) = frame token, io_Actual = bytes delivered. */
+    if (g_tcp_mode) {
+        UBYTE eof = 0, token = 0;
+        LONG  n = net_read_stream(data, length, &eof, &token);
+        if (n < 0) {
+            show_status_message(0x42, "Comms problem");
+            set_connection_error(7);            /* longjmp — no return */
+        }
+        *out_ser_flags = eof;
+        *out_status_hi = token;
+        *out_actual    = (ULONG)n;
+        return 1;
+    }
+
     g_read_req->io.io_Data    = data;
     g_read_req->io.io_Length  = length;
     g_read_req->io.io_Command = CNET_CMD_READ;     /* 2 */
@@ -155,6 +179,35 @@ LONG serial_read(APTR data, ULONG length,
 UBYTE serial_io_c(const char *status_text)
 {
     UBYTE ack;
+
+    /* TCP: the Reborn server delivers command responses as DAT frames — a bare ack is a
+     * one-byte payload '@'/'A'/'B' (RESP_ACK='A'), frame data otherwise. Peek one payload
+     * byte: if it's an ack char, classify it; if not, it's frame data, so push it back
+     * for the frame reader and report accepted ('@'). (cnet.device did the same peek/
+     * pushback but on the frame token; Reborn puts the ack in the payload.) */
+    if (g_tcp_mode) {
+        UBYTE eof = 0, token = 0, b = 0;
+        LONG  n = net_read_stream(&b, 1, &eof, &token);
+        if (n < 0) {
+            show_status_message(0x42, "Comms problem");
+            set_connection_error(7);            /* longjmp — no return */
+        }
+        if (n == 0)
+            return ACK_OK;                      /* empty response -> accepted */
+        if (b == ACK_ERR) {                     /* 'B' — error with message */
+            show_status_message(0x42, status_text);
+            set_connection_error(0x42);
+            return ACK_OK;
+        }
+        if (b == ACK_MSG) {                     /* 'A' — accepted with message */
+            show_status_message(0x41, status_text);
+            return ACK_MSG;
+        }
+        if (b == ACK_OK)                        /* '@' — accepted */
+            return ACK_OK;
+        net_unread_byte(b);                     /* frame data — hand it to the frame reader */
+        return ACK_OK;
+    }
 
     g_read_req->io.io_Data    = (APTR)status_text;
     g_read_req->io.io_Command = CNET_CMD_IO_ACK;
