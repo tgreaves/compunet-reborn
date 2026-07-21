@@ -27,6 +27,7 @@
 #include <clib/exec_protos.h>
 #include <clib/intuition_protos.h>
 #include <clib/graphics_protos.h>
+#include <string.h>
 
 #include "compunet.h"
 
@@ -178,6 +179,8 @@ static void str_upper(char *p)
  * FUN_00115168). Window credentials window handle is DAT_00121830.
  */
 static struct Window *g_cred_win;   /* DAT_00121830 */
+static UBYTE g_undo_scratch[16];    /* string-gadget undo buffer (see below) */
+
 LONG logon_poll(void)
 {
     struct IntuiMessage *msg;
@@ -188,6 +191,36 @@ LONG logon_poll(void)
     g_cred_win = (struct Window *)open_window_tracked(DATA(0x11f81c));
     if (g_cred_win == NULL)
         return 0;
+
+    /* The credentials string gadgets come from the extracted data blob, where their
+     * StringInfo.Buffer pointers still hold the ORIGINAL absolute addresses
+     * (0x120244 userid / 0x12024d password). Those are OUTSIDE the blob (which ends at
+     * 0x1200e8) and were never relocated to the reconstruction's globals — so typed
+     * input landed in stray memory and the login record used the stale config userid.
+     * Re-point both buffers at the real g_login_userid / g_login_scratch, seed the
+     * userid field's pre-filled length, and give each a valid undo buffer. Also widen
+     * the password field, which the original data made only 8px (one character) wide. */
+    {
+        struct StringInfo *si_user = (struct StringInfo *)DATA(0x11f93c);
+        struct StringInfo *si_pass = (struct StringInfo *)DATA(0x11f8c8);
+        struct Gadget     *g_pass  = (struct Gadget *)DATA(0x11f8ec);
+        UWORD ulen = (UWORD)strlen(g_login_userid);
+
+        si_user->Buffer     = (UBYTE *)g_login_userid;
+        si_user->UndoBuffer = g_undo_scratch;
+        si_user->NumChars   = ulen;
+        si_user->BufferPos  = ulen;
+        si_user->DispPos    = 0;
+
+        si_pass->Buffer     = (UBYTE *)g_login_scratch;
+        si_pass->UndoBuffer = g_undo_scratch;
+        si_pass->NumChars   = 0;
+        si_pass->BufferPos  = 0;
+        si_pass->DispPos    = 0;
+
+        g_pass->Width = 56;   /* was 8 (one char); ~7 chars wide now */
+    }
+
     g_login_scratch[0] = 0;
     DrawImage(g_cred_win->RPort, (struct Image *)DATA(0x11f98c), 0, 0);
     PrintIText(g_cred_win->RPort, (struct IntuiText *)DATA(0x11fa1a), 0, 0);
@@ -217,8 +250,12 @@ LONG logon_poll(void)
             close_window_tracked(g_cred_win);
             g_cred_win = NULL;
             return 1;
-        case 3:                                 /* tab to next field */
-            ActivateGadget(last, g_cred_win, NULL);
+        case 3:                                 /* Enter/tab in userid -> next field */
+            /* recon FUN_00115168 @0x1151f6: ActivateGadget(last->NextGadget, ...) — it
+             * advances to the NEXT gadget (the password field). An earlier reconstruction
+             * activated `last` (the same userid field), so focus never reached the
+             * password gadget and the login was sent with an empty password. */
+            ActivateGadget(last->NextGadget, g_cred_win, NULL);
             break;
         default:
             break;

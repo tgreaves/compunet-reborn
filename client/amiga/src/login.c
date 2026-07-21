@@ -182,7 +182,14 @@ LONG wait_connect_handshake(void)
                     if (c == 0x0a) {
                         flush_logon_line();
                         line_flag = 0;
-                        if (strncmp(g_hs_line, "*con", 4) == 0)
+                        /* Connection signal. The original matched lowercase "*con" (real
+                         * Compunet sent lowercase); the Reborn server sends uppercase
+                         * "*CON" (what the C64 receives). Match case-insensitively so the
+                         * Amiga client recognises the Reborn signal. */
+                        if (g_hs_line[0] == '*' &&
+                            (g_hs_line[1] | 0x20) == 'c' &&
+                            (g_hs_line[2] | 0x20) == 'o' &&
+                            (g_hs_line[3] | 0x20) == 'n')
                             return 1;
                     } else if (c >= 0x20 && c <= 0x7e) {
                         if (g_hs_line_len == 0x28)

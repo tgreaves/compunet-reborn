@@ -6,6 +6,64 @@ TCP connection to the Reborn server. Grounded against the reconstructed client
 `server/compunet_server.py`). **Nothing here is inferred** — each claim cites the
 code it came from.
 
+## STATUS (2026-07-21) — logged in over TCP; frame rendering is next
+
+Verified live against a Reborn server (docker.lan) from the reconstructed client in
+WinUAE (KS3.x). **A full login now completes over native TCP:**
+
+connect → server detects the Amiga (`*** Amiga client detected ***`) → `*CON`
+handshake → credentials dialog (userid + password captured) → login record → server
+`login OK!` → the 768-byte welcome frame streams as DAT frames, **each ACK'd by the
+client** (X.25 flow control working) → EOS → `LINKING: skipped (Amiga native client)`.
+
+### What works
+- Native bsdsocket TCP transport, all seams wired (`net.c` + the `g_tcp_mode` branches).
+- `net_read_stream`: DAT-payload accumulation, per-frame `$20` ACK, empty-DAT = EOF —
+  confirmed by the server's `ACK received` after every frame.
+- Server Amiga branch: identification detection (race-hardened) + LINKING skip.
+- Credentials capture (see fixes below).
+
+### Fixes made this session
+Client (all in the `g_tcp_mode` path / UI, uncommitted → committed with this note):
+- `login.c` — case-insensitive `*CON` match (server sends uppercase `*CON`; the
+  original matched lowercase `*con`) — without this the handshake looped forever.
+- `login.c` — skip the pre-login `serial_io_c` in TCP mode (Reborn waits for the login
+  frame after `*CON`; reading first deadlocked).
+- `ui.c` `logon_poll` — **re-point the credentials string-gadget `StringInfo.Buffer`
+  fields at the real `g_login_userid`/`g_login_scratch`.** The blob's gadgets held the
+  original absolute addresses `0x120244`/`0x12024d`, which are OUTSIDE the data blob
+  (ends `0x1200e8`) and were never relocated, so typed input went to stray memory.
+- `ui.c` `logon_poll` — `case 3` must `ActivateGadget(last->NextGadget, …)` (recon
+  `FUN_00115168` @0x1151f6), not `last` — so ENTER on the userid field advances to the
+  password field. (The earlier recon activated `last`, so the password came through empty.)
+- `ui.c` — widen the password gadget (original `Width` was 8px = one char).
+Server (`compunet_server.py`, additive): Amiga identification branch + LINKING skip.
+
+### NEXT STEP — frame rendering does not display
+The **"Current frame" window opens but stays blank** — the 768-byte welcome frame
+arrives and is ACK'd, but nothing renders. The transport delivered the bytes; the
+break is in the display path. Investigation starting points:
+- `frame.c` `read_frame_byte` → `frame_rle_getchar` → `render_char`, and whoever drives
+  the frame parse after login (`do_connect` calls `frame_display(g_frame_page, g_frame_out)`
+  then the `serial_read` drain loop). Confirm `frame_display` (thunk `FUN_0010818a`) and
+  `frame_display_done` actually parse+blit, or are stubs.
+- `open_frame_window` sets `g_frame_page = (APTR)&g_frame_win` (ui.c) — verify the frame
+  page/offscreen bitmap the renderer draws into is real and blitted to the window
+  (`frame_gfx.c` offscreen begin/end).
+- Verify `net_read_stream` hands the frame bytes to `read_frame_byte` correctly (the
+  first `serial_io_c` peek + `net_unread_byte` pushback must not drop the first byte).
+- The welcome-frame payload starts `01 05 22 …`? No — that's the wire frame; the DAT
+  *payload* is the frame content (flags/border/bg + PETSCII). Capture the delivered
+  payload bytes and walk them through `render_char` by hand to see where it stalls.
+
+### Systemic risk uncovered
+The credentials-gadget bug is a **class**: any blob structure whose pointer targets the
+globals region (> `0x1200e8`) holds a stale absolute address, because `extract_data.py`
+wired blob-internal and blob→code relocs but not blob→global-data ones. Other
+windows/menus may have the same latent issue. Worth an audit of `extract_data.py` +
+the blob's out-of-range relocs (could also relate to the blank frame if the frame
+window's structures point out-of-blob).
+
 ## The corrected architecture (important)
 
 An earlier note in `docs/amiga-client.md` said the swap was "replace `serial_read`/
