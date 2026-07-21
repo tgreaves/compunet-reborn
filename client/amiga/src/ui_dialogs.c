@@ -265,12 +265,19 @@ void set_connection_error(int code)
     longjmp((void *)g_jmpbuf, code ? code : 1);
 }
 
-/* dir_action_cleanup — recon FUN_0010d0d0: after a directory action, restore the
- * pointer and repaint. */
-extern void clear_wait_pointer(void);
+/* dir_action_cleanup — recon FUN_0010d0d0. Tear down the publish/upload requester
+ * window: if g_courier_win (DAT_00121650) is open, close_window_tracked it and null
+ * the handle. The verified disasm is `tst.l 0x121650(a4); beq; push; jsr close_window_
+ * tracked(0x11a568); clr.l 0x121650`. (An earlier reconstruction wrongly made this a
+ * clear_wait_pointer — it never touched the pointer.) */
+extern APTR g_courier_win;                  /* DAT_00121650 */
+extern void close_window_tracked(APTR win); /* FUN_0011a568 */
 void dir_action_cleanup(void)
 {
-    clear_wait_pointer();
+    if (g_courier_win) {
+        close_window_tracked(g_courier_win);
+        g_courier_win = NULL;
+    }
 }
 
 /* apply_serial_params — recon FUN_00114050: push the configured data-bits/parity to
@@ -286,18 +293,139 @@ void apply_serial_params(UWORD bits)
  * full six-window set the original touches. (The earlier one-window stub here has
  * been removed.) */
 
-/* put_frame_type_ok — recon jump-table at FUN_0010c2f8: whether a page type accepts
- * a published frame. The original dispatches per type; valid types are the frame
- * types 'F'/'P'/'G' etc. Non-directory types are publishable. */
-LONG put_frame_type_ok(char type)
-{
-    return type != 'D';   /* directories can't hold published frames */
-}
-
 /* download_filename_prompt — recon FUN_0010b06e: prompt for the local save filename
  * (pre-filled from the directory row's name). */
 LONG download_filename_prompt(void)
 {
     extern char g_dl_filename[];
     return string_prompt("Download filename", g_dl_filename);
+}
+
+/* ------------------------------------------------------------------ *
+ *  Publish-frame requester — recon FUN_0010d000 / FUN_0010d0e6 / FUN_0010f1a4
+ * ------------------------------------------------------------------ *
+ * put_frame() (directory.c) calls put_frame_dialog() to collect the frame name, page
+ * type, page.subpage and LIFE before publishing. This is a full requester subsystem
+ * (~508 bytes across three functions) driven from the data blob:
+ *   NewWindow   0x11e708  (Screen patch at +0x1e = 0x11e726; positioned off the dir win)
+ *   gadget list 0x11e934  (6 gadgets: 4 string fields id 3/3/3/2, OK id 1, Cancel id 0)
+ *   body Image  0x11e960 ; version/label IntuiText 0x11ea1c ; Border 0x11e9b8
+ *   status Image 0x11ea30 (drawn on OK to show "sending")
+ * The 4 string gadgets' StringInfo.Buffers point at the put_frame globals:
+ *   g_put_name 0x1215f4, g_put_type 0x121605, g_put_type_str 0x121607, g_put_life_str
+ *   0x12160e — so reading them back needs no copy, exactly as the original.
+ */
+extern APTR g_screen;
+extern char g_put_name[];      /* DAT_001215f4 */
+extern char g_put_type;        /* DAT_00121605 */
+extern char g_put_type_str[];  /* DAT_00121607 */
+extern char g_put_life_str[];  /* DAT_0012160e */
+
+/* str_clean_upper — recon FUN_0010f1a4. In place: skip leading spaces, uppercase a-z,
+ * trim trailing spaces, null-terminate. Applied to the name and type after editing. */
+static void str_clean_upper(char *s)
+{
+    int i = 0, j = 0;
+    char c;
+    while ((c = s[i]) != '\0') {
+        if (j != 0 || c != ' ') {           /* drop leading spaces */
+            if (c >= 'a' && c <= 'z')
+                c -= 0x20;
+            s[j++] = c;
+        }
+        i++;
+    }
+    while (j != 0 && s[j - 1] == ' ')        /* trim trailing spaces */
+        j--;
+    s[j] = '\0';
+}
+
+/* put_frame_dialog_open — recon FUN_0010d000. Open the requester positioned relative to
+ * the directory window (LeftEdge+0x3d, TopEdge+0x64), clear the four edit buffers, draw
+ * the body/text/border, add the gadget list. Returns 1 on success, 0 if OpenWindow failed. */
+extern APTR g_dir_page;    /* DAT_0011d07c — dir page; [0] = its Window */
+static LONG put_frame_dialog_open(void)
+{
+    struct NewWindow *nw = (struct NewWindow *)DATA(0x11e708);
+    struct Window    *dw = *(struct Window **)g_dir_page;
+    struct Window    *w;
+
+    *(APTR *)DATA(0x11e726) = g_screen;                /* NewWindow.Screen (+0x1e)  */
+    nw->LeftEdge = dw->LeftEdge + 0x3d;
+    nw->TopEdge  = dw->TopEdge  + 0x64;
+
+    w = (struct Window *)open_window_tracked(nw);
+    g_courier_win = (APTR)w;
+    if (w == NULL)
+        return 0;
+
+    g_put_name[0]     = 0;                             /* recon clr.b 0x45f4/05/07/0e */
+    g_put_type        = 0;
+    g_put_type_str[0] = 0;
+    g_put_life_str[0] = 0;
+
+    DrawImage(w->RPort, (struct Image *)DATA(0x11e960), 0, 0);
+    PrintIText(w->RPort, (struct IntuiText *)DATA(0x11ea1c), 0, 0);
+    DrawBorder(w->RPort, (struct Border *)DATA(0x11e9b8), 0, 0);
+    AddGList(w, (struct Gadget *)DATA(0x11e934), ~0, ~0, NULL);
+    RefreshGList((struct Gadget *)DATA(0x11e934), w, NULL, ~0);
+    return 1;
+}
+
+/* put_frame_dialog — recon FUN_0010d0e6. Open the requester, activate the first field,
+ * then run the IDCMP loop: WaitPort, drain all messages keeping the last gadget's id
+ * (+0x26). id 0 = Cancel (close via dir_action_cleanup, return 0); id 3 = a string field
+ * hit (activate its NextGadget — tab to the next field — and keep looping); id 1/2 = OK.
+ * The OK path detaches the 4 string gadgets and re-adds them (forcing Intuition to commit
+ * the edited buffers) around cleaning the name + type, removes all 6 gadgets, draws the
+ * "sending" status image, and returns 1. Buffers are read directly from the globals. */
+LONG put_frame_dialog(void)
+{
+    struct Window       *w;
+    struct IntuiMessage *msg;
+    struct Gadget       *last;
+    struct Gadget       *glist = (struct Gadget *)DATA(0x11e934);
+    WORD                 pos;
+
+    /* The original FUN_0010d0e6 calls the opener and then ActivateGadget without
+     * checking the result (it relies on the requester always opening on the custom
+     * screen). We guard the OpenWindow-failure path to avoid a NULL deref — the only
+     * behavioural difference, and only when the window can't open. */
+    if (!put_frame_dialog_open())
+        return 0;
+    w = (struct Window *)g_courier_win;
+
+    ActivateGadget(glist, w, NULL);
+
+    for (;;) {
+        last = NULL;
+        WaitPort(w->UserPort);
+        while ((msg = (struct IntuiMessage *)GetMsg(w->UserPort)) != NULL) {
+            last = (struct Gadget *)msg->IAddress;
+            ReplyMsg((struct Message *)msg);
+        }
+        if (last == NULL || last->GadgetID >= 4)   /* recon: id>=4 ignored */
+            continue;
+
+        switch (last->GadgetID) {
+        case 0:                                     /* Cancel */
+            dir_action_cleanup();
+            return 0;
+        case 3:                                     /* string field -> tab to next */
+            ActivateGadget(last->NextGadget, w, NULL);
+            break;
+        case 1:
+        case 2:                                     /* OK */
+            /* Detach the 4 string gadgets and re-add at the same position so Intuition
+             * flushes their edit buffers, then clean name + type. */
+            pos = RemoveGList(w, glist, 4);
+            str_clean_upper(g_put_name);
+            str_clean_upper(&g_put_type);
+            AddGList(w, glist, pos, 4, NULL);
+            RefreshGList(glist, w, NULL, 4);
+            RemoveGList(w, glist, 6);               /* now detach all 6 */
+            DrawImage(w->RPort, (struct Image *)DATA(0x11ea30), 0, 0);  /* status */
+            return 1;
+        }
+    }
 }

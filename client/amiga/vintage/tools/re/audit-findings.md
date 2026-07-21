@@ -41,15 +41,28 @@ serial io_Error semantics in compunet.h).
   (0x10264c) `clr.b 0x12015a` = editor msg **+0x14**. Ours clears +0x15 (EMSG_STATUS) and
   never clears +0x14, leaving it uninitialised for the child. Status read-back at +0x15
   is correct. FIX: clear msg+0x14; the original does not pre-clear +0x15.
-- **[reported] put_frame() collapsed.** directory.c:136. Missing initial guard call
-  FUN_0010d0e6 (0x10c6ae; `tst.l d0; beq return 0`); missing two sscanf parses
-  ("%d.%d"@0x11e654 -> g_put_page/g_put_sub; "%d"@0x11e65a -> g_put_life); g_put_page/
-  sub/life should be LONG not short (original reads move.l); per-type dispatch collapsed
-  (original jump table 0x10c3ac: {A,S,P,F}->FUN_0010c0ee, 'T'->FUN_0010c250; ours always
-  calls put_frame_xfer, which the original never calls directly here). NEEDS re-trace.
-- **[reported] account() dialog arg count.** directory.c:115. Original (0x10c63c) calls
-  the OK dialog (FUN_00110472) with 5 args (title, body, winptr *0x1230f8, 1, 6); our
-  status_ok_dialog passes 2. Check status_ok_dialog signature.
+- **[FIXED] put_frame() collapsed.** directory.c. Was missing the initial guard call
+  FUN_0010d0e6 (0x10c6ae; `tst.l d0; beq return 0`), the two sscanf parses
+  ("%d.%d"@0x11e654 -> g_put_page/g_put_sub; "%d"@0x11e65a -> g_put_life), and used the
+  wrong widths + wrong dispatch. Now re-traced against the raw jump table at 0x10c3c2
+  (stride 6 = [key.w][bra.w], verified from bytes): 'T'->put_frame_publish (FUN_0010c250),
+  {A,S,P,F}->upload_file (FUN_0010c0ee), default->"Invalid page type"+dir_action_cleanup.
+  g_put_page/sub/life widened to LONG; put_frame_type_ok (invented) removed. The gate
+  FUN_0010d0e6 + opener FUN_0010d000 + string cleaner FUN_0010f1a4 are now fully
+  reconstructed as put_frame_dialog/put_frame_dialog_open/str_clean_upper (ui_dialogs.c),
+  all offsets verified vs disasm (`--our put_frame` matches; opener/OK-path field offsets
+  Window+4/+6, RPort+50, UserPort+86, GadgetID+38 all confirmed).
+  Two corrections this fix surfaced (both verified, both were latent bugs):
+  * **FUN_0010c250 uses WindowToFront, not CloseWindow.** 0x12b1ec is a WindowToFront
+    veneer (jsr -0x138(IntuitionBase)), not CloseWindow. put_frame_publish now brings the
+    frame + courier windows to front and sets g_state=4.
+  * **dir_action_cleanup (FUN_0010d0d0) closes the courier window, not the pointer.**
+    Was wrongly reconstructed as clear_wait_pointer(); the disasm is
+    `tst.l 0x121650(a4); beq; close_window_tracked(g_courier_win); clr.l 0x121650`.
+    Fixed in ui_dialogs.c.
+- **[FIXED] account() dialog arg count.** directory.c. status_ok_dialog is now the 5-arg
+  form (line1, line2, p4, p5); account passes p4=1, p5=6 (the winptr arg is consumed by
+  the requester core via the blob NewWindow.Screen patch). Verified.
 
 ## MEDIUM
 
@@ -101,7 +114,44 @@ mail_state_enter, hook_dir_09898/0984c, vote, extend_life, link_follow, link_got
 settings_open/dialog/apply/close/toggle, save_config_file, all resource_* functions,
 launch_tty, load_screen_palette, set_menu_strip_tracked, share/unshare_user_port,
 open_dos_library, open_library_checked, fatal_exit, link_lock, partyline_open,
-logon_window_ready, transfer.c (download_check/file_download_xfer/upload_file/action_download).
+logon_window_ready, transfer.c (upload_file/action_download/download_receive).
+
+## DOWNLOAD SUBSYSTEM — reconstructed this pass (download.c, verified vs disasm)
+
+- **[FIXED] download_check (FUN_0010b730) dispatch was entirely invented.** The prior
+  transfer.c version switched on 'C'/'S'/'A' and called handlers directly with NO
+  charged-item gate. The real function (verified from the raw jump table at 0x10b780) is
+  a 6-way dispatch on the row type: 'T'->download_text (FUN_00113000), 'F'->action_download_run
+  (FUN_0010b50e), 'P'/'S'->download_program (FUN_0010b36e -> download_receive), 'A'->
+  action_download (FUN_0010b380), 'L'->download_link (FUN_0010b66a), else "Can't download
+  this". EVERY branch except 'T' is first gated by download_charged_prompt (FUN_0010b000):
+  "WARNING - CHARGED ITEM / Buy for £<price>?". NB the competing audit wrongly listed
+  download_check as VERIFIED CLEAN — an inference error; it never disassembled it.
+- **[NEW] download_charged_prompt (FUN_0010b000)** reconstructed: reads the row price at
+  dir+row*0x66+0x82e; empty/space -> free; else retry_dialog. Verified.
+- **[NEW] download_text / _continue / _loop (FUN_00113000/113062/1130ca)** reconstructed:
+  the 'T' text-page fetch+display via frame_display + frame_display_done, state=3 while more.
+- **[NEW] action_download_run (FUN_0010b50e)** reconstructed: the 'F' picture path. Streams
+  the download in <=4000-byte blocks, staging to disk AND feeding each byte to the IFF decoder.
+- **[NEW] download_link (FUN_0010b66a) + link_drain_preamble (FUN_0010b602) + link_end
+  (FUN_0010b656)** reconstructed: validate the 8-byte link header (0x01000001, link_a==0),
+  drain the preamble, hand off to the CnetTty viewer (g_tty_seg_bptr) with read/io/send
+  callbacks; "Carrier lost" (fatal) + longjmp on viewer return 0.
+- **[NEW] IFF/ILBM decoder (FUN_00111000 family, ~1852 bytes)** reconstructed in download.c:
+  iff_init (0x111000), iff_feed_byte state machine (0x111024: FORM/ILBM/BMHD/CMAP/BODY),
+  iff_setup (0x1112ae: BMHD->screen, alloc interleaved 1-row×nplanes bitmap, per-plane
+  pointers, last-word mask via asr.l #$ffff0000, open screen+window), iff_cmap (0x11147e:
+  RGB4 palette + LoadRGB4), iff_body_start (0x111526), iff_row_uncompressed (0x11155c),
+  iff_row_byterun1 (0x1115e6: PackBits), iff_free_all/window (0x111270/0x1116ee), and the
+  standalone iff_view_file (0x111704). Each verified against `vc -S` vs the relocated disasm.
+- **[NEW] serial_io_variant (FUN_0011998a) + link_viewer_exit (FUN_001194c8)** added to
+  modem.c; **load_file_to_mem (FUN_0011a41e) + mem_block_size (FUN_0011a26c)** added to
+  dosio.c (free_mem_block == existing free_tracked/FUN_0011a238).
+- **[TODO] file_download_xfer (FUN_0010b174) is only approximately reconstructed** in
+  transfer.c. The real function (370B) reads the 8-byte header, dispatches machine-type via
+  download_machine_prompt with distinct abort strings (0x14b8/0x14bc, token 0x41) and
+  extracts a transfer size from header+6 / 0x1215ec. Ours is a simplified retry-open loop.
+  Needs a faithful re-trace (it feeds both download_receive and action_download_run).
 
 ## NOT YET AUDITED (agents stopped)
 

@@ -156,3 +156,59 @@ LONG dos_execute(const char *cmd, APTR in, APTR out)
 {
     return Execute((STRPTR)cmd, (BPTR)in, (BPTR)out);
 }
+
+/*
+ * load_file_to_mem — recon FUN_0011a41e. Lock the named file, Examine it for its size
+ * (fib_Size at FileInfoBlock+0x7c), UnLock, allocate a tracked block of that size (so
+ * cleanup frees it), Open + Read the whole file into it, and return the buffer. Returns
+ * NULL on any failure. The returned pointer is an alloc_tracked block, so its size is
+ * recoverable via mem_block_size and it is released by free_tracked. Used by
+ * iff_view_file to decode an IFF picture already saved to disk.
+ */
+APTR load_file_to_mem(const char *name)
+{
+    BPTR   lock, fh;
+    struct FileInfoBlock *fib;
+    ULONG  size;
+    UBYTE *buf;
+
+    lock = Lock((STRPTR)name, SHARED_LOCK);
+    if (lock == 0)
+        return NULL;
+    fib = (struct FileInfoBlock *)AllocMem(sizeof(struct FileInfoBlock), 0);
+    if (fib == NULL) {
+        UnLock(lock);
+        return NULL;
+    }
+    if (!Examine(lock, fib)) {
+        FreeMem(fib, sizeof(struct FileInfoBlock));
+        UnLock(lock);
+        return NULL;
+    }
+    size = (ULONG)fib->fib_Size;
+    FreeMem(fib, sizeof(struct FileInfoBlock));
+    UnLock(lock);
+
+    buf = (UBYTE *)alloc_tracked(size, 0);
+    if (buf == NULL)
+        return NULL;
+
+    fh = Open((STRPTR)name, MODE_OLDFILE);
+    if (fh == 0)
+        return NULL;
+    if ((ULONG)Read(fh, buf, (LONG)size) != size) {
+        Close(fh);
+        return NULL;
+    }
+    Close(fh);
+    return (APTR)buf;
+}
+
+/* mem_block_size — recon FUN_0011a26c. Recover the payload size of an alloc_tracked
+ * block: the total (incl. the 0x20 header) is stored at (p-0x20)+0x12, so the payload
+ * is that minus 0x20. */
+ULONG mem_block_size(APTR p)
+{
+    UBYTE *base = (UBYTE *)p - 0x20;
+    return *(ULONG *)(base + 0x12) - 0x20;
+}

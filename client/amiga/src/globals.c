@@ -38,6 +38,7 @@ ULONG               g_write_sig   = 0;
 
 struct Device *g_cnet_device = NULL;
 UWORD  g_dev_param2e = 0;        /* DAT_0012012e-ish device param scratch (not in block) */
+UBYTE  g_link_char = 0;          /* DAT_001230bc — 1-byte link read scratch (serial_io_variant) */
 
 /* ---- THE config block — the single 0x36-byte record at recon 0x120108 ----
  * In the original this ONE block is: loaded from / saved to cnet-configuration
@@ -99,10 +100,14 @@ char   g_vote_choice[8];        /* DAT_0012164c */
 char   g_extend_days[8];        /* DAT_00121648 */
 
 /* ---- put_frame (publish) fields ---- */
-short  g_put_life = 0;          /* DAT_0012161a */
-short  g_put_page = 0;          /* DAT_00121612 */
-short  g_put_sub  = 0;          /* DAT_00121616 */
+/* page/sub/life are LONG in the original (put_frame sscanf %d writes 4 bytes each;
+ * their addresses 0x121612/16/1a are 4 apart) — were wrongly `short`. */
+LONG   g_put_life = 0;          /* DAT_0012161a */
+LONG   g_put_page = 0;          /* DAT_00121612 */
+LONG   g_put_sub  = 0;          /* DAT_00121616 */
 char   g_put_type = 0;          /* DAT_00121605 */
+char   g_put_type_str[11];      /* DAT_00121607 — "page.sub" string parsed by sscanf */
+char   g_put_life_str[8];       /* DAT_0012160e — life string parsed by sscanf       */
 char   g_put_name[24];          /* DAT_001215f4 */
 
 /* ---- File transfer scratch ---- */
@@ -113,6 +118,36 @@ APTR   g_dl_file = NULL;        /* DAT_001215f0 */
 char   g_ul_name[128];          /* DAT_0012161e */
 char   g_xfer_buf[4096];        /* DAT_001220fc region (reuses frame_out area on HW) */
 char   g_ul_hdr[8];             /* DAT_00121640 */
+LONG   g_dl_link_a = 0;         /* DAT_001215ec — link header word (checked ==0)   */
+
+/* ---- IFF/ILBM decoder working state (recon BSS 0x1216cc..0x1217xx) ----
+ * The 'F' (picture) download path streams an IFF ILBM image through a chunk state
+ * machine (iff_feed_byte) that fills these fields, allocates a screen sized to the
+ * BMHD, and blits each decoded row. Grouped here as the original's a4-relative BSS.
+ * The Screen/Window/BitMap handles and the NewScreen/NewWindow templates live in the
+ * data blob (0x11f120.. — driven via DATA()), NOT here. */
+LONG   g_iff_state    = 0;      /* DAT_001216cc — current chunk/mode 1..9           */
+LONG   g_iff_error    = 0;      /* DAT_001216d0 — non-zero: abort decode            */
+LONG   g_iff_skip     = 0;      /* DAT_001216d4 — bytes to skip (chunk padding)     */
+LONG   g_iff_need     = 0;      /* DAT_001216d8 — bytes still needed for this field */
+UBYTE *g_iff_field    = NULL;   /* DAT_001216dc — start of current gather field     */
+UBYTE *g_iff_field_wr = NULL;   /* DAT_001216e0 — write cursor into gather field    */
+UBYTE  g_iff_chunk[28];         /* DAT_001216e4 — gather buffer (chunk id/len + BMHD) */
+UBYTE  g_cmap_raw[0x60];        /* DAT_00121700 — CMAP raw RGB bytes (3 per colour)  */
+LONG   g_cmap_ncolors = 0;      /* DAT_00121760 — palette entry count                */
+UWORD  g_cmap[32];              /* DAT_00121764 — RGB4 palette words for LoadRGB4     */
+UBYTE  g_iff_compress = 0;      /* DAT_001217a4 — BMHD compression flag (ByteRun1)   */
+LONG   g_brun_state   = 0;      /* DAT_001217a6 — ByteRun1 state (0 lit / 1 copy / 2 run) */
+UWORD  g_iff_rowbytes = 0;      /* DAT_001217aa — bytes per bitplane row             */
+UWORD  g_iff_nplanes  = 0;      /* DAT_001217ac — number of bitplanes                */
+UWORD  g_iff_lastmask = 0;      /* DAT_001217ae — last-word mask (odd width)         */
+UBYTE *g_iff_planeptr[7];       /* DAT_001217b0 — per-plane row-start pointers       */
+UWORD  g_iff_row      = 0;      /* DAT_001217cc — current image row                  */
+UWORD  g_iff_plane    = 0;      /* DAT_001217ce — current plane within the row       */
+UWORD  g_iff_planeleft= 0;      /* DAT_001217d0 — bytes left in this plane's row     */
+UWORD  g_brun_run     = 0;      /* DAT_001217d2 — ByteRun1 remaining run/copy count  */
+UBYTE *g_iff_wr       = NULL;   /* DAT_001217d4 — plane write cursor                 */
+UBYTE  g_iff_rowimg[0x14];      /* DAT_001217d8 — temp Image for per-row DrawImage    */
 
 /* ---- Mail fields ---- */
 char        g_mail_subject[24];      /* DAT_00121658 */

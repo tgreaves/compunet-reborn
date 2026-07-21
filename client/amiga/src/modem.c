@@ -101,6 +101,40 @@ void modem_send_delayed(const char *data, ULONG len)
     wait_write();
 }
 
+/*
+ * serial_io_variant — recon FUN_0011998a. A read variant used by the link (download)
+ * path: point the read request at buf/len, issue io_Command 2 (read), and wait exactly
+ * like wait_read (Wait on read_sig|extra_sig, servicing extra, until the reply arrives).
+ * If the completed request reports io_Error 9 (carrier lost, at io+0x1f) it pops the
+ * fatal "Carrier lost" requester (code 0x42) and longjmps back to the top level. */
+extern void set_connection_error(int code);   /* longjmp FUN_00101638 */
+extern void show_status_message(UBYTE code, const char *text);
+
+void serial_io_variant(APTR buf, LONG len)
+{
+    g_read_req->io.io_Data    = (APTR)buf;
+    g_read_req->io.io_Length  = len;
+    g_read_req->io.io_Command = CNET_CMD_READ;   /* 2 */
+    SendIO((struct IORequest *)g_read_req);
+    wait_read();
+    if (((UBYTE *)g_read_req)[0x1f] == 9) {       /* io_Error == carrier lost */
+        show_status_message(0x42, "Carrier lost");
+        set_connection_error(1);
+    }
+}
+
+/*
+ * link_viewer_exit — recon FUN_001194c8. End a link session: set the write request's
+ * scratch byte (+0x2c) to 1 and issue io_Command 9 (the device's "session end" /
+ * login-ready control), synchronously.
+ */
+void link_viewer_exit(void)
+{
+    ((UBYTE *)g_write_req)[0x2c] = 1;
+    g_write_req->io.io_Command = 9;
+    DoIO((struct IORequest *)g_write_req);
+}
+
 /* modem_delay — recon FUN_001280f8 = AmigaDOS Delay(). */
 void modem_delay(LONG ticks)
 {
