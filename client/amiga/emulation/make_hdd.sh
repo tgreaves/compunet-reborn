@@ -25,13 +25,28 @@ echo "== building client =="
 ( cd "$SRC" && VBCC="${VBCC:-/tmp/vbcc}" ./build.sh >/dev/null )
 [ -f "$SRC/compunet-client" ] || { echo "build produced no compunet-client"; exit 1; }
 
+echo "== building nettest (TCP/IP connectivity smoke test) =="
+( cd "$SRC" && VB="${VBCC:-/tmp/vbcc}" && export VBCC="$VB" && PATH="$VB/bin:$PATH" \
+  && vc +kick13 -c -I. net.c     -o net.o     >/dev/null 2>&1 \
+  && vc +kick13 -c -I. nettest.c -o nettest.o >/dev/null 2>&1 \
+  && vc +kick13 -o nettest net.o nettest.o -lamiga >/dev/null 2>&1 \
+  && rm -f net.o nettest.o )
+[ -f "$SRC/nettest" ] || { echo "build produced no nettest"; exit 1; }
+
 echo "== assembling $HDD =="
 rm -rf "$HDD"
 mkdir -p "$HDD/devs/cnet_modems" "$HDD/s"
 
 cp "$SRC/compunet-client"          "$HDD/Compunet"
+cp "$SRC/nettest"                  "$HDD/nettest"
 cp "$VINTAGE/devs/cnet.device"     "$HDD/devs/cnet.device"
 cp "$VINTAGE/cnet-configuration"   "$HDD/cnet-configuration"
+
+# Seed a TCPHOST placeholder for the connectivity test (nettest reads it). Preserve
+# an existing one so a real address you set isn't clobbered on rebuild.
+if [ ! -f "$HDD/TCPHOST" ]; then
+    printf 'CHANGE-ME:6400\n' > "$HDD/TCPHOST"
+fi
 
 # CnetEditor: use the DECRUNCHED copy (the crunched PowerPacker stub gurus at CreateProc
 # time; the boot disk uses the decrunched form too). Fall back to crunched only if absent.

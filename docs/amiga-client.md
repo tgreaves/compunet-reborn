@@ -153,13 +153,36 @@ kludge, and matches "swap only the transport" cleanly.
 
 The transport seam in the reconstruction is `open_transport` (`connect.c`),
 `serial_read`/`serial_write` (`transport.c`), and the dial/handshake (`modem.c`). The
-bsdsocket transport replaces exactly those — `OpenLibrary("bsdsocket.library")` +
-`connect()` for the OpenDevice, `recv`/`send` for the serial IO — and **drops** the
-modem dial, `C CNET` handshake, and carrier polling (a socket connect has no dial).
-The application layer above the seam (`serial_io_c` ack handling, frame parser,
-command dispatch) is unchanged. The server still needs a branch to recognise the
-Amiga identification handshake. See
-[client/amiga/emulation/RUNNING.md](../client/amiga/emulation/RUNNING.md).
+bsdsocket transport replaces `OpenDevice("cnet.device")` with
+`OpenLibrary("bsdsocket.library")` + `connect()`, and **drops** the modem dial and
+carrier polling (a socket has no dial). The `C CNET` identification is **kept** (the
+server needs it to recognise the client), and everything above the seam (frame parser,
+command dispatch) is unchanged.
+
+> **Correction (2026-07-21):** an earlier version of this note said the swap was just
+> "`recv`/`send` for the serial IO". **That is wrong.** The X.25 framing/CRC lives in
+> `cnet.device`, not the client, so raw `recv`/`send` would put *unframed* bytes on the
+> wire and the server (which speaks X.25-over-TCP) would reject them. The TCP transport
+> must **reproduce the framing** `cnet.device` did — matching `server/x25_protocol.py`.
+> The full verified design is in
+> [client/amiga/src/TCP-TRANSPORT.md](../client/amiga/src/TCP-TRANSPORT.md).
+
+**Progress (2026-07-21):** the transport foundation `client/amiga/src/net.c` (bsdsocket
+lifecycle, raw I/O, `net_avail`/FIONREAD polling, and the full X.25 frame TX/RX + CRC +
+byte-stuffing + ACK) is built and compiles. **TCP/IP connectivity is proven end to
+end**: the `nettest` tool (`client/amiga/src/nettest.c`, staged into the emulation
+`hdd/`) connects to the live Reborn server over the internet, and the server receives
+and parses the Amiga `C CNET` identification — then rejects it on the version check
+(field[1] has no `{hash}/100`), the **live confirmation** that the server needs an
+Amiga-detection branch before the hash gate. The remaining work is the read/ack demux
+(`serial_io_c`/`serial_read` return semantics) — either reverse `cnet.device`'s receive
+engine, or restructure the client's read path to the server's DAT-frame model. See
+[client/amiga/emulation/RUNNING.md](../client/amiga/emulation/RUNNING.md) (Stage 0 = the
+connectivity test) and TCP-TRANSPORT.md.
+
+**Note (SO_RCVTIMEO):** the tested Amiga TCP stack does not honour `SO_RCVTIMEO`, so the
+transport polls `net_avail` (FIONREAD) for readiness rather than relying on recv
+timeouts — matching the original client's `modem_read_status` polling.
 
 ## Chosen approach — understand fully, reconstruct in C
 

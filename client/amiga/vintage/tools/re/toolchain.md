@@ -104,3 +104,101 @@ VBCC=/path/to/vbcc PATH=$VBCC/bin:$PATH \
 `transport.c` compiles clean (only harmless `#endif !FOO` warnings from the vintage
 1.3 headers). Output: genuine Amiga HUNK object (`0x3e7` HUNK_UNIT) with `_serial_read`
 / `_serial_write`.
+
+## Windows (Amiga Forever host) — reproducible recipe
+
+The same toolchain on **Windows**, using the official prebuilt vbcc win64 binaries
+(no from-source build needed). Verified: builds the full client into a 66 KB KS1.3
+HUNK executable and populates `client/amiga/emulation/hdd/` for mounting as a
+Directory HD in Amiga Forever. All commands run in **Git Bash** (the `bash` shell that
+ships with Git for Windows); `curl`, `unzip`, and Python 3 are already on `PATH` there.
+
+Install root used here: `C:\Users\<you>\vbcc` (kept **outside** the repo — not
+committed; ~15 MB assembled).
+
+### 1. Download (three pieces)
+
+```bash
+mkdir -p /c/Users/$USER/vbcc-dl && cd /c/Users/$USER/vbcc-dl
+# vbcc win64 binaries — bundles vc, vbccm68k, vasmm68k_mot, vlink + stock configs
+curl -fsSL -o vbcc_bin_win64.zip           http://phoenix.owl.de/vbcc/current/vbcc_bin_win64.zip
+# m68k-amigaos target — amiga.lib, vc.lib, startup.o, minstart.o, C-lib headers
+curl -fsSL -o vbcc_target_m68k-amigaos.lha  http://phoenix.owl.de/vbcc/2022-05-22/vbcc_target_m68k-amigaos.lha
+# Kickstart 1.3 NDK headers (asig/vbcc mirror)
+curl -fsSL -o asig-vbcc.tar.gz             https://codeload.github.com/asig/vbcc/tar.gz/refs/heads/master
+pip install lhafile      # to unpack the .lha (unzip cannot)
+```
+
+### 2. Assemble the tree at `C:\Users\<you>\vbcc`
+
+```bash
+DL=/c/Users/$USER/vbcc-dl ; VB=/c/Users/$USER/vbcc ; rm -rf "$VB"; mkdir -p "$VB"
+unzip -q "$DL/vbcc_bin_win64.zip" -d "$VB"                 # -> bin/ + config/
+# unpack the target .lha with lhafile (Windows unzip can't read LHA):
+python -c "import lhafile,os,sys; lf=lhafile.LhaFile(sys.argv[1]); [ (lambda p: (os.makedirs(os.path.dirname(p),exist_ok=True), open(p,'wb').write(lf.read(n))))(os.path.join(sys.argv[2],n.replace(chr(92),'/'))) for n in lf.namelist() ]" "$DL/vbcc_target_m68k-amigaos.lha" "$VB/_t"
+cp -r "$VB/_t/vbcc_target_m68k-amigaos/targets/m68k-amigaos" "$VB/targets/m68k-amigaos"
+tar xzf "$DL/asig-vbcc.tar.gz" -C "$DL"                    # -> $DL/vbcc-master/
+NDK=$DL/vbcc-master
+# merge KS1.3 OS struct headers (exec/ intuition/ graphics/ libraries/ devices/ …)
+cp -r "$NDK/ndks/amiga/m68k-kick13/includes1.3/include.h/." "$VB/targets/m68k-amigaos/include/"
+# overlay KS1.3 clib/ proto/ inline/
+cp -r "$NDK/targets/m68k-kick13/include/."                  "$VB/targets/m68k-amigaos/include/"
+rm -rf "$VB/_t"
+```
+
+### 3. Custom `kick13` config
+
+Overwrite `C:\Users\<you>\vbcc\config\kick13` (the stock one points at a
+`targets/m68k-kick13/` tree we don't build). This one is the win64 **`aos68k`** config
+with the two required KS1.3 tweaks — `minstart.o` (not `startup.o`) and `-Rstd` (not
+`-Rshort`); see the macOS recipe above for *why* both are mandatory:
+
+```
+-cc=vbccm68k -quiet %s -o= %s %s -O=%ld -I%%VBCC%%/targets/m68k-amigaos/include
+-ccv=vbccm68k %s -o= %s %s -O=%ld -I%%VBCC%%/targets/m68k-amigaos/include
+-as=vasmm68k_mot -quiet -Fhunk -nowarn=62 %s -o %s
+-asv=vasmm68k_mot -Fhunk -nowarn=62 %s -o %s
+-rm=del %s
+-rmv=del %s
+-ld=vlink -bamigahunk -x -Bstatic -Cvbcc -nostdlib -mrel %%VBCC%%/targets/m68k-amigaos/lib/minstart.o %s %s -L%%VBCC%%/targets/m68k-amigaos/lib -lvc -o %s
+-l2=vlink -bamigahunk -x -Bstatic -Cvbcc -nostdlib -mrel %s %s -L%%VBCC%%/targets/m68k-amigaos/lib -o %s
+-ldv=vlink -bamigahunk -t -x -Bstatic -Cvbcc -nostdlib -mrel %%VBCC%%/targets/m68k-amigaos/lib/minstart.o %s %s -L%%VBCC%%/targets/m68k-amigaos/lib -lvc -o %s
+-l2v=vlink -bamigahunk -t -x -Bstatic -Cvbcc -nostdlib -mrel %s %s -L%%VBCC%%/targets/m68k-amigaos/lib -o %s
+-ldnodb=-s -Rstd
+-ul=-l%s
+-cf=-F%s
+-ml=1000
+-hunkdebug
+-amiga-softfloat
+```
+
+`%%VBCC%%` is expanded by `vc` from the `VBCC` env var, so the tree is relocatable.
+
+### 4. Build + package for Amiga Forever
+
+```bash
+export VBCC=/c/Users/$USER/vbcc
+export PATH="$VBCC/bin:$PATH"
+cd client/amiga/emulation
+./make_hdd.sh          # rebuilds the client, then populates ./hdd/
+```
+
+Then in Amiga Forever add a **Directory hard drive** pointing at
+`client/amiga/emulation/hdd` (e.g. `DH0:`), boot a KS1.3 Workbench, and run `Compunet`
+(the bundled `s/startup-sequence` does `Assign DEVS: SYS:devs` first so `cnet.device`
+is found).
+
+### Windows notes / gotchas
+
+- **DOS headers in 1.3:** there is **no** `dos/dos.h` in the KS1.3 NDK — DOS structs
+  live in `libraries/dos.h` (the `dos/` split is a 2.0+ thing). `dosio.c` correctly
+  uses `#include <libraries/dos.h>`.
+- **Warnings are expected, not errors.** Besides the `#endif !FOO` header noise, the
+  build prints `warning 85 (assignment of different pointers)`, `161 (implicit
+  declaration of sprintf/WaitPort/…)`, `213 (varargs w/o prototype)`. These are
+  pre-existing in the source (some OS calls are reached as plain external symbols
+  resolved from `amiga.lib` via `-lamiga`, not inlined via `proto/`); the link
+  succeeds and the binary is valid. Same set the macOS build emits.
+- **Verify the output** is KS1.3-loadable: magic `00 00 03 f3`, and it must contain
+  `RELOC32` (`0x3ec`) hunks with **no** `RELOC32SHORT` (`0x3f7`). If `0x3f7` appears,
+  the `-Rstd` edit to `config/kick13` didn't take (error 121 on 1.3).

@@ -41,6 +41,38 @@ bootblock). No Workbench disk, no hard-drive setup needed. ~18% full, so there's
 > The disk embeds pieces of *your* licensed Workbench for *your* testing; it is not
 > committed to the repo (it's git-ignored, like the other generated images).
 
+## Stage 0 — TCP/IP connectivity test (`nettest`)
+
+Before the full TCP transport is wired into the client, `nettest` proves the
+*environment* works end to end: `bsdsocket.library` present, emulator networking
+bridged, the Reborn server reachable, and `net.c`'s socket code correct. It does not
+need the application protocol — it just connects, reads the server's greeting, sends
+the raw `C CNET` identification, and dumps whatever comes back.
+
+Requires **KS2.04+** and a TCP/IP stack (Roadshow/AmiTCP/Miami) running in the
+emulated Amiga, plus emulator guest networking that can reach the host running the
+server (WinUAE/Amiberry with a bridged/NAT NIC — FS-UAE can't pass guest TCP).
+
+`make_hdd.sh` builds `nettest` and seeds a `TCPHOST` placeholder in `hdd/`. Steps:
+
+1. Edit `hdd/TCPHOST` (on the host) to the server address reachable from the
+   emulated Amiga — one line, `host` or `host:port` (default port 6400), e.g.
+   `192.168.1.50:6400`.
+2. Start the Reborn server (`./server.sh` in `server/`) somewhere that address reaches.
+3. Boot a KS2.04+ Workbench with the TCP/IP stack active, with `hdd/` mounted (DH0:).
+4. In a Shell:
+   ```
+   DH0:
+   nettest
+   ```
+5. **Expected:** `[3] connect() ... OK`, then a 12×`$20` greeting dump, then a server
+   response. Because the server has no Amiga branch yet, the response is most likely
+   `*PLEASE DOWNLOAD LATEST CLIENT` — which is a **success** for this test: it proves
+   the full TCP round-trip. Any received bytes confirm connectivity.
+
+If `[1]` fails, the stack/`bsdsocket.library` isn't running. If `[3]` fails, check the
+address, that the server is up, and emulator networking.
+
 ## Stage 1 — launch the UI (no server)
 
 This validates the reconstruction's UI, data blob, font, and PETSCII rendering — the
