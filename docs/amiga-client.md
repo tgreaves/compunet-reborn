@@ -233,44 +233,80 @@ Three focus areas drive the current work:
    directly affects how Reborn frames (authored as PETSCII) will render on the Amiga.
    Needs investigation in the decompiled display/frame-rendering code.
 
+## Current status (2026-07-21)
+
+The readability/reconstruction goals above are **done**. The client is fully
+reconstructed as readable C (`client/amiga/src/`), builds with the vbcc KS1.3 toolchain,
+and **boots to a working idle state** in the emulator with the offline UI functional:
+menus, About, Settings (config load/save + toggle), Editor launch, and Quit (clean exit)
+all verified on real emulated hardware.
+
+Verification standard: every function is checked BYTE-EXACT against the relocated
+disassembly of the original binary (tool: `client/amiga/vintage/tools/re/disasm_fn.py`;
+rule in [CLAUDE.md](../CLAUDE.md): NEVER infer — verify against the machine code). The
+running audit log is
+[re/audit-findings.md](../client/amiga/vintage/tools/re/audit-findings.md).
+
+**Audited + verified faithful so far:**
+- **Transport primitives** — `serial_write`/`serial_read`/`serial_io_c`/`send_dat_packet`
+  /`serial_io_variant` (byte-exact; fixed a swapped-out-param bug in serial_read).
+- **Connect/login path** — `open_transport`, `do_connect`, `wait_connect_handshake`,
+  `send_login_record`, `validate_login` (five real wire-protocol fidelity bugs found and
+  fixed: the login-record terminal id, the connect-handshake bytes, the modem-name
+  pointer, and a full rewrite of the handshake scanner).
+- **Application layer** — directory, frames (PETSCII renderer), mail, put_frame, the full
+  download subsystem incl. the IFF/ILBM image viewer, and the resource tracker (rebuilt
+  faithfully to the original's exec-List design, fixing a Quit double-free).
+
+**Frame encoding — CORRECTED:** the Amiga uses **PETSCII** (converted in the renderer),
+NOT a separate "ESC-code" format — see goal 3 above and the note under Next steps. Any
+lingering "ESC-code" phrasing elsewhere in this doc is superseded.
+
 ### Next steps
 
-- **Name the Amiga LVOs** in the Ghidra project (fd-based) so OS calls in `recon.c`
-  read as `OpenDevice`/`DoIO`/`Printf`/etc. — the last big readability step before
-  systematic reconstruction. *(Current focus — goal 1.)*
-- **Assign sensible function names** in the recon based on the strings each function
-  references and its call graph, replacing `FUN_00xxxxxx` with meaningful names.
-- **Locate PETSCII handling** (goal 3): search the decompiled code for character
-  translation tables, `$40`/`$60`/`$C0` PETSCII-range remapping, or custom font
-  loading in the frame-display path.
-- **Map the transport touch-points** (goal 2): every `cnet.device` open / `DoIO` /
-  `SendIO` / read / write / dial / carrier-check site, as the set of calls TCP will
-  replace.
-- **Assemble the KS1.3 NDK headers** into the vbcc tree so OS-calling modules
-  compile (the base toolchain and pure-logic modules already build).
-- **Reconstruct module-by-module**, starting with the transport (`cnet.device`
-  open/IO around `0x1192b6` / `0x10343c`) and the protocol/framing code, verifying
-  each against its original with the round-trip method.
-- **Protocol match — transport CONFIRMED, application commands OPEN.** The X.25
-  framing engine in `cnet.device` matches [docs/PROTOCOL.md](PROTOCOL.md)
-  field-for-field: `$01` start marker, sequence `$20-$5F` with wrap, tokens
-  (`0x22`=DAT, `0x43`=COM), table-driven CRC-CCITT (canonical poly-0x1021 table,
-  byte-identical to C64/server). Framing/CRC/sequencing live in `cnet.device`, not the
-  client. The **identification handshake differs** from the C64 (`C CNET\r`×2 +
-  14-zero field, vs the C64's `{hash}/100\rADP\rNO\rRUN`) but is detectable, so the
-  server can recognise an Amiga client at connect. **Application commands — CONFIRMED
-  matching:** the Amiga sends single-letter commands + numeric arg in COM frames and
-  waits for ack `@` — `P<nn>`=SHOW (0x50), `D<nn>`=DIR (0x44), `A`/`B`/`E`/`M`/`N`/`O`
-  — the same set the C64 sends and the Reborn server already handles. Selecting a text
-  frame is `P<nn>` = `CMD_SHOW`, identical to the C64. The remaining difference is
-  **frame content encoding** (Amiga ESC-code frames, not PETSCII). See
-  [re/protocol-analysis.md](../client/amiga/vintage/tools/re/protocol-analysis.md) and
-  [re/identification-and-commands.md](../client/amiga/vintage/tools/re/identification-and-commands.md).
-  **Implication:** a drop-in TCP `cnet.device` handles transport and the server can
-  detect Amiga clients (needs a detection branch + Amiga-format frames), but whether
-  the unmodified client can drive the Reborn server hinges on the command match.
-- **Unpack `CNETTTY`** (cruncher #2) via 68k emulation of its stub, if the TTY
-  viewer proves useful.
+The remaining work is the transport swap (the last architectural piece) plus finishing
+the audit. In priority order:
+
+1. **bsdsocket TCP transport (the milestone, "2b").** Replace the `cnet.device`
+   OpenDevice + `io_Command` read/write/dial calls with native
+   `bsdsocket.library` TCP sockets connecting to the Reborn server (raw TCP on port
+   **6400**, the same transport the C64 client uses), keeping the X.25 framing and the
+   command/ack protocol above it byte-identical. Keep the 1.3 build for the offline UI;
+   only the new socket code needs 2.04+, so it can runtime-detect bsdsocket and degrade
+   gracefully. Decisions to settle first: which stack (Roadshow is the easiest modern
+   choice; also AmiTCP/Miami — all expose the standard BSD-socket API), and the
+   **host:port config surface** (repurpose existing config fields — e.g. modem-name →
+   hostname — to avoid inventing UI the original lacked).
+2. **Environment prerequisites for 2b (not code):**
+   - **Kickstart 2.04** minimum — every Amiga TCP/IP stack requires it. The current
+     binary is expected to run unchanged on 2.04 (RELOC32 + minstart.o + old-style
+     Intuition are all backward-compatible); verify by booting on KS2.04.
+   - **Emulator with guest networking** — FS-UAE cannot pass TCP from the emulated
+     environment to the host, so the network dev loop needs **WinUAE or Amiberry** with
+     an emulated Ethernet NIC (e.g. `a2065.device`) bridged to the host, pointed at the
+     server on the Mac/LAN. Keep FS-UAE/vAmiga for the (faster) offline-UI checks.
+   - A **2.04 Workbench** boot disk for the network tests (the current self-boot disk
+     cherry-picks 1.3 Workbench pieces, which may misbehave on a 2.04 ROM).
+3. **Finish the fidelity audit.** Remaining unaudited: the pure-UI layer
+   (`ui.c`/`ui_state.c`/`ui_dialogs.c`/`menu.c`/`event_loop.c`) — not on the network
+   path, so it doesn't block 2b. Also: faithfully re-trace `file_download_xfer`
+   (FUN_0010b174, only approximately reconstructed); fix the LONG-vs-UWORD width of
+   `g_state`/`g_online`/`g_frame_hdr_more`; and reconstruct `apply_serial_params`
+   correctly (it is bound to FUN_00114050, which is actually an editor command).
+4. **Reproducibility:** make `make_boot_adf.sh` deterministic (pin datestamps) so a
+   built ADF is byte-identical and checksummable — a non-deterministic build caused a
+   long false-trail chasing a "stale disk" as if it were a code bug.
+
+**Protocol match (reference):** transport framing (X.25 in `cnet.device`) and application
+commands both CONFIRMED matching the C64/server — single-letter commands + numeric arg in
+COM frames, ack `@`: `P<nn>`=SHOW, `D<nn>`=DIR, plus `A`/`B`/`E`/`M`/`N`/`O`. The
+identification handshake differs (`C CNET\r`×2 + 14-zero+CR field) but is detectable, so
+the server can recognise an Amiga client at connect. See
+[re/protocol-analysis.md](../client/amiga/vintage/tools/re/protocol-analysis.md) and
+[re/identification-and-commands.md](../client/amiga/vintage/tools/re/identification-and-commands.md).
+
+- **Unpack `CNETTTY`** — DONE (decrunched; shipped as `CnetTty` and driven by the link
+  download path).
 
 ## Extraction notes
 
