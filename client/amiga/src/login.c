@@ -65,7 +65,6 @@ extern APTR  g_frame_out_end;  /* DAT_0012309c */
 void send_login_record(void)
 {
     char rec[0x1b];      /* 27-byte record, sent whole (len 0x1b) */
-    char termid[11];
     int  i, o;
 
     rec[0] = 'Z';
@@ -87,14 +86,21 @@ void send_login_record(void)
     for (o = 0x0f; o < 0x15; o++)
         rec[o] = '\0';
 
-    /* terminal id: "AM21" + device version + revision digits */
+    /* terminal id written directly into rec[0x15..0x1a] (recon 0x1033c0-0x1033fe):
+     * "AM21" then the device version and revision digits. The original writes these
+     * into the record buffer itself — an earlier reconstruction wrote them into a
+     * separate local array that was never sent, leaving rec[0x15..0x1a] uninitialised
+     * garbage in the transmitted login record. */
     {
         struct Device *dev = g_write_req->io.io_Device;
         UWORD ver = *(UWORD *)((UBYTE *)dev + 0x14);
         UWORD rev = *(UWORD *)((UBYTE *)dev + 0x16);
-        memcpy(termid + 6, "AM21", 4);
-        termid[10] = (char)ver + '0';
-        termid[0]  = (char)rev + '0';   /* (recon stores rev digit in local_11) */
+        rec[0x15] = 'A';
+        rec[0x16] = 'M';
+        rec[0x17] = '2';
+        rec[0x18] = '1';
+        rec[0x19] = (char)(ver + 0x30);   /* version digit  (recon add.l #$30) */
+        rec[0x1a] = (char)(rev + 0x30);   /* revision digit                    */
     }
 
     serial_write(rec, 0x1b, 1, TOKEN_COM);
@@ -105,18 +111,43 @@ void send_login_record(void)
 }
 
 /*
- * wait_connect_handshake — after dialling, read host status bytes until we see the
- * "@ okay" banner (success) or "NO CARRI[ER]" (failure) in an 8-byte sliding window
- * (recon: FUN_00103162). Returns 1 on success, 0 on failure.
+ * wait_connect_handshake — recon FUN_00103162. After dialling, read host bytes and scan
+ * for the connect banner. Faithful transcription of the original's byte loop:
+ *
+ *   - modem_read_status() gives the count of bytes waiting; 0 -> Delay(5) and retry;
+ *     -1 -> "Carrier lost" (code 0x42) + longjmp(g_jmpbuf, 9).
+ *   - read the bytes in chunks of at most 0x28 via serial_io_variant into g_hs_read.
+ *   - per byte c: mask to 7 bits; 0x5f ('_') or 0x0d ('\r') -> 0x0a ('\n'); a '?' or '*'
+ *     arms line-capture (line_flag). While armed: a '\n' flushes the accumulated line to
+ *     the logon window (flush_logon_line) and, if the line begins "*con", returns 1
+ *     (success); otherwise a printable char (0x20..0x7e) is appended to g_hs_line, which
+ *     is flushed first if it reached 0x28 chars.
+ *   - every byte is also pushed into an 8-byte sliding window (newest at [7], then the
+ *     window shifts left) tested against "@ okayxk" (success -> 1) and "NO CARRI"
+ *     (failure -> 0). Verified strings: 0x11d5ce "*con", 0x11d5d4 "@ okayxk",
+ *     0x11d5de "NO CARRI", 0x11d5c0 "Carrier lost".
  */
+extern void  serial_io_variant(APTR buf, LONG len);   /* FUN_0011998a */
+extern char  g_hs_line[];        /* DAT_001201c4 */
+extern UWORD g_hs_line_len;      /* DAT_001201ee */
+extern UBYTE g_hs_read[];        /* DAT_001201f2 */
+
+/* flush_logon_line — recon FUN_001030ae: echo the accumulated line to the logon window
+ * (modem_send of g_hs_line for g_hs_line_len chars) and reset the length. */
+static void flush_logon_line(void)
+{
+    modem_send(g_hs_line, (LONG)g_hs_line_len);
+    g_hs_line_len = 0;
+}
+
 LONG wait_connect_handshake(void)
 {
     UBYTE window[9];
-    int   i;
-    ULONG status;
+    ULONG status, got, chunk, j, k;
+    UBYTE line_flag = 0;
 
-    for (i = 0; i < 9; i++)
-        window[i] = 0;
+    for (j = 0; j < 9; j++)
+        window[j] = 0;
 
     for (;;) {
         while ((status = modem_read_status()) == 0)
@@ -124,18 +155,42 @@ LONG wait_connect_handshake(void)
 
         if (status == (ULONG)-1) {
             show_status_message(0x42, "Carrier lost");
-            set_connection_error(9);
-            /* fall through to keep scanning as the original does */
+            set_connection_error(9);         /* longjmp — does not return */
         }
 
-        /* shift the new byte into the window and test the two banners */
-        window[7] = (UBYTE)status;
-        if (strcmp((char *)window, "@ okay") == 0)   /* recon "@ okayxk" prefix */
-            return 1;
-        if (strcmp((char *)window, "NO CARRI") == 0)
-            return 0;
-        for (i = 0; i < 8; i++)
-            window[i] = window[i + 1];
+        for (got = 0; got < status; ) {
+            chunk = status - got;
+            if (chunk > 0x28) chunk = 0x28;
+            got += chunk;
+            serial_io_variant(g_hs_read, (LONG)chunk);
+
+            for (j = 0; j < chunk; j++) {
+                UBYTE c = g_hs_read[j] & 0x7f;
+                if (c == 0x5f || c == 0x0d)
+                    c = 0x0a;
+                if (c == '?' || c == '*')
+                    line_flag = 1;
+                if (line_flag) {
+                    if (c == 0x0a) {
+                        flush_logon_line();
+                        line_flag = 0;
+                        if (strncmp(g_hs_line, "*con", 4) == 0)
+                            return 1;
+                    } else if (c >= 0x20 && c <= 0x7e) {
+                        if (g_hs_line_len == 0x28)
+                            flush_logon_line();
+                        g_hs_line[g_hs_line_len++] = c;
+                    }
+                }
+                window[7] = c;
+                if (strcmp((char *)window, "@ okayxk") == 0)
+                    return 1;
+                if (strcmp((char *)window, "NO CARRI") == 0)
+                    return 0;
+                for (k = 0; k < 8; k++)
+                    window[k] = window[k + 1];
+            }
+        }
     }
 }
 
@@ -171,7 +226,7 @@ LONG do_connect(void)
     }
 
     if (open_logon_window() == 0) {
-        close_connection_window();
+        /* recon 0x1034ba: only close_logon_window here (no close_connection_window). */
         close_logon_window();
         show_status_message(1, "Can't open logon window");
         return 0;
@@ -187,24 +242,28 @@ LONG do_connect(void)
         return 0;
     }
 
-    modem_send("\r", 1);
+    /* recon 0x103528 / 0x103544: the bracketing sends are a single SPACE (0x20 at
+     * 0x11d650 / 0x11d664), not CR. The middle line is "Carrier detected." (17 bytes). */
+    modem_send(" ", 1);
     modem_send("Carrier detected.", 0x11);
-    modem_send("\r", 1);
+    modem_send(" ", 1);
 
-    /* Two short "K" line-turnaround probes, then wait for >=10 status bytes. */
+    /* Two "_" line-turnaround probes (recon 0x11d666/0x11d668 = 0x5f, underscore — NOT
+     * "K"), each after a 0x4b-tick delay, then wait for >=10 status bytes. */
     modem_delay(0x4b);
-    modem_send_delayed("K", 1);      /* recon DAT_0011d666 */
+    modem_send_delayed("_", 1);      /* recon DAT_0011d666 = '_' */
     modem_delay(0x4b);
-    modem_send_delayed("K", 1);      /* recon DAT_0011d668 */
+    modem_send_delayed("_", 1);      /* recon DAT_0011d668 = '_' */
     do {
         modem_delay(5);
     } while (modem_read_status() < 10);
 
-    /* The Compunet identification handshake: "C CNET\r" twice + 14 zero bytes. */
+    /* The Compunet identification handshake: "C CNET\r" twice, delay, then 14 '0' chars
+     * followed by a CR (recon 0x11d67a = fourteen 0x30 + 0x0d, total length 0x0f). */
     modem_send_delayed("C CNET\r", 7);
     modem_send_delayed("C CNET\r", 7);
     modem_delay(0xfa);
-    modem_send_delayed("00000000000000", 0x0f);
+    modem_send_delayed("00000000000000\r", 0x0f);
 
     if (wait_connect_handshake() == 0) {
         show_status_message(1, "Failed to connect");

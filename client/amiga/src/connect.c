@@ -24,10 +24,10 @@
  *   g_dev_name_param : string param stored in the request (+0x2e region)
  *   g_baud_up/g_baud_down : 75 / 1200 (DAT_0012012c / DAT_0012012e)
  *   g_open_flags     : OpenDevice flags (DAT_00120130); bit 1 passed to OpenDevice */
-/* g_baud_up / g_baud_down / g_open_flags are now accessor macros into g_config
- * (compunet.h) — the single config block, so the device baud comes straight from the
- * loaded/edited config, matching the original (open_transport reads block+0x24). */
-extern UWORD  g_dev_param2e;   /* config word written to the request at +0x2e */
+/* g_baud_up / g_baud_down / g_open_flags / g_modem_name are accessor macros into
+ * g_config (compunet.h) — the single config block, so the device baud/modem name come
+ * straight from the loaded/edited config, matching the original (open_transport reads
+ * block+0x14 modem name, block+0x24/0x26 baud). */
 extern struct Device *g_cnet_device;  /* was DAT_001230a4 (req->io_Device after open) */
 
 char open_transport(void)
@@ -56,15 +56,23 @@ char open_transport(void)
     g_read_req = create_extio_tracked(g_read_port, CNET_REQ_SIZE);
     if (g_read_req == NULL) { cleanup_resources(); return XPORT_FAIL; }
 
-    /* Serial parameters on the write request (copied to the read request below). */
-    REQ_PARAM2E(g_write_req) = g_dev_param2e;
-    REQ_BAUD_UP(g_write_req) = g_baud_up;         /* 75   */
-    REQ_BAUD_DN(g_write_req) = g_baud_down;       /* 1200 */
+    /* Serial parameters on the write request (copied to the read request below). The
+     * modem-name field at +0x2e is a POINTER to the config's modem-name string (recon:
+     * move.l &g_config[0x14], req+0x2e), NOT a scalar. */
+    REQ_MODEMNAME(g_write_req) = g_modem_name;
+    REQ_BAUD_UP(g_write_req)   = g_baud_up;       /* 75   */
+    REQ_BAUD_DN(g_write_req)   = g_baud_down;     /* 1200 */
 
-    if (open_device_tracked("cnet.device", 0, (struct IORequest *)g_write_req,
-                            g_open_flags & 2) != 0) {
-        cleanup_resources();                      /* OpenDevice failed */
-        return XPORT_FAIL;
+    {
+        /* open_device_tracked returns 0 on success or OpenDevice's io_Error on failure.
+         * The original propagates that raw error byte (recon 0x1193cc-0x1193dc), so
+         * do_connect can distinguish e.g. carrier/modem errors — do NOT flatten to 1. */
+        char derr = (char)open_device_tracked("cnet.device", 0,
+                        (struct IORequest *)g_write_req, g_open_flags & 2);
+        if (derr != 0) {
+            cleanup_resources();
+            return derr;
+        }
     }
 
     /* Clone the write request's parameter/device fields (0x14..0x35) into the read

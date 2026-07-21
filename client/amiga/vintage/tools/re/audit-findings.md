@@ -153,11 +153,55 @@ logon_window_ready, transfer.c (upload_file/action_download/download_receive).
   extracts a transfer size from header+6 / 0x1215ec. Ours is a simplified retry-open loop.
   Needs a faithful re-trace (it feeds both download_receive and action_download_run).
 
+## CONNECT / LOGIN — audited + fixed this pass (disasm-verified, five functions)
+
+Each function disassembled from the relocated original and compared field-by-field; every
+fix below re-verified against the raw bytes before applying.
+
+- **[FIXED] open_transport (FUN_001192b6) — req+0x2e wrong width AND wrong source.**
+  Original (0x119398) writes a LONG POINTER to the modem-name string (&g_config[0x14] =
+  g_modem_name) into the write request at +0x2e; ours wrote a UWORD g_dev_param2e (2 bytes,
+  bogus value). Fixed: REQ_MODEMNAME (long ptr) = g_modem_name. Also **[FIXED]** the
+  OpenDevice-failure return: original propagates the raw io_Error byte (0x1193cc), ours
+  hardcoded XPORT_FAIL(1); now returns the real error. Everything else (port/req/sig
+  order+mapping, CreateExtIO 0x36, baud +0x32/+0x34 from config+0x24/0x26, device name,
+  unit 0, flags g_open_flags&2, the 0x14..0x36 write→read copy, io_Device capture, and the
+  version<2 / version==2&&rev<1 → 3 reject) verified byte-exact.
+- **[FIXED] send_login_record (FUN_0011032fa) — terminal id was never sent.** Original writes
+  "AM21" + version/revision digits into rec[0x15..0x1a] (0x1033c0-0x1033fe); ours wrote them
+  into a separate local array that was never transmitted, leaving the last 6 bytes of the
+  login record uninitialised garbage. Fixed to write rec[0x15..0x1a] directly. Rest (‘Z’,
+  userid@0x120244 w8, password@0x12024d w6, 0x0f..0x14 clear, serial_write len 0x1b tok 0x43,
+  7-byte scratch clear) verified byte-exact.
+- **[REWRITTEN] wait_connect_handshake (FUN_00103162) — was a heavy simplification.** Ours
+  was a bare 8-byte window testing "@ okay" (which can never match the 8-byte window) and
+  missed the "*con" line-match success path entirely. Reconstructed faithfully: status-count
+  read loop (modem_read_status; Delay 5 on 0; -1 → "Carrier lost" 0x42 + longjmp), chunked
+  serial_io_variant reads (<=0x28), per-byte &0x7f, 0x5f/0x0d→0x0a, ?/* line-capture arming,
+  line accumulation echoed to the logon window (flush_logon_line), "*con" line match → 1, and
+  the 8-byte sliding window vs "@ okayxk" → 1 / "NO CARRI" → 0. Added g_hs_line/len/read BSS.
+- **[FIXED] do_connect (FUN_0010343c) — four wrong bytes on the connect wire.** Verified from
+  raw bytes: (D2) the bracketing modem_send were "\r" but the original sends a single SPACE
+  (0x11d650/0x11d664 = 0x20); (D3) the two line-turnaround probes were "K" but are underscore
+  '_' (0x11d666/0x11d668 = 0x5f); (D4) the 14-zeros send dropped its trailing CR — original
+  0x11d67a is fourteen '0' + 0x0d (len 0x0f); (D1) the logon-window-open failure path had an
+  extra close_connection_window() the original (0x1034ba) does not. All fixed. The rest (guard,
+  open_transport return mapping, dial sequence, "C CNET\r" ×2, delays 0x4b/0xfa, >=10 status
+  wait, handshake/ack/login-record loop, frame+directory bring-up, serial_read drain len 0x2a)
+  verified byte-exact.
+- **[VERIFIED CLEAN] validate_login (FUN_0010e0fc).** State=5, "D%02d" from g_dir_page+0xc78
+  (signed word), serial_write/ack loop, frame_display+done, "D" next-request seed, more-pages
+  loop on DAT_001203b2 bit 0x80 — all byte-exact. No changes needed.
+- **[NOTE — deferred] g_state / g_online / g_frame_hdr_more width.** The original treats these
+  as LONG (all accesses .l); we declare them UWORD. Harmless for their value ranges but not
+  strictly faithful. Also apply_serial_params (config.c/settings.c) is bound to FUN_00114050
+  which is actually an editor command (opcode 5), not a serial-param setter — separate
+  invented-reconstruction to fix later.
+
 ## NOT YET AUDITED (agents stopped)
 
-transport.c (serial_write/read/io_c, send_dat_packet, report_result), connect.c
-(open_transport), login.c (do_connect, send_login_record, wait_connect_handshake,
-validate_login), ui.c / ui_state.c / ui_dialogs.c / menu.c / event_loop.c.
+transport.c (serial_write/read/io_c, send_dat_packet, report_result),
+ui.c / ui_state.c / ui_dialogs.c / menu.c / event_loop.c.
 
 Tooling: `disasm_fn.py <name|0xADDR> [--our]` (this dir) is the verified original-vs-ours
 comparer used for this audit — the reliable, no-inference method for finishing it.

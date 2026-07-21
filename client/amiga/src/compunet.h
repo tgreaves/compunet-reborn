@@ -58,7 +58,9 @@ struct CnetRequest {
 #define CNET_REQ_SIZE   0x36    /* size passed to CreateExtIO by the original */
 #define REQ_SERFLAGS(r) (((UBYTE *)(r))[0x2c])   /* read: ack byte / ser flags */
 #define REQ_STATUS(r)   (((UBYTE *)(r))[0x2d])   /* write: protocol token       */
-#define REQ_PARAM2E(r)  (*(UWORD *)((UBYTE *)(r) + 0x2e))
+/* req+0x2e holds a LONG POINTER to the modem-name string (recon open_transport 0x119398:
+ * move.l a0,0x2e(a1), a0 = &g_config[0x14] = g_modem_name). It is NOT a 2-byte scalar. */
+#define REQ_MODEMNAME(r) (*(char **)((UBYTE *)(r) + 0x2e))
 #define REQ_BAUD_UP(r)  (*(UWORD *)((UBYTE *)(r) + 0x32))
 #define REQ_BAUD_DN(r)  (*(UWORD *)((UBYTE *)(r) + 0x34))
 

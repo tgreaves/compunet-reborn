@@ -70,6 +70,11 @@ char   g_login_userid[16];      /* DAT_00120244 */
 char   g_login_scratch[16];     /* DAT_0012024d */
 UBYTE  g_frame_indent = 0;      /* placeholder for DAT_0011d078 indent check */
 
+/* ---- Connect handshake scratch (wait_connect_handshake, recon FUN_00103162) ---- */
+char   g_hs_line[0x2a];         /* DAT_001201c4 — accumulated logon-text line (<=0x28) */
+UWORD  g_hs_line_len = 0;       /* DAT_001201ee — chars currently in g_hs_line         */
+UBYTE  g_hs_read[0x2a];         /* DAT_001201f2 — per-chunk serial_io_variant read buf  */
+
 /* ---- Frame display state (recon 0x1203a0-0x1203bb, 0x120258, charset) ---- */
 UBYTE *g_font_base = NULL;      /* 0x120258 */
 UBYTE  c64_charset_upper[0x400];/* 0x11d9c0 — filled at build/link (font ROM) */
