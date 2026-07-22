@@ -341,7 +341,7 @@ LONG download_filename_prompt(void)
  */
 extern APTR g_screen;
 extern char g_put_name[];      /* DAT_001215f4 */
-extern char g_put_type;        /* DAT_00121605 */
+extern char g_put_type[];      /* DAT_00121605 */
 extern char g_put_type_str[];  /* DAT_00121607 */
 extern char g_put_life_str[];  /* DAT_0012160e */
 
@@ -384,9 +384,22 @@ static LONG put_frame_dialog_open(void)
         return 0;
 
     g_put_name[0]     = 0;                             /* recon clr.b 0x45f4/05/07/0e */
-    g_put_type        = 0;
+    g_put_type[0]     = 0;
     g_put_type_str[0] = 0;
     g_put_life_str[0] = 0;
+
+    /* Repoint the 4 string gadgets' StringInfo.Buffer at our C globals. In the original
+     * these buffers lived in the a4 small-data block at the very addresses the globals
+     * occupy (0x1215f4/05/07/0e), so the gadget list's Buffer fields pointed straight at
+     * them. In the reconstruction those Buffer values are STALE absolute pointers that
+     * alias neither the loaded g_data blob nor our C globals — so Intuition would write the
+     * user's edits into dangling memory while sscanf read empty globals (the "Invalid Life"
+     * symptom: the "5" never reached g_put_life_str). Field addresses are the StringInfo
+     * structs of the gadget list @0x11e934 (Buffer at StringInfo+0, MaxChars 17/2/7/4). */
+    *(APTR *)DATA(0x11e910) = (APTR)g_put_name;        /* gadget 0 name    (0x1215f4) */
+    *(APTR *)DATA(0x11e89c) = (APTR)g_put_type;        /* gadget 1 type    (0x121605) */
+    *(APTR *)DATA(0x11e828) = (APTR)g_put_type_str;    /* gadget 2 page.sub(0x121607) */
+    *(APTR *)DATA(0x11e7b4) = (APTR)g_put_life_str;    /* gadget 3 life    (0x12160e) */
 
     DrawImage(w->RPort, (struct Image *)DATA(0x11e960), 0, 0);
     PrintIText(w->RPort, (struct IntuiText *)DATA(0x11ea1c), 0, 0);
@@ -444,7 +457,7 @@ LONG put_frame_dialog(void)
              * flushes their edit buffers, then clean name + type. */
             pos = RemoveGList(w, glist, 4);
             str_clean_upper(g_put_name);
-            str_clean_upper(&g_put_type);
+            str_clean_upper(g_put_type);
             AddGList(w, glist, pos, 4, NULL);
             RefreshGList(glist, w, NULL, 4);
             RemoveGList(w, glist, 6);               /* now detach all 6 */

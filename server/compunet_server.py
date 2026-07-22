@@ -840,9 +840,17 @@ class CompunetSession:
             # Program download: send header, wait for proceed token
             if self.show_page.page_type == 'P':
                 prg_data = self.show_page.frames[self.show_frame_index]
-                load_lo = prg_data[0]
-                load_hi = prg_data[1]
-                program_bytes = prg_data[2:]
+                if getattr(self.show_page, 'machine_type', 'c64') == 'amiga':
+                    # Amiga programs are stored as the raw relocatable HUNK executable —
+                    # there is no C64-style 2-byte load address to strip. Serve it whole;
+                    # the Amiga client LoadSeg/Execute()s it and ignores the load field.
+                    load_lo = 0
+                    load_hi = 0
+                    program_bytes = prg_data
+                else:
+                    load_lo = prg_data[0]
+                    load_hi = prg_data[1]
+                    program_bytes = prg_data[2:]
                 size = len(program_bytes)
                 size_lo = size & 0xFF
                 size_hi = (size >> 8) & 0xFF
@@ -1695,12 +1703,19 @@ class CompunetSession:
         page_dir = os.path.join(parent_dir, page_slug)
         os.makedirs(page_dir, exist_ok=True)
 
-        # Save frames into page folder
+        # Save frames into page folder. Program frames are [8-byte header][body]; the
+        # header's byte 0 is the machine type (1=Amiga, 0=C64).
         frame_files = []
         is_program = send['type'] == 'P'
+        prog_machine = send['frames'][0][0] if (is_program and send['frames']) else None
         for i, frame_data in enumerate(send['frames']):
             if is_program:
-                frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
+                if prog_machine == 1:
+                    # Amiga: relocatable HUNK executable — store the raw body, no prefix.
+                    frame_data = bytes(frame_data[8:])
+                else:
+                    # C64: prepend the 2-byte load address (header bytes 4-5) to the body.
+                    frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
                 frame_file = f'{page_slug}.prg' if i == 0 else f'{page_slug}-{i+1}.prg'
             else:
                 frame_file = f'frame-{i+1}.seq'
@@ -1710,7 +1725,11 @@ class CompunetSession:
             frame_files.append(frame_file)
 
         if is_program and send['frames']:
-            size = (len(send['frames'][0]) - 2 + 1023) // 1024
+            hdr = send['frames'][0]
+            if prog_machine == 1:
+                size = (len(hdr) - 8 + 1023) // 1024   # raw body length (KB)
+            else:
+                size = (len(hdr) - 2 + 1023) // 1024   # C64 calc (unchanged)
         else:
             size = len(send['frames'])
 
@@ -1724,7 +1743,11 @@ class CompunetSession:
             life=send['lifetime'],
         )
         new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        new_page.machine_type = 'amiga' if getattr(self, 'is_amiga', False) else 'c64'
+        if is_program and prog_machine is not None:
+            # Program uploads carry their machine type in the header byte (authoritative).
+            new_page.machine_type = 'amiga' if prog_machine == 1 else 'c64'
+        else:
+            new_page.machine_type = 'amiga' if getattr(self, 'is_amiga', False) else 'c64'
         new_page.parent = self.current_page
         new_page._frame_files = frame_files
         new_page._dir_path = page_dir
@@ -2898,8 +2921,40 @@ async def tcp_handler(reader, writer):
                 elif token == TOKEN_ACK:
                     log.debug('TCP: received ACK seq=$%02X', seq)
 
+                elif (session.pending_send is not None and token != 0x43
+                        and session.pending_send.get('type') == 'P'):
+                    # PROGRAM upload (Amiga/C64 binary). The client sends an 8-byte header
+                    # DAT first (byte0 = machine type: 1=Amiga, 0=C64; bytes 4-7 = body size,
+                    # big-endian), then the raw file as DAT chunks. We can't use the PETSCII
+                    # "<100 bytes ends the frame" heuristic here (the 8-byte header would end a
+                    # frame, and a binary body rarely ends on a short chunk). Instead: read the
+                    # size from the header, accumulate exactly that many body bytes, then store
+                    # ONE frame (header + body) and send a single final ACK. No per-chunk ACK,
+                    # so the client — which blasts every chunk before reading — never stalls.
+                    ps = session.pending_send
+                    if '_prog_header' not in ps:
+                        ps['_prog_header'] = bytes(payload[:8])
+                        ps['_prog_size'] = int.from_bytes(ps['_prog_header'][4:8], 'big')
+                        ps['_prog_body'] = bytearray()
+                        log.info('UPLOAD: program header machine=%d body_size=%d',
+                                 ps['_prog_header'][0], ps['_prog_size'])
+                    else:
+                        ps['_prog_body'].extend(payload)
+                        log.info('TCP: program body +%d (%d/%d)', len(payload),
+                                 len(ps['_prog_body']), ps['_prog_size'])
+                        if len(ps['_prog_body']) >= ps['_prog_size']:
+                            frame_data = ps['_prog_header'] + bytes(ps['_prog_body'][:ps['_prog_size']])
+                            ps['frames'].append(frame_data)
+                            log.info('UPLOAD: program complete (%d bytes = 8 header + %d body)',
+                                     len(frame_data), ps['_prog_size'])
+                            ack_data = bytes([RESP_ACK]) + b'\x00' * 10
+                            ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
+                            await send_pkt_with_ack(ack_pkt)
+                            await writer.drain()
+                            log.info('UPLOAD: sent final program ACK (%d wire)', len(ack_pkt))
+
                 elif session.pending_send is not None and token != 0x43:
-                    # Any non-COM packet during upload = frame data chunk
+                    # Any non-COM packet during a NON-program upload = PETSCII frame chunk
                     log.info('TCP: upload chunk token=$%02X seq=$%02X payload=%d bytes',
                              token, seq, len(payload))
                     # Accumulate chunks into current frame buffer

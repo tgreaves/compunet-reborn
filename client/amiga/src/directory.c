@@ -145,7 +145,7 @@ extern LONG  upload_file(void);         /* FUN_0010c0ee — stream local file as
 extern LONG  g_put_life;   /* DAT_0012161a — parsed LIFE (LONG)       */
 extern LONG  g_put_page;   /* DAT_00121612 — parsed page (LONG)       */
 extern LONG  g_put_sub;    /* DAT_00121616 — parsed sub-page (LONG)   */
-extern char  g_put_type;       /* DAT_00121605 — page type char        */
+extern char  g_put_type[];     /* DAT_00121605 — page type char        */
 extern char  g_put_type_str[]; /* DAT_00121607 — "page.sub" string     */
 extern char  g_put_life_str[]; /* DAT_0012160e — life string           */
 extern char  g_put_name[];     /* DAT_001215f4 — 16-char frame name    */
@@ -173,9 +173,9 @@ LONG put_frame(void)
     }
 
     sprintf(g_cmd_buf, "U%-16s%c%03d.%02d%03d",
-            g_put_name, g_put_type, (int)g_put_page, (int)g_put_sub, (int)g_put_life);
+            g_put_name, g_put_type[0], (int)g_put_page, (int)g_put_sub, (int)g_put_life);
 
-    switch (g_put_type) {                        /* recon jump table @0x10c3c2 */
+    switch (g_put_type[0]) {                      /* recon jump table @0x10c3c2 */
     case 'T':
         return put_frame_publish();              /* in-editor text frame */
     case 'A': case 'S': case 'P': case 'F':

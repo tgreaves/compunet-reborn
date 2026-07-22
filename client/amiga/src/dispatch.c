@@ -60,8 +60,9 @@ extern LONG goto_page(void);        /* FUN_0010a1e2 — "Dir":  P00 / P<n>      
 extern LONG back_dir(void);         /* FUN_0010a29a — "Back": send "B"              */
 extern LONG link_goto(void);        /* FUN_0010a310 — "Goto": Goto-Page dialog + L  */
 extern LONG download_check(void);   /* FUN_0010b730 — "Dnld"                        */
-extern LONG upload_file(void);      /* "Upld" (original FUN_0010c2f8 is a fuller     */
-                                    /*         upload orchestrator; TODO reconstruct)*/
+extern LONG put_frame(void);        /* FUN_0010c2f8 — "Upld": publish orchestrator   */
+                                    /* (dialog collects name/type/page/life, then    */
+                                    /* dispatches T->editor, P/A/S/F->upload_file)    */
 extern void link_lock(APTR dir, int row);   /* FUN_00109520 — toggle row box */
 
 #define GAD_DIR(g)  (*(APTR  *)((UBYTE *)(g) + 0x30))
@@ -71,7 +72,7 @@ LONG hook_dir_0956c(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link
 LONG hook_dir_095b0(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=back_dir();       link_lock(d,r); return x; } /* Back */
 LONG hook_dir_095f6(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=link_goto();      link_lock(d,r); return x; } /* Goto */
 LONG hook_dir_0963c(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=download_check(); link_lock(d,r); return x; } /* Dnld */
-LONG hook_dir_09682(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=upload_file();    link_lock(d,r); return x; } /* Upld */
+LONG hook_dir_09682(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=put_frame();      link_lock(d,r); return x; } /* Upld */
 LONG hook_nav_0a3d0(APTR g){ return link_follow(g); }
 LONG hook_nav_0a3f8(APTR g){ return link_follow(g); }
 LONG hook_nav_0a43e(APTR g){ return link_follow(g); }

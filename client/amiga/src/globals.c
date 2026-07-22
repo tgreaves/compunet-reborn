@@ -130,7 +130,7 @@ char   g_extend_days[8];        /* DAT_00121648 */
 LONG   g_put_life = 0;          /* DAT_0012161a */
 LONG   g_put_page = 0;          /* DAT_00121612 */
 LONG   g_put_sub  = 0;          /* DAT_00121616 */
-char   g_put_type = 0;          /* DAT_00121605 */
+char   g_put_type[2] = {0,0};   /* DAT_00121605 — type char; 2 bytes (gadget MaxChars=2) */
 char   g_put_type_str[11];      /* DAT_00121607 — "page.sub" string parsed by sscanf */
 char   g_put_life_str[8];       /* DAT_0012160e — life string parsed by sscanf       */
 char   g_put_name[24];          /* DAT_001215f4 */
