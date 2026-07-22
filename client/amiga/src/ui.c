@@ -57,8 +57,11 @@ extern void close_window_tracked(APTR win);        /* FUN_0011a568 -> CloseWindo
 
 /* Window/menu-state handles (recon DAT_* in the blob/BSS). */
 static struct Window *g_logon_win;   /* DAT_0011d570 */
-static struct Window *g_frame_win;   /* *DAT_0011d078 */
-static struct Window *g_dir_win;     /* *DAT_0011d07c */
+
+/* Page-struct backing buffers (globals.c). page[0] = Window*. The old g_frame_win /
+ * g_dir_win bare pointers are GONE — the window handle lives inside the page buffer. */
+extern UBYTE g_frame_page_buf[];     /* DAT_00121834 — frame page BSS */
+extern UBYTE g_dir_page_buf[];       /* DAT_001203bc — dir page BSS   */
 static struct RastPort *g_logon_rp;  /* DAT_001201c0 */
 static short  g_logon_x;             /* DAT_001201ee */
 static short  g_logon_y;             /* DAT_001201f0 */
@@ -305,33 +308,70 @@ extern void  set_menu_strip_tracked(APTR win, APTR menu);   /* FUN_0011a588 */
 extern APTR  g_main_uport;    /* DAT_00120100 — shared main window user port */
 extern APTR  g_menu_pair[];   /* DAT_001201ae — [menu list, cmd map]        */
 
-LONG open_frame_window(void)   /* recon FUN_001174d4 */
+extern void frame_reset_page(APTR page);   /* FUN_0010568c — zero the cell array + cursor */
+extern void frame_display_mem(APTR src, APTR page); /* FUN_001080da — render an in-memory frame */
+
+LONG open_frame_window(void)   /* recon FUN_001174d4 — faithful transcription */
 {
-    /* NewWindow = DAT_0011fa3e; patch its Screen (+0x1e = 0x11fa5c) with g_screen
-     * (CUSTOMSCREEN). recon FUN_001174d4 line 13637: DAT_0011fa5c = g_screen. */
-    *(APTR *)DATA(0x11fa5c) = g_screen;
-    g_frame_win = (struct Window *)open_window_tracked(DATA(0x11fa3e));
-    if (g_frame_win == NULL)
+    struct Window *w;
+    UBYTE *page = g_frame_page_buf;     /* BSS at DAT_00121834 */
+
+    /* recon 0x1174de: the original patches the frame window's NewWindow FirstGadget field
+     * (blob 0x11fa50) with the address of a gadget list in BSS at 0x1220c8. In our layout
+     * this is a separate buffer (g_frame_out region). The frame window's gadgets are
+     * initialised by the frame-reset/editor code, not dir_preinit — skip this patch for
+     * now (window opens fine without gadgets). TODO: trace FUN_00117000 for the full init.
+     * Patch Screen as always: */
+    *(APTR *)DATA(0x11fa5c) = g_screen;          /* recon 0x1174e6: NW.Screen */
+
+    w = (struct Window *)open_window_tracked(DATA(0x11fa3e));
+    *(APTR *)page = (APTR)w;                     /* page[0] = Window* (recon 0x1174f6) */
+    if (w == NULL)
         return 0;
-    share_user_port((APTR)g_frame_win, g_main_uport);          /* recon 0x117502 */
-    ModifyIDCMP(g_frame_win, 0x520);                           /* recon 0x117510 */
-    set_menu_strip_tracked((APTR)g_frame_win, g_menu_pair[0]); /* recon 0x11751e */
-    g_frame_page = (APTR)&g_frame_win;
+
+    share_user_port((APTR)w, g_main_uport);           /* recon 0x117502 */
+    ModifyIDCMP(w, 0x520);                            /* recon 0x117510 */
+    set_menu_strip_tracked((APTR)w, g_menu_pair[0]);  /* recon 0x11751e */
+
+    page[0x0f] = 1;                                   /* recon 0x11752c: move.b #1,page+0xf */
+    page[0x08] = 6;                                   /* recon 0x117532: move.b #6,page+0x8 */
+    frame_reset_page(page);                           /* recon 0x11753c: clear cells+cursor */
+
+    g_frame_page = (APTR)page;                        /* recon 0x117546: g_frame_page=&page */
     return 1;
 }
 
-LONG init_directory(void)      /* recon FUN_001099c0 */
+extern void dir_preinit(APTR page);  /* FUN_00109000 — pre-open directory init (stub for now) */
+
+LONG init_directory(void)      /* recon FUN_001099c0 — faithful transcription */
 {
-    /* NewWindow = DAT_0011e1e2; patch its Screen (+0x1e = 0x11e200) with g_screen
-     * (CUSTOMSCREEN). recon FUN_001099c0 line 5969: DAT_0011e200 = g_screen. */
-    *(APTR *)DATA(0x11e200) = g_screen;
-    g_dir_win = (struct Window *)open_window_tracked(DATA(0x11e1e2));
-    if (g_dir_win == NULL)
+    struct Window *w;
+    UBYTE *page = g_dir_page_buf;       /* BSS at DAT_001203bc */
+
+    dir_preinit(page);                                /* recon 0x1099c0: bsr FUN_00109000 */
+
+    /* recon 0x1099ca: lea $43aa(a4),a0 → page + 0xfee (= 0x1213aa - 0x1203bc = 0xfee)
+     * = the head of the gadget NextGadget chain built by dir_preinit (the last gadget
+     * written, whose Next links backward through all 18). Written into the directory
+     * NewWindow's FirstGadget field (blob 0x11f1f4 = 0x11e1e2 + 0x12). */
+    *(APTR *)DATA(0x11f1f4) = (APTR)(page + 0xfee); /* NW FirstGadget → chain head */
+    *(APTR *)DATA(0x11e200) = g_screen;              /* NW.Screen (0x11e1e2 + 0x1e)  */
+
+    w = (struct Window *)open_window_tracked(DATA(0x11e1e2));
+    *(APTR *)page = (APTR)w;                         /* page[0] = Window* */
+    if (w == NULL)
         return 0;
-    share_user_port((APTR)g_dir_win, g_main_uport);          /* recon 0x1099f6 */
-    ModifyIDCMP(g_dir_win, 0x520);                           /* recon 0x109a04 */
-    set_menu_strip_tracked((APTR)g_dir_win, g_menu_pair[0]); /* recon 0x109a12 */
-    g_dir_page = (APTR)&g_dir_win;
+
+    share_user_port((APTR)w, g_main_uport);          /* recon 0x1099f6 */
+    ModifyIDCMP(w, 0x520);                           /* recon 0x109a04 */
+    set_menu_strip_tracked((APTR)w, g_menu_pair[0]); /* recon 0x109a12 */
+
+    /* recon 0x109a18: frame_display_mem(DATA(0x11e226), page) — draw the initial
+     * directory template into the page. This was MISSING — it's what populates the
+     * directory window with the blank template the parser later fills in. */
+    frame_display_mem(DATA(0x11e226), page);
+
+    g_dir_page = (APTR)page;                         /* recon 0x109a2a */
     return 1;
 }
 

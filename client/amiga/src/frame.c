@@ -410,7 +410,7 @@ extern UBYTE g_palette[16];   /* DAT_0011e1c0 — PETSCII colour -> Amiga pen ma
  * = 1, clears attr (+9), then clear_screen (0x1054bc): frame_clear_region over the whole
  * grid AND homes the cursor (row/col/wrap = 0 at +4/+6/+0xa). The cursor-home was
  * previously omitted (frame_clear_region alone doesn't reset it). */
-static void frame_reset_page(APTR page)
+void frame_reset_page(APTR page)
 {
     PAGE_MODE(page) = 1;
     *(UBYTE *)((UBYTE *)page + 9) = 0;   /* clear attribute */

@@ -58,8 +58,21 @@ UWORD  g_state        = 0;      /* DAT_0011d070 */
 UWORD  g_online       = 0;      /* DAT_0011d074 */
 UWORD  g_state_shadow = 0xffff; /* DAT_0011d46e */
 UWORD  g_online_shadow= 0xffff; /* DAT_0011d472 */
-APTR   g_dir_page     = NULL;   /* DAT_0011d07c */
-APTR   g_frame_page   = NULL;   /* DAT_0011d078 */
+APTR   g_dir_page     = NULL;   /* DAT_0011d07c — points at g_dir_page_buf when open */
+APTR   g_frame_page   = NULL;   /* DAT_0011d078 — points at g_frame_page_buf when open */
+
+/*
+ * Page-struct backing buffers. In the original these are fixed BSS at 0x1203bc (dir,
+ * 0x1478 bytes to the next object) and 0x121834 (frame, ~0x800 bytes). page[0] = the
+ * Window* handle, page[+0x08]/[+0x0c]/[+0x0f] = flags, page[+0x10..+0x78f] = 40×24×2
+ * cell array, dir page additionally uses +0x790 (link codes), +0x828 (ROW_TYPE table,
+ * stride 0x66, up to row 15 = +0xE1E), +0xc76 (page-full flag), +0xc78 (dir_no).
+ * The reconstruction previously pointed g_frame_page/g_dir_page at a bare 4-byte
+ * Window* — any write past byte 4 corrupted adjacent globals, which broke directory
+ * population and likely caused frame-rendering imperfections.
+ */
+UBYTE  g_dir_page_buf[0x1478];   /* DAT_001203bc — directory page struct (BSS) */
+UBYTE  g_frame_page_buf[0x800];  /* DAT_00121834 — frame page struct (BSS)     */
 
 /* ---- Command / ack scratch ---- */
 char   g_cmd_buf[256];          /* DAT_00121588 — shared command buffer */

@@ -76,5 +76,20 @@ echo "== hdd/ ready =="
 echo "  client: $(wc -c < "$SRC/compunet-client" | tr -d ' ') bytes"
 echo "  files:"
 ( cd "$HDD" && find . -type f | sort | sed 's/^/    /' )
-echo
-echo "Mount $HDD as a Directory HD in the emulator, then run: Compunet"
+
+# Optional: sync to Google Drive so the Windows PC running WinUAE picks it up (both
+# machines run Google Drive; this corp Mac can only push outbound, so cloud is the relay).
+# This is SPECIFIC TO tristan's dev Mac and is a silent no-op anywhere else: it fires only
+# when that exact Google Drive account folder exists. Override with GDRIVE_HDD=/path.
+GDRIVE_HDD="${GDRIVE_HDD:-$HOME/Library/CloudStorage/GoogleDrive-tristan@extricate.org/My Drive/Coding/CompunetHDD}"
+GDRIVE_ACCOUNT_ROOT="$HOME/Library/CloudStorage/GoogleDrive-tristan@extricate.org"
+if [ -n "${GDRIVE_HDD_OVERRIDE:-}" ] || [ -d "$GDRIVE_ACCOUNT_ROOT" ]; then
+    mkdir -p "$GDRIVE_HDD"
+    rsync -a --delete "$HDD/" "$GDRIVE_HDD/"
+    echo
+    echo "Synced to Google Drive: $GDRIVE_HDD"
+    echo "  -> on the Windows PC, point WinUAE's directory-HD at the same CompunetHDD folder."
+else
+    echo
+    echo "Mount $HDD as a Directory HD in the emulator, then run: Compunet"
+fi
