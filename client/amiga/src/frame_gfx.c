@@ -109,20 +109,31 @@ void frame_border(int r0, int c0, int r1, int c1, APTR page)
 }
 
 /*
- * blt_font_to_rastport — the direct-to-window cell draw used by blit_char_cell when
- * offscreen is inactive (recon: the GfxBase.BltBitMapRastPort() call inside
- * FUN_00107000). blit_char_cell has already filled g_plane_src[]; this pushes the
- * assembled 8x8 cell to the window. The blit parameters are supplied by the caller's
- * static setup (matching the original's inline call).
+ * blt_font_to_rastport — the direct-to-window cell draw used by blit_char_cell when the
+ * offscreen bitmap is inactive (`g_offscreen == 0`). This is the path the login welcome
+ * frame and every command frame take (frame_display does NOT set up the offscreen).
+ *
+ * Faithful to the original inline direct-draw (recon FUN_00107000 @0x10710e-0x10714a):
+ *   BltBitMapRastPort(g_cell_bm, 0, 0, win->RPort, col*8+4, row*8+10, 8, 8, 0xc0)
+ * where g_cell_bm is an 8x8 4-plane BitMap whose planes point at the assembled cell
+ * (g_plane_src[], filled by blit_char_cell). The font stores each 8px row in 2 bytes,
+ * so BytesPerRow = 2 (InitBitMap(width=8)).
+ *
+ * (An earlier reconstruction left this a no-op, so with the offscreen inactive nothing
+ * was ever drawn — the frame window stayed blank.)
  */
 extern UBYTE *g_plane_src[4];
 struct BitMap g_cell_bm;   /* small 8x8 assembly bitmap the caller fills */
 
-void blt_font_to_rastport(void)
+void blt_font_to_rastport(WORD row, WORD col, APTR page)
 {
-    /* The original assembles g_plane_src[] into g_cell_bm and blits it. The blit
-     * geometry (dest x/y) is held in the caller's cell context; this is the
-     * graphics.library call that performs it. */
-    /* Handled via BltBitMapRastPort in the offscreen path; the direct path is only
-     * reached when offscreen alloc failed, and draws the same 8x8 cell. */
+    struct Window *win = *(struct Window **)page;   /* page[0] -> window */
+    int i;
+
+    InitBitMap(&g_cell_bm, NPLANES, 8, 8);          /* BytesPerRow=2, Rows=8, Depth=4 */
+    for (i = 0; i < NPLANES; i++)
+        g_cell_bm.Planes[i] = (PLANEPTR)g_plane_src[i];
+
+    BltBitMapRastPort(&g_cell_bm, 0, 0, win->RPort,
+                      col * 8 + 4, row * 8 + 10, 8, 8, 0xc0);
 }

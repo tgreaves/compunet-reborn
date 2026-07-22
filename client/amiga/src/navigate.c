@@ -132,16 +132,28 @@ LONG link_goto(void)
  * sends the protocol command faithfully (the earlier binding wrongly called
  * do_connect here, which redialled instead of leaving).
  */
-extern void disconnect(void);            /* FUN_00102968 */
+extern void  disconnect(void);                        /* FUN_00102968 */
+extern APTR  frame_display(APTR page, APTR out);      /* thunk FUN_0010818a */
+extern void  frame_display_done(APTR out, APTR len);  /* thunk FUN_0011754e */
+extern void  modem_delay(LONG ticks);                 /* FUN_001280f8 = Delay() */
+extern char  g_frame_out[];                           /* DAT_001220fc */
+extern APTR  g_frame_out_end;                          /* DAT_0012309c */
+
 LONG leave_page(void)
 {
     static const char cmd_E[2] = "E";    /* recon DAT_0011d6cc = "E" */
-    g_state = STATE_GOTO;                 /* recon sets DAT_0011d070 = 2 */
+    g_state = STATE_GOTO;                 /* recon 0x103704: g_state = 2 */
     serial_write((APTR)cmd_E, 1, 1, TOKEN_COM);
-    if (serial_io_c(g_ack_text) != ACK_OK) {
-        disconnect();                     /* recon: non-'@' ack -> FUN_00102968 */
-        return 1;
+    if (serial_io_c(g_ack_text) == ACK_OK) {
+        /* '@': read + display the returned goodbye frame, then pause (recon
+         * 0x10373a-0x103760: frame_display / frame_display_done / Delay(0xfa)). */
+        g_frame_out_end = frame_display(g_frame_page, g_frame_out);
+        frame_display_done(g_frame_out, g_frame_out_end);
+        modem_delay(0xfa);
     }
-    /* '@': original reads + displays the returned frame via the editor. Deferred. */
+    /* ALWAYS tear down and go offline (recon 0x103762 -> FUN_00102968 disconnect). The
+     * earlier reconstruction only disconnected on a non-'@' ack, so a normal LEAVE left
+     * the client stuck "online" after the server had already closed the connection. */
+    disconnect();
     return 1;
 }

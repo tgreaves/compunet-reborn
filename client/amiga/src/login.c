@@ -327,10 +327,15 @@ LONG do_connect(void)
     g_frame_out_end = frame_display(g_frame_page, g_frame_out);
     frame_display_done(g_frame_out, g_frame_out_end);
 
-    /* Drain the first frame until a non-empty status byte arrives. */
-    do {
-        serial_read(g_ack_text, 0x2a, &ser_flags, &status_hi, &actual);
-    } while (ser_flags == '\0');
+    /* Drain the first frame until a non-empty status byte arrives. In TCP mode the
+     * frame's end-of-data (empty-DAT EOS) has already been consumed by frame_display
+     * via net_read_stream, and the Reborn server then waits for the next command — so
+     * reading again here would block forever (window goes non-responsive). Skip it. */
+    if (!g_tcp_mode) {
+        do {
+            serial_read(g_ack_text, 0x2a, &ser_flags, &status_hi, &actual);
+        } while (ser_flags == '\0');
+    }
 
     /* Bring up the directory. */
     if (g_dir_page == NULL && init_directory() == 0) {

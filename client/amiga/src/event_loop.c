@@ -36,6 +36,7 @@
 #include <setjmp.h>
 
 #include "compunet.h"
+#include "net.h"
 
 extern APTR IntuitionBase;
 
@@ -170,6 +171,12 @@ extern APTR g_sess_c;           /* DAT_0011f128 */
 
 void disconnect(void)
 {
+    /* Close the TCP transport (the socket + bsdsocket.library) if we came up over TCP.
+     * The cnet.device path frees its device/ports via the tracked-resource unwind below,
+     * but the socket isn't tracked, so it must be closed explicitly here. */
+    if (g_tcp_mode)
+        net_close();
+
     /* Unwind tracked resources level-by-level back to the saved mark. */
     while ((BYTE)g_res_saved_level <= cleanup_resources())
         ;

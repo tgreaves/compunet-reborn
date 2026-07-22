@@ -210,6 +210,16 @@ LONG build_font(void)
     UBYTE bits;
     UBYTE *base;
 
+    /* The C64 charset ROM lives in the extracted data blob (upper bank at 0x11d9c0,
+     * lower at 0x11ddc0). The c64_charset_upper/lower globals were DECLARED but never
+     * filled (a blob-vs-globals aliasing gap, like the credentials gadgets and the busy
+     * pointer), so build_font was reading zeros -> an all-blank font: normal glyphs
+     * rendered invisible (no text) while reverse/solid cells showed as coloured blocks
+     * (the "graphics"). Read the charset from the blob instead. */
+    extern UBYTE g_data[];
+    const UBYTE *cs_upper = g_data + (0x11d9c0 - 0x11d000);
+    const UBYTE *cs_lower = g_data + (0x11ddc0 - 0x11d000);
+
     g_font_base = (UBYTE *)AllocMem(0x2000, MEMF_CHIP | MEMF_CLEAR);
     if (g_font_base == NULL)
         return 0;
@@ -219,11 +229,11 @@ LONG build_font(void)
         for (y = 0; y < 8; y++) {
             UBYTE *cellrow = base + ch * 0x10 + y * 2;
 
-            bits = c64_charset_upper[y + ch * 8];
+            bits = cs_upper[y + ch * 8];
             *(UWORD *)(cellrow)          = (UWORD)bits << 8;
             *(UWORD *)(cellrow + 0x800)  = ~((UWORD)bits << 8);
 
-            bits = c64_charset_lower[y + ch * 8];
+            bits = cs_lower[y + ch * 8];
             *(UWORD *)(cellrow + 0x1000) = (UWORD)bits << 8;
             *(UWORD *)(cellrow + 0x1800) = ~((UWORD)bits << 8);
         }
@@ -248,7 +258,7 @@ LONG build_font(void)
 extern UBYTE  g_offscreen;         /* DAT_0011d9a8 — 1 = draw to offscreen bitmap */
 extern UBYTE *g_plane_src[4];      /* DAT_00120264 — per-plane font source ptrs   */
 extern UBYTE *g_plane_dst[4];      /* DAT_0012028c — per-plane offscreen bases     */
-extern void   blt_font_to_rastport(void); /* GfxBase.BltBitMapRastPort() path      */
+extern void   blt_font_to_rastport(WORD row, WORD col, APTR page); /* direct-draw cell blit */
 
 void blit_char_cell(WORD row, WORD col, APTR page)
 {
@@ -280,7 +290,7 @@ void blit_char_cell(WORD row, WORD col, APTR page)
     }
 
     if (g_offscreen == 0) {
-        blt_font_to_rastport();
+        blt_font_to_rastport(row, col, page);
     } else {
         WORD base = col + row * 0x140;
         for (plane = 3; plane >= 0; plane--) {

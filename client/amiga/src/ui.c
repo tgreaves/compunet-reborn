@@ -21,6 +21,7 @@
  * server — that runtime test is the acceptance step this reconstruction enables.
  */
 #include <exec/types.h>
+#include <exec/memory.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
 #include <graphics/text.h>
@@ -37,6 +38,10 @@ extern APTR SysBase;   /* supplied by the C runtime startup */
 extern UBYTE g_data[];
 #define DATA_BASE 0x11d000
 #define DATA(off) ((APTR)(g_data + ((off) - DATA_BASE)))
+
+#ifndef IDCMP_RAWKEY
+#define IDCMP_RAWKEY 0x00000200L   /* KS1.3 headers use the un-prefixed name */
+#endif
 
 /* Library bases + shared window/screen handles (globals.c / launch.c). */
 extern APTR g_screen;      /* DAT_001200f8 — the custom screen  */
@@ -229,12 +234,34 @@ LONG logon_poll(void)
     RefreshGList((struct Gadget *)DATA(0x11f960), g_cred_win, NULL, ~0);
     ActivateGadget((struct Gadget *)DATA(0x11f960), g_cred_win, NULL);
 
+    /* Enable RAWKEY so TAB moves between the userid and password fields (a convenience;
+     * the original only advanced on ENTER). Printable keys are still consumed by the
+     * active string gadget, so typing is unaffected; only TAB (rawkey 0x42) acts here. */
+    ModifyIDCMP(g_cred_win, g_cred_win->IDCMPFlags | IDCMP_RAWKEY);
+
+    {
+    struct Gadget *g_user_gad = (struct Gadget *)DATA(0x11f960);   /* userid field  */
+    struct Gadget *g_pass_gad = (struct Gadget *)DATA(0x11f8ec);   /* password field*/
+    struct Gadget *active     = g_user_gad;                        /* active first  */
+
     for (;;) {
+        struct Gadget *tab_to = NULL;
         last = NULL;
         WaitPort(g_cred_win->UserPort);
         while ((msg = (struct IntuiMessage *)GetMsg(g_cred_win->UserPort)) != NULL) {
-            last = (struct Gadget *)msg->IAddress;
+            if (msg->Class == IDCMP_RAWKEY) {
+                if (msg->Code == 0x42) {                 /* TAB: toggle field */
+                    active = (active == g_user_gad) ? g_pass_gad : g_user_gad;
+                    tab_to = active;
+                }
+            } else {
+                last = (struct Gadget *)msg->IAddress;
+            }
             ReplyMsg((struct Message *)msg);
+        }
+        if (tab_to) {
+            ActivateGadget(tab_to, g_cred_win, NULL);
+            continue;
         }
         if (last == NULL)
             continue;
@@ -255,17 +282,28 @@ LONG logon_poll(void)
              * advances to the NEXT gadget (the password field). An earlier reconstruction
              * activated `last` (the same userid field), so focus never reached the
              * password gadget and the login was sent with an empty password. */
+            active = (struct Gadget *)last->NextGadget;   /* keep TAB toggle in sync */
             ActivateGadget(last->NextGadget, g_cred_win, NULL);
             break;
         default:
             break;
         }
     }
+    }
 }
 
 /* ------------------------------------------------------------------ *
  *  Frame / directory windows — recon FUN_001174d4 / FUN_001099c0
  * ------------------------------------------------------------------ */
+
+/* The frame/directory windows share the main user port and carry the menu strip so the
+ * menu bar works when they are the active window (recon FUN_001174d4 / FUN_001099c0).
+ * The earlier reconstruction opened the windows but omitted all three calls, so
+ * right-clicking the frame or directory window showed no menus. */
+extern void  share_user_port(APTR win, APTR port);         /* FUN_0011a636 */
+extern void  set_menu_strip_tracked(APTR win, APTR menu);   /* FUN_0011a588 */
+extern APTR  g_main_uport;    /* DAT_00120100 — shared main window user port */
+extern APTR  g_menu_pair[];   /* DAT_001201ae — [menu list, cmd map]        */
 
 LONG open_frame_window(void)   /* recon FUN_001174d4 */
 {
@@ -275,6 +313,9 @@ LONG open_frame_window(void)   /* recon FUN_001174d4 */
     g_frame_win = (struct Window *)open_window_tracked(DATA(0x11fa3e));
     if (g_frame_win == NULL)
         return 0;
+    share_user_port((APTR)g_frame_win, g_main_uport);          /* recon 0x117502 */
+    ModifyIDCMP(g_frame_win, 0x520);                           /* recon 0x117510 */
+    set_menu_strip_tracked((APTR)g_frame_win, g_menu_pair[0]); /* recon 0x11751e */
     g_frame_page = (APTR)&g_frame_win;
     return 1;
 }
@@ -287,6 +328,9 @@ LONG init_directory(void)      /* recon FUN_001099c0 */
     g_dir_win = (struct Window *)open_window_tracked(DATA(0x11e1e2));
     if (g_dir_win == NULL)
         return 0;
+    share_user_port((APTR)g_dir_win, g_main_uport);          /* recon 0x1099f6 */
+    ModifyIDCMP(g_dir_win, 0x520);                           /* recon 0x109a04 */
+    set_menu_strip_tracked((APTR)g_dir_win, g_menu_pair[0]); /* recon 0x109a12 */
     g_dir_page = (APTR)&g_dir_win;
     return 1;
 }
@@ -376,14 +420,43 @@ void ui_set_title(const char *title)
 /* ------------------------------------------------------------------ *
  *  Pointer / gadget state helpers (recon FUN_001020ae / FUN_0010221c)
  * ------------------------------------------------------------------ */
+/* The busy-pointer sprite. The original stored a POINTER at 0x11d068 to the sprite data
+ * held in a code hunk (0x116400); the reconstruction rebuilt the code, so that data is
+ * gone, and the earlier reconstruction wrongly passed the address 0x11d068 itself (a
+ * topaz.font TextAttr) as the sprite -> a garbage/blank pointer that just disappeared.
+ * Here we embed the original 11-line sprite (bytes read from 0x116400) and, because
+ * hardware sprites can only DMA from Chip RAM, copy it into a Chip buffer once. */
+static const UWORD busy_sprite[] = {
+    0x0000, 0x0000,                 /* position control (system-filled) */
+    0x0000, 0x0e00,                 /* 11 image lines (planeA, planeB)  */
+    0x0e00, 0x3b80,
+    0x3f80, 0x7bc0,
+    0x3f80, 0x7bc0,
+    0x7fc0, 0xfbe0,
+    0x7fc0, 0xfbe0,
+    0x7fc0, 0xf7e0,
+    0x3f80, 0x6fc0,
+    0x3f80, 0x7fc0,
+    0x0e00, 0x3b80,
+    0x0000, 0x0e00,
+    0x0000, 0x0000,                 /* terminator */
+};
+static UWORD *g_busy_chip = NULL;
+
 void set_wait_pointer(void)    /* recon FUN_001020ae — busy pointer on all windows */
 {
     int i;
-    /* Busy pointer sprite at DATA(0x11d068), size 0xb x 0xb, hotspot (-5, 0). */
+    if (g_busy_chip == NULL) {
+        g_busy_chip = (UWORD *)AllocMem(sizeof busy_sprite, MEMF_CHIP);
+        if (g_busy_chip)
+            CopyMem((APTR)busy_sprite, g_busy_chip, sizeof busy_sprite);
+    }
+    if (g_busy_chip == NULL)
+        return;
     for (i = 0; i < 6; i++) {
         struct Window *w = ui_window(i);
         if (w)
-            SetPointer(w, (UWORD *)DATA(0x11d068), 0xb, 0xb, -5, 0);
+            SetPointer(w, g_busy_chip, 0xb, 0xb, -5, 0);
     }
 }
 
