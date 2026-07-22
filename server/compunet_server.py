@@ -2508,13 +2508,19 @@ async def tcp_handler(reader, writer):
                     return False
                 # Feed into X.25 parser
                 packets = x25.feed_data(data)
+                got_ack = False
                 for token, seq, payload in packets:
                     if token == TOKEN_ACK:
                         log.debug('ACK received: seq=$%02X', seq)
-                        return True
+                        got_ack = True
+                        # Keep scanning: any non-ACK packets batched in the SAME read
+                        # after the ACK (e.g. an upload's 8-byte header arriving right
+                        # behind the ACK) must still be stashed, not dropped.
                     else:
                         # Stash non-ACK packet for main loop
                         pending_packets.append((token, seq, payload))
+                if got_ack:
+                    return True
         except (asyncio.TimeoutError, ConnectionResetError, BrokenPipeError):
             log.debug('ACK wait: timeout or disconnect')
         return False
