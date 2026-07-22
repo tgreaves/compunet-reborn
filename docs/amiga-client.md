@@ -257,23 +257,27 @@ Three focus areas drive the current work:
    directly affects how Reborn frames (authored as PETSCII) will render on the Amiga.
    Needs investigation in the decompiled display/frame-rendering code.
 
-## Current status (2026-07-21)
+## Current status (2026-07-22)
 
-**The client now logs in to a Reborn server over native TCP.** Verified live
-(docker.lan, WinUAE KS3.x): connect → server detects the Amiga → `*CON` handshake →
-credentials dialog (userid + password captured) → login record → `login OK!` → the
-welcome frame streams as DAT frames, each ACK'd by the client (X.25 flow control), then
-EOS; the C64 LINKING download is skipped for the Amiga. The native bsdsocket transport
-and the read/ACK model are working end to end. Full write-up + the exact session fixes +
-the next step are in [client/amiga/src/TCP-TRANSPORT.md](../client/amiga/src/TCP-TRANSPORT.md).
+**The client logs in over native TCP and runs online.** Verified live (docker.lan,
+WinUAE KS3.x): connect → Amiga detected → `*CON` → credentials → `login OK!` → the
+welcome frame renders; MAIL (Courier page), ACCOUNT (credit popup), the menu bar, and
+LEAVE (goes offline) all work. The native bsdsocket transport, the X.25 read/ACK model,
+and PETSCII frame rendering are working end to end. Transport design + RE ground truth:
+[client/amiga/src/TCP-TRANSPORT.md](../client/amiga/src/TCP-TRANSPORT.md),
+[client/amiga/vintage/tools/re/cnet-device-re.md](../client/amiga/vintage/tools/re/cnet-device-re.md).
 
-**NEXT: frame rendering.** The "Current frame" window opens but the received welcome
-frame does not display (blank). The transport delivers and ACKs the bytes; the break is
-in the display/parse path (`frame.c` / `frame_gfx.c` / `frame_display`). See the NEXT
-STEP section of TCP-TRANSPORT.md. A systemic risk was also found: blob structures that
-point into the globals region (> `0x1200e8`) hold stale absolute addresses
-(`extract_data.py` didn't relocate blob→global-data pointers) — the credentials gadgets
-were one instance; the frame window's structures are worth checking for the same.
+**NEXT: audit the UI / rendering / navigation layer.** The protocol/network path was
+audited byte-exact; the UI layer was not, and running online now surfaces its gaps
+(directory navigation is blocked — the directory window is blank with no way to reach
+it; the welcome frame renders imperfectly; some dispatch hooks are `return 1` stubs).
+The full audit plan, priority order, and the specific known gaps (incl. the systemic
+blob→globals stale-pointer class) are in
+**[client/amiga/vintage/tools/re/ui-audit-plan.md](../client/amiga/vintage/tools/re/ui-audit-plan.md)**
+— the entry point for that work. Priority 1 is the directory-population cluster
+(page-buffer sizing + `init_directory`'s omitted `frame_display_mem` + the
+`dir_select`/`parse_directory_frame` navigation), which unblocks getting to the
+directory.
 
 The readability/reconstruction goals above are **done**. The client is fully
 reconstructed as readable C (`client/amiga/src/`), builds with the vbcc KS1.3 toolchain,
