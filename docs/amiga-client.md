@@ -259,25 +259,33 @@ Three focus areas drive the current work:
 
 ## Current status (2026-07-22)
 
-**The client logs in over native TCP and runs online.** Verified live (docker.lan,
-WinUAE KS3.x): connect → Amiga detected → `*CON` → credentials → `login OK!` → the
-welcome frame renders; MAIL (Courier page), ACCOUNT (credit popup), the menu bar, and
-LEAVE (goes offline) all work. The native bsdsocket transport, the X.25 read/ACK model,
-and PETSCII frame rendering are working end to end. Transport design + RE ground truth:
+**The client logs in over native TCP, runs online, and navigates.** Verified live
+(docker.lan, WinUAE KS3.x): connect → Amiga detected → `*CON` → credentials → `login OK!`
+→ welcome frame renders; MAIL, ACCOUNT, the menu bar, and LEAVE all work. **Directory
+navigation works**: the `Dir` button sends `P00`, the server returns the root directory,
+and clicking entries navigates into sub-directories and reads pages. **Multi-frame text
+paging works** via the frame window's `More` button (`D` = MORE). The native bsdsocket
+transport, the X.25 read/ACK model, and PETSCII frame rendering are working end to end.
+Transport design + RE ground truth:
 [client/amiga/src/TCP-TRANSPORT.md](../client/amiga/src/TCP-TRANSPORT.md),
 [client/amiga/vintage/tools/re/cnet-device-re.md](../client/amiga/vintage/tools/re/cnet-device-re.md).
 
-**NEXT: audit the UI / rendering / navigation layer.** The protocol/network path was
-audited byte-exact; the UI layer was not, and running online now surfaces its gaps
-(directory navigation is blocked — the directory window is blank with no way to reach
-it; the welcome frame renders imperfectly; some dispatch hooks are `return 1` stubs).
-The full audit plan, priority order, and the specific known gaps (incl. the systemic
-blob→globals stale-pointer class) are in
-**[client/amiga/vintage/tools/re/ui-audit-plan.md](../client/amiga/vintage/tools/re/ui-audit-plan.md)**
-— the entry point for that work. Priority 1 is the directory-population cluster
-(page-buffer sizing + `init_directory`'s omitted `frame_display_mem` + the
-`dir_select`/`parse_directory_frame` navigation), which unblocks getting to the
-directory.
+**UI / rendering / navigation layer — reconstructed and working.** The directory-
+population cluster is done (frame-page buffer sizing that fixed the online Guru;
+`init_directory`'s `frame_display_mem`; the `FirstGadget` attach; `dir_preinit`'s action
+bar `Dir/Back/Goto/Dnld/Upld`; the directory-row `dir_select`/`parse_directory_frame`
+navigation). The frame-window button bar (`Next/Last/More/All/Send/Done`, `FUN_00117000`)
+is built and attached, with `More` wired for multi-frame paging (`Next/Last/All/Send/Done`
+actions still stubbed). Rendering-fidelity fixes landed: button-gadget images (Chip-copy
++ repoint of the stale `0x116xxx` ImageData), the space/cleared-cell **background colour**
+(`frame_border` writes `Image.PlaneOnOff`, not `Depth`), and the **colour palette** (the
+non-identity C64→pen remap `g_palette` at `DAT_0011e1c0`; identity turned the grey
+directory background pink). Systemic gotchas captured in
+[client/amiga/vintage/tools/re/ui-audit-plan.md](../client/amiga/vintage/tools/re/ui-audit-plan.md).
+
+**NEXT: the frame Editor.** The `Editor` menu item (`FUN_00114000`+) does not yet work —
+a separate subsystem driven through the editor message port. Also outstanding: the
+`Next/Last/All/Send/Done` frame-button actions and the `Back` (`B`) server command.
 
 The readability/reconstruction goals above are **done**. The client is fully
 reconstructed as readable C (`client/amiga/src/`), builds with the vbcc KS1.3 toolchain,

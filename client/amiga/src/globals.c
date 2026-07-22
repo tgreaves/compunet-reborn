@@ -235,7 +235,12 @@ APTR   g_sess_b       = NULL;   /* DAT_0011f124 — session buffer/handle B    *
 APTR   g_sess_c       = NULL;   /* DAT_0011f128 — session buffer/handle C    */
 
 /* ---- frame parser palette + misc ---- */
-UBYTE  g_palette[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}; /* DAT_0011e1c0 */
+/* C64 colour index -> Amiga screen pen. NOT identity: indices 9-15 are remapped so the
+ * C64 colours land on the pens whose RGB (in the LoadRGB4 table at 0x11d0c2) match. The
+ * earlier reconstruction used identity, which sent e.g. C64 15 (light grey, the directory
+ * background) to pen 15 = RGB f99 (pink) instead of pen 9 = RGB ccc (grey). Verified
+ * byte-for-byte against DAT_0011e1c0. */
+UBYTE  g_palette[16] = {0,1,2,3,4,5,6,7,8,10,15,14,12,13,11,9}; /* DAT_0011e1c0 */
 UBYTE *g_mem_src = 0;          /* DAT_001203a8 — in-memory frame read cursor */
 /* DAT_00120170 is a setjmp/longjmp buffer (recon FUN_00101624=setjmp saves
  * d1-d7/a1-a7 + return PC here; FUN_00101638=longjmp restores them). The top level

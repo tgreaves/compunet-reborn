@@ -98,7 +98,13 @@ void frame_border(int r0, int c0, int r1, int c1, APTR page)
 {
     struct Window *win = *(struct Window **)page;
 
-    g_border_image.Depth  = *(UBYTE *)((UBYTE *)page + 0x0f);  /* background colour */
+    /* Background colour goes in PlaneOnOff (recon FUN_001061e8: move.b page+0x0f ->
+     * g_border_image+0x0f). With ImageData=NULL, PlanePick=0 and Depth=0 (all BSS-zero),
+     * DrawImage fills the rectangle solid in PlaneOnOff across every RastPort plane — the
+     * standard Amiga solid-fill trick. The earlier reconstruction wrote the colour to
+     * Depth (offset 0x08) instead, leaving PlaneOnOff=0, so every cleared cell / space
+     * filled with colour 0 (black) regardless of the frame's background. */
+    g_border_image.PlaneOnOff = *(UBYTE *)((UBYTE *)page + 0x0f);  /* background colour */
     g_border_image.Height = (UWORD)(((r1 - r0) + 1) * 8);
     g_border_image.Width  = (UWORD)(((c1 - c0) + 1) * 8);
 
