@@ -18,6 +18,7 @@
 #include <clib/intuition_protos.h>
 #include <clib/graphics_protos.h>
 #include <setjmp.h>
+#include <string.h>
 
 #include "compunet.h"
 
@@ -109,7 +110,7 @@ LONG about_dialog(void)
  *   0x11f028  Gadget list (OK only)
  *   0x11f054  Gadget list (OK + Cancel)
  */
-static LONG run_requester(APTR newwindow, APTR glist)
+static LONG run_requester(APTR newwindow, APTR glist, APTR box_image, APTR text_itext)
 {
     struct Window *w;
     struct IntuiMessage *msg;
@@ -122,11 +123,13 @@ static LONG run_requester(APTR newwindow, APTR glist)
     if (w == NULL)
         return 0;
 
-    /* Draw the dialog body: box image, text (IntuiText chain at 0x11f094 renders
-     * both lines since its NextText is 0x11f080), and the gadget border. These are
-     * the three draw calls the recon makes before adding gadgets. */
-    DrawImage(w->RPort, (struct Image *)DATA(0x11f0a8), 4, 2);
-    PrintIText(w->RPort, (struct IntuiText *)DATA(0x11f094), 4, 2);
+    /* Draw the dialog body: box image, its text, and the gadget border. The two
+     * requester flavours differ only in the box image and the text drawn — the
+     * yes/no core (recon FUN_00110042) uses box 0x11f0a8 + the two-line IntuiText
+     * chain 0x11f094; the string-prompt core (recon FUN_001101a6) uses box 0x11f10c
+     * + the centred title IntuiText 0x11eeb0 — so both are passed in. */
+    DrawImage(w->RPort, (struct Image *)box_image, 4, 2);
+    PrintIText(w->RPort, (struct IntuiText *)text_itext, 4, 2);
     DrawBorder(w->RPort, (struct Border *)DATA(0x11f018), 4, 2);
 
     AddGList(w, (struct Gadget *)glist, 0, ~0, NULL);
@@ -156,7 +159,8 @@ LONG requester_2line(const char *line1, const char *line2, APTR glist)
 {
     *(const char **)DATA(0x11f0a0) = line1;   /* IntuiText@0x11f094 .IText */
     *(const char **)DATA(0x11f08c) = line2;   /* IntuiText@0x11f080 .IText */
-    return run_requester(DATA(0x11ee80), glist);
+    /* yes/no core: box 0x11f0a8, two-line text chain 0x11f094 (recon FUN_00110042). */
+    return run_requester(DATA(0x11ee80), glist, DATA(0x11f0a8), DATA(0x11f094));
 }
 
 /* status_ok_dialog — recon FUN_00110472. Modal OK requester (two text lines). The
@@ -191,11 +195,18 @@ LONG retry_dialog(const char *title, const char *body)
  * caller's buffer (g_vote_choice / g_ul_name / g_goto_page_no / ...). */
 static LONG number_prompt(const char *title, char *buf, int width)
 {
-    *(APTR  *)DATA(0x11eebc) = (APTR)title;         /* gadget title            */
+    struct IntuiText *ti = (struct IntuiText *)DATA(0x11eeb0);  /* the title label */
+
+    ti->IText = (UBYTE *)title;                     /* title IText (0x11eebc)  */
     *(APTR  *)DATA(0x11f0bc) = (APTR)buf;           /* StringInfo.Buffer       */
     *(UWORD *)DATA(0x11f0c6) = (UWORD)(width + 1);  /* MaxChars                */
     *(UWORD *)DATA(0x11f0e8) = (UWORD)(width >= 0x10 ? 0x88 : (width + 1) * 8);
-    return run_requester(DATA(0x11ee80), DATA(0x11f0e0)) == 1;
+
+    /* Centre the title label (recon FUN_001104d8): LeftEdge = (0x100 - textlen)/2. */
+    ti->LeftEdge = (WORD)((0x100 - IntuiTextLength(ti)) / 2);
+
+    /* string-prompt core: box 0x11f10c, centred title 0x11eeb0 (recon FUN_001101a6). */
+    return run_requester(DATA(0x11ee80), DATA(0x11f0e0), DATA(0x11f10c), DATA(0x11eeb0)) == 1;
 }
 
 /* string_prompt — recon FUN_00110390: number_prompt with a fixed width of 0x20 (32). */
@@ -293,11 +304,24 @@ void apply_serial_params(UWORD bits)
  * full six-window set the original touches. (The earlier one-window stub here has
  * been removed.) */
 
-/* download_filename_prompt — recon FUN_0010b06e: prompt for the local save filename
- * (pre-filled from the directory row's name). */
+/* download_filename_prompt — recon FUN_0010b06e: pre-fill the save name from the
+ * selected directory row's title, trim trailing spaces, then prompt. */
 LONG download_filename_prompt(void)
 {
-    extern char g_dl_filename[];
+    extern char  g_dl_filename[];
+    extern APTR  g_dir_page;   /* DAT_0011d07c */
+    extern short g_sel_row;    /* DAT_001215c4 */
+    char *name;
+    int   i;
+
+    /* Pre-fill from the row's title (col B at dir_page + row*0x66 + 0x817), then trim
+     * trailing spaces (recon 0x10b076-0x10b0c0). WITHOUT this pre-fill the string gadget
+     * showed the uninitialised g_dl_filename buffer — the illegible text in the dialog. */
+    name = (char *)((UBYTE *)g_dir_page + (int)g_sel_row * 0x66 + 0x817);
+    strcpy(g_dl_filename, name);
+    for (i = (int)strlen(g_dl_filename) - 1; i >= 0 && g_dl_filename[i] == ' '; i--)
+        g_dl_filename[i] = '\0';
+
     return string_prompt("Download filename", g_dl_filename);
 }
 

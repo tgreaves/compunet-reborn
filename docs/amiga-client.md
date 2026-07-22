@@ -298,9 +298,30 @@ background, exactly the original `blit_char_cell`/`frame_display`); `CnetEditor`
 separate original binary) carries the same remap but a different RGB4 table and applies
 colour via its own path. Closing the gap needs editor-renderer RE and is deferred.
 
-**NEXT / outstanding:** editor edit + upload behaviour (opcode-5 frame-count wiring from
-the "Editor frames" Setup value; the `Next/Last/All/Send/Done` frame-button actions), the
-`Back` (`B`) server command, and the client↔editor colour match.
+**NEXT / outstanding:**
+- **Download transport fix (client):** the program-download 8-byte header is sent by the
+  server as a complete X.25 message (DAT + empty-DAT EOS). `net_read_stream`'s fixed 8-byte
+  read leaves the trailing EOS unconsumed, so `download_receive`'s first read picks it up,
+  signals EOF, and saves 0 bytes. Consume the header's terminating EOS after the fixed read
+  (matching cnet.device semantics) before reading the program data.
+- **Server platform-identifier (TODO):** the client picks the download machine-type dialog
+  from header byte 0 (`0`=C64 "Commodore 64 file", `1`=Amiga silent/no prompt, `2`=Atari ST).
+  The server currently hardcodes `header[0]=0x00` (C64) for all `'P'`/`'L'` programs, so the
+  Amiga client always sees the C64 prompt. Implement per-platform program serving so an
+  Amiga program page sends `header[0]=1` (and the Amiga client should be offered Amiga-native
+  program pages, not C64 ones).
+- **Type `'L'` = live interactive terminal (partyline / MUDs):** `download_link`
+  (`FUN_0010b66a`) is NOT a file download — after reading the 8-byte header it hands off to
+  the **CnetTty viewer** (`g_tty_seg_bptr(screen, link_read_char, serial_io_variant,
+  modem_send_delayed)`), a bidirectional read/send terminal loop. This is the mechanism for
+  real-time interactive content (Compunet Partyline chat, MUDs, live sessions). It requires
+  the header's first long == `0x01000001`; the server currently sends a mismatched `'L'`
+  header (`0x00,0x00,exec…`) so the Amiga rejects it as "Invalid link". TODO: implement the
+  `'L'` interactive path — server `'L'` header format + a live bidirectional channel over
+  TCP (relates to the parked partyline-over-TCP item in diagnostics/transport).
+- Editor edit + upload behaviour (opcode-5 frame-count wiring from the "Editor frames" Setup
+  value; the `Next/Last/All/Send/Done` frame-button actions), the `Back` (`B`) server
+  command, and the client↔editor colour match.
 
 The readability/reconstruction goals above are **done**. The client is fully
 reconstructed as readable C (`client/amiga/src/`), builds with the vbcc KS1.3 toolchain,

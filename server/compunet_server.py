@@ -206,6 +206,12 @@ RESP_DIR = 0x44       # 'D' - directory data
 RESP_FRAME = 0x46     # 'F' - frame data
 RESP_ERROR = 0x45     # 'E' - error
 
+# Program-file machine type. Stored human-readably on the page ('c64'/'amiga') and mapped
+# to the download header's byte-0 machine code the client reads (0=C64, 1=Amiga, 2=Atari
+# ST). Uploaded 'P' pages record their uploader's platform; absent/unknown -> C64 (0), so
+# all pre-existing content serves exactly as before.
+MACHINE_CODES = {'c64': 0, 'amiga': 1, 'st': 2}
+
 CMD_ACCNT = 0x41      # 'A'
 CMD_BACK = 0x42       # 'B' (was incorrectly 'C' — verified from terminal disassembly)
 CMD_UCAT = 0x43       # 'C' (user catalogue)
@@ -390,6 +396,7 @@ class CompunetDirectory:
         page._dir_path = page_dir
         page.dynamic = node.get('dynamic', None)
         page.uploaded = node.get('uploaded', None)
+        page.machine_type = node.get('machine_type', 'c64')  # absent -> C64 (existing content)
         self.pages[page.page_num] = page
 
         # Load frames from page folder
@@ -839,7 +846,10 @@ class CompunetSession:
                 size = len(program_bytes)
                 size_lo = size & 0xFF
                 size_hi = (size >> 8) & 0xFF
-                header = bytes([0x00, 0x00, 0x00, 0x00, load_lo, load_hi, size_lo, size_hi])
+                # Header byte 0 = machine type (0=C64, 1=Amiga) from the page's stored
+                # platform; absent/unknown -> C64. The client's download dialog keys off it.
+                machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
+                header = bytes([machine, 0x00, 0x00, 0x00, load_lo, load_hi, size_lo, size_hi])
                 self._program_download_pending = True
                 self._program_download_data = program_bytes
                 self._download_page_num = self.show_page.page_num
@@ -1714,6 +1724,7 @@ class CompunetSession:
             life=send['lifetime'],
         )
         new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        new_page.machine_type = 'amiga' if getattr(self, 'is_amiga', False) else 'c64'
         new_page.parent = self.current_page
         new_page._frame_files = frame_files
         new_page._dir_path = page_dir
@@ -1773,6 +1784,8 @@ class CompunetSession:
                     node['dynamic'] = child.dynamic
                 if getattr(child, 'uploaded', None):
                     node['uploaded'] = child.uploaded
+                if getattr(child, 'machine_type', 'c64') != 'c64':
+                    node['machine_type'] = child.machine_type  # only write non-default
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files

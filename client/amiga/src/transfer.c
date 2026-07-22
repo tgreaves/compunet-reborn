@@ -50,6 +50,27 @@ extern char  g_ul_hdr[];     /* DAT_00121640 — 8-byte upload size header     *
  * type set — has been removed. download_receive and action_download below remain here.
  */
 
+extern BOOL g_tcp_mode;   /* net.h — TCP transport active */
+
+/*
+ * drain_header_eos — after reading the fixed 8-byte download header, consume the
+ * message terminator in TCP mode. The server frames the header as its own X.25 message
+ * (a DAT frame + a terminating empty-DAT EOS). net_read_stream's fixed 8-byte read
+ * consumes only the DAT payload and leaves that EOS pending; the next read (the program
+ * data) would then pick it up and stop at 0 bytes. cnet.device consumes a message's
+ * terminator on a fixed read, so the serial path already returns eof here (header_eof!=0)
+ * and needs no drain — this only runs when the TCP reader left the EOS behind. The EOS is
+ * sent before the proceed token, so this reads only the terminator (0 bytes, eof).
+ */
+static void drain_header_eos(UBYTE header_eof)
+{
+    if (g_tcp_mode && header_eof == 0) {
+        UBYTE d, f, sh;
+        ULONG a;
+        serial_read(&d, 1, &f, &sh, &a);
+    }
+}
+
 /*
  * file_download_xfer — recon FUN_0010b174. Send the D command, read the 8-byte
  * header (byte 0 = machine type: 0=C64, 1=Amiga, 2=ST), confirm the machine type,
@@ -67,6 +88,7 @@ LONG file_download_xfer(void)
         return 0;
 
     serial_read(g_dl_header, 8, &ser_flags, &status_hi, &actual);
+    drain_header_eos(ser_flags);                     /* TCP: consume the header's EOS */
 
     if (g_dl_header[0] == 2) {                       /* ST file */
         if (download_machine_prompt(2) == 0) {
@@ -223,6 +245,7 @@ LONG action_download(void)
     }
 
     serial_read(g_dl_header, 8, &ser_flags, &status_hi, &actual);
+    drain_header_eos(ser_flags);                     /* TCP: consume the header's EOS */
     do {
         serial_read(g_xfer_buf, 4000, &ser_flags, &status_hi, &actual);
         if (g_dl_file != NULL &&
