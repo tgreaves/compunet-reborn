@@ -2060,7 +2060,16 @@ class CompunetSession:
         visible = children[:11] if has_more else children
         
         if not visible:
-            data.extend(ascii_to_petscii('0     (EMPTY)'))
+            # Full-width placeholder entry. The Amiga client parses body rows with
+            # FIXED-WIDTH fields (col A 6 + col B 16 + 1 separator = 23 chars before it
+            # scans col C for a comma); a short field lets col B swallow the commas + CR
+            # so col C runs past end-of-stream and its loop (no EOF guard, faithful to
+            # FUN_00109a5e) spins forever -> freeze. Mirror a normal entry's 27-char first
+            # field: page_num(6)+space + title(17)+type(3), then the 5 comma columns + CR.
+            # Safe for the C64 too: its parser (L_A5F3) reads the title until a comma and
+            # pads to 30, so a 27-char field is length-tolerant there.
+            first_field = '0'.rjust(6) + ' ' + '(EMPTY)'.ljust(17) + '   '   # 27 chars
+            data.extend(ascii_to_petscii(first_field))
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
