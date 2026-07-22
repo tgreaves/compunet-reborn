@@ -202,3 +202,25 @@ is found).
 - **Verify the output** is KS1.3-loadable: magic `00 00 03 f3`, and it must contain
   `RELOC32` (`0x3ec`) hunks with **no** `RELOC32SHORT` (`0x3f7`). If `0x3f7` appears,
   the `-Rstd` edit to `config/kick13` didn't take (error 121 on 1.3).
+
+## KNOWN ISSUE — macOS-built client: TCP/IP does not work at runtime (2026-07-22)
+
+**The client built on the macOS vbcc toolchain fails to establish TCP/IP at runtime,
+even when the resulting binary is run under WinUAE on Windows. The SAME source built on
+the Windows vbcc toolchain (this recipe) produces a client whose TCP/IP works.**
+
+So this is a **toolchain/build difference**, not a source difference — the two builds
+diverge in the emitted binary in a way that breaks the bsdsocket path (net.c). The macOS
+build was assembled from source (vbcc/vasm/vlink built with host clang) per the
+"Verified reconstruction build (KS1.3)" recipe above; the Windows build uses the official
+`vbcc_bin_win64.zip` binaries. Suspects to investigate if the macOS build is needed:
+- codegen/optimisation differences between the two `vbccm68k` builds (the source-built
+  one vs the official win64 binary),
+- the bsdsocket inline stubs / `SocketBase` handling under the two toolchains,
+- linker (`vlink`) differences (reloc/hunk layout) affecting `net.c`'s library-base or
+  the socket call thunks.
+
+Practical consequence: **do runtime TCP testing with the Windows-built client.** The
+macOS session can still author/verify code (it builds clean and is disasm-accurate);
+just build the testable binary on Windows (or share the Windows-built `hdd/` via the
+Google Drive relay that `make_hdd.sh` sets up).

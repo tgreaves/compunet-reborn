@@ -25,15 +25,30 @@ extern UBYTE g_data[];
 #define DATA_BASE 0x11d000
 #define DATA(off) ((APTR)(g_data + ((off) - DATA_BASE)))
 
-/* The five action-gadget handler pointers (0x133e(a4)=0x12033e, 5 longs) and the two
- * nav-gadget handler pointers (0x1352(a4)=0x120352, 2 longs) are zero in the flat image
- * — filled by parse_directory_frame when the server sends directory content. Declare
- * them as globals so parse can write them and gadget setup reads them. */
-APTR g_dir_action_handlers[5];    /* DAT_0012033e */
-APTR g_dir_nav_handlers[2];       /* DAT_00120352 */
+/* Group 2 (action) and group 3 (nav) gadget handlers. In the original these come from
+ * static blob pointer tables — action: 0x133e(a4)=0x11e33e (5 longs), nav:
+ * 0x1352(a4)=0x11e352 (2 longs), with a4 = DATA_BASE (0x11d000) — holding the original
+ * code addresses FUN_0010956c.. and FUN_0010984c.. We bind our reconstructed C
+ * equivalents instead (the blob table's addresses point into the *original* binary,
+ * not our code). Labels (0x11e2da) decode to "Dir/Back/Goto/Dnld/Upld", confirming the
+ * base. NOTE: an earlier audit mis-set a4 to 0x11f000, landing these tables on empty
+ * BSS at 0x12033e/0x120352 and the render/text on 0x11f212/0x11feda — so the action
+ * buttons had null handlers and wrong labels. */
+extern LONG hook_dir_0956c(APTR);   /* Dir  -> goto_page  (FUN_0010956c) */
+extern LONG hook_dir_095b0(APTR);   /* Back -> back_dir   (FUN_001095b0) */
+extern LONG hook_dir_095f6(APTR);   /* Goto -> link_goto  (FUN_001095f6) */
+extern LONG hook_dir_0963c(APTR);   /* Dnld -> download   (FUN_0010963c) */
+extern LONG hook_dir_09682(APTR);   /* Upld -> upload     (FUN_00109682) */
+extern LONG hook_dir_0984c(APTR);   /* nav row prev       (FUN_0010984c) */
+extern LONG hook_dir_09898(APTR);   /* nav row next       (FUN_00109898) */
 
-/* Group 2 GadgetRender (IntuiText) table at 0x12da(a4)=0x11feda (5 entries, stride 0x14) */
-#define ACTION_RENDER(i) DATA(0x11f212 + (i) * 0x14)
+static APTR const g_dir_action_handlers[5] = {
+    (APTR)hook_dir_0956c, (APTR)hook_dir_095b0, (APTR)hook_dir_095f6,
+    (APTR)hook_dir_0963c, (APTR)hook_dir_09682
+};
+static APTR const g_dir_nav_handlers[2] = {
+    (APTR)hook_dir_0984c, (APTR)hook_dir_09898   /* [0]=prev, [1]=next (recon 0x11e352) */
+};
 
 /*
  * dir_preinit — recon FUN_00109000. Builds all directory gadgets into the page buffer.
@@ -80,15 +95,16 @@ void dir_preinit(APTR page_v)
         *(UWORD *)(g + 0x0c) = 0x0107;          /* Flags = GADGIMAGE|GADGHIMAGE|... */
         *(UWORD *)(g + 0x0e) = 0x0102;          /* Activation */
         *(UWORD *)(g + 0x10) = 0x0001;          /* GadgetType */
-        *(APTR *)(g + 0x12) = DATA(0x11f212);   /* GadgetRender (blob IntuiText) */
+        *(APTR *)(g + 0x12) = DATA(0x11e212);   /* GadgetRender — shared button image (recon 0x1212(a4)) */
         *(APTR *)(g + 0x16) = NULL;             /* SelectRender */
-        /* SpecialInfo points into a per-action StringInfo table at 0x11feda, stride 0x14 */
-        *(APTR *)(g + 0x1a) = (APTR)((UBYTE *)DATA(0x11feda) + i * 0x14);
+        /* GadgetText: per-action IntuiText label (Dir/Back/Goto/Dnld/Upld) at
+         * 0x11e2da, stride 0x14 (recon 0x12da(a4) + i*0x14). */
+        *(APTR *)(g + 0x1a) = (APTR)((UBYTE *)DATA(0x11e2da) + i * 0x14);
         *(APTR *)(g + 0x1e) = NULL;
         *(APTR *)(g + 0x22) = NULL;
         *(UWORD *)(g + 0x26) = (UWORD)i;
         *(APTR *)(g + 0x28) = NULL;
-        *(APTR *)(g + 0x2c) = g_dir_action_handlers[i]; /* handler from table (initially 0) */
+        *(APTR *)(g + 0x2c) = g_dir_action_handlers[i]; /* Dir/Back/Goto/Dnld/Upld handler */
         *(APTR *)(g + 0x30) = page_v;
         prev = g;
     }
@@ -111,7 +127,7 @@ void dir_preinit(APTR page_v)
         *(APTR *)(g + 0x22) = NULL;
         *(UWORD *)(g + 0x26) = (UWORD)i;
         *(APTR *)(g + 0x28) = NULL;
-        *(APTR *)(g + 0x2c) = g_dir_nav_handlers[i]; /* handler from table (initially 0) */
+        *(APTR *)(g + 0x2c) = g_dir_nav_handlers[i]; /* nav row prev/next handler */
         *(APTR *)(g + 0x30) = page_v;
         prev = g;
     }

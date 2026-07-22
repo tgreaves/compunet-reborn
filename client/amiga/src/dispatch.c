@@ -49,13 +49,29 @@ LONG hook_dir_0984c(APTR gadget)
     return 1;
 }
 
-/* The remaining directory/nav hooks select a row or follow its link. Reconstructed
- * as row-select + link-follow, which is their observed behaviour. */
-LONG hook_dir_0956c(APTR g){ return link_follow(g); }
-LONG hook_dir_095b0(APTR g){ return link_follow(g); }
-LONG hook_dir_095f6(APTR g){ return link_follow(g); }
-LONG hook_dir_0963c(APTR g){ return link_follow(g); }
-LONG hook_dir_09682(APTR g){ return link_follow(g); }
+/* ---- directory ACTION gadgets: "Dir / Back / Goto / Dnld / Upld" ---------------
+ * recon FUN_0010956c / 95b0 / 95f6 / 963c / 09682. Each reads its dir page (gad+0x30)
+ * and row (gad+0x26), toggles the row-highlight box (link_lock) around its command,
+ * and returns the command's result. These are the on-screen navigation buttons in the
+ * directory window; "Dir" is the top-directory request (goto_page -> "P00" while
+ * offline), the Amiga equivalent of the C64's typed DIR.
+ * NOTE: an earlier reconstruction wrongly stubbed all five as link_follow(). */
+extern LONG goto_page(void);        /* FUN_0010a1e2 — "Dir":  P00 / P<n>            */
+extern LONG back_dir(void);         /* FUN_0010a29a — "Back": send "B"              */
+extern LONG link_goto(void);        /* FUN_0010a310 — "Goto": Goto-Page dialog + L  */
+extern LONG download_check(void);   /* FUN_0010b730 — "Dnld"                        */
+extern LONG upload_file(void);      /* "Upld" (original FUN_0010c2f8 is a fuller     */
+                                    /*         upload orchestrator; TODO reconstruct)*/
+extern void link_lock(APTR dir, int row);   /* FUN_00109520 — toggle row box */
+
+#define GAD_DIR(g)  (*(APTR  *)((UBYTE *)(g) + 0x30))
+#define GAD_ROW(g)  (*(short *)((UBYTE *)(g) + 0x26))
+
+LONG hook_dir_0956c(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=goto_page();      link_lock(d,r); return x; } /* Dir  */
+LONG hook_dir_095b0(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=back_dir();       link_lock(d,r); return x; } /* Back */
+LONG hook_dir_095f6(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=link_goto();      link_lock(d,r); return x; } /* Goto */
+LONG hook_dir_0963c(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=download_check(); link_lock(d,r); return x; } /* Dnld */
+LONG hook_dir_09682(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=upload_file();    link_lock(d,r); return x; } /* Upld */
 LONG hook_nav_0a3d0(APTR g){ return link_follow(g); }
 LONG hook_nav_0a3f8(APTR g){ return link_follow(g); }
 LONG hook_nav_0a43e(APTR g){ return link_follow(g); }

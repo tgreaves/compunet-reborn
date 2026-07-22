@@ -62,6 +62,22 @@ LONG goto_page(void)
 }
 
 /*
+ * back_dir — recon FUN_0010a29a. The "Back" action gadget: send the single-char "B"
+ * (back / up one directory level) as a TOKEN_COM frame and, on ack '@', reload the
+ * directory. Same command/ack pattern as goto_page's offline branch, but sends "B"
+ * and does not set g_online (we are already online when Back is available).
+ */
+LONG back_dir(void)
+{
+    g_state = STATE_GOTO;                       /* recon 0x10a29c: g_state = 2 */
+    serial_write("B", 1, 1, TOKEN_COM);         /* recon 0x10a2b8: send "B"    */
+    if (serial_io_c(g_ack_text) != ACK_OK)      /* recon 0x10a2ca: ack != '@'  */
+        return 0;
+    directory_refresh(g_dir_page);              /* recon 0x10a2d8 */
+    return 1;
+}
+
+/*
  * link_follow — recon FUN_001098e8. Follow the 6-char link code stored for the
  * currently-selected directory row (page+0x790 + row*7). Returns 0 if the row has
  * no link.

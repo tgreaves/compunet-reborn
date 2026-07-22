@@ -72,7 +72,14 @@ APTR   g_frame_page   = NULL;   /* DAT_0011d078 — points at g_frame_page_buf w
  * population and likely caused frame-rendering imperfections.
  */
 UBYTE  g_dir_page_buf[0x1478];   /* DAT_001203bc — directory page struct (BSS) */
-UBYTE  g_frame_page_buf[0x800];  /* DAT_00121834 — frame page struct (BSS)     */
+/* Size is 0x8c8, NOT ~0x800: frame_gadgets_enable (FUN_00102354) walks 6 gadgets
+ * at frame+0x790 stride 0x34, so the last (row 5) gadget spans frame+0x894..0x8c8.
+ * The recon confirms DAT_001220fc (= frame 0x121834 + 0x8c8) is the next global, and
+ * the frame NewWindow FirstGadget is patched to 0x1220c8 (= frame+0x894 = row-5 gadget).
+ * An 0x800 buffer left rows 2..5 past the end, so set_connection_state's state-2
+ * frame_gadgets_enable read garbage Flags from adjacent BSS and called On/OffGadget on
+ * garbage gadget structs -> jump through a garbage vector -> Guru #80000004. */
+UBYTE  g_frame_page_buf[0x8c8];  /* DAT_00121834 — frame page struct incl. gadget array */
 
 /* ---- Command / ack scratch ---- */
 char   g_cmd_buf[256];          /* DAT_00121588 — shared command buffer */

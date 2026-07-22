@@ -352,9 +352,12 @@ LONG init_directory(void)      /* recon FUN_001099c0 — faithful transcription 
 
     /* recon 0x1099ca: lea $43aa(a4),a0 → page + 0xfee (= 0x1213aa - 0x1203bc = 0xfee)
      * = the head of the gadget NextGadget chain built by dir_preinit (the last gadget
-     * written, whose Next links backward through all 18). Written into the directory
-     * NewWindow's FirstGadget field (blob 0x11f1f4 = 0x11e1e2 + 0x12). */
-    *(APTR *)DATA(0x11f1f4) = (APTR)(page + 0xfee); /* NW FirstGadget → chain head */
+     * written, whose Next links backward through all 18). recon 0x1099ce writes it to
+     * $11f4(a4) = NewWindow's FirstGadget field at 0x11e1f4 (NW 0x11e1e2 + 0x12).
+     * NOTE: an earlier audit wrote 0x11f1f4 (+0x1000 off) — the wrong blob location, so
+     * the window's real FirstGadget kept a stale pointer: the gadget chain was never
+     * attached (garbage render, no click input). */
+    *(APTR *)DATA(0x11e1f4) = (APTR)(page + 0xfee); /* NW FirstGadget → chain head */
     *(APTR *)DATA(0x11e200) = g_screen;              /* NW.Screen (0x11e1e2 + 0x1e)  */
 
     w = (struct Window *)open_window_tracked(DATA(0x11e1e2));
