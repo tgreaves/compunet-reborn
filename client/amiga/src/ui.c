@@ -166,7 +166,7 @@ void logon_text_append(const char *s, int len)
 }
 
 /* logon_window_ready (recon FUN_0011949a) is reconstructed faithfully in
- * partyline.c: it optionally opens the partyline window and issues the device's
+ * diagnostics.c: it optionally opens the Diagnostics window and issues the device's
  * "login ready" command (io_Command 9). */
 
 /* uppercase in place — recon FUN_0011513a (a..z -> A..Z). */
@@ -401,14 +401,14 @@ void directory_refresh(APTR dir_page)
  * ------------------------------------------------------------------ *
  * Six windows: the main window (DAT_001200fc, held directly), the frame page and
  * directory page (DAT_0011d078 / DAT_0011d07c — page structs whose first field is
- * the window), and the courier / secondary-directory / partyline windows
+ * the window), and the courier / secondary-directory / Diagnostics windows
  * (DAT_00121650 / DAT_00121698 / DAT_0011fd70, held directly). ui_each_window()
  * yields each live window pointer in the recon's order. */
 extern APTR g_frame_page;    /* DAT_0011d078 — frame page (page[0] = window)   */
 extern APTR g_dir_page;      /* DAT_0011d07c — directory page (page[0]=window)  */
 extern APTR g_courier_win;   /* DAT_00121650 */
 extern APTR g_dir2_win;      /* DAT_00121698 */
-extern APTR g_party_win;     /* DAT_0011fd70 */
+extern APTR g_diag_win;      /* DAT_0011fd70 */
 
 static struct Window *ui_window(int i)
 {
@@ -418,7 +418,7 @@ static struct Window *ui_window(int i)
     case 2: return g_dir_page   ? *(struct Window **)g_dir_page   : NULL;
     case 3: return (struct Window *)g_courier_win;
     case 4: return (struct Window *)g_dir2_win;
-    case 5: return (struct Window *)g_party_win;
+    case 5: return (struct Window *)g_diag_win;
     default: return NULL;
     }
 }

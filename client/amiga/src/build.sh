@@ -19,7 +19,7 @@ export VBCC
 PATH="$VBCC/bin:$PATH"
 export PATH
 
-MODS="startup globals transport connect login frame frame_control frame_gfx navigate directory directory_init directory_parse directory_select transfer download mail resources config settings launch launch_helpers menu event_loop partyline modem dosio ui ui_state ui_dialogs dispatch osglue net button_images frame_init stubs"
+MODS="startup globals transport connect login frame frame_control frame_gfx navigate directory directory_init directory_parse directory_select transfer download mail resources config settings launch launch_helpers menu event_loop diagnostics modem dosio ui ui_state ui_dialogs dispatch osglue net button_images frame_init stubs"
 
 OBJS=""
 for f in $MODS; do

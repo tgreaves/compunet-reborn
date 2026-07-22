@@ -229,3 +229,14 @@ ui.c / ui_state.c / ui_dialogs.c / menu.c / event_loop.c.
 
 Tooling: `disasm_fn.py <name|0xADDR> [--our]` (this dir) is the verified original-vs-ours
 comparer used for this audit — the reliable, no-inference method for finishing it.
+
+## Naming corrections
+
+- **[CORRECTED] "partyline" was a mis-identification — it is the Diagnostics window.**
+  FUN_00119000 opens a window whose blob NewWindow.Title (0x11fd84+0x1a) is **"Diagnostics"**
+  with banner IntuiText "Sending"; it is gated by the **"Diagnostics" ON/OFF toggle** in
+  Setup, i.e. config open-flags **bit 2** (verified: logon_window_ready FUN_0011949a does
+  `btst #2`; settings_apply FUN_00112182 does `ori.w #$4` / `andi.w #$fffb`). There is no
+  partyline (chat) feature in this client. Renamed: `partyline.c` -> `diagnostics.c`,
+  `partyline_open` -> `diagnostics_open`, `g_party_win/screen/active` -> `g_diag_win/screen/
+  active`; comments in settings.c updated. Do not re-introduce the "partyline" label.

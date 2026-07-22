@@ -227,9 +227,9 @@ UBYTE  g_editor_msg[0x24];      /* DAT_00120146 — CnetEditor startup message  
 APTR   g_logon_win_h  = NULL;   /* DAT_0011d570 — logon window handle        */
 APTR   g_courier_win  = NULL;   /* DAT_00121650 — courier/mail window        */
 APTR   g_dir2_win     = NULL;   /* DAT_00121698 — secondary directory window */
-APTR   g_party_win    = NULL;   /* DAT_0011fd70 — partyline window           */
-APTR   g_party_screen = NULL;   /* DAT_0011fda2 — screen ptr copy for party  */
-UBYTE  g_party_active = 0;      /* DAT_0011fd74 — partyline active flag       */
+APTR   g_diag_win    = NULL;    /* DAT_0011fd70 — Diagnostics window          */
+APTR   g_diag_screen = NULL;    /* DAT_0011fda2 — screen ptr copy for diag    */
+UBYTE  g_diag_active = 0;       /* DAT_0011fd74 — Diagnostics active flag      */
 APTR   g_sess_a       = NULL;   /* DAT_0011f120 — session buffer/handle A    */
 APTR   g_sess_b       = NULL;   /* DAT_0011f124 — session buffer/handle B    */
 APTR   g_sess_c       = NULL;   /* DAT_0011f128 — session buffer/handle C    */

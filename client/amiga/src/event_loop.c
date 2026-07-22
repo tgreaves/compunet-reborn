@@ -164,7 +164,7 @@ extern UWORD g_online;          /* DAT_0011d074 */
 extern APTR g_logon_win_h;      /* DAT_0011d570 */
 extern APTR g_courier_win;      /* DAT_00121650 */
 extern APTR g_dir2_win;         /* DAT_00121698 */
-extern APTR g_party_win;        /* DAT_0011fd70 */
+extern APTR g_diag_win;         /* DAT_0011fd70 */
 extern APTR g_sess_a;           /* DAT_0011f120 */
 extern APTR g_sess_b;           /* DAT_0011f124 */
 extern APTR g_sess_c;           /* DAT_0011f128 */
@@ -195,7 +195,7 @@ void disconnect(void)
     g_frame_page   = NULL;
     g_courier_win  = NULL;
     g_dir2_win     = NULL;
-    g_party_win    = NULL;
+    g_diag_win     = NULL;
     g_sess_a       = NULL;
     g_sess_b       = NULL;
     g_sess_c       = NULL;

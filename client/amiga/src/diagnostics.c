@@ -1,16 +1,24 @@
 /*
- * partyline.c — "login ready" device handshake + optional partyline window
+ * diagnostics.c — "login ready" device handshake + optional Diagnostics window
  * (reconstructed, faithful).
  *
+ * NOTE ON NAMING: an earlier reconstruction called this feature "partyline" (the
+ * Compunet chat channel). That was a mis-identification — the window's own
+ * NewWindow.Title is "Diagnostics" and its banner is "Sending" (verified in the blob),
+ * and it is gated by the "Diagnostics" ON/OFF toggle in Setup (open-flags bit 2). There
+ * is no partyline feature in this client; these are the Diagnostics window functions.
+ *
  *   logon_window_ready (FUN_0011949a) — tell cnet.device the login record is ready:
- *       if the partyline option is enabled in the config (open-flags bit 2), open the
- *       partyline window first, then issue write-request io_Command 9 (with the
- *       io_Offset scratch byte = 1) via DoIO. Called from do_connect once the carrier
- *       handshake completes, immediately before reading the login ack.
- *   partyline_open (FUN_00119000) — open the partyline window from its blob NewWindow
- *       (DAT_0011fd84), draw its border Image + banner IntuiText, share the main
- *       window's UserPort, set its IDCMP, attach the menu strip, show the busy
- *       pointer, and prime the device with io_Command 10 (open the partyline stream).
+ *       if the Diagnostics option is enabled in the config (open-flags bit 2 — recon
+ *       btst #2), open the Diagnostics window first, then issue write-request
+ *       io_Command 9 (with the io_Offset scratch byte = 1) via DoIO. Called from
+ *       do_connect once the carrier handshake completes, immediately before reading the
+ *       login ack.
+ *   diagnostics_open (FUN_00119000) — open the Diagnostics window from its blob
+ *       NewWindow (DAT_0011fd84, Title "Diagnostics"), draw its border Image + banner
+ *       IntuiText ("Sending"), share the main window's UserPort, set its IDCMP, attach
+ *       the menu strip, show the busy pointer, and prime the device with io_Command 10
+ *       (open the diagnostics stream).
  *
  * TRANSCRIPTION: bodies from the recon (FUN_0011949a / FUN_00119000); the io_Command
  * values, the io_Offset scratch byte, and the blob addresses are from the decompile,
@@ -31,9 +39,9 @@
 extern APTR  g_screen;        /* DAT_001200f8 */
 extern APTR  g_main_uport;    /* DAT_00120100 — main window UserPort */
 extern APTR  g_menu_pair[2];  /* DAT_001201ae — menu list            */
-extern APTR  g_party_win;     /* DAT_0011fd70 */
-extern APTR  g_party_screen;  /* DAT_0011fda2 — screen ptr copy      */
-extern UBYTE g_party_active;  /* DAT_0011fd74 */
+extern APTR  g_diag_win;      /* DAT_0011fd70 */
+extern APTR  g_diag_screen;   /* DAT_0011fda2 — screen ptr copy      */
+extern UBYTE g_diag_active;   /* DAT_0011fd74 */
 extern struct MsgPort *g_device_port;
 
 extern UBYTE g_data[];
@@ -51,19 +59,19 @@ extern void set_menu_strip_tracked(APTR win, APTR menu); /* FUN_0011a588 */
 extern void set_wait_pointer(void);                /* FUN_001020ae */
 
 /*
- * partyline_open — recon FUN_00119000. Open the partyline window and prime the device.
+ * diagnostics_open — recon FUN_00119000. Open the Diagnostics window and prime the device.
  */
-void partyline_open(void)
+void diagnostics_open(void)
 {
     struct Window *w;
 
-    /* Patch the partyline NewWindow.Screen (0x11fd84 + 0x1e = 0x11fda2) INTO THE BLOB
+    /* Patch the Diagnostics NewWindow.Screen (0x11fd84 + 0x1e = 0x11fda2) INTO THE BLOB
      * with g_screen (CUSTOMSCREEN). recon FUN_00119000 line 14223: DAT_0011fda2 =
      * g_screen — DAT_0011fda2 IS the NewWindow.Screen field, not a separate copy.
-     * (Writing the detached g_party_screen global left it NULL -> OpenWindow NULL.) */
+     * (Writing the detached g_diag_screen global left it NULL -> OpenWindow NULL.) */
     *(APTR *)DATA(0x11fda2) = g_screen;
     w = (struct Window *)open_window_tracked(DATA(0x11fd84));
-    g_party_win = (APTR)w;
+    g_diag_win = (APTR)w;
     if (w == NULL)
         return;
 
@@ -74,24 +82,24 @@ void partyline_open(void)
     set_menu_strip_tracked(w, g_menu_pair[0]);
     set_wait_pointer();
 
-    /* Prime the device: io_Command 10 opens the partyline stream. (No cnet.device in
-     * TCP mode; partyline-over-TCP is not yet handled, so skip the device priming.) */
+    /* Prime the device: io_Command 10 opens the diagnostics stream. (No cnet.device in
+     * TCP mode; diagnostics-over-TCP is not yet handled, so skip the device priming.) */
     if (!g_tcp_mode) {
         g_write_req->io.io_Data    = (APTR)g_device_port;   /* +0x28 (recon literal) */
         g_write_req->io.io_Command = 10;                     /* +0x1c */
         DoIO((struct IORequest *)g_write_req);
     }
-    g_party_active = 1;
+    g_diag_active = 1;
 }
 
 /*
- * logon_window_ready — recon FUN_0011949a. Open the partyline window if enabled, then
+ * logon_window_ready — recon FUN_0011949a. Open the Diagnostics window if enabled, then
  * issue io_Command 9 (io_Offset scratch byte = 1) to signal "login record ready".
  */
 void logon_window_ready(void)
 {
-    if (CFG_OPENFLAGS & 4)
-        partyline_open();
+    if (CFG_OPENFLAGS & 4)          /* open-flags bit 2 = "Diagnostics" toggle */
+        diagnostics_open();
 
     /* io_Command 9 (+0x2c=1) switched cnet.device into framed read mode ("login record
      * ready"). net_read_stream is always framed, so this is implicit in TCP mode. */

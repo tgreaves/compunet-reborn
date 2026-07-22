@@ -3,7 +3,7 @@
  *
  *   settings_open   (FUN_00112000) — open the settings window (blob NewWindow 0x11f188),
  *                   copy the current config fields into the window's string-gadget
- *                   buffers (all blob-resident), set the "auto-open partyline" toggle
+ *                   buffers (all blob-resident), set the "auto-open Diagnostics" toggle
  *                   gadget imagery from the open-flags bit-2, add the gadget list, and
  *                   draw the window body.
  *   settings_dialog (FUN_001122a6) — the modal event loop: call settings_open, then
@@ -13,7 +13,7 @@
  *                   Cancel=discard; all close the window on exit.
  *   settings_apply  (FUN_00112182) — copy the edited gadget buffers back into the
  *                   config fields (phone, modem name, userid, baud up/down, data bits,
- *                   open-flags partyline bit) and push the serial params to the device.
+ *                   open-flags Diagnostics bit) and push the serial params to the device.
  *   settings_close  (FUN_0011216c) — close the settings window.
  *
  * The gadgets and their string buffers all live in the extracted data blob (the blob
@@ -57,7 +57,7 @@ extern char  g_login_userid[];   /* DAT_00120244 */
 /* Blob-resident settings-dialog state and gadget buffers (offsets are absolute
  * addresses the original uses; DATA() maps them into g_data). */
 #define SET_WIN        DL(0x121828)   /* the settings Window handle (blob BSS)   */
-#define SET_TOGGLE     DW(0x121826)   /* partyline toggle state (0/1)            */
+#define SET_TOGGLE     DW(0x121826)   /* Diagnostics toggle state (0/1)            */
 #define NEWWIN         DATA(0x11f188)  /* settings NewWindow                      */
 #define NEWWIN_SCREEN  DL(0x11f1a6)    /* NewWindow.Screen field (0x11f188+0x1e)  */
 #define GBUF_PHONE     ((char *)DATA(0x1217ec)) /* phone string gadget buffer      */
@@ -137,7 +137,7 @@ static LONG settings_open(void)
     LI_BAUDDN = (LONG)g_baud_down;
     LI_DBITS  = (LONG)g_data_bits;
 
-    /* Toggle gadget imagery from open-flags bit 2 (partyline auto-open). */
+    /* Toggle gadget imagery from open-flags bit 2 (Diagnostics auto-open). */
     if (g_open_flags & 4) {
         SET_TOGGLE = 1;
         DL(TOG_GADGET_R) = TOG_ON_RENDER;
@@ -192,14 +192,14 @@ static void settings_apply(void)
     apply_serial_params(g_data_bits);
 }
 
-/* The partyline toggle gadget (0x11f356) and where RemoveGList's returned position is
+/* The Diagnostics toggle gadget (0x11f356) and where RemoveGList's returned position is
  * stashed (0x12182c). Verified from settings_dialog's toggle branches (0x112344 /
  * 0x1123b2 in the relocated disasm). */
 #define TOG_GADGET     ((struct Gadget *)DATA(0x11f356))
 #define TOG_POS        DW(0x12182c)
 
 /*
- * settings_toggle — recon settings_dialog cases 4 (ON) and 6 (OFF). Flip the partyline
+ * settings_toggle — recon settings_dialog cases 4 (ON) and 6 (OFF). Flip the Diagnostics
  * toggle EXACTLY as the original: RemoveGList the single toggle gadget (saving its
  * position), swap its GadgetRender/SelectRender imagery, AddGList it back at that
  * position, then RefreshGList just that gadget. (No whole-list refresh — that was an
@@ -269,10 +269,10 @@ LONG settings_dialog(void)
         case 3:  /* recon 0x11232c — ActivateGadget: move to the clicked string gadget */
             ActivateGadget(g, w, NULL);
             break;
-        case 5:  /* recon 0x112344 — partyline toggle ON (only if currently off) */
+        case 5:  /* recon 0x112344 — Diagnostics toggle ON (only if currently off) */
             if (SET_TOGGLE == 0) settings_toggle(w, 1);
             break;
-        case 6:  /* recon 0x1123b2 — partyline toggle OFF (only if currently on) */
+        case 6:  /* recon 0x1123b2 — Diagnostics toggle OFF (only if currently on) */
             if (SET_TOGGLE != 0) settings_toggle(w, 0);
             break;
         default: /* 2 and any other — no action (recon loops back) */
