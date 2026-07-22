@@ -310,18 +310,21 @@ extern APTR  g_menu_pair[];   /* DAT_001201ae — [menu list, cmd map]        */
 
 extern void frame_reset_page(APTR page);   /* FUN_0010568c — zero the cell array + cursor */
 extern void frame_display_mem(APTR src, APTR page); /* FUN_001080da — render an in-memory frame */
+extern void init_button_images(void);               /* button_images.c — repoint gadget Images */
+extern void frame_preinit(APTR page);               /* frame_init.c FUN_00117000 — frame button bar */
 
 LONG open_frame_window(void)   /* recon FUN_001174d4 — faithful transcription */
 {
     struct Window *w;
     UBYTE *page = g_frame_page_buf;     /* BSS at DAT_00121834 */
 
-    /* recon 0x1174de: the original patches the frame window's NewWindow FirstGadget field
-     * (blob 0x11fa50) with the address of a gadget list in BSS at 0x1220c8. In our layout
-     * this is a separate buffer (g_frame_out region). The frame window's gadgets are
-     * initialised by the frame-reset/editor code, not dir_preinit — skip this patch for
-     * now (window opens fine without gadgets). TODO: trace FUN_00117000 for the full init.
-     * Patch Screen as always: */
+    /* recon 0x1174de: build the frame-window button bar (Next/Last/More/All/Send/Done)
+     * into the frame page and patch the NewWindow FirstGadget field (0x11fa50 = NW
+     * 0x11fa3e + 0x12) with the chain head — the row-5 gadget at page+0x894 (= the
+     * original's 0x1220c8). frame_preinit is recon FUN_00117000. */
+    init_button_images();                        /* Chip-copy + repoint button Images */
+    frame_preinit(page);                         /* recon FUN_00117000: build the 6 gadgets */
+    *(APTR *)DATA(0x11fa50) = (APTR)(page + 0x894); /* NW FirstGadget → chain head (row 5) */
     *(APTR *)DATA(0x11fa5c) = g_screen;          /* recon 0x1174e6: NW.Screen */
 
     w = (struct Window *)open_window_tracked(DATA(0x11fa3e));
@@ -348,6 +351,7 @@ LONG init_directory(void)      /* recon FUN_001099c0 — faithful transcription 
     struct Window *w;
     UBYTE *page = g_dir_page_buf;       /* BSS at DAT_001203bc */
 
+    init_button_images();                             /* Chip-copy + repoint button Images */
     dir_preinit(page);                                /* recon 0x1099c0: bsr FUN_00109000 */
 
     /* recon 0x1099ca: lea $43aa(a4),a0 → page + 0xfee (= 0x1213aa - 0x1203bc = 0xfee)

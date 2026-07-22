@@ -188,12 +188,24 @@ LONG hook_serial_setup(APTR g)
 }
 
 /* ---- editor gadget hooks (recon FUN_00117xxx) — enter/drive the frame editor ---- */
-LONG hook_ed_172f4(APTR g){ (void)g; return 1; }
-LONG hook_ed_1733a(APTR g){ (void)g; return 1; }
-LONG hook_ed_17380(APTR g){ (void)g; return 1; }
-LONG hook_ed_173c6(APTR g){ (void)g; return 1; }
-LONG hook_ed_1740c(APTR g){ (void)g; return 1; }
-LONG hook_ed_17470(APTR g){ (void)g; return 1; }
+/* ---- frame-window button bar: Next / Last / More / All / Send / Done -------------
+ * recon FUN_001172f4 / 1733a / 17380 / 173c6 / 1740c / 17470. Each reads its frame page
+ * (gad+0x30) and button row (gad+0x26) and wraps its action in the frame highlight lock.
+ * "More" (FUN_00113062) sends "D" to fetch the next frame of a multi-frame page — the
+ * multi-page reader control. Next/Last (in-frame scroll) and All/Send/Done (editor/
+ * upload) call editor internals not yet reconstructed; stubbed to a no-op for now. */
+extern void frame_lock(APTR frame_page, int row);   /* FUN_001170be */
+extern LONG frame_more(void);                        /* FUN_00113062 — "D" MORE */
+
+#define FGAD_PAGE(g)  (*(APTR  *)((UBYTE *)(g) + 0x30))
+#define FGAD_ROW(g)   (*(short *)((UBYTE *)(g) + 0x26))
+
+LONG hook_ed_17380(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x; frame_lock(p,r); x=frame_more(); frame_lock(p,r); return x; } /* More */
+LONG hook_ed_172f4(APTR g){ (void)g; return 1; }   /* Next — TODO FUN_0011710a (in-frame scroll) */
+LONG hook_ed_1733a(APTR g){ (void)g; return 1; }   /* Last — TODO FUN_001171fc (in-frame scroll) */
+LONG hook_ed_173c6(APTR g){ (void)g; return 1; }   /* All  — TODO FUN_0011763a */
+LONG hook_ed_1740c(APTR g){ (void)g; return 1; }   /* Send — TODO FUN_0011762e/117610 (upload) */
+LONG hook_ed_17470(APTR g){ (void)g; return 1; }   /* Done — TODO FUN_00117628 */
 
 /* ---- editor render entry points (recon 0x116000/200/400) ---- */
 LONG hook_16000(APTR g){ (void)g; return 1; }

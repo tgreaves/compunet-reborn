@@ -77,6 +77,34 @@ LONG back_dir(void)
     return 1;
 }
 
+/* Frame display state, for frame_more (declared elsewhere; DAT addresses noted). */
+extern APTR  frame_display(APTR page, APTR out);      /* thunk FUN_0010818a */
+extern void  frame_display_done(APTR out, APTR len);  /* thunk FUN_0011754e */
+extern APTR  g_frame_page;                            /* DAT_0011d078 */
+extern char  g_frame_out[];                           /* DAT_001220fc */
+extern APTR  g_frame_out_end;                         /* DAT_0012309c */
+extern UWORD g_frame_hdr_more;                        /* DAT_001203b2 — more-frames flag */
+
+/*
+ * frame_more — recon FUN_00113062. The "More" frame button: send the bare "D" (the
+ * server's MORE command), display the next frame it returns, and drop back to state 2
+ * (which disables More) only when the more-frames flag clears (last frame). On a
+ * non-'@' ack, go to state 2 and fail. This is how multi-frame text pages page forward.
+ */
+LONG frame_more(void)
+{
+    serial_write("D", 1, 1, TOKEN_COM);            /* recon 0x113076: send "D" (MORE) */
+    if (serial_io_c(g_ack_text) != ACK_OK) {       /* recon 0x11308c: ack != '@'      */
+        g_state = STATE_GOTO;                       /* recon 0x113094: g_state = 2     */
+        return 0;
+    }
+    g_frame_out_end = frame_display(g_frame_page, g_frame_out);  /* recon 0x1130a4 */
+    frame_display_done(g_frame_out, g_frame_out_end);           /* recon 0x1130b4 */
+    if (g_frame_hdr_more == 0)                      /* recon 0x1130ba: no more -> state 2 */
+        g_state = STATE_GOTO;
+    return 1;
+}
+
 /*
  * link_follow — recon FUN_001098e8. Follow the 6-char link code stored for the
  * currently-selected directory row (page+0x790 + row*7). Returns 0 if the row has
