@@ -482,14 +482,45 @@ void frame_display_mem(APTR src, APTR page)
     frame_offscreen_end(page);
 }
 
+/* Editor plumbing for the frame auto-store (recon FUN_0011754e). */
+extern APTR  g_edit_msgport;   /* DAT_0012013e — editor message port          */
+extern APTR  g_editor_port;    /* DAT_00120142 — our reply port               */
+extern UBYTE g_editor_msg[];   /* DAT_00120146 — shared editor command message*/
+extern APTR  g_edit_proc;      /* DAT_00120168 — editor semaphore owner        */
+extern APTR  g_edit_frame;     /* DAT_0011d080 — current frame being published */
+
 /*
- * frame_display_done — recon FUN_0011754e. Finalise a displayed frame: flush the
- * offscreen bitmap to the window. 'out'/'len' bound the captured raw frame.
+ * frame_display_done — recon FUN_0011754e. Finalise a just-displayed frame:
+ *   1. flush the offscreen bitmap to the window (our render path);
+ *   2. auto-store the raw captured frame in the editor process — PutMsg opcode 4 with
+ *      the frame bytes (out) + length (len); the editor keeps its own copy (the
+ *      "Editor frames" ring the Setup value bounds);
+ *   3. under the shared semaphore (g_edit_proc+0x0e) make it the current edit frame,
+ *      moving the "current" flag (bit 2 of frame+0x11) off the previous frame onto it.
+ * The store is guarded on the editor being live so a not-yet-ready editor can never
+ * block the render path (the original launches the editor at startup and runs
+ * unconditionally). 'out'/'len' bound the captured raw frame.
  */
 void frame_display_done(APTR out, APTR len)
 {
-    (void)out; (void)len;
     frame_offscreen_end(g_frame_page);
+
+    if (g_edit_msgport != NULL && g_edit_proc != NULL) {
+        *(APTR *)(g_editor_msg + 0x0e) = g_editor_port;   /* recon 0x117552: reply port */
+        g_editor_msg[0x14] = 4;                           /* recon 0x117558: opcode 4   */
+        *(APTR *)(g_editor_msg + 0x16) = out;             /* recon 0x11755e: frame bytes*/
+        *(APTR *)(g_editor_msg + 0x1a) = len;             /* recon 0x117564: end/length */
+        PutMsg((struct MsgPort *)g_edit_msgport, (struct Message *)g_editor_msg);
+        WaitPort((struct MsgPort *)g_editor_port);
+        GetMsg((struct MsgPort *)g_editor_port);
+
+        ObtainSemaphore((struct SignalSemaphore *)((UBYTE *)g_edit_proc + 0x0e));
+        if (g_edit_frame != NULL)
+            *((UBYTE *)g_edit_frame + 0x11) &= (UBYTE)~0x04;   /* recon 0x1175a6 */
+        g_edit_frame = out;                                    /* recon 0x1175ac */
+        *((UBYTE *)g_edit_frame + 0x11) |= 0x04;               /* recon 0x1175b6 */
+        ReleaseSemaphore((struct SignalSemaphore *)((UBYTE *)g_edit_proc + 0x0e));
+    }
 }
 
 /*

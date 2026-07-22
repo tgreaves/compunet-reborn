@@ -109,7 +109,7 @@ extern LONG  retry_dialog(const char *title, const char *body);  /* FUN_001104a6
 
 /* Send one command to the editor process and wait for its reply. recon FUN_00114000:
  *   msg+0x0e = our reply port   (DAT_00120154)
- *   msg+0x14 = command word     (DAT_0012015a)   <-- command lives at +0x14, NOT +0x15
+ *   msg+0x14 = command OPCODE BYTE (DAT_0012015a) <-- a byte at +0x14, NOT +0x15
  *   msg+0x16 = arg (frame/screen)(DAT_0012015c)
  *   msg+0x1a = arg              (DAT_00120160)
  *   msg+0x1e = arg              (DAT_00120164)
@@ -118,7 +118,11 @@ extern LONG  retry_dialog(const char *title, const char *body);  /* FUN_001104a6
 static UBYTE editor_command(UWORD cmd, APTR arg16, APTR arg1a, APTR arg1e)
 {
     EMSG_L(0x0e) = g_editor_port;          /* reply port (recon re-sets it each call) */
-    *(UWORD *)(g_editor_msg + 0x14) = cmd; /* command word at +0x14 */
+    g_editor_msg[0x14] = (UBYTE)cmd;       /* opcode BYTE at +0x14 (recon move.b #cmd).
+                                            * A UWORD write here put 0x00 in the opcode
+                                            * byte (+0x14) and the cmd in +0x15 (the reply
+                                            * STATUS byte) — so the editor saw opcode 0
+                                            * (idle) and the Editor menu did nothing. */
     EMSG_L(0x16) = arg16;
     EMSG_L(0x1a) = arg1a;
     EMSG_L(0x1e) = arg1e;

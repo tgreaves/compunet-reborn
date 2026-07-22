@@ -283,9 +283,24 @@ non-identity C64→pen remap `g_palette` at `DAT_0011e1c0`; identity turned the 
 directory background pink). Systemic gotchas captured in
 [client/amiga/vintage/tools/re/ui-audit-plan.md](../client/amiga/vintage/tools/re/ui-audit-plan.md).
 
-**NEXT: the frame Editor.** The `Editor` menu item (`FUN_00114000`+) does not yet work —
-a separate subsystem driven through the editor message port. Also outstanding: the
-`Next/Last/All/Send/Done` frame-button actions and the `Back` (`B`) server command.
+**The frame Editor launches, opens, and auto-stores frames.** The `Editor` menu item
+now works: `hook_serial_setup` sends editor opcode 2 (open window) — the opcode is a
+BYTE at msg+0x14 (an earlier UWORD write sent opcode 0, so nothing happened). The full
+editor opcode set is `{0 init, 1 terminate, 2 open, 4 store-frame, 5 set-frame-count}`
+(there is no opcode 3). Opcode 4 is the auto-store: `frame_display_done` (`FUN_0011754e`,
+previously stubbed) now PutMsgs each displayed frame to the editor and, under the shared
+semaphore (`g_edit_proc+0x0e`), makes it the current `g_edit_frame`. So downloaded frames
+populate the editor's ring (offline editing to save connect charges, matching the C64).
+
+**Known gap:** the editor renders stored frames with slightly different colours than the
+client. The client's rendering is verified faithful (raw foreground + `g_palette`-remapped
+background, exactly the original `blit_char_cell`/`frame_display`); `CnetEditor` (a
+separate original binary) carries the same remap but a different RGB4 table and applies
+colour via its own path. Closing the gap needs editor-renderer RE and is deferred.
+
+**NEXT / outstanding:** editor edit + upload behaviour (opcode-5 frame-count wiring from
+the "Editor frames" Setup value; the `Next/Last/All/Send/Done` frame-button actions), the
+`Back` (`B`) server command, and the client↔editor colour match.
 
 The readability/reconstruction goals above are **done**. The client is fully
 reconstructed as readable C (`client/amiga/src/`), builds with the vbcc KS1.3 toolchain,
