@@ -170,11 +170,10 @@ LONG link_goto(void)
 /*
  * leave_page — recon FUN_00103704, the "Leave" menu item. Sets state=2, sends the
  * single-char "E" command (leave/back) as a TOKEN_COM frame, and reads the ack. On
- * ack '@' the original then reads the returned frame and hands it to the editor for
- * display (FUN_0010818a + FUN_0011754e); on a non-'@' ack it disconnects. The
- * frame-redisplay half depends on the editor message plumbing and is deferred — this
- * sends the protocol command faithfully (the earlier binding wrongly called
- * do_connect here, which redialled instead of leaving).
+ * ack '@' it reads the returned goodbye frame and displays it (frame_display /
+ * frame_display_done at 0x10373a-0x103760), pauses, then always disconnects. The
+ * goodbye-frame display is implemented and working. (The earlier binding wrongly called
+ * do_connect here, which redialled instead of leaving.)
  */
 extern void  disconnect(void);                        /* FUN_00102968 */
 extern APTR  frame_display(APTR page, APTR out);      /* thunk FUN_0010818a */

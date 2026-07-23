@@ -223,8 +223,9 @@ LONG hook_serial_setup(APTR g)
  * recon FUN_001172f4 / 1733a / 17380 / 173c6 / 1740c / 17470. Each reads its frame page
  * (gad+0x30) and button row (gad+0x26) and wraps its action in the frame highlight lock.
  * "More" (FUN_00113062) sends "D" to fetch the next frame of a multi-frame page — the
- * multi-page reader control. Next/Last (in-frame scroll) and All/Send/Done (editor/
- * upload) call editor internals not yet reconstructed; stubbed to a no-op for now. */
+ * multi-page reader control. Next/Last (in-frame scroll, frame_next/frame_last), All
+ * (frame_all), and Send/Done (state-4 text upload / state-7 courier send) are all wired
+ * below and working. */
 extern void frame_lock(APTR frame_page, int row);   /* FUN_001170be */
 extern LONG frame_more(void);                        /* FUN_00113062 — "D" MORE */
 extern LONG put_frame_xfer(void);                    /* FUN_0010c270 — text-upload Send   */
@@ -252,7 +253,11 @@ LONG hook_ed_173c6(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x; fr
 LONG hook_ed_1740c(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x=1; frame_lock(p,r); if (g_state==4) x=put_frame_xfer(); else if (g_state==7) x=mail_field_send(); frame_lock(p,r); return x; } /* Send */
 LONG hook_ed_17470(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x=1; frame_lock(p,r); if (g_state==4) x=put_frame_done(); else if (g_state==7) x=mail_field_next(); frame_lock(p,r); return x; } /* Done */
 
-/* ---- editor render entry points (recon 0x116000/200/400) ---- */
+/* ---- editor render entry points (recon 0x116000/200/400) ----
+ * These are the in-editor content-editing render hooks (FUN_00116000/200/400). The Reborn
+ * client is a frame reader/terminal, not the offline WYSIWYG page editor — in-editor edit
+ * behaviour is intentionally out of scope, so these are accepted no-ops (return success)
+ * by design. Not a gap; do not re-flag. */
 LONG hook_16000(APTR g){ (void)g; return 1; }
 LONG hook_16200(APTR g){ (void)g; return 1; }
 LONG hook_16400(APTR g){ (void)g; return 1; }

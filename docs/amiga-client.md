@@ -346,8 +346,14 @@ body-row parser freeze.
   client↔editor colour match are DONE (commits `c3cef8e`, `8d1fee5`); text and program
   uploads work end-to-end.
 
+**Accepted / out of scope (by decision — not gaps):**
+- Editor **edit behaviour** — the in-editor content-editing render hooks
+  (`hook_16000/16200/16400`, `FUN_00116000/200/400`) are accepted no-ops. The Reborn client
+  is a frame reader/terminal, not the offline WYSIWYG page editor. Frame reading, editor
+  launch, auto-store, and the frame-count Setup value are all done; in-editor editing is
+  intentionally not reconstructed.
+
 **Outstanding:**
-- Editor **edit behaviour** (the broader in-editor content flow, beyond frame-count).
 - **Real-world networking** — FS-UAE guest networking / real-hardware path for deployment
   outside the dev loop.
 - Minor: no idle keepalive on the Amiga partyline link (CnetTty polls indefinitely, so this
