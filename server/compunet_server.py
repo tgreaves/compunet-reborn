@@ -1269,11 +1269,18 @@ class CompunetSession:
         data.extend(ascii_to_petscii(' USER ID : ' + self.user_id))
         data.append(0x0D)
         data.extend(ascii_to_petscii(real_name))
-        data.append(0x0D)
-        data.append(0x0D)
-        data.extend(ascii_to_petscii(now.strftime('%d-%m-%y')))
-        data.append(0x0D)
-        data.extend(ascii_to_petscii(now.strftime('%H:%M')))
+        if not getattr(self, 'is_amiga', False):
+            # C64 ONLY: its SEND screen reads FROM/DATE/TIME from here ($D40B) to stamp
+            # outgoing mail. The Amiga has no date/time handling — it stamps server-side and
+            # never reads these — yet its info-line renderer (FUN_00109a5e) draws these extra
+            # CR-separated lines down into the body rows (rows 10-11), overwriting the
+            # message-number column (e.g. 100041 -> 1000412). Omit them for the Amiga so the
+            # breadcrumb stays within its cleared region (rows 7-8).
+            data.append(0x0D)
+            data.append(0x0D)
+            data.extend(ascii_to_petscii(now.strftime('%d-%m-%y')))
+            data.append(0x0D)
+            data.extend(ascii_to_petscii(now.strftime('%H:%M')))
         data.append(0x00)
 
         # Part 5: column headers
