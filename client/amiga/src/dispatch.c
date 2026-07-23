@@ -73,11 +73,21 @@ LONG hook_dir_095b0(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link
 LONG hook_dir_095f6(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=link_goto();      link_lock(d,r); return x; } /* Goto */
 LONG hook_dir_0963c(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=download_check(); link_lock(d,r); return x; } /* Dnld */
 LONG hook_dir_09682(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=put_frame();      link_lock(d,r); return x; } /* Upld */
-LONG hook_nav_0a3d0(APTR g){ return link_follow(g); }
-LONG hook_nav_0a3f8(APTR g){ return link_follow(g); }
-LONG hook_nav_0a43e(APTR g){ return link_follow(g); }
-LONG hook_nav_0a484(APTR g){ return link_follow(g); }
-LONG hook_nav_0a4ca(APTR g){ return link_follow(g); }
+/* Mail/Courier action buttons (recon FUN_0010a3d0/3f8/43e/484/4ca): the same directory-
+ * gadget lock wrapper, dispatching to the mail commands. mail_state_enter binds these to the
+ * relabelled action gadgets (Done/ID/More/Dnld/Upld). Done takes a single lock (recon: no
+ * trailing unlock — it tears the mail buttons down via mail_state_exit). */
+extern LONG mail_done(void);      /* FUN_0010e058 — send "N", leave Courier   */
+extern LONG mail_read(void);      /* FUN_0010e468 — "I" record: verify IDs     */
+extern LONG mail_more(void);      /* FUN_0010e0b4 — send "M": next mail page   */
+extern LONG mail_download(void);  /* FUN_0010e0fc — read the selected message  */
+extern LONG mail_submit(void);    /* FUN_0010e188 — collect recipients + send  */
+
+LONG hook_nav_0a3d0(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=mail_done();                     return x; } /* Done */
+LONG hook_nav_0a3f8(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=mail_read();     link_lock(d,r); return x; } /* ID   */
+LONG hook_nav_0a43e(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=mail_more();     link_lock(d,r); return x; } /* More */
+LONG hook_nav_0a484(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=mail_download(); link_lock(d,r); return x; } /* Dnld */
+LONG hook_nav_0a4ca(APTR g){ APTR d=GAD_DIR(g); short r=GAD_ROW(g); LONG x; link_lock(d,r); x=mail_submit();   link_lock(d,r); return x; } /* Upld */
 
 /* ---- command / menu entry hooks — forward to the reconstructed commands ---- */
 extern LONG goto_page(void);
@@ -203,6 +213,8 @@ extern void frame_lock(APTR frame_page, int row);   /* FUN_001170be */
 extern LONG frame_more(void);                        /* FUN_00113062 — "D" MORE */
 extern LONG put_frame_xfer(void);                    /* FUN_0010c270 — text-upload Send   */
 extern LONG put_frame_done(void);                    /* FUN_0010c2de — text-upload Done   */
+extern LONG mail_field_send(void);                   /* FUN_0010e398 — courier Send       */
+extern LONG mail_field_next(void);                   /* FUN_0010e402 — courier Done       */
 extern UWORD g_state;                                /* DAT_0011d070 */
 
 #define FGAD_PAGE(g)  (*(APTR  *)((UBYTE *)(g) + 0x30))
@@ -218,12 +230,11 @@ LONG hook_ed_1733a(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x; fr
 LONG hook_ed_173c6(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x; frame_lock(p,r); x=frame_all();  frame_lock(p,r); return x; } /* All  */
 
 /* Send / Done — recon FUN_0011740c / FUN_00117470. Both lock the frame highlight, then
- * dispatch on g_state: 4 = text ('T') upload, 7 = mail. The text branch is wired here;
- * the mail branch (mail_field_send FUN_0010e398 / mail_field_next FUN_0010e402) needs its
- * blob command buffers at 0x11ea90/94 verified before reconstruction, so it stays TODO —
- * mail stays as it is today. */
-LONG hook_ed_1740c(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x=1; frame_lock(p,r); if (g_state==4) x=put_frame_xfer(); /* state 7: mail_field_send TODO */ frame_lock(p,r); return x; } /* Send */
-LONG hook_ed_17470(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x=1; frame_lock(p,r); if (g_state==4) x=put_frame_done(); /* state 7: mail Done TODO       */ frame_lock(p,r); return x; } /* Done */
+ * dispatch on g_state: 4 = text ('T') upload, 7 = mail/courier body send. Verified: the
+ * blob command buffers are "U" (0x11ea90) for Send and "N" (0x11ea94) for Done — the same
+ * frame-ready / done keys mail_field_send / mail_field_next use. */
+LONG hook_ed_1740c(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x=1; frame_lock(p,r); if (g_state==4) x=put_frame_xfer(); else if (g_state==7) x=mail_field_send(); frame_lock(p,r); return x; } /* Send */
+LONG hook_ed_17470(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x=1; frame_lock(p,r); if (g_state==4) x=put_frame_done(); else if (g_state==7) x=mail_field_next(); frame_lock(p,r); return x; } /* Done */
 
 /* ---- editor render entry points (recon 0x116000/200/400) ---- */
 LONG hook_16000(APTR g){ (void)g; return 1; }

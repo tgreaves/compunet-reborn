@@ -52,7 +52,7 @@ extern UBYTE *g_frame_capture;                      /* DAT_001203ae */
 extern UBYTE g_rle_run;                             /* DAT_001203bb */
 
 extern void render_char(UBYTE ch, APTR page);       /* FUN_001054f8 */
-extern void frame_write_string(APTR text, APTR page); /* FUN_0010565e */
+extern void frame_write_string(UBYTE *text, APTR page); /* FUN_0010565e */
 extern void frame_clear_region(int r0, int c0, int r1, int c1, APTR page); /* FUN_0010544e */
 extern void frame_home(APTR page);                  /* FUN_00105180 */
 extern void frame_set_cursor(WORD row, WORD col, APTR page); /* FUN_001056aa */

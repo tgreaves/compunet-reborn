@@ -275,8 +275,9 @@ population cluster is done (frame-page buffer sizing that fixed the online Guru;
 `init_directory`'s `frame_display_mem`; the `FirstGadget` attach; `dir_preinit`'s action
 bar `Dir/Back/Goto/Dnld/Upld`; the directory-row `dir_select`/`parse_directory_frame`
 navigation). The frame-window button bar (`Next/Last/More/All/Send/Done`, `FUN_00117000`)
-is built and attached, with `More` wired for multi-frame paging (`Next/Last/All/Send/Done`
-actions still stubbed). Rendering-fidelity fixes landed: button-gadget images (Chip-copy
+is built and attached, with `Next/Last/More/All` navigation (incl. the "Frame being edited"
+RETRY/SKIP/CANCEL requester) and `Send/Done` (text-upload and Courier body-send, per
+`g_state`) all wired. Rendering-fidelity fixes landed: button-gadget images (Chip-copy
 + repoint of the stale `0x116xxx` ImageData), the space/cleared-cell **background colour**
 (`frame_border` writes `Image.PlaneOnOff`, not `Depth`), and the **colour palette** (the
 non-identity C64→pen remap `g_palette` at `DAT_0011e1c0`; identity turned the grey
@@ -297,6 +298,20 @@ client. The client's rendering is verified faithful (raw foreground + `g_palette
 background, exactly the original `blit_char_cell`/`frame_display`); `CnetEditor` (a
 separate original binary) carries the same remap but a different RGB4 table and applies
 colour via its own path. Closing the gap needs editor-renderer RE and is deferred.
+
+**MAIL / Courier — reconstructed and working (verified live).** The full subsystem: the five
+action buttons `Done/ID/More/Dnld/Upld` (via `mail_state_enter`'s relabel of the directory
+action bar); **ID check** (`mail_read`, `FUN_0010e468`) with recipient-name validation;
+**send** (`mail_submit` → the compose dialog `FUN_0010f000/f09e/f23a` with recipient
+re-validation, then the state-7 frame-window `Send/Done` driving `mail_field_send/next`);
+**receive** (`mail_download`, multi-frame paging via `D`/MORE); and `Done/More`. The mail
+window's string-gadget `StringInfo.Buffer`s are repointed at the C globals (the same stale-
+blob-pointer fix as the put_frame dialog). Server companions landed the same session, each
+`is_amiga`-gated where it diverges so the C64 stream is unchanged: a `@` command-ack before
+the ID/mail validation frames (the Amiga's `serial_io_c` was mis-reading an id byte as a
+host-error ack), the `courier-header.seq` RLE-terminator fix, an empty-EOS mail-frame guard,
+a NO-MAIL frame for download-on-empty, and dropping the C64 SEND-screen date/time from the
+Amiga breadcrumb (it was overwriting the message-number column).
 
 **NEXT / outstanding:**
 - **Download transport fix (client):** the program-download 8-byte header is sent by the

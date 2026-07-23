@@ -99,7 +99,7 @@ UBYTE read_frame_byte(void)
     if (g_frame_pos < g_frame_len) {
         b = g_frame_buf[g_frame_pos++];
     } else if (g_frame_eof == '\0') {
-        serial_read(g_frame_buf, 0x8f, &g_frame_eof, &status_hi, &actual);
+        serial_read((APTR)g_frame_buf, 0x8f, &g_frame_eof, &status_hi, &actual);
         g_frame_len = (UWORD)actual;
         g_frame_pos = 1;
         b = g_frame_buf[0];
@@ -449,7 +449,7 @@ APTR frame_display(APTR page, APTR out)
     while ((c = frame_rle_getchar()) != '\0')
         render_char((UBYTE)c, page);
 
-    return g_frame_capture;
+    return (APTR)g_frame_capture;
 }
 
 /*
@@ -461,15 +461,13 @@ static UBYTE mem_getbyte(void) { return *g_mem_src++; }
 
 void frame_display_mem(APTR src, APTR page)
 {
-    UBYTE b;
     char  c;
 
     frame_offscreen_begin();
     g_mem_src = (UBYTE *)src;
     g_frame_getbyte = mem_getbyte;
 
-    b = mem_getbyte();
-    (void)b;
+    mem_getbyte();   /* consume the flags byte (memory frames ignore the more-flag) */
     PAGE_BORDER(page) = g_palette[mem_getbyte() & 0x0f];
     PAGE_BG(page)     = g_palette[mem_getbyte() & 0x0f];
     frame_reset_page(page);
@@ -638,9 +636,9 @@ LONG frame_all(void)
  * frame_write_string — recon FUN_0010565e. Render a NUL-terminated string through
  * render_char (used by the directory renderer to draw row text).
  */
-void frame_write_string(APTR text, APTR page)
+void frame_write_string(UBYTE *text, APTR page)
 {
-    UBYTE *s = (UBYTE *)text;
+    UBYTE *s = text;
     UBYTE c;
     while ((c = *s++) != '\0')
         render_char(c, page);

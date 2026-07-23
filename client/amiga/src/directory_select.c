@@ -45,7 +45,7 @@ extern void link_lock(APTR dir_page, int row);   /* FUN_00109520 — toggle row 
 extern void frame_set_cursor(WORD row, WORD col, APTR page); /* FUN_001056aa */
 extern void frame_pen_upper(APTR page);                      /* FUN_0010506a */
 extern void frame_pen_lower(APTR page);                      /* FUN_00105022 */
-extern void frame_write_string(APTR text, APTR page);        /* FUN_0010565e */
+extern void frame_write_string(UBYTE *text, APTR page);        /* FUN_0010565e */
 
 #define PAGE_OF(gad)   (*(APTR  *)((UBYTE *)(gad) + 0x30))
 #define GAD_ROW(gad)   (*(WORD  *)((UBYTE *)(gad) + 0x26))
@@ -142,17 +142,29 @@ void directory_repaint(APTR page)
     RectFill(rp, 0xfc, hi * 8 + 0x5a, 0x13b, hi * 8 + 0x61);
 }
 
-/*
- * mail_state_enter — recon FUN_001091f2. Re-label the directory window's 5 action
- * gadgets for mail/courier mode: RemoveGList, then for each of the 5 gadgets
- * (dir + row*0x34 + 0xeb6) set its GadgetText (+0x1a) to the mail label IntuiText
- * (blob table at 0x11e376, stride 0x14) and its handler (+0x2c) to the mail handler
- * (blob table at 0x11e3da, stride 4), then AddGList + RefreshGList.
- *
- * TRANSCRIPTION: from the raw m68k listing of $1091f2 — the gadget base (+0xeb6),
- * the GadgetText/handler field offsets, and the two blob tables are exact.
- */
-void mail_state_enter(APTR dir)
+/* The action-gadget handlers are C functions in dispatch.c, so the +0x2c handler slot must
+ * point at OUR hooks, not the blob's original code addresses (the 0x11e376/0x11e3da and
+ * 0x11e2da/0x11e33e tables). The IntuiText LABELS stay in the blob (they are data); only the
+ * code pointers are substituted. Mail row order: Done/ID/More/Dnld/Upld; directory row order:
+ * Dir/Back/Goto/Dnld/Upld. */
+extern LONG hook_nav_0a3d0(APTR), hook_nav_0a3f8(APTR), hook_nav_0a43e(APTR),
+            hook_nav_0a484(APTR), hook_nav_0a4ca(APTR);   /* mail: Done/ID/More/Dnld/Upld */
+extern LONG hook_dir_0956c(APTR), hook_dir_095b0(APTR), hook_dir_095f6(APTR),
+            hook_dir_0963c(APTR), hook_dir_09682(APTR);   /* dir:  Dir/Back/Goto/Dnld/Upld */
+
+static APTR const g_mail_gadget_handlers[5] = {
+    (APTR)hook_nav_0a3d0, (APTR)hook_nav_0a3f8, (APTR)hook_nav_0a43e,
+    (APTR)hook_nav_0a484, (APTR)hook_nav_0a4ca,
+};
+static APTR const g_dir_gadget_handlers[5] = {
+    (APTR)hook_dir_0956c, (APTR)hook_dir_095b0, (APTR)hook_dir_095f6,
+    (APTR)hook_dir_0963c, (APTR)hook_dir_09682,
+};
+
+/* mail_relabel — shared body of mail_state_enter/exit: RemoveGList the 5 action gadgets, set
+ * each one's GadgetText (+0x1a) from the label blob table and its handler (+0x2c) from the C
+ * hook table, then AddGList + RefreshGList. */
+static void mail_relabel(APTR dir, ULONG label_tbl, APTR const *handlers)
 {
     struct Window *win  = *(struct Window **)dir;
     struct Gadget *list = (struct Gadget *)((UBYTE *)dir + 0xf86);
@@ -162,9 +174,30 @@ void mail_state_enter(APTR dir)
     pos = RemoveGList(win, list, 5);
     for (row = 0; row < 5; row++) {
         struct Gadget *g = (struct Gadget *)((UBYTE *)dir + row * 0x34 + 0xeb6);
-        g->GadgetText = (struct IntuiText *)DATA(0x11e376 + row * 0x14);
-        *(APTR *)((UBYTE *)g + 0x2c) = *(APTR *)DATA(0x11e3da + row * 4);
+        g->GadgetText = (struct IntuiText *)DATA(label_tbl + row * 0x14);
+        *(APTR *)((UBYTE *)g + 0x2c) = handlers[row];
     }
     AddGList(win, list, pos, 5, NULL);
     RefreshGList(list, win, NULL, 5);
+}
+
+/*
+ * mail_state_enter — recon FUN_001091f2. Re-label the 5 directory action gadgets for
+ * mail/courier mode: labels from the blob mail table (0x11e376, stride 0x14 = Done/ID/More/
+ * Dnld/Upld), handlers to our mail hooks. (The original binds the 0x11e3da code table; we
+ * substitute the reconstructed C hooks — see mail_relabel.)
+ */
+void mail_state_enter(APTR dir)
+{
+    mail_relabel(dir, 0x11e376, g_mail_gadget_handlers);
+}
+
+/*
+ * mail_state_exit — recon FUN_001092a6. Restore the directory action gadgets when leaving
+ * Courier (called by mail_done): labels from the blob directory table (0x11e2da = Dir/Back/
+ * Goto/Dnld/Upld), handlers back to our directory hooks.
+ */
+void mail_state_exit(APTR dir)
+{
+    mail_relabel(dir, 0x11e2da, g_dir_gadget_handlers);
 }
