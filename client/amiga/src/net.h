@@ -58,6 +58,7 @@ LONG net_send_ack(UBYTE seq);                      /* send a $20 ACK frame for s
  */
 LONG net_read_stream(void *buf, ULONG maxlen, UBYTE *eof, UBYTE *token);
 void net_unread_byte(UBYTE b);   /* push one byte back so the next read returns it first */
+void net_reset_stream(void);     /* drop stale RX residue at the start of a command */
 
 /* Config: parse the repurposed phone-number field "host" or "host:port". Writes the
  * host into host_out (host_sz) and returns the port (REBORN_DEFAULT_PORT if none). */

@@ -105,6 +105,10 @@ LONG serial_write(APTR data, ULONG length, UBYTE status_hi, UBYTE ser_flags)
      * X.25 frame and send it over the socket (net.c does framing/CRC/stuffing). */
     if (g_tcp_mode) {
         (void)status_hi;
+        /* A COM frame starts a new command transaction: clear any stale RX residue left
+         * by the previous command's response so it can't corrupt this one's reply. */
+        if (ser_flags == TOKEN_COM)
+            net_reset_stream();
         return (net_send_frame(ser_flags, data, length) < 0) ? 0 : 1;
     }
 

@@ -328,6 +328,26 @@ void net_unread_byte(UBYTE b)
     g_pb_valid = 1;
 }
 
+/*
+ * net_reset_stream — discard any buffered/partly-read receive state so the next read
+ * starts clean at a frame boundary. Called at the start of each command transaction
+ * (serial_write of a TOKEN_COM). This is a strict request/response protocol, so when a
+ * new command goes out there is never legitimately-unread response data — anything left
+ * is stale residue from the previous command (e.g. serial_io_c peeks one ack byte and
+ * pushes back a non-ack byte, or leaves the tail of a multi-byte ack frame). Without
+ * this, that residue becomes the first byte(s) of the next command's response and
+ * desyncs the stream (observed as a download stalling a few packets in after a LIFE or
+ * UPLOAD). Note: the pushback/frame state is only ever populated after login, so calling
+ * this during the login COM send is a harmless no-op (the connect handshake reads via a
+ * separate g_hs_read buffer, not net_read_stream).
+ */
+void net_reset_stream(void)
+{
+    g_rx_have  = 0;
+    g_rx_pos   = 0;
+    g_pb_valid = 0;
+}
+
 LONG net_read_stream(void *buf, ULONG maxlen, UBYTE *eof, UBYTE *token)
 {
     UBYTE *out = (UBYTE *)buf;

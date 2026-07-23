@@ -944,16 +944,22 @@ class CompunetSession:
         For other pages: extend life (original behaviour).
 
         Params: entry_index (2 ASCII digits) + extension (up to 4 ASCII digits).
+
+        Every path returns b'\x40' ('@'), a *recognised* ack byte. (It used to return
+        b'\x00': the C64 client keys success off the DAT token so it didn't care, but the
+        Amiga client's serial_io_c only recognises '@'/'A'/'B' as acks — an unrecognised
+        0x00 fell through to its frame-data pushback path and left a stale byte in the RX
+        stream that corrupted the *next* command's read. '@' is consumed cleanly by both.)
         """
         self.last_response_type = RESP_ACK
         if len(params) < 2:
-            return bytes([0x00])
+            return bytes([0x40])
 
         try:
             entry_idx = int(params[0:2].decode('ascii'))
             extend_by = int(params[2:].decode('ascii').strip()) if len(params) > 2 else 0
         except (ValueError, UnicodeDecodeError):
-            return bytes([0x00])
+            return bytes([0x40])
 
         # Find the page from current directory (or UCAT if active)
         if getattr(self, '_ucat_active', False):
@@ -962,13 +968,13 @@ class CompunetSession:
             offset = getattr(self, 'dir_page_offset', 0)
             visible_children = self.current_page.children[offset:offset+11]
         if entry_idx >= len(visible_children):
-            return bytes([0x00])
+            return bytes([0x40])
 
         child = visible_children[entry_idx]
 
         # Type 'L' — link: handled by _cmd_dir, BUY just returns ACK
         if child.page_type == 'L':
-            return bytes([0x00])
+            return bytes([0x40])
 
         # Positive extend: any user can extend anyone's content
         # Negative extend: only owner, admin, or editor
@@ -976,7 +982,7 @@ class CompunetSession:
             if child.author != self.user_id and not self.is_admin and not self.is_editor:
                 log.info('EXTEND DENIED: user=%s cannot reduce page %d (author=%s)',
                          self.user_id, child.page_num, child.author)
-                return bytes([0x00])
+                return bytes([0x40])
 
         num_frames = len(child.frames) if child.frames else 1
 
@@ -1032,7 +1038,7 @@ class CompunetSession:
             self._save_directory()
 
         self.dir_displayed = False
-        return bytes([0x00])
+        return bytes([0x40])
 
     def _get_quarter_start(self):
         """Return the start date of the current calendar quarter."""
@@ -1104,11 +1110,19 @@ class CompunetSession:
         return self._make_dir_response()
     
     def _cmd_vote(self, params):
-        """VOTE command. Params: 2-digit entry index + 1-digit score (1-9)."""
+        """VOTE command. Params: 2-digit entry index + 1-digit score (1-9).
+
+        Returns b'\x40' ('@' = clean accept). RESP_ACK (0x41 = 'A') must NOT be used as
+        the payload here: in the client protocol '@'/'A'/'B' are accept/host-error/fatal-
+        error, so the Amiga client's serial_io_c renders an 'A' reply as a "Host error"
+        requester (verified against the original at 0x119870: `pea $41` ->
+        show_status_message(0x41) -> "Host error"). The C64 client keys off the DAT token
+        and ignores the payload, so '@' is correct for both.
+        """
         if len(params) < 3:
             log.warning('VOTE: params too short: %s', params.hex())
             self.last_response_type = RESP_ACK
-            return bytes([RESP_ACK])
+            return bytes([0x40])
 
         try:
             index = int(params[:2].decode('ascii'))
@@ -1116,7 +1130,7 @@ class CompunetSession:
         except (ValueError, UnicodeDecodeError):
             log.warning('VOTE: invalid params: %s', params.hex())
             self.last_response_type = RESP_ACK
-            return bytes([RESP_ACK])
+            return bytes([0x40])
 
         offset = getattr(self, 'dir_page_offset', 0)
         visible_children = self.current_page.children[offset:offset+11]
@@ -1124,7 +1138,7 @@ class CompunetSession:
         if index >= len(visible_children) or score < 1 or score > 9:
             log.warning('VOTE: out of range index=%d score=%d', index, score)
             self.last_response_type = RESP_ACK
-            return bytes([RESP_ACK])
+            return bytes([0x40])
 
         page = visible_children[index]
         page_key = str(page.page_num)
@@ -1145,7 +1159,7 @@ class CompunetSession:
                  self.user_id, page.page_num, page.title, score, avg)
 
         self.last_response_type = RESP_ACK
-        return bytes([RESP_ACK])
+        return bytes([0x40])
 
     def _get_vote_count(self, page_num):
         votes = self._load_votes()
