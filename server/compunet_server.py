@@ -527,6 +527,7 @@ class CompunetSession:
         Returns response bytes to send back.
         """
         self.last_response_type = None  # Reset per-command for WS prefix detection
+        self.tcp_ack_prefix = False     # TCP: prepend '@' ack before the frame (ID / mail-send)
         if len(data) == 0:
             return self._make_error(b'NO COMMAND')
         
@@ -915,6 +916,10 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(real_name))
             data.append(0x1E)
             offset += 8
+        # TCP/Amiga: the client reads a command ack via serial_io_c before the frame, so send
+        # a leading '@'. Without it, serial_io_c mis-reads the frame's first byte (an id char,
+        # e.g. 'A' from ADMIN) as an ack and renders "Host error". (WS path is unaffected.)
+        self.tcp_ack_prefix = True
         return bytes(data)
 
     def _cmd_leave(self):
@@ -1516,6 +1521,9 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(real_name))
             data.append(0x1E)
         log.info('MAIL: validation response %d bytes: %s', len(data), data.hex())
+        # TCP/Amiga: leading '@' ack so serial_io_c doesn't misread the first recipient-id
+        # byte as an ack (see _cmd_id). WS path is unaffected.
+        self.tcp_ack_prefix = True
         return bytes(data)
 
     def _cmd_upload_content(self, title, page_type, rest):
@@ -2875,6 +2883,14 @@ async def tcp_handler(reader, writer):
                         async with _lock_content:
                             cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
+                            # AMIGA ONLY: some commands (ID, mail-send) return frame data whose
+                            # first byte can collide with an ack char ('A'/'B'/'@'). The Amiga
+                            # reads a command ack via serial_io_c before the frame, so prepend
+                            # '@'. Gated on is_amiga so the C64 stream is byte-for-byte unchanged
+                            # (the C64 keys off the DAT token and reads the frame directly).
+                            if (getattr(session, 'tcp_ack_prefix', False)
+                                    and getattr(session, 'is_amiga', False)):
+                                cmd_response = bytes([0x40]) + cmd_response
                             log.info('CMD: sending %d bytes in %d-byte chunks', len(cmd_response), 100)
                             MAX_PAYLOAD = 100
                             offset = 0
