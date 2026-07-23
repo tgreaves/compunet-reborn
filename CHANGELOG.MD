@@ -1,3 +1,55 @@
+# 1.1.0 (2026-07-23)
+
+* Amiga client (new) (#109):
+	* Native Compunet client for the Amiga — the recovered 1989 binary,
+	  reverse-engineered and reconstructed as recompilable C (vbcc / Kickstart
+	  1.3), with its modem/`cnet.device` transport replaced by native TCP/IP to
+	  the Reborn server. The X.25-over-TCP framing and the full application-layer
+	  command set are preserved on the wire — only the hardware layer is swapped.
+	  Every change was verified against the relocated disassembly of the original.
+	* Reverse-engineering: full function map, OS-call/LVO resolution, protocol
+	  match confirmed at the `cnet.device` framing seam, PETSCII frame format and
+	  control tables enumerated, font identified as the embedded C64 character ROM.
+	* Native `bsdsocket.library` TCP transport; login, handshake, and the
+	  credentials dialog work. A faithful resource tracker fixes the free-twice
+	  Guru on Quit.
+	* Directory listing + navigation, PETSCII frame rendering with the correct C64
+	  palette, multi-frame paging, and the frame-window button bar (Next / Last /
+	  All / More).
+	* Downloads: program (machine-aware), text, and IFF/ILBM pictures (BMHD / CMAP
+	  / BODY with ByteRun1 depacking).
+	* Uploads: program and text ('T') frames end-to-end (Courier Send / Done).
+	* MAIL / Courier: ID check with recipient validation, multi-frame send /
+	  receive, and download. UCAT (user catalogue), LIFE, and VOTE.
+	* Frame Editor: launches from the menu, downloaded frames auto-store, and the
+	  "Editor frames" Setup value is pushed to the editor (opcode 5).
+	* Partyline: the resident `CnetTty` viewer ("Scrollback v1.0", Zugger '89) is
+	  driven over the type-'L' link path — decrunched from its non-PowerPacker LZ
+	  wrapper, fully disassembled, and fed a raw ASCII session by the server.
+* Server:
+	* Amiga-client detection at connect via the identification handshake. All
+	  Amiga-specific behaviour is gated on it, so the C64 wire stream is
+	  byte-for-byte unchanged.
+	* Partyline: `is_amiga`-gated link path serving the 8-byte link header and a
+	  raw ASCII session (`0x01` preamble handshake + `0x02` teardown) for the
+	  CnetTty viewer, reusing the existing `join-partyline` entry and chat logic.
+	* Full-width placeholders for empty directory / mailbox / UCAT listings, fixing
+	  freezes in the Amiga body-row frame parser.
+	* Mail: return a frame (not a directory) for DOWNLOAD on an empty mailbox;
+	  don't store the empty-EOS packet as a mail frame; omit the Part-4 date/time
+	  from the mail breadcrumb for the Amiga (fixes a message-ID rendering overflow).
+	* Send a leading `@` command-ack before Amiga ID / mail-send frames so the
+	  client's ack peek doesn't misread frame data as a status byte.
+	* Machine-type identifier in the program-download header.
+	* Fixed: don't drop packets batched behind an ACK in `wait_for_ack`.
+* Build / tooling:
+	* vbcc Kickstart 1.3 toolchain on Windows; `make_hdd.sh` (directory-HD) and
+	  `make_boot_adf.sh` (self-booting ADF) for fast emulator iteration.
+	* `ttydecrunch.py` — a faithful static decruncher for the CnetTty LZ wrapper;
+	  the build now ships the decrunched viewer.
+	* RE pipeline (`flatten.py`, `disasm_fn.py`, Ghidra scripts) and the
+	  reconstruction/analysis docs under `client/amiga/`.
+
 # 1.0.0 (2026-06-29)
 
 * Version bumped to 1.0.0 — first stable release.
