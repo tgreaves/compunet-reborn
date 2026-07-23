@@ -528,6 +528,112 @@ void frame_display_done(APTR out, APTR len)
     ReleaseSemaphore((struct SignalSemaphore *)((UBYTE *)g_edit_proc + 0x0e));
 }
 
+/* ---- frame-window Next / Last / All navigation ---------------------------------------
+ * The editor keeps its frames in an Exec-style doubly-linked list; g_edit_frame is the
+ * current node: ln_Succ @+0x00, ln_Pred @+0x04, flags @+0x11 (bit 2 = "current frame",
+ * bit 1 = "locked / being edited" by the CnetEditor process), frame bytes @+0x16. Next/Last
+ * walk that list locally and re-render under the editor semaphore (g_edit_proc+0x0e), exactly
+ * as the auto-store does. If the candidate frame is locked they raise the RETRY/SKIP/CANCEL
+ * "Frame being edited" requester. All fetches every remaining frame of a multi-frame page. */
+extern APTR g_frame_page;             /* DAT_0011d078 — the frame page/render target */
+extern LONG frame_more(void);         /* FUN_00113062 — send "D" to fetch the next frame */
+extern LONG frame_busy_requester(void);/* FUN_001180bc — "Frame being edited": 0 RETRY 1 SKIP 2 CANCEL */
+
+#define FR_SUCC(n)   (*(APTR  *)((UBYTE *)(n) + 0x00))   /* ln_Succ */
+#define FR_PRED(n)   (*(APTR  *)((UBYTE *)(n) + 0x04))   /* ln_Pred */
+#define FR_FLAGS(n)  (*(UBYTE *)((UBYTE *)(n) + 0x11))
+#define FR_DATA(n)   ((APTR)((UBYTE *)(n) + 0x16))
+#define ED_SEM()     ((struct SignalSemaphore *)((UBYTE *)g_edit_proc + 0x0e))
+
+/*
+ * frame_next — recon FUN_0011710a. Advance g_edit_frame to the next frame in the editor's
+ * list and re-render it. Stops (returns 0) at the tail sentinel (candidate->ln_Succ NULL).
+ * If the candidate is locked by the editor (+0x11 bit 1) it raises the "Frame being edited"
+ * requester: CANCEL aborts, SKIP steps past to the following frame, RETRY re-checks.
+ */
+LONG frame_next(void)
+{
+    APTR cand;
+    LONG choice;
+
+    if (g_edit_frame == NULL)
+        return 0;
+    ObtainSemaphore(ED_SEM());
+    cand = FR_SUCC(g_edit_frame);                /* recon 0x11712e: candidate = current->ln_Succ */
+    for (;;) {                                    /* recon 0x117132: re-check loop */
+        if (FR_SUCC(cand) == NULL) {              /* recon 0x117136: candidate is the tail -> stop */
+            ReleaseSemaphore(ED_SEM());
+            return 0;
+        }
+        if (!(FR_FLAGS(cand) & 0x02))             /* recon 0x117154 btst #1: not locked -> use it */
+            break;
+        ReleaseSemaphore(ED_SEM());                /* recon 0x117198: locked -> requester */
+        choice = frame_busy_requester();
+        if (choice == 2)                           /* CANCEL -> abort, stay */
+            return 0;
+        ObtainSemaphore(ED_SEM());
+        if (choice == 1)                           /* SKIP -> step past the locked frame */
+            cand = FR_SUCC(cand);                  /* recon 0x1171ec */
+        /* RETRY (0) -> loop and re-check the same candidate */
+    }
+    FR_FLAGS(g_edit_frame) &= (UBYTE)~0x04;        /* recon 0x117160: clear "current" on old */
+    g_edit_frame = cand;                           /* recon 0x117166 */
+    FR_FLAGS(g_edit_frame) |= 0x04;                /* recon 0x11716a: set "current" on new   */
+    ReleaseSemaphore(ED_SEM());
+    frame_display_mem(FR_DATA(g_edit_frame), g_frame_page);   /* recon 0x11718e */
+    return 1;
+}
+
+/*
+ * frame_last — recon FUN_001171fc. Mirror of frame_next along ln_Pred (backward). Stops at
+ * the head sentinel (candidate->ln_Pred NULL); SKIP steps to the previous frame.
+ */
+LONG frame_last(void)
+{
+    APTR cand;
+    LONG choice;
+
+    if (g_edit_frame == NULL)
+        return 0;
+    ObtainSemaphore(ED_SEM());
+    cand = FR_PRED(g_edit_frame);                /* recon 0x11721c: candidate = current->ln_Pred */
+    for (;;) {
+        if (FR_PRED(cand) == NULL) {              /* recon 0x11722a: head sentinel -> stop */
+            ReleaseSemaphore(ED_SEM());
+            return 0;
+        }
+        if (!(FR_FLAGS(cand) & 0x02))
+            break;
+        ReleaseSemaphore(ED_SEM());
+        choice = frame_busy_requester();
+        if (choice == 2)                           /* CANCEL */
+            return 0;
+        ObtainSemaphore(ED_SEM());
+        if (choice == 1)                           /* SKIP -> step to the previous frame */
+            cand = FR_PRED(cand);
+        /* RETRY -> re-check */
+    }
+    FR_FLAGS(g_edit_frame) &= (UBYTE)~0x04;
+    g_edit_frame = cand;
+    FR_FLAGS(g_edit_frame) |= 0x04;
+    ReleaseSemaphore(ED_SEM());
+    frame_display_mem(FR_DATA(g_edit_frame), g_frame_page);
+    return 1;
+}
+
+/*
+ * frame_all — recon FUN_0011763a -> 0x1130ca. Fetch every remaining frame of a multi-frame
+ * page: keep sending "D" (frame_more) while the connection is in the "more pages" state
+ * (g_state == STATE_MORE, 3), which frame_more clears when the last frame arrives.
+ */
+LONG frame_all(void)
+{
+    LONG r = 0;
+    while (g_state == 3)                          /* recon 0x1130ce: cmpi.l #3, g_state */
+        r = frame_more();
+    return r;
+}
+
 /*
  * frame_write_string — recon FUN_0010565e. Render a NUL-terminated string through
  * render_char (used by the directory renderer to draw row text).

@@ -147,6 +147,45 @@ static LONG run_requester(APTR newwindow, APTR glist, APTR box_image, APTR text_
 }
 
 /*
+ * frame_busy_requester — recon FUN_001180bc (opener FUN_00118000, centre FUN_001104d8).
+ * The modal "Frame being edited" requester that frame_next/frame_last raise when they step
+ * onto a frame the CnetEditor process currently holds locked (its list node's +0x11 bit 1).
+ * Same open + WaitPort/drain pattern as run_requester, but its own NewWindow (0x11fb40),
+ * box image (0x11fcfc), border (0x11fd24) and RETRY/SKIP/CANCEL gadget list (0x11fcd0).
+ * Returns the clicked gadget's id: 0 = RETRY, 1 = SKIP, 2 = CANCEL.
+ */
+LONG frame_busy_requester(void)
+{
+    struct Window       *w;
+    struct IntuiMessage *msg;
+    struct Gadget       *last = NULL;
+    struct IntuiText    *ti = (struct IntuiText *)DATA(0x11fd5c);
+
+    /* recon FUN_001104d8: centre the "Frame being edited" text within the 0xd0-wide box. */
+    ti->LeftEdge = (WORD)((0xd0 - IntuiTextLength(ti)) / 2);
+
+    /* recon FUN_00118000: patch this requester's NewWindow.Screen (+0x1e), open, draw body. */
+    *(APTR *)DATA(0x11fb5e) = g_screen;
+    w = (struct Window *)open_window_tracked(DATA(0x11fb40));
+    if (w == NULL)
+        return 2;                                   /* can't open -> behave as CANCEL */
+    DrawImage(w->RPort, (struct Image *)DATA(0x11fcfc), 4, 2);
+    PrintIText(w->RPort, ti, 4, 2);
+    DrawBorder(w->RPort, (struct Border *)DATA(0x11fd24), 4, 2);
+    AddGList(w, (struct Gadget *)DATA(0x11fcd0), 0, ~0, NULL);
+    RefreshGList((struct Gadget *)DATA(0x11fcd0), w, NULL, ~0);
+
+    /* recon 0x1180d8: WaitPort then drain, keeping the last gadget's id. */
+    WaitPort(w->UserPort);
+    while ((msg = (struct IntuiMessage *)GetMsg(w->UserPort)) != NULL) {
+        last = (struct Gadget *)msg->IAddress;
+        ReplyMsg((struct Message *)msg);
+    }
+    close_window_tracked(w);
+    return (last != NULL) ? last->GadgetID : 2;
+}
+
+/*
  * requester_2line — the shared "two text lines + gadget list" requester used by the
  * OK-only (recon FUN_00110472) and yes/no (recon FUN_001104a6) dialogs. It patches
  * the two pre-built IntuiText structs in the blob (their .IText fields at 0x11f0a0

@@ -208,10 +208,14 @@ extern UWORD g_state;                                /* DAT_0011d070 */
 #define FGAD_PAGE(g)  (*(APTR  *)((UBYTE *)(g) + 0x30))
 #define FGAD_ROW(g)   (*(short *)((UBYTE *)(g) + 0x26))
 
+extern LONG frame_next(void);   /* FUN_0011710a — list nav forward  */
+extern LONG frame_last(void);   /* FUN_001171fc — list nav backward */
+extern LONG frame_all(void);    /* FUN_0011763a — fetch all frames  */
+
 LONG hook_ed_17380(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x; frame_lock(p,r); x=frame_more(); frame_lock(p,r); return x; } /* More */
-LONG hook_ed_172f4(APTR g){ (void)g; return 1; }   /* Next — TODO FUN_0011710a (in-frame scroll) */
-LONG hook_ed_1733a(APTR g){ (void)g; return 1; }   /* Last — TODO FUN_001171fc (in-frame scroll) */
-LONG hook_ed_173c6(APTR g){ (void)g; return 1; }   /* All  — TODO FUN_0011763a */
+LONG hook_ed_172f4(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x; frame_lock(p,r); x=frame_next(); frame_lock(p,r); return x; } /* Next */
+LONG hook_ed_1733a(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x; frame_lock(p,r); x=frame_last(); frame_lock(p,r); return x; } /* Last */
+LONG hook_ed_173c6(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x; frame_lock(p,r); x=frame_all();  frame_lock(p,r); return x; } /* All  */
 
 /* Send / Done — recon FUN_0011740c / FUN_00117470. Both lock the frame highlight, then
  * dispatch on g_state: 4 = text ('T') upload, 7 = mail. The text branch is wired here;
