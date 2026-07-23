@@ -692,7 +692,25 @@ class CompunetSession:
         if self.selected_entry < len(visible_children):
             child = visible_children[self.selected_entry]
             if child.page_type == 'L' and child.frames:
-                # Type L: send MODEM_INIT_DOWNLOAD format for the linked program
+                if getattr(self, 'is_amiga', False):
+                    # Amiga: the CnetTty viewer ("Scrollback v1.0") is resident and does NOT
+                    # load 6502 code. Send only the 8-byte link header its download_link
+                    # validates (LONG 0x01000001 then a zero LONG) — no program payload.
+                    # RESP_ACK suppresses the trailing EOS: the viewer switches to raw reads
+                    # immediately after the 8 bytes, so an EOS empty-DAT would be misread as
+                    # raw link-preamble bytes. The raw session (preamble handshake + ASCII
+                    # chat + 0x02 teardown) runs in partyline.handle_amiga_session, entered
+                    # below via _enter_partyline. serial_io_c peeks the header's first byte
+                    # (0x01), sees it is not an ack char, and pushes it back for serial_read,
+                    # so no '@' ack prefix is needed.
+                    log.info('LINK(amiga): user=%s activating link page %d "%s"',
+                             self.user_id, child.page_num, child.title)
+                    self.tcp_ack_prefix = False
+                    self.last_response_type = RESP_ACK
+                    self._enter_partyline = True
+                    self._amiga_partyline = True
+                    return bytes([0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00])
+                # Type L: send MODEM_INIT_DOWNLOAD format for the linked program (C64)
                 log.info('LINK: user=%s activating link page %d "%s" (%d bytes)',
                          self.user_id, child.page_num, child.title, len(child.frames[0]))
                 prg_data = child.frames[0]
@@ -2954,6 +2972,15 @@ async def tcp_handler(reader, writer):
                             # Enter partyline mode after LINK download
                             if getattr(session, '_enter_partyline', False):
                                 session._enter_partyline = False
+                                if getattr(session, '_amiga_partyline', False):
+                                    # Amiga: the 8-byte link header was just sent (no EOS).
+                                    # Run the raw preamble + ASCII chat + 0x02 teardown.
+                                    session._amiga_partyline = False
+                                    log.info('TCP: entering AMIGA partyline for user=%s', session.user_id)
+                                    audit_log('partyline', user=session.user_id)
+                                    await partyline.handle_amiga_session(reader, writer, session.user_id)
+                                    log.info('TCP: exited AMIGA partyline, resuming X.25 for user=%s', session.user_id)
+                                    continue
                                 log.info('TCP: entering partyline mode for user=%s', session.user_id)
                                 audit_log('partyline', user=session.user_id)
                                 await asyncio.sleep(1.0)
