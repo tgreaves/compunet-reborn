@@ -230,8 +230,12 @@ extern UBYTE  g_config[];        /* DAT_00120108 — the 0x36-byte config block 
 #define g_baud_up       (*(UWORD *)(g_config + 0x24)) /* DAT_0012012c 75            */
 #define g_baud_down     (*(UWORD *)(g_config + 0x26)) /* DAT_0012012e 1200          */
 #define g_open_flags    (*(UWORD *)(g_config + 0x28)) /* DAT_00120130 OpenDevice fl */
-#define g_data_bits     (*(UWORD *)(g_config + 0x2a)) /* DAT_00120132 data bits     */
+#define g_editor_frames (*(UWORD *)(g_config + 0x2a)) /* DAT_00120132 "Editor frames" ring size
+                                                        * (the Setup field; NOT serial data bits) */
 #define g_cfg_userid    ((char  *)(g_config + 0x2c)) /* DAT_00120134 userid        */
+
+/* editor_set_frame_count — recon FUN_00114050 (see dispatch.c). Sends editor opcode 5. */
+extern LONG editor_set_frame_count(UWORD count);
 extern UWORD  g_state;           /* DAT_0011d070 — connection state enum    */
 extern UWORD  g_online;          /* DAT_0011d074 — online flag              */
 extern APTR   g_dir_page;        /* DAT_0011d07c — current directory page   */

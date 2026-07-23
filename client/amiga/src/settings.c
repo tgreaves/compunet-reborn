@@ -12,7 +12,7 @@
  *                   toggle gadget when it changes. Use=apply, Save=apply+write file,
  *                   Cancel=discard; all close the window on exit.
  *   settings_apply  (FUN_00112182) — copy the edited gadget buffers back into the
- *                   config fields (phone, modem name, userid, baud up/down, data bits,
+ *                   config fields (phone, modem name, userid, baud up/down, editor frames,
  *                   open-flags Diagnostics bit) and push the serial params to the device.
  *   settings_close  (FUN_0011216c) — close the settings window.
  *
@@ -46,12 +46,12 @@ extern UBYTE g_data[];
 
 extern APTR open_window_tracked(APTR nw);   /* FUN_0011a534 */
 extern void close_window_tracked(APTR win); /* FUN_0011a568 */
-extern void apply_serial_params(UWORD bits);/* FUN_00114050 */
 extern LONG save_config_file(void);         /* FUN_00112250 */
+/* editor_set_frame_count (FUN_00114050) is declared in compunet.h. */
 
 /* Config values live in the single g_config block; access via the compunet.h
  * accessors (g_phone_number, g_modem_name, g_cfg_userid, g_baud_up/down, g_open_flags,
- * g_data_bits). g_login_userid is the separate derived-userid buffer. */
+ * g_editor_frames). g_login_userid is the separate derived-userid buffer. */
 extern char  g_login_userid[];   /* DAT_00120244 */
 
 /* Blob-resident settings-dialog state and gadget buffers (offsets are absolute
@@ -65,14 +65,14 @@ extern char  g_login_userid[];   /* DAT_00120244 */
 #define GBUF_USERID    ((char *)DATA(0x121805)) /* userid gadget buffer             */
 #define GBUF_BAUDUP    ((char *)DATA(0x121815)) /* baud-up integer gadget buffer    */
 #define GBUF_BAUDDN    ((char *)DATA(0x12181b)) /* baud-down integer gadget buffer  */
-#define GBUF_DBITS     ((char *)DATA(0x121821)) /* data-bits integer gadget buffer  */
+#define GBUF_EFRAMES   ((char *)DATA(0x121821)) /* "Editor frames" integer gadget buffer */
 /* Integer gadgets' StringInfo.LongInt fields — Intuition parses the user's typed
  * number into these blob-resident longs; settings_apply reads the VALUE from here,
  * not by re-parsing the buffer. Addresses verified from the relocated disasm:
  * recon reads move.l $24aa(a4)=0x11f4aa, $2436(a4)=0x11f436, $23c2(a4)=0x11f3c2. */
 #define LI_BAUDUP      (*(LONG *)DATA(0x11f4aa))
 #define LI_BAUDDN      (*(LONG *)DATA(0x11f436))
-#define LI_DBITS       (*(LONG *)DATA(0x11f3c2))
+#define LI_EFRAMES     (*(LONG *)DATA(0x11f3c2))
 
 /* Gadget lists / render structs (blob). */
 #define GLIST          DATA(0x11f60e)  /* the main gadget list added to the window */
@@ -130,12 +130,12 @@ static LONG settings_open(void)
      * 0x11f77a/77e/82; buffers 0x121815/81b/821; values from the config block. */
     sprintf(GBUF_BAUDUP, (char *)DATA(0x11f77a), (int)g_baud_up);
     sprintf(GBUF_BAUDDN, (char *)DATA(0x11f77e), (int)g_baud_down);
-    sprintf(GBUF_DBITS,  (char *)DATA(0x11f782), (int)g_data_bits);
+    sprintf(GBUF_EFRAMES, (char *)DATA(0x11f782), (int)g_editor_frames);
     /* Seed each integer gadget's StringInfo.LongInt with the config value
      * (recon $112092..$1120aa: move.w cfg -> move.l -> 0x11f4aa/436/3c2). */
     LI_BAUDUP = (LONG)g_baud_up;
     LI_BAUDDN = (LONG)g_baud_down;
-    LI_DBITS  = (LONG)g_data_bits;
+    LI_EFRAMES = (LONG)g_editor_frames;
 
     /* Toggle gadget imagery from open-flags bit 2 (Diagnostics auto-open). */
     if (g_open_flags & 4) {
@@ -161,8 +161,8 @@ static LONG settings_open(void)
 
 /*
  * settings_apply — recon FUN_00112182. Copy edited gadget buffers back to config and
- * push serial params. Numeric fields are range-checked before being accepted
- * (baud 75..9600, data bits 2..99), matching the original's guards.
+ * push the editor frame count. Numeric fields are range-checked before being accepted
+ * (baud 75..9600, editor frames 2..99), matching the original's guards.
  */
 static void settings_apply(void)
 {
@@ -184,12 +184,12 @@ static void settings_apply(void)
      * range-check, store as a WORD (recon reads move.l $24aa/$2436/$23c2(a4)). */
     v = LI_BAUDUP; if (v >= 0x4b && v <= 0x2580) g_baud_up   = (UWORD)v;  /* 75..9600 */
     v = LI_BAUDDN; if (v >= 0x4b && v <= 0x2580) g_baud_down = (UWORD)v;
-    v = LI_DBITS;  if (v >= 2    && v <= 0x63)   g_data_bits = (UWORD)v;  /* 2..99    */
+    v = LI_EFRAMES; if (v >= 2   && v <= 0x63)   g_editor_frames = (UWORD)v; /* 2..99  */
 
     if (SET_TOGGLE == 0) g_open_flags &= ~4;
     else                 g_open_flags |= 4;
 
-    apply_serial_params(g_data_bits);
+    editor_set_frame_count(g_editor_frames);  /* recon $1124d6: opcode-5 to the editor */
 }
 
 /* The Diagnostics toggle gadget (0x11f356) and where RemoveGList's returned position is

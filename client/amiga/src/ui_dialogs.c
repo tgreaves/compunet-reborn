@@ -330,14 +330,9 @@ void dir_action_cleanup(void)
     }
 }
 
-/* apply_serial_params — recon FUN_00114050: push the configured data-bits/parity to
- * cnet.device. The concrete register writes are in the device; here we forward the
- * config value (the client just stores it for open_transport to apply). */
-extern UWORD g_dev_param2e;
-void apply_serial_params(UWORD bits)
-{
-    g_dev_param2e = bits;
-}
+/* FUN_00114050 is editor_set_frame_count (in dispatch.c) — it sends editor opcode 5 with
+ * the "Editor frames" ring size from config+0x2a. An earlier reconstruction misread it as a
+ * serial-parameter routine ("apply_serial_params") writing a dead g_dev_param2e; both are gone. */
 
 /* ui_set_title (recon FUN_0010217a) is reconstructed in ui.c, where it iterates the
  * full six-window set the original touches. (The earlier one-window stub here has

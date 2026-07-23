@@ -143,6 +143,22 @@ static UBYTE editor_command(UWORD cmd, APTR arg16, APTR arg1a, APTR arg1e)
     return EMSG_B(0x15);                    /* reply status byte at +0x15 */
 }
 
+/*
+ * editor_set_frame_count — recon FUN_00114050. Tell the editor how many frames its offline
+ * ring should hold (the "Editor frames" Setup value, config+0x2a). Sends editor opcode 5 with
+ * the count at msg+0x16. Called from load_config (startup, after launch_editor) and
+ * settings_apply (after the user edits the field); both ignore the result.
+ *
+ * NOTE: the earlier reconstruction misread FUN_00114050 as a serial-parameter routine
+ * ("apply_serial_params") and stubbed it to a dead write of g_dev_param2e, so the editor never
+ * received the frame count. Verified byte-exact against $114050: move.b #5,msg+0x14;
+ * msg+0x16 = arg; PutMsg + WaitPort/GetMsg; return (status==0).
+ */
+LONG editor_set_frame_count(UWORD count)
+{
+    return editor_command(5, (APTR)(ULONG)count, NULL, NULL) == 0;
+}
+
 /* hook_main_menu — recon FUN_00102a0a, the "Quit" menu item. Confirm via a requester
  * ("QUIT Compunet" / "Okay to Exit?"); on yes, tell the editor to shut down (command
  * byte 1, no args), restore our Process's pr_WindowPtr (+0xb8), and exit. */

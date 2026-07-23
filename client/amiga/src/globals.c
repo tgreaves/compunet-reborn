@@ -37,7 +37,6 @@ ULONG               g_read_sig    = 0;
 ULONG               g_write_sig   = 0;
 
 struct Device *g_cnet_device = NULL;
-UWORD  g_dev_param2e = 0;        /* DAT_0012012e-ish device param scratch (not in block) */
 UBYTE  g_link_char = 0;          /* DAT_001230bc — 1-byte link read scratch (serial_io_variant) */
 
 /* ---- THE config block — the single 0x36-byte record at recon 0x120108 ----

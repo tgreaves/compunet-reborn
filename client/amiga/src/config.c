@@ -3,7 +3,7 @@
  *
  *   load_config       (FUN_00102000) — read the 0x36-byte "cnet-configuration"
  *                     file into the config block; if absent, seed defaults
- *                     (empty phone, 1275 split baud 75/1200, 8 data bits).
+ *                     (empty phone, 1275 split baud 75/1200, 8 editor frames).
  *   save_config_file  (FUN_00112250) — write the current config block back out.
  *
  * The config block starting at g_config (recon &DAT_00120108) holds, in order:
@@ -12,7 +12,7 @@
  *   +0x24 baud_up   (UWORD 75)        (DAT_0012012c)
  *   +0x26 baud_down (UWORD 1200)      (DAT_0012012e)
  *   +0x28 open flags                  (DAT_00120130)
- *   +0x2a data bits                   (DAT_00120132)
+ *   +0x2a editor frames               (DAT_00120132; the Setup "Editor frames" ring size)
  * Content files are re-read on demand (no restart), matching the server model.
  */
 #include <exec/types.h>
@@ -24,7 +24,7 @@
 extern APTR  config_open_read(const char *name);   /* thunk FUN_0011a41e */
 extern void  config_free(APTR buf);                 /* thunk FUN_0011a238 */
 extern APTR  config_open_write(const char *name);   /* thunk FUN_0011a534 */
-extern void  apply_serial_params(UWORD bits);       /* thunk FUN_00114050 */
+/* editor_set_frame_count (FUN_00114050) is declared in compunet.h. */
 
 /* The whole config block, addressed as bytes (recon &DAT_00120108). */
 extern UBYTE g_config[];        /* 0x36 bytes */
@@ -33,7 +33,7 @@ extern char  g_login_userid[];  /* DAT_00120244 — derived userid string */
 #define CFG_BAUD_UP    (*(UWORD *)(g_config + 0x24))
 #define CFG_BAUD_DN    (*(UWORD *)(g_config + 0x26))
 #define CFG_OPENFLAGS  (*(UWORD *)(g_config + 0x28))
-#define CFG_DATABITS   (*(UWORD *)(g_config + 0x2a))
+#define CFG_EDITOR_FRAMES (*(UWORD *)(g_config + 0x2a))
 
 LONG load_config(void)
 {
@@ -51,7 +51,7 @@ LONG load_config(void)
         CFG_BAUD_UP   = 0x4b;               /* 75   */
         CFG_BAUD_DN   = 0x4b0;              /* 1200 */
         CFG_OPENFLAGS = 4;
-        CFG_DATABITS  = 8;
+        CFG_EDITOR_FRAMES = 8;             /* recon 0x2032: default editor-frame ring size */
     } else {
         /* Copy the 0x36-byte saved block verbatim. */
         for (i = 0; i < 0x36; i++)
@@ -59,7 +59,7 @@ LONG load_config(void)
         config_free(buf);
     }
 
-    apply_serial_params(CFG_DATABITS);
+    editor_set_frame_count(CFG_EDITOR_FRAMES);  /* recon 0x102040: tell editor its ring size */
     strcpy(g_login_userid, (char *)(g_config + 0x2c)); /* recon DAT_00120134 */
     return 1;
 }
