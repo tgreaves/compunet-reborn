@@ -1374,8 +1374,22 @@ class CompunetSession:
                 self.mail_messages[actual_index]['read_date'] = datetime.datetime.now().strftime('%Y-%m-%d')
             self._save_mail()
             return self._send_mail_frame()
+        elif not self.mail_messages:
+            # Empty mailbox: DOWNLOAD landed on the (NO MAIL) placeholder row, which the client
+            # counts as a real body row. mail_download (FUN_0010e0fc) expects a FRAME back and
+            # loops on the frame header's more-bit; answering with a directory makes frame_display
+            # misparse it (its 0x8E first byte sets the more-bit) into an endless D/MORE loop that
+            # advances the mail page each time -> Guru. Return a single frame with the more-bit
+            # (byte 0, bit 7) CLEAR so the client displays it and stops. Same format as the
+            # goodbye/not-found frames; C64-safe (it also expects a frame from 'D').
+            self.last_response_type = RESP_FRAME
+            frame = bytearray(b'\x00\x06\x0f\x8e\x0d\x0d')
+            frame.extend(b'YOU HAVE NO MAIL')
+            frame.append(0x0d)
+            frame.append(0x00)
+            return bytes(frame)
         else:
-            # Beyond visible entries — advance to next page
+            # Non-empty mailbox: real paging past the visible entries.
             self.mail_page_offset = offset + 11
             return self._make_mail_response()
 
