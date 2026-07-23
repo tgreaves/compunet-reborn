@@ -465,60 +465,48 @@ void iff_feed_byte(UBYTE byte)
         g_iff_need  = 8;                       /* next chunk header */
         g_iff_field = g_iff_field_wr = g_iff_chunk;
         return;
-    case 3: {                                 /* chunk id + length */
-        LONG len = CHUNK_LEN + (CHUNK_LEN_ODD ? 1 : 0);   /* pad odd lengths */
-        LONG id  = *(LONG *)g_iff_chunk;
-        if (id == 0x424d4844L /* 'BMHD' */) {
+    case 3:                                   /* expect BMHD; skip anything else (recon 0x111100) */
+        if (*(LONG *)g_iff_chunk == 0x424d4844L /* 'BMHD' */) {
             g_iff_state = 4;
             g_iff_need  = CHUNK_LEN + (CHUNK_LEN_ODD ? 1 : 0);
-            g_iff_field = g_iff_field_wr = g_iff_chunk + 8;   /* BMHD body @ +8 */
-        } else if (id == 0x434d4150L /* 'CMAP' */) {
-            g_iff_state = 6;
-            g_iff_need  = len;
-            g_iff_field = g_iff_field_wr = g_cmap_raw;
-        } else if (id == 0x424f4459L /* 'BODY' */) {
-            g_iff_state = 7;
-            g_iff_need  = 8;                    /* placeholder; BODY handler starts rows */
-            g_iff_field = g_iff_field_wr = g_iff_chunk;
-        } else {                               /* skip unknown chunk */
-            g_iff_skip  = len;
+            g_iff_field = g_iff_field_wr = g_iff_chunk + 8;   /* BMHD body @ +8 (0x46ec) */
+        } else {                              /* not BMHD yet — skip this chunk, stay in state 3 */
+            g_iff_skip  = CHUNK_LEN + (CHUNK_LEN_ODD ? 1 : 0);
             g_iff_need  = 8;
             g_iff_field = g_iff_field_wr = g_iff_chunk;
         }
         return;
-    }
     case 4:                                   /* BMHD gathered */
         iff_setup();
         g_iff_state = 5;
         g_iff_need  = 8;                       /* next chunk header */
         g_iff_field = g_iff_field_wr = g_iff_chunk;
         return;
-    case 5: {                                 /* chunk id + len (post-BMHD) */
-        LONG len = CHUNK_LEN + (CHUNK_LEN_ODD ? 1 : 0);
-        LONG id  = *(LONG *)g_iff_chunk;
-        if (id == 0x434d4150L /* 'CMAP' */) {
+    case 5:                                   /* expect CMAP; skip anything else (recon 0x11118a) */
+        if (*(LONG *)g_iff_chunk == 0x434d4150L /* 'CMAP' */) {
             g_iff_state = 6;
-            g_iff_need  = len;
-            g_iff_field = g_iff_field_wr = g_cmap_raw;
-        } else if (id == 0x424f4459L /* 'BODY' */) {
-            g_iff_state = 7;
-            g_iff_need  = 8;
-            g_iff_field = g_iff_field_wr = g_iff_chunk;
-        } else {
-            g_iff_skip  = len;
+            g_iff_need  = CHUNK_LEN + (CHUNK_LEN_ODD ? 1 : 0);
+            g_iff_field = g_iff_field_wr = g_cmap_raw;      /* CMAP RGB bytes (0x4700) */
+        } else {                              /* not CMAP yet — skip this chunk, stay in state 5 */
+            g_iff_skip  = CHUNK_LEN + (CHUNK_LEN_ODD ? 1 : 0);
             g_iff_need  = 8;
             g_iff_field = g_iff_field_wr = g_iff_chunk;
         }
         return;
-    }
     case 6:                                   /* CMAP gathered */
         iff_cmap();
         g_iff_state = 7;
         g_iff_need  = 8;
         g_iff_field = g_iff_field_wr = g_iff_chunk;
         return;
-    case 7:                                   /* BODY start */
-        iff_body_start();
+    case 7:                                   /* expect BODY; skip anything else (recon 0x111210) */
+        if (*(LONG *)g_iff_chunk == 0x424f4459L /* 'BODY' */) {
+            iff_body_start();                 /* switch to per-byte row decode (state 8/9) */
+        } else {                              /* not BODY yet (e.g. CAMG/ANNO) — skip, stay in state 7 */
+            g_iff_skip  = CHUNK_LEN + (CHUNK_LEN_ODD ? 1 : 0);
+            g_iff_need  = 8;
+            g_iff_field = g_iff_field_wr = g_iff_chunk;
+        }
         return;
     case 8:                                   /* uncompressed BODY row byte */
         iff_row_uncompressed(byte);

@@ -344,7 +344,7 @@ LONG open_frame_window(void)   /* recon FUN_001174d4 — faithful transcription 
     return 1;
 }
 
-extern void dir_preinit(APTR page);  /* FUN_00109000 — pre-open directory init (stub for now) */
+extern void dir_preinit(APTR page);  /* FUN_00109000 — builds the directory gadget array (directory_init.c) */
 
 LONG init_directory(void)      /* recon FUN_001099c0 — faithful transcription */
 {

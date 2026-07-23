@@ -126,8 +126,15 @@ Both control tables enumerated (all standard C64 PETSCII), PETSCII→screencode
 conversion verified, RLE matches, font is the embedded C64 char-ROM. Reborn's
 existing PETSCII frames render on the Amiga with no separate format.
 
-Optional follow-ups (not blockers):
+Both jump tables (`0x11d8a8` / `0x11d928`) were later dumped verbatim and every entry
+cross-checked against its handler in the flat image: all 16 colour pens, reverse on/off
+(`P_ATTR` bit 7), charset lower/upper (mode toggle + `frame_redraw` = `FUN_00107156` via
+the `0x1056cc` thunk), and the cursor handlers' exact **bounds/wrap** — home (row/col/wrap
+= 0), down (`if row<0x17`), up (`if row>0`), right (col wrap at 0x28 → row advance), left
+(col wrap to 0x27 → row back), and CR (wrap-guarded row advance, clears the reverse attr).
+The reconstruction in [`../../src/frame_control.c`](../../src/frame_control.c) matches
+byte-for-byte. Nothing outstanding here.
+
+Optional follow-up (not a blocker):
 - Exact RGB values in the `LoadRGB4` palette table vs VIC-II (cosmetic — index scheme
   already confirmed standard).
-- Per-handler cursor-movement details (bounds/wrap behaviour) if precise fidelity
-  testing is wanted.

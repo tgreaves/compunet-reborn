@@ -50,8 +50,10 @@
 
 /* Control-code jump tables (recon PTR_FUN_0011d8a8 for 0x00-0x1F, PTR_FUN_0011d928
  * for 0x80-0x9F). These dispatch colour/cursor/RVS/charset PETSCII control codes.
- * TODO: the individual entries are not all confirmed — see petscii-frame-format.md.
- * They are declared here as arrays of handlers taking the page pointer. */
+ * VERIFIED: both tables (ordering + every handler) match the original byte-for-byte —
+ * all 16 colour pens, reverse on/off, charset lower/upper, cursor home/up/down/left/right
+ * (with bounds/wrap), CR, insert/delete/clear. See frame_control.c and
+ * petscii-frame-format.md. They are declared here as arrays of handlers taking the page. */
 extern void (*g_ctrl_lo[32])(APTR page);   /* PTR_FUN_0011d8a8 — codes 0x00-0x1F */
 extern void (*g_ctrl_hi[128])(APTR page);  /* PTR_FUN_0011d928 — codes 0x80-0xFF (& 0x7f) */
 
