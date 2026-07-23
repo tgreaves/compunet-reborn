@@ -36,7 +36,7 @@ The Compunet client components — identified both by name and by what the decru
 | `Compunet` | 34 KB | PowerPacker exe → **decrunched** | Main online client (*"Amiga Compunet Terminal x.xx"*) |
 | `devs/cnet.device` | 14 KB | uncompressed | Transport driver — *"cnet device 2.1 (30 January 1989)"* |
 | `CnetEditor` | 14 KB | PowerPacker exe → **decrunched** | Frame editor (*"Compunet - editor"*) |
-| `CNETTTY` | 4.5 KB | cruncher #2 (not yet unpacked) | TTY / scroll viewer (*"CnetTty"*) |
+| `CNETTTY` | 4.5 KB | cruncher #2 → **decrunched** | TTY / scroll viewer (*"Scrollback v1.0", Zugger '89*) |
 | `CNet.info` | 1.8 KB | icon | Workbench icon for the Compunet program |
 | `Registration` | 1 KB | PowerPacker data → **decrunched** | Registration / demo-login text |
 | `Frames/test.frame` | 557 B | binary | Sample frame for the editor |
@@ -57,11 +57,13 @@ The executables are Amiga HUNK binaries (`00 00 03 F3`). Two crunchers were used
   `Compunet` and `CnetEditor` (and, on the disk, the unrelated `Access!`). Both
   Compunet files are fully unpacked. The PowerPacker *data* file (`PP20` magic)
   `Registration` decompresses with the same bitstream.
-- **A second, non-PowerPacker cruncher** (620-byte stub, marker-bit LZ bitstream,
-  `bsr.b $8 / jmp $0` trampoline header). Used by `CNETTTY` (and the unrelated
-  `supertex`). Its length/pointer setup is derived from the AmigaDOS segment-loader
-  BCPL pointers at runtime, so it needs 68k **emulation** of the stub rather than a
-  static port. `CNETTTY` is not yet unpacked.
+- **A second, non-PowerPacker cruncher** (620-byte stub, backwards marker-bit LZ
+  bitstream, `bsr.b $8 / jmp $0` trampoline header). Used by `CNETTTY` (and the unrelated
+  `supertex`). The stub walks the AmigaDOS segment-loader BCPL pointers at runtime, but its
+  decompressor is self-contained given the compressed/output lengths from the stub's `a5`
+  table — so `tools/ttydecrunch.py` decrunches it with a faithful static port (no emulation
+  needed). `CNETTTY` is fully unpacked → `decrunched/CnetTty`; see
+  [tools/re/cnettty-re.md](../client/amiga/vintage/tools/re/cnettty-re.md).
 
 The decruncher lives at [client/amiga/vintage/tools/ppdecrunch.py](../client/amiga/vintage/tools/ppdecrunch.py);
 decrunched outputs are in [client/amiga/vintage/decrunched/](../client/amiga/vintage/decrunched/).
@@ -320,20 +322,36 @@ relabel call), so ordinary navigation works within the catalogue while the serve
 `(NO UPLOADS)` placeholder was widened to the full-width DIR/mail format to avoid the Amiga
 body-row parser freeze.
 
-**NEXT / outstanding:**
-- **Type `'L'` = live interactive terminal (partyline / MUDs):** `download_link`
-  (`FUN_0010b66a`) is NOT a file download — after reading the 8-byte header it hands off to
-  the **CnetTty viewer** (`g_tty_seg_bptr(screen, link_read_char, serial_io_variant,
-  modem_send_delayed)`), a bidirectional read/send terminal loop. This is the mechanism for
-  real-time interactive content (Compunet Partyline chat, MUDs, live sessions). It requires
-  the header's first long == `0x01000001`; the server currently sends a mismatched `'L'`
-  header (`0x00,0x00,exec…`) so the Amiga rejects it as "Invalid link". TODO: implement the
-  `'L'` interactive path — server `'L'` header format + a live bidirectional channel over
-  TCP (relates to the parked partyline-over-TCP item in diagnostics/transport).
-- Editor edit behaviour and the opcode-5 frame-count wiring (from the "Editor frames" Setup
-  value). NOTE: the `Next/Last/All/Send/Done` frame-button actions, the `Back` (`B`) command,
-  and the client↔editor colour match are now DONE (commits `c3cef8e`, `8d1fee5`); text and
-  program uploads work end-to-end.
+**Recently completed:**
+- **Type `'L'` = live interactive terminal (partyline / MUDs) — DONE, tested end-to-end.**
+  `download_link` (`FUN_0010b66a`) is NOT a file download — after reading the 8-byte header
+  it hands off to the **CnetTty viewer** ("Scrollback v1.0", Zugger '89) as
+  `g_tty_seg_bptr(screen, modem_read_status, serial_io_variant, modem_send_delayed)`, a
+  bidirectional read/send terminal loop. The read callback is **polled** (returns a
+  byte-available count; `0xffff` = carrier lost); the viewer returns `1` on a clean end
+  (three consecutive `0x02` bytes from the host, or its "Done" gadget) and `0` on carrier
+  loss. The viewer was decrunched (a non-PowerPacker marker-bit LZ; `tools/ttydecrunch.py`)
+  and fully mapped — [tools/re/cnettty-re.md](../client/amiga/vintage/tools/re/cnettty-re.md).
+  Two client-side callback bugs were fixed (`modem_read_status` not `link_read_char` as the
+  read poll; `link_viewer_arm`/`FUN_001194e8` for the preamble). Server side: an
+  `is_amiga`-gated path in `compunet_server.py` / `partyline.py` sends the 8-byte link header
+  (`01 00 00 01 00 00 00 00`, no program, no EOS), runs the `0x01`/`0x02` raw preamble
+  handshake, an **ASCII** session (CnetTty is ASCII-only — verified: `0x20-0x7e` filter, no
+  PETSCII table/font), and the `0x02`×3 teardown. Reuses the existing `join-partyline` link
+  entry and the shared `partyline.handle_session` logic. See [docs/partyline.md](partyline.md).
+- Editor **opcode-5 frame-count wiring** — DONE. `editor_set_frame_count` (`FUN_00114050`)
+  now actually sends editor opcode 5 with the "Editor frames" Setup value (`config+0x2a`),
+  replacing a no-op stub the earlier reconstruction had mislabelled as serial "data bits".
+- The `Next/Last/All/Send/Done` frame-button actions, the `Back` (`B`) command, and the
+  client↔editor colour match are DONE (commits `c3cef8e`, `8d1fee5`); text and program
+  uploads work end-to-end.
+
+**Outstanding:**
+- Editor **edit behaviour** (the broader in-editor content flow, beyond frame-count).
+- **Real-world networking** — FS-UAE guest networking / real-hardware path for deployment
+  outside the dev loop.
+- Minor: no idle keepalive on the Amiga partyline link (CnetTty polls indefinitely, so this
+  only matters if a NAT/firewall drops a truly idle TCP connection).
 
 The readability/reconstruction goals above are **done**. The client is fully
 reconstructed as readable C (`client/amiga/src/`), builds with the vbcc KS1.3 toolchain,
@@ -405,8 +423,9 @@ the server can recognise an Amiga client at connect. See
 [re/protocol-analysis.md](../client/amiga/vintage/tools/re/protocol-analysis.md) and
 [re/identification-and-commands.md](../client/amiga/vintage/tools/re/identification-and-commands.md).
 
-- **Unpack `CNETTTY`** — DONE (decrunched; shipped as `CnetTty` and driven by the link
-  download path).
+- **Unpack `CNETTTY`** — DONE (`tools/ttydecrunch.py` → `decrunched/CnetTty`; the build now
+  ships the decrunched form, and the viewer is fully disassembled and documented in
+  [tools/re/cnettty-re.md](../client/amiga/vintage/tools/re/cnettty-re.md)).
 
 ## Extraction notes
 

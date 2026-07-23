@@ -135,7 +135,10 @@ Exits Partyline and returns to the Compunet terminal. Broadcasts: `{USERNAME} ha
 ### Architecture
 
 - **Server module:** `server/partyline.py` — standalone module handling all partyline logic (rooms, users, message routing, command parsing). Keeps the main `compunet_server.py` clean.
-- **Client program:** `client/c64/src/partyline/partyline.s` — 6502 program downloaded to C64 on demand. Handles screen rendering, keyboard input, and ACIA communication.
+- **Clients:** three front-ends share the same `partyline.handle_session` logic —
+  - **C64:** `client/c64/src/partyline/partyline.s` — 6502 program downloaded to the C64 on demand (screen rendering, keyboard input, ACIA comms). PETSCII text.
+  - **Amiga:** the resident **CnetTty** viewer ("Scrollback v1.0", Zugger '89) — no program is downloaded; the client's link path hands the live connection to it. ASCII text. See [amiga-client.md](amiga-client.md) and [../client/amiga/vintage/tools/re/cnettty-re.md](../client/amiga/vintage/tools/re/cnettty-re.md).
+  - **Web:** WebSocket admin client (`handle_web_session`).
 
 ### Communication Protocol
 
@@ -195,3 +198,30 @@ The partyline client at $2000 handles:
 | $D800-$DBE7 | Colour RAM |
 | $D020-$D021 | VIC border/background |
 | $DE00-$DE03 | ACIA registers (SwiftLink) |
+
+### Amiga Client (CnetTty)
+
+The Amiga native client does **not** download a program. When the user selects the
+`join-partyline` (type `'L'`) link, the resident **CnetTty** viewer — a decrunched 1989
+binary, "Scrollback v1.0" by Zugger — is handed the live connection. It opens its own
+Send / Receive / Scrollback windows and runs an ASCII terminal loop (poll for bytes → read →
+display; typed keys → send). The same directory link entry and the same
+`partyline.handle_session` chat logic are reused; only the transport wrapper differs.
+
+The wire handshake (server side: `handle_amiga_session`; client side: `download_link` →
+CnetTty, verified against the disassembly):
+
+1. **Link header** — the server sends an 8-byte header, `01 00 00 01 00 00 00 00`, as one
+   X.25 DAT frame with **no trailing EOS** (the viewer switches to raw reads immediately;
+   an EOS would be misread as raw bytes). The client's `download_link` validates the first
+   long == `0x01000001`. No 6502 program follows.
+2. **Preamble** — the session then goes **raw** (unframed TCP). The server sends `01 01 01`;
+   CnetTty's `link_drain_preamble` exits on three consecutive `0x01` and replies with
+   `0x01`×6, which the server drains.
+3. **Session** — raw **ASCII**, CR-terminated. CnetTty renders only `0x20-0x7e` (system font,
+   no PETSCII), so the server sends plain ASCII (the `*EXIT`/`*PING` sentinels are dropped).
+   Pressing **RETURN twice** transmits `0x0d 0x0d`; the server reads CR-terminated lines.
+4. **Exit** — on `*quit` the server sends `0x02`×3, which returns CnetTty's loop; the client
+   then sends `0x02`×6 (`link_end`), which the server drains before resuming X.25. If the
+   user clicks CnetTty's **Done** gadget instead, the client sends the `0x02` bytes first and
+   the server treats an incoming `0x02` as the teardown signal.

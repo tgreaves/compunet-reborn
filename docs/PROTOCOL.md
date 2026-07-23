@@ -665,6 +665,25 @@ server via the ACIA. RTS returns to the terminal.
 **Safe load addresses:** $2000-$7FFF (BASIC RAM area, not used by terminal).
 Avoid $C000+ (protocol workspace), $A000+ (terminal code), $8000+ (ROM).
 
+**Amiga variant (type 'L' → resident CnetTty viewer):**
+
+The native Amiga client does not load 6502 code — it has a resident terminal viewer
+(`CnetTty`, "Scrollback v1.0"). For an Amiga client the server (gated on `is_amiga`)
+serves the same type-'L' entry differently:
+
+1. Server sends an **8-byte link header** `01 00 00 01 00 00 00 00` as one DAT frame,
+   with **no trailing EOS** and no program payload. The client (`download_link`) validates
+   the first long == `0x01000001` and the next long == `0`.
+2. The session then switches to a **raw (unframed) byte stream**. Server sends `01 01 01`;
+   the viewer's preamble reader exits on three consecutive `0x01` and replies with `0x01`×6.
+3. **Raw ASCII session** (CR-terminated). The viewer renders only `0x20-0x7E`. RETURN-twice
+   transmits `0x0D 0x0D`.
+4. **Teardown:** three consecutive `0x02` from the server return the viewer's loop; the
+   client replies with `0x02`×6 and the session resumes X.25. (The viewer's own "Done"
+   gadget sends the `0x02` bytes first.)
+
+This is the mechanism behind Partyline on the Amiga — see [partyline.md](partyline.md).
+
 ### The Editor
 
 The Editor is a WYSIWYG page editor supporting full Commodore graphics and

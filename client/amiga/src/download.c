@@ -648,13 +648,17 @@ static UBYTE link_read_char(void)        /* FUN_00119a24 */
     return g_link_char;
 }
 
-/* link_drain_preamble — recon FUN_0010b602: read link-status bytes, skipping type-1
- * markers and emitting a "\x01\x06  " sequence on a type-2 marker, until 3 consecutive
- * non-marker reads; then emit "\x01\x01\x01\x01\x01\x01". */
+/* link_drain_preamble — recon FUN_0010b602: arm the link viewer, then read link-status
+ * bytes, skipping type-1 markers and emitting a "\x01\x06  " sequence on a type-2 marker,
+ * until 3 consecutive non-marker reads; then emit "\x01\x01\x01\x01\x01\x01". */
+extern void link_viewer_arm(void);           /* FUN_001194e8 */
 static void link_drain_preamble(void)
 {
     int run = 0;
-    link_read_char();                        /* recon FUN_0010b826 leading read */
+    link_viewer_arm();                       /* recon FUN_0010b826 -> FUN_001194e8: arm raw
+                                              * mode; the mirror of link_viewer_exit. NOT a
+                                              * byte read (the earlier recon read a spurious
+                                              * byte here and never armed the session). */
     while (run < 3) {
         UBYTE c = (UBYTE)(link_read_char() & 0xff);
         if (c == 2) {
@@ -697,10 +701,19 @@ LONG download_link(void)
 
     link_drain_preamble();
 
-    /* Hand off to the CnetTty viewer: entry(screen, &read, &io_variant, &send). */
+    /* Hand off to the CnetTty viewer ("Scrollback v1.0", Zugger '89):
+     *   entry(screen, read_cb, io_cb, send_cb)  — C stack call, returns a WORD in d0.
+     * read_cb is POLLED: it must return the byte-available COUNT (0 = nothing waiting,
+     * 0xffff = carrier lost -> viewer returns 0, >0 = N bytes ready). That is
+     * modem_read_status, NOT link_read_char (which returns a byte value and could never
+     * signal 0xffff — the earlier recon broke the viewer's read loop and carrier detect).
+     * The viewer then bulk-reads min(count,35) bytes via io_cb, and sends typed keys via
+     * send_cb. It returns 1 on a clean end (three consecutive 0x02 bytes from the host, or
+     * the "Done" gadget) and 0 on carrier loss. (verified: original 0x10b6f4 pushes
+     * FUN_00119a60 = modem_read_status.) */
     rc = ((LONG (*)(APTR, APTR, APTR, APTR))g_tty_seg_bptr)(
              g_screen,
-             (APTR)link_read_char,
+             (APTR)modem_read_status,
              (APTR)serial_io_variant,
              (APTR)modem_send_delayed);
     if (rc == 0) {

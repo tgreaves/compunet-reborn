@@ -61,7 +61,14 @@ if [ -f "$VINTAGE/decrunched/CnetEditor" ]; then
 else
     cp "$VINTAGE/CnetEditor"            "$HDD/CnetEditor"
 fi
-[ -f "$VINTAGE/CNETTTY" ] && cp "$VINTAGE/CNETTTY" "$HDD/CnetTty"
+# CnetTty ("Scrollback v1.0"): prefer the DECRUNCHED copy (vintage/decrunched/CnetTty,
+# produced by tools/ttydecrunch.py) so no self-decruncher runs at LoadSeg. Fall back to the
+# crunched CNETTTY wrapper if the decrunched copy is absent.
+if [ -f "$VINTAGE/decrunched/CnetTty" ]; then
+    cp "$VINTAGE/decrunched/CnetTty" "$HDD/CnetTty"
+elif [ -f "$VINTAGE/CNETTTY" ]; then
+    cp "$VINTAGE/CNETTTY"            "$HDD/CnetTty"
+fi
 cp "$VINTAGE"/devs/cnet_modems/* "$HDD/devs/cnet_modems/" 2>/dev/null || true
 
 # startup-sequence: Kickstart auto-assigns DEVS:/L:/LIBS: to the boot volume, but a mounted

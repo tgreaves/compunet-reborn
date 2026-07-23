@@ -15,8 +15,9 @@ each field is extracted MSB-first (the first bit read becomes the value's high
 bit). A 2-bit selector indexes a 4-entry "efficiency" table of offset bit-widths.
 
 NOTE: two suite files (CNETTTY, supertex) use a DIFFERENT, non-PowerPacker
-cruncher (620-byte stub, marker-bit LZ) and are NOT handled here — they need
-68k emulation of their stub. See docs/amiga-client.md.
+cruncher (620-byte stub, backwards marker-bit LZ) and are NOT handled here.
+They are decrunched by ttydecrunch.py (a faithful port of that stub's
+decompressor). See docs/amiga-client.md.
 
 Usage:
     python ppdecrunch.py <infile> [outfile]      # auto-detect data vs exe

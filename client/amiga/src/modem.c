@@ -166,6 +166,25 @@ void serial_io_variant(APTR buf, UWORD len)
 }
 
 /*
+ * link_viewer_arm — recon FUN_001194e8. BEGIN a link session: set the write request's
+ * scratch byte (+0x2c) to 0 and issue io_Command 9, switching cnet.device into raw
+ * (unframed) read mode so the link viewer sees the byte stream directly. The exact mirror
+ * of link_viewer_exit (which sets +0x2c = 1 to return to framed mode). This is the
+ * preamble's *leading* call — it arms the session, it does NOT read a byte.
+ */
+void link_viewer_arm(void)
+{
+    /* TCP: the link path reads via net_avail/net_recv_raw (already raw), so there is no
+     * device mode to switch. No-op, matching link_viewer_exit. */
+    if (g_tcp_mode)
+        return;
+
+    ((UBYTE *)g_write_req)[0x2c] = 0;
+    g_write_req->io.io_Command = 9;
+    DoIO((struct IORequest *)g_write_req);
+}
+
+/*
  * link_viewer_exit — recon FUN_001194c8. End a link session: set the write request's
  * scratch byte (+0x2c) to 1 and issue io_Command 9 (the device's "session end" /
  * login-ready control), synchronously.

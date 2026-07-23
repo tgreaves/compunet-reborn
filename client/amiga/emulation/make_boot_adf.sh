@@ -78,7 +78,14 @@ if [ -f "$VINTAGE/decrunched/CnetEditor" ]; then
 elif [ -f "$VINTAGE/CnetEditor" ]; then
     "$XDFTOOL" "$OUT" write "$VINTAGE/CnetEditor" CnetEditor
 fi
-[ -f "$VINTAGE/CNETTTY" ]    && "$XDFTOOL" "$OUT" write "$VINTAGE/CNETTTY"    CnetTty
+# CnetTty ("Scrollback v1.0"): prefer the DECRUNCHED copy. The crunched vintage/CNETTTY is
+# a 3-hunk self-decrunching wrapper (620B stub + 3904B compressed payload, a non-PowerPacker
+# marker-bit LZ); the decrunched form is the real 8-hunk program (tools/ttydecrunch.py).
+if [ -f "$VINTAGE/decrunched/CnetTty" ]; then
+    "$XDFTOOL" "$OUT" write "$VINTAGE/decrunched/CnetTty" CnetTty
+elif [ -f "$VINTAGE/CNETTTY" ]; then
+    "$XDFTOOL" "$OUT" write "$VINTAGE/CNETTTY"            CnetTty
+fi
 for m in "$VINTAGE"/devs/cnet_modems/*; do
     "$XDFTOOL" "$OUT" write "$m" "devs/cnet_modems/$(basename "$m")"
 done
