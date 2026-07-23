@@ -21,7 +21,7 @@
         xref _hook_ed_173c6
         xref _hook_ed_1740c
         xref _hook_ed_17470
-        xref _hook_link_entry
+        xref _ucat_command
         xref _hook_main_menu
         xref _hook_nav_0a3d0
         xref _hook_nav_0a3f8
@@ -119,7 +119,7 @@ L_016c:
         dc.b $4d,$00
         dc.l _g_data+$0152    ; ->data
         dc.b $00,$00,$00,$00
-        dc.l _hook_link_entry    ; ->code
+        dc.l _ucat_command    ; ->code
         dc.b $55,$00
         dc.l _g_data+$0158    ; ->data
         dc.b $00,$00,$00,$00

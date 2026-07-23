@@ -22,6 +22,7 @@
 
 #define STATE_GOTO   2
 #define STATE_UPLOAD 8
+#define STATE_ONLINE 2
 
 /* UI prompt helpers (dialogs) into the not-yet-reconstructed UI layer. */
 extern LONG  vote_choice_prompt(void);  /* FUN_0010c4ca — read a 1-digit choice   */
@@ -118,6 +119,28 @@ LONG account(void)
 
     sprintf(msg, "You are %s in %s", balance + i, side);
     status_ok_dialog("ACCOUNT", msg, 1, 6);   /* recon: p4=1, p5=6 (FrontPen 6) */
+    return 1;
+}
+
+/*
+ * ucat_command — recon FUN_0010a384. The "UCat" (user catalogue) Online-menu item: send the
+ * one-byte 'C' command and render the returned directory-format listing of the pages the
+ * current user has uploaded. Unlike Mail it does NOT enter the courier state — it stays in
+ * STATE_ONLINE, so ordinary directory navigation (P / row clicks) keeps working within the
+ * catalogue (the server serves UCat pages until the user navigates away). Called with no
+ * args by menu_dispatch. Wire command is the single byte 'C' (g_ucat_cmd @ 0x11e416, strlen
+ * of "C" = 1) — verified byte-exact against the disassembly of $10a384..$10a3ce.
+ */
+LONG ucat_command(void)
+{
+    static char cmd[] = "C";                          /* g_ucat_cmd @ 0x11e416 = "C" */
+
+    g_state = STATE_ONLINE;                            /* recon 0x10a384: $70 = 2 */
+    serial_write(cmd, strlen(cmd), 1, TOKEN_COM);      /* recon 0x10a3a2: send "C" (COM) */
+    if (serial_io_c(g_ack_text) != ACK_OK)             /* recon 0x10a3ae */
+        return 0;
+    parse_directory_frame(g_dir_page);                 /* recon 0x10a3c2: FUN_00109a5e */
+    g_online = 1;                                      /* recon 0x10a3ca: $74 = 1 */
     return 1;
 }
 

@@ -292,12 +292,8 @@ editor opcode set is `{0 init, 1 terminate, 2 open, 4 store-frame, 5 set-frame-c
 previously stubbed) now PutMsgs each displayed frame to the editor and, under the shared
 semaphore (`g_edit_proc+0x0e`), makes it the current `g_edit_frame`. So downloaded frames
 populate the editor's ring (offline editing to save connect charges, matching the C64).
-
-**Known gap:** the editor renders stored frames with slightly different colours than the
-client. The client's rendering is verified faithful (raw foreground + `g_palette`-remapped
-background, exactly the original `blit_char_cell`/`frame_display`); `CnetEditor` (a
-separate original binary) carries the same remap but a different RGB4 table and applies
-colour via its own path. Closing the gap needs editor-renderer RE and is deferred.
+The client↔editor colour match, previously a known gap, was resolved by other rendering
+fixes during development.
 
 **MAIL / Courier — reconstructed and working (verified live).** The full subsystem: the five
 action buttons `Done/ID/More/Dnld/Upld` (via `mail_state_enter`'s relabel of the directory
@@ -313,18 +309,18 @@ host-error ack), the `courier-header.seq` RLE-terminator fix, an empty-EOS mail-
 a NO-MAIL frame for download-on-empty, and dropping the C64 SEND-screen date/time from the
 Amiga breadcrumb (it was overwriting the message-number column).
 
+**UCAT (user catalogue) — reconstructed and working (verified live).** The `UCat` Online-menu
+item (`ucat_command`, recon `FUN_0010a384`) sends the one-byte `'C'` command and renders the
+returned directory-format listing of the user's own uploaded pages through the standard
+directory parser. It deliberately keeps the usual `Dir/Back/Goto/Dnld/Upld` action bar and
+stays in `STATE_ONLINE` (no courier-style relabel — verified: the original handler has no
+relabel call), so ordinary navigation works within the catalogue while the server's
+`_ucat_active` serves UCat pages. The blob menu-spec entry, previously mis-wired to
+`hook_link_entry`, now points at `_ucat_command`. Server companion: the empty-catalogue
+`(NO UPLOADS)` placeholder was widened to the full-width DIR/mail format to avoid the Amiga
+body-row parser freeze.
+
 **NEXT / outstanding:**
-- **Download transport fix (client):** the program-download 8-byte header is sent by the
-  server as a complete X.25 message (DAT + empty-DAT EOS). `net_read_stream`'s fixed 8-byte
-  read leaves the trailing EOS unconsumed, so `download_receive`'s first read picks it up,
-  signals EOF, and saves 0 bytes. Consume the header's terminating EOS after the fixed read
-  (matching cnet.device semantics) before reading the program data.
-- **Server platform-identifier (TODO):** the client picks the download machine-type dialog
-  from header byte 0 (`0`=C64 "Commodore 64 file", `1`=Amiga silent/no prompt, `2`=Atari ST).
-  The server currently hardcodes `header[0]=0x00` (C64) for all `'P'`/`'L'` programs, so the
-  Amiga client always sees the C64 prompt. Implement per-platform program serving so an
-  Amiga program page sends `header[0]=1` (and the Amiga client should be offered Amiga-native
-  program pages, not C64 ones).
 - **Type `'L'` = live interactive terminal (partyline / MUDs):** `download_link`
   (`FUN_0010b66a`) is NOT a file download — after reading the 8-byte header it hands off to
   the **CnetTty viewer** (`g_tty_seg_bptr(screen, link_read_char, serial_io_variant,
@@ -334,14 +330,6 @@ Amiga breadcrumb (it was overwriting the message-number column).
   header (`0x00,0x00,exec…`) so the Amiga rejects it as "Invalid link". TODO: implement the
   `'L'` interactive path — server `'L'` header format + a live bidirectional channel over
   TCP (relates to the parked partyline-over-TCP item in diagnostics/transport).
-- **UCAT (user catalogue) — not wired on the Amiga:** the `UCat` menu item should send the
-  `'C'` command (`CMD_UCAT`, a COM frame with command byte `0x43` = `'C'`) to request a
-  directory-style listing of the pages/files the current user has uploaded — same rendering
-  as DIR, different content. The server already supports it (`_cmd_ucat` / `_render_ucat` /
-  `_cmd_ucat_more`, `_ucat_active`) and returns the standard directory frame format. The Amiga
-  client has no UCAT handling yet: wire the `UCat` menu handler to send `'C'` and render/
-  paginate the response through the existing directory renderer (`P`/`MORE` navigation while
-  the server's `_ucat_active` is set).
 - Editor edit behaviour and the opcode-5 frame-count wiring (from the "Editor frames" Setup
   value). NOTE: the `Next/Last/All/Send/Done` frame-button actions, the `Back` (`B`) command,
   and the client↔editor colour match are now DONE (commits `c3cef8e`, `8d1fee5`); text and
