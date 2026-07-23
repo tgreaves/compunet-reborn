@@ -1290,7 +1290,14 @@ class CompunetSession:
         visible = self.mail_messages[offset:offset+11]
 
         if not self.mail_messages:
-            data.extend(ascii_to_petscii('      (NO MAIL)'))
+            # Full-width first field (27 chars) so the Amiga's fixed-width body-row parser
+            # (col A 6 + col B 16 + sep 1 = 23, then col C scans for a comma) finds a comma
+            # instead of letting col B swallow the commas + CR — a short field makes col C run
+            # past end-of-stream and spin forever (no EOF guard, faithful to FUN_00109a5e) →
+            # 'Waiting' hang. Mirrors the DIR empty-placeholder fix (77c84a6); the mail
+            # placeholder was missed.
+            first_field = '0'.rjust(6) + ' ' + '(NO MAIL)'.ljust(17) + '   '   # 27 chars
+            data.extend(ascii_to_petscii(first_field))
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
