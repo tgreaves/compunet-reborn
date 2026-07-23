@@ -876,8 +876,6 @@ The caller at $8E17 then proceeds to display the login screen.
 
 #### Timing Requirements
 
-- Server must send initial bytes AFTER tcpser's break delay expires (~1 second)
-- Bytes must be sent individually (not as a burst) for tcpser compatibility
 - The ROM sends its identification continuously until it receives `?*CON\r`
 - Total handshake time: ~3-5 seconds typical
 
@@ -1547,9 +1545,44 @@ The CNLOAD flag in the login packet's system info bytes ($C100[15+]) signals
 to the server that linking should be skipped. The server checks bytes at
 offset 15/16 — if both are $30 ('0'), skip=True.
 
-### Server Handshake (TCP via tcpser)
+### On-Demand Terminal Download (CNLOAD/CNSAVE)
 
-The connection flow over TCP (direct, no tcpser):
+The original ROM downloaded the terminal portion of the software from the server
+during the LINKING phase after login, so terminal software could be updated
+without swapping cartridges. Compunet Reborn implements this on-demand download;
+the wire format is documented under "Login Response and Linking Phase" and
+"Linking Stream Format" above. (Folded from the former `docs/LINKING.md`.)
+
+**cnload_bytes** — the login packet carries the cached terminal's *end address*
+(`$A000/$A001`) so the server knows whether a terminal is present:
+
+- Init values `$30/$30` ('0','0') → no terminal cached → server sends it.
+- Real address values → a terminal is cached → server may skip (or version-check).
+
+At ROM init (`$8335`) `$9FF0` (phone-number length) is cleared and `$A000/$A001`
+are seeded to `$30/$30`. In the current server the `skip_linking` decision keys on
+`$30/$30` at the login packet's system-info bytes; version-aware skipping
+(a terminal version byte compared server-side) is the intended future refinement.
+
+**Disk caching** so a terminal is only downloaded once:
+
+- **CNSAVE** (`$91B2`): saves `$9FF0`..`$A000/$A001` (phone number + downloaded
+  terminal) to disk as `@0:CNET` on drive 8.
+- **CNLOAD**: loads `CNET` from drive 8 back to `$9FF0`, restoring the terminal
+  code and phone number and updating `$8036/$8037` with the end address.
+
+Linking-region memory map:
+
+| Address | Use |
+|---------|-----|
+| `$9FF0` | Phone-number storage / CNLOAD flag |
+| `$A000-$A001` | End address of downloaded terminal code |
+| `$A005` | Terminal entry point (JMP target after LINKING) |
+| `$8036/$8037` | End address (for CNSAVE) |
+
+### Server Handshake (TCP)
+
+The connection flow over TCP:
 
 ```
 VICE SwiftLink (raw TCP) ←→ Compunet Server (port 6400)
@@ -1621,4 +1654,4 @@ This ensures reliable NMI triggering for the first response byte after TX.
    Multi-packet transfers (linking, frame data) will need proper ACK generation.
 4. **EOS marker packet** — a non-original protocol extension. The original system
    used windowed ACKs for flow control; the EOS marker replaces timeout-based
-   stream termination for reliability over TCP/tcpser.
+   stream termination for reliability over TCP.
