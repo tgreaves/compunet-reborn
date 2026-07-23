@@ -319,9 +319,18 @@ colour via its own path. Closing the gap needs editor-renderer RE and is deferre
   header (`0x00,0x00,exec…`) so the Amiga rejects it as "Invalid link". TODO: implement the
   `'L'` interactive path — server `'L'` header format + a live bidirectional channel over
   TCP (relates to the parked partyline-over-TCP item in diagnostics/transport).
-- Editor edit + upload behaviour (opcode-5 frame-count wiring from the "Editor frames" Setup
-  value; the `Next/Last/All/Send/Done` frame-button actions), the `Back` (`B`) server
-  command, and the client↔editor colour match.
+- **UCAT (user catalogue) — not wired on the Amiga:** the `UCat` menu item should send the
+  `'C'` command (`CMD_UCAT`, a COM frame with command byte `0x43` = `'C'`) to request a
+  directory-style listing of the pages/files the current user has uploaded — same rendering
+  as DIR, different content. The server already supports it (`_cmd_ucat` / `_render_ucat` /
+  `_cmd_ucat_more`, `_ucat_active`) and returns the standard directory frame format. The Amiga
+  client has no UCAT handling yet: wire the `UCat` menu handler to send `'C'` and render/
+  paginate the response through the existing directory renderer (`P`/`MORE` navigation while
+  the server's `_ucat_active` is set).
+- Editor edit behaviour and the opcode-5 frame-count wiring (from the "Editor frames" Setup
+  value). NOTE: the `Next/Last/All/Send/Done` frame-button actions, the `Back` (`B`) command,
+  and the client↔editor colour match are now DONE (commits `c3cef8e`, `8d1fee5`); text and
+  program uploads work end-to-end.
 
 The readability/reconstruction goals above are **done**. The client is fully
 reconstructed as readable C (`client/amiga/src/`), builds with the vbcc KS1.3 toolchain,
