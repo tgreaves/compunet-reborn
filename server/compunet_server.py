@@ -1388,10 +1388,11 @@ class CompunetSession:
             frame_data = bytearray(b'\x00\x06\x0f\x8e\x0d\x0d  MESSAGE NOT FOUND\x0d\x00')
 
         has_more = self.mail_frame_index < len(frames) - 1
-        if has_more:
-            frame_data[0] |= 0x80
-        else:
-            frame_data[0] &= 0x7F
+        if frame_data:  # guard: pre-existing mail may hold an empty frame (see accumulator fix)
+            if has_more:
+                frame_data[0] |= 0x80
+            else:
+                frame_data[0] &= 0x7F
         log.info('MAIL FRAME: msg=%d frame=%d/%d file=%s (%d bytes, more=%s)',
                  self.mail_show_msg, self.mail_frame_index + 1, len(frames),
                  frame_file, len(frame_data), has_more)
@@ -3003,15 +3004,24 @@ async def tcp_handler(reader, writer):
                     # Final chunk (< 100 bytes) = end of this frame
                     if len(payload) < 100:
                         frame_data = bytes(session.pending_send['_current_frame'])
-                        session.pending_send['frames'].append(frame_data)
                         session.pending_send['_current_frame'] = bytearray()
-                        log.info('UPLOAD: frame %d complete (%d bytes)',
-                                 len(session.pending_send['frames']), len(frame_data))
-                        ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
-                        ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
-                        await send_pkt_with_ack(ack_pkt)
-                        await writer.drain()
-                        log.info('UPLOAD: sent frame ACK (%d wire)', len(ack_pkt))
+                        # A non-empty buffer is a real frame (its <100 last chunk, or an
+                        # exact-multiple-of-100 frame terminated by the EOS). An EMPTY buffer
+                        # here is the Amiga's trailing empty-DAT EOS arriving after the frame
+                        # already completed on its <100 chunk: store nothing and send no second
+                        # ACK (the client reads exactly one ACK per frame). The C64 ends a frame
+                        # with its <100 data chunk and never sends an empty EOS, so it is
+                        # unaffected. (Without this guard the EOS was stored as an empty trailing
+                        # frame, which crashed _send_mail_frame on DNLD.)
+                        if frame_data:
+                            session.pending_send['frames'].append(frame_data)
+                            log.info('UPLOAD: frame %d complete (%d bytes)',
+                                     len(session.pending_send['frames']), len(frame_data))
+                            ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
+                            ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
+                            await send_pkt_with_ack(ack_pkt)
+                            await writer.drain()
+                            log.info('UPLOAD: sent frame ACK (%d wire)', len(ack_pkt))
 
                 else:
                     log.debug('TCP: other token=$%02X seq=$%02X', token, seq)
