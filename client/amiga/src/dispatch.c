@@ -201,6 +201,9 @@ LONG hook_serial_setup(APTR g)
  * upload) call editor internals not yet reconstructed; stubbed to a no-op for now. */
 extern void frame_lock(APTR frame_page, int row);   /* FUN_001170be */
 extern LONG frame_more(void);                        /* FUN_00113062 — "D" MORE */
+extern LONG put_frame_xfer(void);                    /* FUN_0010c270 — text-upload Send   */
+extern LONG put_frame_done(void);                    /* FUN_0010c2de — text-upload Done   */
+extern UWORD g_state;                                /* DAT_0011d070 */
 
 #define FGAD_PAGE(g)  (*(APTR  *)((UBYTE *)(g) + 0x30))
 #define FGAD_ROW(g)   (*(short *)((UBYTE *)(g) + 0x26))
@@ -209,8 +212,14 @@ LONG hook_ed_17380(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x; fr
 LONG hook_ed_172f4(APTR g){ (void)g; return 1; }   /* Next — TODO FUN_0011710a (in-frame scroll) */
 LONG hook_ed_1733a(APTR g){ (void)g; return 1; }   /* Last — TODO FUN_001171fc (in-frame scroll) */
 LONG hook_ed_173c6(APTR g){ (void)g; return 1; }   /* All  — TODO FUN_0011763a */
-LONG hook_ed_1740c(APTR g){ (void)g; return 1; }   /* Send — TODO FUN_0011762e/117610 (upload) */
-LONG hook_ed_17470(APTR g){ (void)g; return 1; }   /* Done — TODO FUN_00117628 */
+
+/* Send / Done — recon FUN_0011740c / FUN_00117470. Both lock the frame highlight, then
+ * dispatch on g_state: 4 = text ('T') upload, 7 = mail. The text branch is wired here;
+ * the mail branch (mail_field_send FUN_0010e398 / mail_field_next FUN_0010e402) needs its
+ * blob command buffers at 0x11ea90/94 verified before reconstruction, so it stays TODO —
+ * mail stays as it is today. */
+LONG hook_ed_1740c(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x=1; frame_lock(p,r); if (g_state==4) x=put_frame_xfer(); /* state 7: mail_field_send TODO */ frame_lock(p,r); return x; } /* Send */
+LONG hook_ed_17470(APTR g){ APTR p=FGAD_PAGE(g); short r=FGAD_ROW(g); LONG x=1; frame_lock(p,r); if (g_state==4) x=put_frame_done(); /* state 7: mail Done TODO       */ frame_lock(p,r); return x; } /* Done */
 
 /* ---- editor render entry points (recon 0x116000/200/400) ---- */
 LONG hook_16000(APTR g){ (void)g; return 1; }

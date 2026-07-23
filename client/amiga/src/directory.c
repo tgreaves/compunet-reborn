@@ -227,5 +227,25 @@ LONG put_frame_xfer(void)
         g_state = STATE_GOTO;
         return 0;
     }
+    /* recon 0x10c2d6: clear g_cmd_buf[1] after a successful send. This truncates the
+     * command to "U" (strlen 1), so the FIRST Send transmits the full "U<name>T..."
+     * publish command and every later Send transmits just "U" — the server's empty-U
+     * "ready for another frame" path. put_frame_done keys off this byte being 0 to know
+     * at least one frame was sent (-> finalize) versus none (-> abort). */
+    g_cmd_buf[1] = 0;
+    return 1;
+}
+
+/*
+ * put_frame_done — recon FUN_0010c2de. The courier "Done" action for a text ('T') upload:
+ * close the courier UI, then move to STATE_UPLOAD (8) if at least one frame was sent
+ * (g_cmd_buf[1] cleared by put_frame_xfer), else back to STATE_GOTO (2) with nothing to
+ * finalize. Returning to the directory in state 8 triggers the server's
+ * _complete_content_upload, which stores the collected frames as the page.
+ */
+LONG put_frame_done(void)
+{
+    dir_action_cleanup();
+    g_state = (g_cmd_buf[1] == 0) ? STATE_UPLOAD : STATE_GOTO;
     return 1;
 }

@@ -1460,11 +1460,14 @@ class CompunetSession:
         Content UPLOAD params: title(16) + type(1) + price(8) + lifetime(1)
         Distinguish by: price field contains '.' → upload; otherwise → mail.
         """
-        # Second 'U' (no params) = ready to send a frame, just ACK it
+        # Second 'U' (no params) = ready to send a frame, just ACK it.
+        # Reply '@' (0x40 = clean accept), NOT RESP_ACK (0x41='A'): the Amiga's put_frame_xfer
+        # reads this via serial_io_c, where 'A' means host-error (renders a requester and
+        # counts as failure). C64 keys off the DAT token so the payload byte is irrelevant.
         if len(params) == 0:
             log.info('UPLOAD: frame-ready signal, sending ACK')
             self.last_response_type = RESP_ACK
-            return bytes([RESP_ACK])
+            return bytes([0x40])
 
         if len(params) < 17:
             return self._make_error(ascii_to_petscii('INVALID SEND'))
@@ -2967,7 +2970,7 @@ async def tcp_handler(reader, writer):
                             ps['frames'].append(frame_data)
                             log.info('UPLOAD: program complete (%d bytes = 8 header + %d body)',
                                      len(frame_data), ps['_prog_size'])
-                            ack_data = bytes([RESP_ACK]) + b'\x00' * 10
+                            ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
                             ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
                             await send_pkt_with_ack(ack_pkt)
                             await writer.drain()
@@ -2988,7 +2991,7 @@ async def tcp_handler(reader, writer):
                         session.pending_send['_current_frame'] = bytearray()
                         log.info('UPLOAD: frame %d complete (%d bytes)',
                                  len(session.pending_send['frames']), len(frame_data))
-                        ack_data = bytes([RESP_ACK]) + b'\x00' * 10
+                        ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
                         ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
                         await send_pkt_with_ack(ack_pkt)
                         await writer.drain()
