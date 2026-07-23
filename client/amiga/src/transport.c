@@ -257,4 +257,12 @@ void send_dat_packet(APTR frame)
     UBYTE *f = (UBYTE *)frame;
     ULONG  len = *(ULONG *)(f + 0x12);
     serial_write(f + 0x16, len, 1, TOKEN_DAT);
+    /* The original passes status_hi=1 here — the cnet.device "last packet / end-of-message"
+     * flag that tells the host this frame is complete (the C64 does the same via its
+     * carry-set last byte). The Reborn TCP transport drops status_hi, so convey end-of-frame
+     * the Reborn way: a trailing empty-DAT (EOS). The server's frame accumulator treats a
+     * 0-byte payload as frame-end, so this completes the frame. Scoped to send_dat_packet
+     * (text/mail frames); the program-upload path is header-length driven and unaffected. */
+    if (g_tcp_mode)
+        serial_write(f + 0x16, 0, 1, TOKEN_DAT);
 }

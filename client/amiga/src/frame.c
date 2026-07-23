@@ -505,22 +505,27 @@ void frame_display_done(APTR out, APTR len)
 {
     frame_offscreen_end(g_frame_page);
 
-    if (g_edit_msgport != NULL && g_edit_proc != NULL) {
-        *(APTR *)(g_editor_msg + 0x0e) = g_editor_port;   /* recon 0x117552: reply port */
-        g_editor_msg[0x14] = 4;                           /* recon 0x117558: opcode 4   */
-        *(APTR *)(g_editor_msg + 0x16) = out;             /* recon 0x11755e: frame bytes*/
-        *(APTR *)(g_editor_msg + 0x1a) = len;             /* recon 0x117564: end/length */
-        PutMsg((struct MsgPort *)g_edit_msgport, (struct Message *)g_editor_msg);
-        WaitPort((struct MsgPort *)g_editor_port);
-        GetMsg((struct MsgPort *)g_editor_port);
+    /* Unconditional, per the original (FUN_0011754e): the editor is launched at startup and
+     * always live, so g_edit_msgport/g_edit_proc are always valid here. (The earlier editor-
+     * live guard was a reconstruction divergence.) */
+    *(APTR *)(g_editor_msg + 0x0e) = g_editor_port;   /* recon 0x117552: reply port */
+    g_editor_msg[0x14] = 4;                           /* recon 0x117558: opcode 4   */
+    *(APTR *)(g_editor_msg + 0x16) = out;             /* recon 0x11755e: frame bytes*/
+    *(APTR *)(g_editor_msg + 0x1a) = len;             /* recon 0x117564: end/length */
+    PutMsg((struct MsgPort *)g_edit_msgport, (struct Message *)g_editor_msg);
+    WaitPort((struct MsgPort *)g_editor_port);
+    GetMsg((struct MsgPort *)g_editor_port);
 
-        ObtainSemaphore((struct SignalSemaphore *)((UBYTE *)g_edit_proc + 0x0e));
-        if (g_edit_frame != NULL)
-            *((UBYTE *)g_edit_frame + 0x11) &= (UBYTE)~0x04;   /* recon 0x1175a6 */
-        g_edit_frame = out;                                    /* recon 0x1175ac */
-        *((UBYTE *)g_edit_frame + 0x11) |= 0x04;               /* recon 0x1175b6 */
-        ReleaseSemaphore((struct SignalSemaphore *)((UBYTE *)g_edit_proc + 0x0e));
-    }
+    ObtainSemaphore((struct SignalSemaphore *)((UBYTE *)g_edit_proc + 0x0e));
+    if (g_edit_frame != NULL)
+        *((UBYTE *)g_edit_frame + 0x11) &= (UBYTE)~0x04;   /* recon 0x1175a6 */
+    /* recon 0x1175ac: RE-READ g_editor_msg+0x16 — the editor's opcode-4 handler stores the
+     * frame into its own structured block (len@+0x12, data@+0x16, which send_dat_packet
+     * needs) and writes that block's pointer back here. Using the passed-in raw g_frame_out
+     * instead (as this did) made send_dat_packet read a garbage length and freeze. */
+    g_edit_frame = *(APTR *)(g_editor_msg + 0x16);
+    *((UBYTE *)g_edit_frame + 0x11) |= 0x04;               /* recon 0x1175b6 */
+    ReleaseSemaphore((struct SignalSemaphore *)((UBYTE *)g_edit_proc + 0x0e));
 }
 
 /*

@@ -213,6 +213,8 @@ extern void send_dat_packet(APTR frame);
 extern APTR g_edit_frame;    /* DAT_0011d080 — the frame being published */
 extern void dir_action_cleanup(void);
 
+extern void net_reset_stream(void);   /* net.c — drop buffered RX residue */
+
 LONG put_frame_xfer(void)
 {
     serial_write(g_cmd_buf, strlen(g_cmd_buf), 1, TOKEN_COM);
@@ -221,6 +223,12 @@ LONG put_frame_xfer(void)
         g_state = STATE_GOTO;
         return 0;
     }
+    /* The server answers "U<name>T…" with a multi-byte price-echo validation. serial_io_c
+     * only peeks its first byte and pushes it back (it isn't an ack char), leaving the rest
+     * of that frame plus the pushback in the RX buffer. Since the frame DAT below is not a
+     * COM (no auto-reset), the frame-ack read afterwards would otherwise consume this stale
+     * residue instead of the real ack and desync every following exchange. Discard it now. */
+    net_reset_stream();
     send_dat_packet(g_edit_frame);
     if (serial_io_c(g_ack_text) != ACK_OK) {
         dir_action_cleanup();
@@ -243,9 +251,22 @@ LONG put_frame_xfer(void)
  * finalize. Returning to the directory in state 8 triggers the server's
  * _complete_content_upload, which stores the collected frames as the page.
  */
+extern LONG goto_page(void);   /* FUN_0010a2e2 — request/refresh the directory */
+
 LONG put_frame_done(void)
 {
     dir_action_cleanup();
-    g_state = (g_cmd_buf[1] == 0) ? STATE_UPLOAD : STATE_GOTO;
-    return 1;
+    if (g_cmd_buf[1] != 0) {
+        /* No frame was sent (g_cmd_buf[1] still holds the name's first char) — nothing to
+         * publish; just drop back to the directory state. */
+        g_state = STATE_GOTO;
+        return 1;
+    }
+    /* At least one frame was sent. The original merely sets STATE_UPLOAD (8) and relies on
+     * the user navigating back to the directory to commit the upload server-side. Per the
+     * chosen UX, do that return ourselves so DONE both ends the courier and commits: the
+     * server finalises the pending upload (_complete_content_upload) on this directory
+     * request, and replies with the current directory — now containing the new page.
+     * (Deliberate addition beyond the original, which had no auto-return on DONE.) */
+    return goto_page();
 }
