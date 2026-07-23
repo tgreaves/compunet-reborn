@@ -1957,7 +1957,12 @@ class CompunetSession:
 
         # Part 6: entries (max 11 per page)
         if not visible:
-            data.extend(ascii_to_petscii('      (NO UPLOADS)'))
+            # Full-width first field (27 chars) so the Amiga body-row parser (FUN_00109a5e)
+            # finds a comma for col C instead of running past end-of-stream and spinning
+            # forever (no EOF guard) — matches the DIR/mail empty placeholders (77c84a6). The
+            # C64 reads the title up to a comma and is length-tolerant.
+            first_field = '0'.rjust(6) + ' ' + '(NO UPLOADS)'.ljust(17) + '   '   # 27 chars
+            data.extend(ascii_to_petscii(first_field))
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
