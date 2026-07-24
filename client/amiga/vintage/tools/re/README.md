@@ -1,5 +1,12 @@
 # Compunet Amiga client — reverse-engineering pipeline
 
+> **Reverse-engineering provenance (non-normative).** The analysis notes in this directory
+> record *how* the Amiga client's behaviour was established. They are evidence, not the
+> specification. The normative, authoritative protocol lives in
+> [docs/spec/](../../../../../docs/spec/README.md); these notes are cited from it as
+> provenance. Some sections here are marked superseded in-file — trust the spec over any
+> note that disagrees with it.
+
 Tooling to disassemble/decompile the vintage `Compunet` client
 ([../../decrunched/Compunet](../../decrunched/Compunet)) so it can be understood
 and, ultimately, modified to work with Compunet Reborn.

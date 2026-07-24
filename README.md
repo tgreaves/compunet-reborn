@@ -164,12 +164,21 @@ On first connect, the server sends the terminal via LINKING (~3 seconds). Users 
 
 ### Documentation
 
-- **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — X.25-derived binary protocol specification (incl. terminal linking / CNLOAD)
-- **[docs/TERMINAL.md](docs/TERMINAL.md)** — PETSCII terminal mode architecture
-- **[docs/MODEM.md](docs/MODEM.md)** — Hardware comparison and ACIA driver approach
-- **[docs/ROM-REWRITE.md](docs/ROM-REWRITE.md)** — C64 ROM rewrite rationale and structure
-- **[docs/partyline.md](docs/partyline.md)** — Partyline chat system design
-- **[docs/amiga-client.md](docs/amiga-client.md)** — Analysis of the recovered vintage Amiga Compunet client
+**The specification** — the single source of truth for building a client:
+
+- **[docs/spec/](docs/spec/README.md)** — Compunet Client Specification: a normative,
+  platform-agnostic guide to building a client over TCP (transport, session, commands,
+  PETSCII display, frame & directory formats, subsystems, and appendices with the font,
+  palette, and directory template). Start here.
+
+**Platform notes & provenance** (non-normative — the spec is authoritative):
+
+- **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — original C64 ROM reference and RE provenance (superseded as protocol authority by the spec)
+- **[docs/TERMINAL.md](docs/TERMINAL.md)** — the separate server-rendered PETSCII terminal product (port 6401)
+- **[docs/MODEM.md](docs/MODEM.md)** — C64 hardware layer (ACIA driver)
+- **[docs/ROM-REWRITE.md](docs/ROM-REWRITE.md)** — C64 ROM/PRG build structure
+- **[docs/partyline.md](docs/partyline.md)** — Partyline UX design + C64/Amiga platform mechanics
+- **[docs/amiga-client.md](docs/amiga-client.md)** — recovered Amiga client analysis / reconstruction record
 - **[docs/amiga-modern-ux.md](docs/amiga-modern-ux.md)** — Modern-UX proposal for the Amiga client
 - **[docs/historical/](docs/historical/)** — Retired investigation notes and completed implementation plans
 

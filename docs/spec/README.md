@@ -51,10 +51,12 @@ clients' behaviour.
 
 ## Companion documents (kept beside the spec)
 
-- [AUDIT.md](AUDIT.md) — documentation audit & coverage matrix (Phase 1); retired once
-  writing is complete.
-- [xref.md](xref.md) — implementation cross-reference: spec § → `compunet_server.py`
-  location, so the spec and server can't silently drift apart. *(Created in Phase 3.)*
+- [xref.md](xref.md) — implementation cross-reference: spec § → server location, so the
+  spec and server can't silently drift apart.
+- [VALIDATION.md](VALIDATION.md) — validation record: the cross-checks against both
+  reference clients, the contradictions resolved, and the honest residual gaps.
+- [AUDIT.md](AUDIT.md) — the documentation audit & coverage matrix that scoped this work
+  (Phase 1); kept for provenance.
 
 ## Relationship to other docs
 

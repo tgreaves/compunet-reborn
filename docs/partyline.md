@@ -1,5 +1,10 @@
 # Partyline
 
+> **Protocol content superseded by [docs/spec/§8.5](spec/08-subsystems.md).** The normative
+> Partyline wire protocol (activation, raw line session, teardown) is specified there. This
+> document is retained for the user-experience design and the C64/Amiga platform mechanics
+> (memory map, the resident CnetTty viewer), which remain useful platform notes.
+
 Partyline is Compunet's multi-user chat system.
 
 ## User Experience

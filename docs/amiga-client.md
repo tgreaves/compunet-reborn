@@ -1,5 +1,10 @@
 # Amiga Compunet Client — Analysis
 
+> **Amiga platform note / provenance (non-normative).** This is the analysis and
+> reconstruction record for the native Amiga client. For the protocol a client speaks, see
+> **[docs/spec/](spec/README.md)** — the Amiga client is one of the two reference clients the
+> spec is verified against.
+
 ## Overview
 
 An original **Amiga Compunet client suite** was recovered from a 1989 PD comms
