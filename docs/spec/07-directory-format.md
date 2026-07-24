@@ -23,17 +23,26 @@ as a DAT stream + EOS (§2, §4.2).
 
 ## 7.2 The six-part stream
 
-The response body is six consecutive parts. Each part has its own terminator; a leading
-`$00` means "this part is empty, skip it". The parts are read in order from the stream.
+The response body is six consecutive parts, read in order from the stream. Most parts end at a
+`$00`; where a part is empty, its `$00` follows immediately. **Part 2 is the exception — it has
+no `$00` terminator of its own** (see the boundary note after the table).
 
 | Part | Contents | Terminator / empty rule |
 |---|---|---|
 | **1 — Frame header** | An optional PETSCII header frame (§5–6, no 4-byte frame header — just body bytes) drawn above the list | ends at `$00`. A leading `$00` = no header → the client draws its **built-in template** (§7.5) |
-| **2 — Footer text** | Two `CR`-terminated lines shown near the bottom (breadcrumb / advert) | two lines each ended by `$0D`; a leading `$00` = none |
-| **3 — Field definitions** | Zero or more F-key shortcuts: `id` `=` `value` `$0D`, where `id` is 1–6 | terminated by `$00` |
-| **4 — Path line** | The directory path / breadcrumb line(s) shown above the entries | terminated by `$00` |
+| **2 — Footer text** | The advert / footer, shown near the bottom — **always two** `$0D`-terminated lines (two *empty* `$0D` lines when there is no advert) | **two `$0D`-terminated lines, always.** Part 2 has **no `$00` terminator of its own** — see the note below |
+| **3 — Field definitions** | Zero or more F-key shortcuts: `id` `=` `value` `$0D`, where `id` is 1–6 | terminated by `$00` (this is the first `$00` after the two footer lines) |
+| **4 — Path line(s)** | The directory breadcrumb — **one or two** `$0D`-separated lines shown above the entries, and may carry an inline `$1C MAIL` marker (§8.2) | terminated by `$00` (the `$0D`-separated lines live **inside** this one part) |
 | **5 — Column headers** | The column titles, comma-separated, `CR`-terminated, then a `$00` separator byte | one line ended by `$0D`, then a `$00` |
 | **6 — Entries** | The directory entries, one per line (§7.3) | the stream ends (EOS) after the last entry's `$0D` |
+
+**Part 2 → Part 3 boundary — do not consume a `$00` after the footer (normative).** The footer
+is exactly **two `$0D`-terminated lines** (empty lines if there is no advert); Part 2 does *not*
+emit a `$00`. The very next `$00` in the stream is **Part 3's** terminator (its empty
+field-definitions list). A parser that reads the two footer lines and then also consumes a
+trailing `$00` as "Part 2's terminator" swallows Part 3's terminator and shifts **every later
+part by one byte** — the entries spill into the path line. Read exactly two `$0D` lines for
+Part 2, then let Part 3's loop consume the `$00`.
 
 **The Part-5 column headers are response-specific — read them, do not hard-code them.** The
 top directory sends five: `PRICE`, `AUTHOR`, `VOTE/NUM`, `UPLDDATE`, `LIFE`. But other DIR-type
@@ -70,7 +79,7 @@ The **first field** is a fixed 27-character layout:
 | 0–5 (6) | page number, right-justified, space-padded |
 | 6 (1) | space |
 | 7–23 (17) | title, left-justified, space-padded |
-| 24–26 (3) | type indicator (§7.4), left-justified — so the type begins at **screen column 25** |
+| 24–26 (3) | type indicator (§7.4), left-justified — so the type begins at **screen column 26** |
 
 The five column fields (each ≤ 8 characters) carry the data under the Part-5 headers; any
 of them may be empty (just the comma). `VOTE/NUM` is score, `/`, then vote count; `UPLDDATE`
@@ -96,7 +105,7 @@ Amiga parser and leaves the C64 entry count uninitialised.
 
 ## 7.4 Entry types
 
-The type indicator (first-field chars 24–26, from screen column 25) is **compound**, not a
+The type indicator (first-field chars 24–26, from screen column 26) is **compound**, not a
 single symbol. It is a **base type**, optionally followed by a **size** and/or a
 **sub-directory marker**, in this order:
 
@@ -135,7 +144,7 @@ gated on `+`: a user **MAY** issue DIR on an entry whose type is *not* `D` and h
 which the **server** opens a fresh **empty** sub-directory under it. That directory is *latent*
 — it becomes real only once content is uploaded into it (§8.3.2). This is the mechanism by which
 the directory hierarchy is built: the client issues DIR, the server creates the directory. A
-client **MUST** read the type from screen column 25, dispatch
+client **MUST** read the type from screen column 26, dispatch
 SHOW on the base letter, and allow DIR regardless of base or `+`.
 
 ## 7.5 The built-in directory template
@@ -147,7 +156,7 @@ the fixed visual layout the server never sends. This template is what makes a di
 - the bordered content box and title area (`  1 *** COMPUNET ***`);
 - the **path line** at row 7 (Part 4);
 - the **entry list** below it — up to **11 entries** per page (§7.6), each showing the
-  page number, title, type (at column 25), and one selectable column value;
+  page number, title, type (at column 26), and one selectable column value;
 - the **footer** lines at row 22 (Part 2).
 
 The reference clients hold this template as embedded data: the C64 terminal stores it as a
@@ -193,8 +202,8 @@ right-hand column, and the column-cycle indicator; the parts overlay onto it:
 | Rows | Content | Source |
 |---|---|---|
 | 0–5 | Header region — Part 1 overlaid if present, else the template's own top | Part 1 |
-| 7 | Breadcrumb line 1, aligned with the entry columns (left); **selected column header** e.g. `PRICE` (right column) | Part 4 / Part 5 |
-| 8 | Breadcrumb line 2, e.g. `100 WELCOME`, same alignment (left) | Part 4 |
+| 7 | Breadcrumb line 1, aligned with the entry columns (left) | Part 4 |
+| 8 | Breadcrumb line 2, e.g. `100 WELCOME`, same alignment (left); **selected column header** e.g. `PRICE` (right column, one column in — see below) | Part 4 / Part 5 |
 | 10–20 | The entry list — up to 11 entries, one per row (see below) | Part 6 (+ selected Part 5 column) |
 | 22–23 | Footer / advert — Part 2's two lines, **centred** on their rows | Part 2 |
 
@@ -202,8 +211,9 @@ right-hand column, and the column-cycle indicator; the parts overlay onto it:
 entry columns: the leading **page number is right-justified** in the same left column the entry
 page numbers use, and the title follows. Part 4 already contains the padding spaces
 (`     1 *** COMPUNET ***`, `   100 WELCOME`), so a client renders each Part-4 line from the
-entry list's base column and the alignment falls out (the shorter `1` ends up more indented
-than `100`).
+entry list's **base column (screen column 2, above)** and the alignment falls out (the shorter
+`1` ends up more indented than `100`), and the breadcrumb page numbers line up with the entry
+page numbers directly below.
 
 The **built-in template (§7.5) is always drawn first as the base chrome** — the bordered box,
 column dividers, and the column-cycle indicator. The template intentionally begins with six
@@ -214,13 +224,21 @@ entries, and footer overlay on top as below. A client that draws only the templa
 Part 1 will render every directory without its header graphic.
 
 Within the entry rows, each entry occupies **one** row. A client **MUST NOT** render the whole
-comma-separated Part-6 line — it is wider than 40 columns and would overflow. Each entry row
-shows:
+comma-separated Part-6 line — it is wider than 40 columns and would overflow.
+
+Each entry's 27-character first field (§7.3) is rendered starting at **screen column 2** — one
+column in from the box edge, **not** flush at column 1. So the page-number sub-field occupies
+screen columns 2–7, the title 9–25, and the type 26–28. This one-column indent applies to the
+**whole row together** — page number, title, and type — and matches the base column the Part-4
+breadcrumb is rendered from (below), so the two align. A client that renders the first field
+flush at column 1 places the entire row one character too far left.
+
+Each entry row shows:
 
 1. the **page number** — right-justified in the left page-number column — **only for the
    currently-selected entry**. Non-selected entries leave that column blank and show just the
    title. (So as the selection moves, the page number appears on whichever row is selected.)
-2. the **title**, then the **type** (§7.3), with the type at **screen column 25**;
+2. the **title**, then the **type** (§7.3), with the type at **screen column 26**;
 3. in the **right column** (past the vertical divider), the value of the currently-selected
    Part-5 column (§*The selected column header*, below) for that entry.
 
@@ -253,8 +271,9 @@ authored Compunet look.
 
 The header of the currently-selected column (the Part-5 name — `PRICE`, `AUTHOR`, …) **MUST**
 be displayed so the user can see which column the right-hand values belong to. It sits in the
-**right-hand column, at row 7** (level with breadcrumb line 1, the top of the box), and is
-drawn in blue. A client that shows the column *values* but omits this header leaves them
+**right-hand column, at row 8** (level with breadcrumb line 2, `100 WELCOME`), **indented one
+column** from the divider so it reads as roughly centred in its column rather than flush-left,
+and is drawn in blue. A client that shows the column *values* but omits this header leaves them
 unlabelled.
 
 A client **MUST** reproduce this canonical C64 layout so that content authored for Compunet —

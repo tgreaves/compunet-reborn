@@ -209,7 +209,7 @@ the run-1/2 fixes held. New findings, folded in — protocol:
 Display / UX — the visual client (and a maintainer-supplied C64 reference screenshot) drove a
 precise §7.7 rewrite to the **canonical C64 directory layout**: the breadcrumb aligns with the
 entry columns (Part 4 carries the padding), the page number shows **only for the selected
-entry**, the selected column header sits at row 7 in the right column, the advert is centred,
+entry**, the selected column header sits in the right column, the advert is centred,
 and the selection highlight is an explicitly **client-drawn full-width bar** in the entry's
 colour (red first / blue rest) with white text — the server sends nothing about selection.
 
@@ -243,12 +243,52 @@ The UX findings were all presentation choices the spec deliberately leaves open 
 duckshoot, the highlight modelled as a flag distinct from reverse video, editor form, Partyline
 chrome) — the client made reasonable ones and hit no new display gaps.
 
+## Fifth clean-room run (Tier 3, full)
+
+A fifth isolated agent built a full **Tier 3** client (browse, subsystems, upload, editor,
+Partyline) text-mode then visual, against the live server. Everything worked end-to-end,
+including directory creation via DIR-on-a-plain-entry and a materialising upload. Most findings
+**confirmed** the spec was already correct (program-header-vs-placeholder fallback, structural
+bare-ACK vs stream detection, ACCOUNT as a DAT stream, the native `@` prefix, VOTE/LIFE by
+index, the latent-directory creation model). The genuine gaps folded in:
+
+- **§3.2 (F1)** — the twelve `$20` handshake bytes are written **one at a time, ~100 ms apart**
+  (verified in the server), so a single read catches only a few. Clarified: treat the run as
+  opaque, never gate on the count or expect all twelve in one read.
+- **§7.2 (F3)** — Part 2 (footer) has **no `$00` terminator of its own**: it is always two
+  `$0D`-terminated lines, and the next `$00` belongs to Part 3. Consuming a "Part-2 terminator"
+  shifts every later part by one byte. Added a normative boundary note.
+- **§7.2 (F4)** — Part 4 carries **one or two** `$0D`-separated breadcrumb lines (plus an inline
+  `$1C MAIL` marker) inside its single `$00` part; the table called it a singular "Path line".
+- **§8.3.2 (F8)** — the per-frame `@`-accept is an ordinary DAT and **MUST be ACKed before the
+  finish command**; without the ACK the finish read times out and the upload silently fails.
+- **§8.5 (F6)** — the 8-byte Partyline link header is a no-EOS DAT that **must be ACKed** before
+  the server sends the `01 01 01` preamble; the "hang" is a missing ACK, not a protocol error.
+- **§8.5 (F7)** — on entry the server also pushes an **unprompted who-listing** after the join
+  broadcast; a client renders whatever arrives rather than assuming only the one line.
+- **§4.4/§4.7/§A.7 (F2/F20)** — bare `P` (**FINISH**) returns the **current** directory, not
+  "home"; it reaches the root only right after login (current dir = root). To ascend, use `B`
+  (BACK). The §A.7 trace comment was clarified accordingly.
+
+**Layout corrections (maintainer screenshots).** Two off-by-one placement errors, corrected in
+§7 (this is the run-5 answer to the open geometry finding **F13**):
+
+- Entry rows sat one column too far left: the whole row (page number, title, type) renders from
+  **screen column 2**, so the type lands at **screen column 26** (was 25), and entry page
+  numbers line up with the Part-4 breadcrumb above. Updated §7.3, §7.4, §7.5, §7.7, §4.5.
+- The selected column header (`PRICE`) sat one row too high and flush-left: it belongs at
+  **row 8** (level with `100 WELCOME`), **indented one column** for centring. Updated §7.7.
+
+The remaining run-5 findings (F5, F9–F12, F14–F19) were confirmations or UX choices the spec
+deliberately leaves open.
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across
 transport, session, commands, display, frames, directories, and subsystems, with the
-contradictions above resolved in the server's favour. **Three independent clean-room readers**
-built working clients from this document alone — Tier 1 twice and Tier 2 once, the latter two
-with visual stages that confirmed the display down to the canonical directory layout. Protocol
-findings have shrunk to fine detail and the transport/session core has been clean across every
-run; the remaining work is presentation precision and the optional Tier-3 subsystems.
+contradictions above resolved in the server's favour. **Four independent clean-room readers**
+built working clients from this document alone — Tier 1 twice, Tier 2 once, and now a full
+**Tier 3** build — the visual stages confirming the display down to the canonical directory
+layout (with the run-5 column shift the last placement fix). Protocol findings have shrunk to
+fine detail and the transport/session core has been clean across every run; what the fifth run
+surfaced were byte-boundary and ACK-timing clarifications, not structural gaps.

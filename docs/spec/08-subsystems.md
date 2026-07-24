@@ -161,10 +161,19 @@ any upload (you own/administer the parent, or it is open for uploads; the parent
 within its 11 entries). A client that offers upload **SHOULD** also expose DIR-on-any-entry so
 the user can build the hierarchy; §7.4 covers the entry-type rule that makes this unambiguous.
 
+**ACK the accept DAT before finishing (normative).** The per-frame `@`-accept is an ordinary
+non-empty DAT (`40 00 …`), so the standard rule applies (§2.9): the client **MUST ACK it**
+(echoing its seq) **before** sending the next packet. If the client sends the finishing `P`/`N`
+*without* first ACKing the `@`-accept, the server is still waiting for that ACK and the finish
+read times out — the upload silently fails. The same holds for the validation reply when it is
+a DAT stream. Rule of thumb: on the upload path, ACK every server DAT (the validation reply and
+each `@`-accept) before your next send.
+
 A Tier 3 client that uploads **MUST** honour all of: the mail-vs-content detection (`.` in
 `rest[:8]`), the EOS/no-EOS difference in the validation reply, the `@`-ack (not `A`) per
-frame, the 8-byte big-endian header for programs, and the correct finish command (`N` for
-mail, `P` for content). Any of these wrong desynchronises the session.
+frame, **ACKing each `@`-accept DAT before the finish command**, the 8-byte big-endian header
+for programs, and the correct finish command (`N` for mail, `P` for content). Any of these
+wrong desynchronises the session.
 
 ## 8.4 Editor
 
@@ -203,11 +212,17 @@ it with `D`+index (§7.4).
   client restores the screen and the session returns to the framed protocol.
 - **Native activation.** A native (Amiga-classified) client is served the link differently
   (§3.3 gating): the server sends an **8-byte link header** `01 00 00 01 00 00 00 00` as a
-  single DAT frame **with no EOS**, then switches to the raw stream. The client validates the
-  first long == `0x01000001` and the second == `0`, then a raw preamble handshake runs
-  (server `01 01 01`; client replies `01`×6), the ASCII chat session runs, and teardown is
-  three `$02` bytes from the server (client replies `$02`×6) after which the framed protocol
-  resumes.
+  single DAT frame **with no EOS**. The client validates the first long == `0x01000001` and the
+  second == `0`, then **MUST ACK that DAT** (§2.9, echoing its seq) — the server sends nothing
+  further until it does. Only *after* the ACK does the server switch to the raw stream and send
+  the preamble. Then a raw preamble handshake runs (server `01 01 01`; client replies `01`×6),
+  the ASCII chat session runs, and teardown is three `$02` bytes from the server (client replies
+  `$02`×6) after which the framed protocol resumes.
+
+  > **Why the header seems to "hang".** Because the 8-byte header arrives with no EOS, it is a
+  > single DAT that still expects its ACK like any other. A client that reads the 8 bytes and
+  > waits for `01 01 01` **without ACKing first** will wait forever — the missing ACK, not a
+  > protocol error, is why the preamble never comes.
 
 **The chat session.** Once in the raw session:
 
@@ -224,7 +239,11 @@ it with `D`+index (§7.4).
   ```
   where `{name}` is the sender's alias, or their Compunet user ID if no alias is set; a
   message may span multiple lines. On entry the server broadcasts `{USER} has entered
-  partyline`.
+  partyline` **and then, unprompted, pushes an initial who-style listing** of who is present
+  (e.g. `Users in partyline:-` followed by one line per user, `{ID} ({alias}) {room}`). A
+  client **MUST** simply render whatever lines the server pushes after activation as the opening
+  scrollback — do **not** assume only the single join broadcast arrives, and do not send `*who`
+  yourself to get it.
 - **Scrollback** is by the cursor up/down keys.
 
 **Rooms.** Every user is always *in a room*, and **messages are seen only by others in the

@@ -162,7 +162,7 @@ paging from the **actual response** (a frame vs. an ACK/directory), not from the
 it is viewing a directory or a frame, and whether it is sending an index, knows the parser
 before the bytes arrive. For `D`+index (SHOW/BUY) it **MUST** use the selected entry's base
 type to pick between frame / download / link — that type is not delivered separately; the
-client reads it from characters 24–26 of the entry's first field (screen column 25, §7.3/§7.4),
+client reads it from characters 24–26 of the entry's first field (screen column 26, §7.3/§7.4),
 so it **MUST** retain each listed entry's type when it parses a directory. Everything else is
 determined by the command byte alone. The ERROR type (§4.3) is delivered as a frame and can be
 rendered by the frame parser, so a client **MAY** treat an unexpected frame where it expected a
@@ -268,3 +268,10 @@ this table standardises the *names*, not the interface.)
 > displayed; MORE / FINISH apply *only* while a **frame** is displayed (there is no "finish" in
 > a directory). Selection is client-local (§4.5): the client sends the highlighted entry's index
 > with `D`/`P`; `FINISH` and `MORE` carry no index because there is no selection while reading.
+>
+> **FINISH returns the *current* directory, not "home".** `P` no-arg drops out of the frame
+> back to the directory you were in when you opened it — which, right after login, is the root
+> (so a bare `P` on the welcome frame reaches the top directory). It is **not** a jump-to-root:
+> issued from within a sub-directory it returns *that* directory. To move **up** the hierarchy,
+> use `B` (BACK), which returns the parent; repeated `B` ascends to the root. (`GOTO`/`L` jumps
+> to a page by keyword/number, but does not "go home" either.)

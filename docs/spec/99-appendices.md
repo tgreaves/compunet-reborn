@@ -628,7 +628,7 @@ implementer follows; every step is specified in the section cited.
 ←  $01 05 22 <seq> <crc> $02                   zero-length DAT = EOS          (§2.9)
                                                 (not ACKed — welcome complete)
 
-→  $01 <len> 43 <seq> 50 <crc> $02             COM 'P' — show top directory   (§4, §7)
+→  $01 <len> 43 <seq> 50 <crc> $02             COM 'P' (FINISH) — leave welcome frame → current dir (= root here)  (§4, §7)
 ←  $01 <len> 22 <seq> 8E 0D 0D … <crc> $02     DAT: 6-part directory (§7)
 →  $01 06 20 20 <seq> <crc> $02                ACK
 ←  $01 05 22 <seq> <crc> $02                   EOS (directory complete)
@@ -651,3 +651,7 @@ Notes:
 - Every non-empty DAT is ACKed; the zero-length EOS DAT is not (§2.9).
 - A ROM/C64 client differs only in the identification (hash-gated, §3.3) and in receiving a
   LINKING stream after the welcome frame (§3.6); the command loop is identical.
+- Bare `P` here reaches the root because it is **FINISH** returning the *current* directory,
+  and immediately after login the current directory **is** the root. Bare `P` is **not** a
+  "go home" command: issued from inside a sub-directory it returns *that* directory, not the
+  root. To ascend, use `B` (BACK) — repeated `B` walks up to the root (§4.4).
