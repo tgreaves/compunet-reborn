@@ -54,7 +54,29 @@ try:
 except ImportError:
     aiohttp_web = None
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
+class _DropWSHandshakeTraceback(logging.Filter):
+    """The websockets library rejects non-WebSocket connections (port scanners, health
+    checks, plain HTTP hitting the WS port) correctly with '426 Upgrade Required' — but it
+    also logs the rejection a second time as an ERROR with a full traceback. That is pure
+    noise on a public server. Drop just that record; the concise 'connection rejected
+    (426 ...)' INFO line the library already emits is kept, and genuine errors still show."""
+    def filter(self, record):
+        if record.getMessage() == 'opening handshake failed' and record.exc_info:
+            try:
+                from websockets.exceptions import InvalidHandshake
+                if isinstance(record.exc_info[1], InvalidHandshake):
+                    return False
+            except Exception:
+                pass
+        return True
+
+# Log level is env-configurable (LOG_LEVEL); default INFO for production. DEBUG is very
+# verbose (it includes the websockets library's wire-level tracing). Set LOG_LEVEL=DEBUG
+# in the environment to restore full debug output.
+_LOG_LEVEL = getattr(logging, os.environ.get('LOG_LEVEL', 'INFO').upper(), logging.INFO)
+logging.basicConfig(level=_LOG_LEVEL, format='%(asctime)s %(levelname)s %(message)s')
+for _h in logging.getLogger().handlers:
+    _h.addFilter(_DropWSHandshakeTraceback())
 log = logging.getLogger('compunet')
 
 # Load .env file if present (allows restart without rebuild)
