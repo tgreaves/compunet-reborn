@@ -85,7 +85,7 @@
 | §8.3.1 | Program download header; `$40`/`$41` tokens | `compunet_server.py` `_send_current_frame` (type `P`); `token == 0x40`/`0x41` branches |
 | §8.3.2 | Upload / mail-send; validation stream | `compunet_server.py` `_cmd_upload`, `_cmd_upload_content`, `_cmd_mail_send` |
 | §8.5 | Partyline; link entry; raw session | `compunet_server.py` `_cmd_dir` (type `L`, `is_amiga` branch); `server/partyline.py` `handle_session`/`handle_amiga_session` |
-| §8.6 | UCAT / VOTE / BUY | `compunet_server.py` `_cmd_ucat`, `_cmd_vote`, `_cmd_buy` |
+| §8.6 | UCAT / VOTE / LIFE | `compunet_server.py` `_cmd_ucat`, `_cmd_vote`, `_cmd_buy` (the `X` handler is misnamed `_cmd_buy` but implements LIFE/EXTEND) |
 
 ## §A — Appendices (data provenance)
 

@@ -190,7 +190,9 @@ the run-1/2 fixes held. New findings, folded in — protocol:
 - **§6.1** — a frame may have **no `$00`** and end only at EOS (the welcome frame does);
   the "`$00` and EOS coincide" claim was false.
 - **§4.4 / §8.6** — **VOTE (`V`) and LIFE (`X`) are distinct commands**; the spec had
-  conflated LIFE into `V`. `X` is context-dependent (buy / extend-life / activate).
+  conflated LIFE into `V`. `X` is the **LIFE** command (extend an entry's life, by index +
+  amount); it is **not** BUY — "buying" (download/activate/pay) is the `D`+index select flow,
+  not a separate command. Both `V` and `X` target the highlighted entry **by index**.
 - **§8.7** — mail *send* was filed under Tier 3, contradicting §1.4/§8.2 (Tier 2); reconciled.
 - **§8.3.1** — the `$40`/`$41` proceed/abort packet bytes were never shown; added. (Also noted
   that dev-server programs may return a placeholder frame instead of the 8-byte header.)
