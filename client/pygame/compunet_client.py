@@ -487,36 +487,49 @@ def main():
     t, welcome = connect_and_login(host, int(port), user, password)
 
     pygame.init()
-    surf = pygame.display.set_mode((40 * CELL * SCALE, 24 * CELL * SCALE))
+    SCREEN_W, SCREEN_H = 40 * CELL * SCALE, 24 * CELL * SCALE
+    BTN_COLS, BTN_H, BTN_PAD = 5, 34, 4
+    BAR_H = 2 * (BTN_H + BTN_PAD) + BTN_PAD
+    surf = pygame.display.set_mode((SCREEN_W, SCREEN_H + BAR_H))
     pygame.display.set_caption('Compunet Reborn — pygame test client (Tier 1)')
+    btn_font = pygame.font.SysFont(None, 22)
     fonts = (font_upper, font_lower)
     screen = Screen()
-
-    # show welcome frame
-    render_frame_bytes(screen, welcome, start=0)
-    draw_screen(surf, screen, fonts, palette); pygame.display.flip()
+    screen_surf = pygame.Surface((SCREEN_W, SCREEN_H))  # cached Compunet display
 
     # §4.6: a client MUST let the user invoke the commands of its tier. This
-    # Tier-1 client maps each to a key (the spec leaves the interface to us).
-    HELP = ("Commands:  P dir  B back  M mail  C ucat  A account  "
-            "SPACE more\n           digits+ENTER select   digits+G goto   "
-            "UP/DOWN move   ENTER open selected   ESC leave")
-    print('\n' + HELP + '\n')
+    # Tier-1 client offers both on-screen buttons and keyboard shortcuts (the
+    # spec leaves the interface to the client).
+    print('\nClick a button, or use keys: P dir  B back  M mail  C ucat  A account  '
+          'SPACE more\nUP/DOWN move  ENTER open  digits+G goto  ESC leave\n')
 
     dir_parts = None                                   # last directory (for entry types + selection)
     selected = 0
     typed = ''
+    hover = -1
+    running = True
+    buttons = []                                       # filled below: (rect, label, callback)
 
-    def draw():
-        draw_screen(surf, screen, fonts, palette); pygame.display.flip()
+    def present():
+        surf.blit(screen_surf, (0, 0))
+        surf.fill((28, 28, 34), (0, SCREEN_H, SCREEN_W, BAR_H))
+        for i, (rect, label, _cb) in enumerate(buttons):
+            pygame.draw.rect(surf, (72, 72, 90) if i == hover else (50, 50, 62), rect)
+            pygame.draw.rect(surf, (120, 120, 145), rect, 1)
+            txt = btn_font.render(label, True, (235, 235, 235))
+            surf.blit(txt, (rect.centerx - txt.get_width() // 2,
+                            rect.centery - txt.get_height() // 2))
+        pygame.display.flip()
 
     def render_dir(data):
         nonlocal dir_parts, selected
         dir_parts = parse_directory(data); selected = 0
-        render_directory(screen, template, dir_parts, selected=selected); draw()
+        render_directory(screen, template, dir_parts, selected=selected)
+        draw_screen(screen_surf, screen, fonts, palette); present()
 
     def render_frame(data):
-        screen.reset(); render_frame_bytes(screen, data, start=0); draw()
+        screen.reset(); render_frame_bytes(screen, data, start=0)
+        draw_screen(screen_surf, screen, fonts, palette); present()
 
     def cmd_dir(payload):                              # §4.5: reply parsed as directory
         try:
@@ -541,39 +554,89 @@ def main():
         if typ[:1] in ('P', 'S', 'L'):
             print(f'[tier1] entry {idx} type {typ!r} is a download/link — Tier 1 skips it')
             return
-        t.send_com(b'D' + str(idx).encode())
-        data = t.read_dat_stream()
-        render_dir(data) if typ[:1] == 'D' else render_frame(data)
+        try:
+            t.send_com(b'D' + str(idx).encode())
+            data = t.read_dat_stream()
+            render_dir(data) if typ[:1] == 'D' else render_frame(data)
+        except (TimeoutError, socket.timeout):
+            print('[warn] no response to select')
 
-    CMDS_DIR = {pygame.K_p: b'P', pygame.K_b: b'B', pygame.K_m: b'M',
-                pygame.K_c: b'C'}                      # §4.6 dir commands (I omitted: needs user-ID params)
-    CMDS_FRAME = {pygame.K_a: b'A'}                     # account
+    def move(delta):
+        nonlocal selected
+        if not dir_parts or not dir_parts['entries']:
+            return
+        selected = max(0, min(len(dir_parts['entries']) - 1, selected + delta))
+        render_directory(screen, template, dir_parts, selected=selected)
+        draw_screen(screen_surf, screen, fonts, palette); present()
 
-    running = True
+    def do_more():
+        try:
+            t.send_com(b'D'); render_frame(t.read_dat_stream())
+        except (TimeoutError, socket.timeout):
+            pass
+
+    def do_leave():
+        nonlocal running
+        try: t.send_com(b'E')                          # §4.4 LEAVE
+        except Exception: pass
+        running = False
+
+    # Build the button bar (§4.6 — the user-facing way to invoke commands).
+    BTN_DEFS = [
+        ('DIR',     lambda: cmd_dir(b'P')),
+        ('BACK',    lambda: cmd_dir(b'B')),
+        ('UP',      lambda: move(-1)),
+        ('DOWN',    lambda: move(1)),
+        ('OPEN',    lambda: select_entry(selected)),
+        ('MORE',    do_more),
+        ('MAIL',    lambda: cmd_dir(b'M')),
+        ('UCAT',    lambda: cmd_dir(b'C')),
+        ('ACCOUNT', lambda: cmd_frame(b'A')),
+        ('LEAVE',   do_leave),
+    ]
+    bw = SCREEN_W // BTN_COLS
+    for i, (label, cb) in enumerate(BTN_DEFS):
+        r, c = divmod(i, BTN_COLS)
+        rect = pygame.Rect(c * bw + BTN_PAD, SCREEN_H + BTN_PAD + r * (BTN_H + BTN_PAD),
+                           bw - 2 * BTN_PAD, BTN_H)
+        buttons.append((rect, label, cb))
+
+    # initial welcome frame
+    render_frame_bytes(screen, welcome, start=0)
+    draw_screen(screen_surf, screen, fonts, palette); present()
+
+    CMDS_DIR = {pygame.K_p: b'P', pygame.K_b: b'B', pygame.K_m: b'M', pygame.K_c: b'C'}
+    CMDS_FRAME = {pygame.K_a: b'A'}
+
     while running:
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 running = False
+            elif ev.type == pygame.MOUSEMOTION:
+                h = next((i for i, (rect, _l, _c) in enumerate(buttons)
+                          if rect.collidepoint(ev.pos)), -1)
+                if h != hover:
+                    hover = h; present()
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                for rect, _label, cb in buttons:
+                    if rect.collidepoint(ev.pos):
+                        cb(); break
             elif ev.type == pygame.KEYDOWN:
                 k = ev.key
                 if k == pygame.K_ESCAPE:
-                    try: t.send_com(b'E')              # §4.4 LEAVE
-                    except Exception: pass
-                    running = False
+                    do_leave()
                 elif k in CMDS_DIR:
                     cmd_dir(CMDS_DIR[k])
                 elif k in CMDS_FRAME:
                     cmd_frame(CMDS_FRAME[k])
-                elif k == pygame.K_SPACE:              # §4.4 MORE (next frame)
-                    t.send_com(b'D'); render_frame(t.read_dat_stream())
-                elif k == pygame.K_g and typed:       # §4.4/§4.5 GOTO (always a directory)
+                elif k == pygame.K_SPACE:
+                    do_more()
+                elif k == pygame.K_g and typed:
                     cmd_dir(b'L' + typed.encode()); typed = ''
-                elif k == pygame.K_UP and dir_parts:
-                    selected = max(0, selected - 1)
-                    render_directory(screen, template, dir_parts, selected=selected); draw()
-                elif k == pygame.K_DOWN and dir_parts:
-                    selected = min(len(dir_parts['entries']) - 1, selected + 1)
-                    render_directory(screen, template, dir_parts, selected=selected); draw()
+                elif k == pygame.K_UP:
+                    move(-1)
+                elif k == pygame.K_DOWN:
+                    move(1)
                 elif ev.unicode.isdigit():
                     typed += ev.unicode
                 elif k in (pygame.K_RETURN, pygame.K_KP_ENTER):
