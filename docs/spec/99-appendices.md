@@ -18,10 +18,10 @@ argument]` (§4). "Typical reply" is indicative; some commands vary by context.
 | `Z` | `$5A` | LOGIN | credentials | Login packet (first command only, §3.5) | FRAME | 1 |
 | `D` | `$44` | DIR / next | entry index | Select entry / next frame / page directory | DIR or FRAME | 1 |
 | `P` | `$50` | SHOW / finish | page | Show current directory; FINISH from frame view | FRAME or DIR | 1 |
-| `N` | `$4E` | MORE | — | Next frame / upload continuation | FRAME | 1 |
+| `N` | `$4E` | MORE | — | Next frame; bare ACK `$41` past the last frame (§4.5) | FRAME/ACK | 1 |
 | `B` | `$42` | BACK | — | Parent directory | DIR | 1 |
 | `L` | `$4C` | GOTO | keyword/page | Jump to a page by number or keyword | DIR | 1 |
-| `A` | `$41` | ACCOUNT | — | Account / personal-information frame | FRAME | 1 |
+| `A` | `$41` | ACCOUNT | — | Credit balance as a fixed 10-byte ASCII string (§4.4) — not a frame | 10-byte text | 1 |
 | `I` | `$49` | ID lookup | 8-byte user IDs | Look up user IDs → name pairs (`id`+name+`$1E`); no arg = no response | lookup | 2 |
 | `C` | `$43` | UCAT | — | User catalogue | DIR | 2 |
 | `M` | `$4D` | MAIL | — | Enter Courier (mailbox directory) | DIR | 2 |

@@ -62,8 +62,9 @@ set (§5). For each byte `b` read from the body:
 1. `b == $00` → **stop**: the frame is complete.
 2. `b == $06` → **space run**: read the next byte `N`; emit a space (`$20`) into `1 + N`
    successive cells (§6.4).
-3. `b == $07` → **character run**: read the next two bytes `c`, `N`; emit character `c` into
-   `1 + N` successive cells (§6.4).
+3. `b == $07` → **run**: read the next two bytes `c`, `N`; process `c` `1 + N` times exactly
+   as steps 4/5 would process it — i.e. if `c` is a control code repeat its action, otherwise
+   draw its glyph (§6.4).
 4. `b` in `$00`–`$1F` or `$80`–`$9F` → **control code**: act on it (§5.6) — set colour,
    move/home the cursor, clear, toggle reverse, or switch character set — and emit nothing.
 5. otherwise → **character**: convert `b` to a screen code (§5.3), draw the active set's
@@ -94,19 +95,37 @@ characters:
 | Escape | Bytes | Expansion |
 |---|---|---|
 | space run | `$06 N` | space (`$20`) repeated `1 + N` times |
-| character run | `$07 c N` | character `c` repeated `1 + N` times |
+| character run | `$07 c N` | the byte `c`, processed `1 + N` times |
 
 Example: `$06 $03` → four spaces; `$07 $2A $04` → `*****` (five asterisks). A client
 **MUST** decode both escapes with the `1 + N` semantics; an off-by-one corrupts every
 compressed run. `$06` and `$07` never appear as literal content — they are always RLE
 escapes.
 
+**The run byte `c` is processed exactly as it would be outside a run** (§6.3): if `c` is a
+printable character it is drawn `1 + N` times; **if `c` is a control code** (§5.6, ranges
+`$00`–`$1F` / `$80`–`$9F`) the **control action is performed `1 + N` times**, not drawn as a
+glyph. For example the built-in directory template opens with `$07 $0D $05` — a run of the
+`CR` control — which advances the cursor down **six rows** (a six-row top margin), *not* six
+copies of the `$0D` glyph. A client **MUST** repeat the control action, not the glyph, when a
+run's byte is a control code.
+
 ## 6.5 Multi-page frames
 
-A logical page may span several frames. If a frame's **flags bit 7 is set**, more pages
-follow: the client indicates "more" to the user (the original clients show a MORE / FINISH
-choice) and requests the next frame with the `D` (no argument) or `N` command (§4). When a
-frame arrives with **flags bit 7 clear**, it is the last page.
+A logical page may span several frames. If a frame's **flags bit 7 is set**, more content is
+associated with the item: the client indicates "more" to the user (the original clients show
+a MORE / FINISH choice) and requests the next frame with the `D` (no argument) or `N` command
+(§4). When a frame arrives with **flags bit 7 clear**, it is the last page.
+
+**Bit 7 is a hint, not a guarantee (important).** A set bit 7 does **not** promise that a
+`MORE` request will return another frame. In particular, a `+`-modified directory entry
+(§7.4) — e.g. a `T+` splash page — arrives with bit 7 set even though it has no further
+*frames*: its extra content is a **sub-directory**, reached by navigating into the entry
+(§7.4) or via `GOTO` (§4.4), not by paging. So a `MORE` on it returns an end marker
+immediately: `N` → a bare `$41` ACK, `D` (no arg) → the directory (§4.5). A client therefore
+**MUST** drive paging from the **actual response** (another frame vs. an ACK / a directory),
+not from bit 7 alone, and **SHOULD** page with `D` (no argument) so it lands back in the
+directory cleanly at the end.
 
 A client at Tier 1 **MUST** support paging through a multi-frame page and **MUST** request
 subsequent frames rather than assuming a page is a single frame.

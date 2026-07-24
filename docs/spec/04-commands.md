@@ -17,12 +17,14 @@ A command is sent as a **COM (`$43`) packet** (§2) whose payload is:
 | Payload offset | Field | Description |
 |---|---|---|
 | 0 | command byte | A single ASCII letter (see §4.4) |
-| 1… | argument | Optional. **ASCII decimal digits**, zero or more |
+| 1… | argument | Optional. Plain ASCII text, zero or more bytes |
 
-The argument, when present, is plain ASCII text parsed as a decimal number — e.g. the
-"show page 7" command is the three bytes `P 0 7` (`$50 $30 $37`), and "select directory
-entry 3" is `D 0 3`. A command with no argument is just the single command byte. A client
-**MUST** encode arguments as ASCII digits, not as binary integers.
+The argument, when present, is plain ASCII text. For the **numeric** commands it is a
+**decimal number written as ASCII digits** (not a binary integer) — e.g. "show page 7" is the
+three bytes `P 0 7` (`$50 $30 $37`), and "select directory entry 3" is `D 0 3`. One command
+takes **text, not digits**: `GOTO` (`L`, §4.4) accepts either a page number *or* a keyword
+(e.g. `L JUNGLE`), matched **case-insensitively**; a client **MUST** send the keyword as raw
+ASCII, un-padded. A command with no argument is just the single command byte.
 
 The login packet (§3.5) is the special first command `Z`; all subsequent commands use the
 table in §4.4.
@@ -88,10 +90,10 @@ whether a frame is currently being viewed).
 |---|---|---|---|---|---|
 | `D` | `$44` | DIR / next | entry index (2 digits) | Select a directory entry: enter a sub-directory, show an entry's first frame, or — with no arg while viewing — advance to the next frame; past the last entry, page the directory | DIR or FRAME |
 | `P` | `$50` | SHOW / finish | page (digits) | Show the current page's directory; also used by FINISH to leave frame view and return to the directory | FRAME or DIR |
-| `N` | `$4E` | MORE | — | Advance / continue: next frame, or the continuation step in an upload (§8) | FRAME |
+| `N` | `$4E` | MORE | — | Advance to the next frame of the item being read (or the continuation step in an upload, §8). At the last frame it returns a bare **ACK** (`$41`), **not** the directory — see §4.5 | FRAME / ACK |
 | `B` | `$42` | BACK | — | Go to the parent directory | DIR |
 | `L` | `$4C` | GOTO | keyword/page | Jump directly to a page by keyword or number | DIR or FRAME |
-| `A` | `$41` | ACCOUNT | — | Show the account/personal-information frame | FRAME |
+| `A` | `$41` | ACCOUNT | — | Returns the account **credit balance** as a fixed **10-byte ASCII** string (e.g. `999.00␣␣␣␣`), left-justified and space-padded; a leading `-` marks a debit. **Not** a §6 frame — the client formats it (e.g. "YOU ARE {value} IN CREDIT/DEBIT") | 10-byte text |
 | `I` | `$49` | ID lookup | one or more 8-byte user IDs | Look up user IDs; returns per-ID `id` + real name (if known) + `$1E`. With no argument it returns **nothing** (see note). Not "who is online" — that is a content page, not this command | lookup stream |
 | `C` | `$43` | UCAT | — | User catalogue | DIR |
 | `M` | `$4D` | MAIL | — | Enter mail (Courier); see §8.2 | DIR |
@@ -132,12 +134,22 @@ the client. The rule:
 | Command issued | Current mode | Expect | Parse as |
 |---|---|---|---|
 | `P` (show current dir), `B` (back), `M` (mail), `C` (ucat), `L` (goto) | any | directory | 6-part directory (§7) |
-| `A` (account), `E` (leave) | any | frame | frame (§6) |
+| `E` (leave) | any | frame | frame (§6) |
+| `A` (account) | any | 10-byte text | fixed 10-byte credit string (§4.4) — not a frame |
 | `I` (ID lookup) | any | lookup stream | `id`+name+`$1E` per requested ID (§4.4) — not a 6-part directory |
-| `N` (more) | viewing a frame | frame | frame (§6) |
+| `N` (more) | viewing a frame | frame **or** bare ACK | next frame (§6); at the last frame, a bare ACK `$41` (single packet, no EOS) — **not** the directory |
+| `D` (no argument) | viewing a frame | frame **or** directory | next frame (§6); past the last frame, the 6-part directory (§7) |
 | `V`, `X`, `U` | any | acknowledgement | bare ACK (single packet, no EOS) |
-| `D` (select) with index | in a directory | depends on the **selected entry's type** (§7.4): `T`→frame; `D`/`+`→directory; `P`/`PP`/`S`→download (§8.3.1); `L`→link (§8.5) | per entry type |
-| `D` (no argument) | viewing a frame | next frame, or — past the last frame — return to the directory | frame, else directory |
+| `D` (select) with index | in a directory | depends on the selected entry's **base type** (§7.4): `T`→frame; `D`→directory; `P`/`PP`/`S`→download (§8.3.1); `L`→link (§8.5). The `+` modifier does **not** change this — a `T+` shows a frame | per base type |
+
+**Paging a multi-frame item: prefer `D` (no argument) over `N`.** Both advance to the next
+frame, but they differ at the end: `D` (no arg) returns to the directory after the last
+frame, whereas `N` returns a bare `$41` ACK and leaves the client sitting on the last page.
+A browse client **SHOULD** page with `D` (no arg). And crucially, a client **MUST NOT** infer
+"more frames are coming" from a frame's bit-7 flag alone (§6.5): a `+`-modified entry's splash
+frame sets bit 7 yet has no further frames (its extra content is a sub-directory, reached by
+navigation, not paging), so `N`/`D` on it return an ACK / the directory immediately. Drive
+paging from the **actual response** (a frame vs. an ACK/directory), not from the flag.
 
 So the two context-sensitive commands are `D` and `P`: a client **MUST** track whether it is
 viewing a directory or a frame, and for `D`-with-index **MUST** use the selected entry's type

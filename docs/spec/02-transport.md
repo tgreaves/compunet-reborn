@@ -193,8 +193,13 @@ never overrun regardless of link speed:
 
 1. The server sends a `DAT` (`$22`) packet with sequence `seq`.
 2. The client receives it, de-stuffs it, and validates length and CRC.
-3. The client sends an **ACK** (`$20`) packet echoing `seq` (§2.7).
+3. The client sends an **ACK** (`$20`) packet echoing `seq`.
 4. The server, on receiving the ACK, sends the next packet.
+
+The ACK packet has a **fixed 6-byte content**: `length = $06`, `token = $20` (ACK), a fixed
+byte `$20`, the `seq` being acknowledged, then the two CRC bytes (framed and byte-stuffed like
+any packet, §2.2–2.4). In other words its payload is the two bytes `$20 seq`. The worked
+bytes are in §2.7.
 
 Rules a conforming client **MUST** follow:
 

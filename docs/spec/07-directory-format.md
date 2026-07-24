@@ -79,21 +79,40 @@ Amiga parser and leaves the C64 entry count uninitialised.
 
 ## 7.4 Entry types
 
-The type indicator (first-field chars 24–26, from screen column 25) tells the client how an
-entry behaves when selected:
+The type indicator (first-field chars 24–26, from screen column 25) is **compound**, not a
+single symbol. It is a **base type**, optionally followed by a **size** and/or a
+**sub-directory marker**, in this order:
 
-| Type | Meaning | Selecting it |
+```
+<base> [<size>] [+]
+```
+
+- **base** — one of `T`, `D`, `P`, `PP`, `S`, `L` (note `PP` is two letters). This letter
+  determines what happens when the entry is selected (below).
+- **size** — optional decimal digits: for programs the size in K, for text pages the page
+  count. Informational only.
+- **`+`** — optional marker meaning the entry **also has a sub-directory** beneath it.
+
+Real examples seen on the wire: `T+`, `D+`, `T2`, `P18`, `P5`, `T2+` (= text, 2 pages, has a
+sub-directory). A client **MUST** parse the type as this grammar and dispatch on the **base**
+letter alone:
+
+| Base | Meaning | Selecting it |
 |---|---|---|
 | `T` | Text page(s) | show the frame(s) (§6) |
 | `D` | Directory (no content of its own) | enter it (new directory response) |
-| `+` | Has a sub-directory beneath it | enter it |
 | `P` | Program / telesoftware | download (§8.3) |
 | `PP` | Protected program | download; original required the modem as a dongle |
 | `S` | Sequential file (word-processor format) | download / view |
 | `L` | Link | activate the link subsystem (§8.5 — Partyline on the modern server) |
 
-A number after the letter indicates size (K for programs, page count for text). A client
-**MUST** read the type from screen column 25 and dispatch selection accordingly.
+The `+` marker is **independent of the base** and does **not** change the select action: a
+`T+` entry, when selected, shows its text frame(s) exactly like a bare `T` — it does **not**
+enter the sub-directory. The `+` sub-directory is a *separate* listing reached by navigating
+into the entry (a later `D` while viewing it) or by `GOTO` (§4.4) to the entry's keyword or
+number, not by paging its frames (§6.5). A client **MUST** read the type from screen column
+25 and dispatch on the base letter; it **MUST NOT** treat `+` as a directory-vs-frame
+selector.
 
 ## 7.5 The built-in directory template
 
@@ -123,8 +142,12 @@ frame — this is how special pages get custom graphics above the list.)*
 A directory shows at most **11 entries** at a time. If more entries exist, the client pages
 through them:
 
-- The server tracks a page offset and returns the next 11 entries when the client requests
-  more (selecting past the last visible entry advances the offset by 11; §4.4 `D`).
+- Entry indices in `D` are **0-based relative to the current response** (not absolute across
+  pages). To page forward, a client sends `D` + the index **one past the last visible entry**
+  — i.e. the count of entries in the current listing (if 11 are shown, send `D 11`). The
+  server advances its offset by 11 and returns the next page.
+- If there is no next page, the server returns a directory whose only entry is the `(EMPTY)`
+  placeholder (§7.3), which a client can treat as "no more entries".
 - A client **MUST** support paging and **MUST NOT** assume a directory fits in one response.
 
 *(Non-normative: the modern server reloads its content tree on each directory request, so
@@ -143,7 +166,7 @@ client reproduces the layout by placing each part at the row below:
 | 0–5 | Header region — overlaid with Part 1 if present, else left as the template drew it | Part 1 |
 | 7 | Path / breadcrumb line (from column 1); page-number column at column 31 | Part 4 |
 | 10–20 | The entry list — up to 11 entries, one per row, starting at column 1 | Part 6 (+ selected Part 5 column) |
-| 22 | Footer / advert line | Part 2 |
+| 22–23 | Footer / advert — Part 2's two `$0D`-terminated lines: first line row 22, second row 23 | Part 2 |
 
 The **built-in template (§7.5) is always drawn first as the base chrome** — the bordered box,
 column dividers, and the column-cycle indicator. The template intentionally begins with six
