@@ -16,9 +16,10 @@ does not transmit. A Tier 1 client **MUST** implement this section.
 
 ## 7.1 When a directory response is produced
 
-A directory response (type **DIR**, §4.3) is the reply to `P` (show current directory), and
-to `D` / `B` / `L` / `M` / `I` / `C` when they land on a directory rather than a frame
-(§4.4). It is delivered as a DAT stream + EOS (§2, §4.2).
+A directory response (type **DIR**, §4.3) is the reply to **DIR** (`P`+index, enter an entry as
+a directory), **FINISH** (`P` no-arg, return from a frame), `B` (back), `L` (GOTO), `M` (mail),
+`C` (UCAT), and to `D` no-arg (MORE) once it pages past the last frame (§4.4). It is delivered
+as a DAT stream + EOS (§2, §4.2).
 
 ## 7.2 The six-part stream
 
@@ -113,22 +114,29 @@ Real examples seen on the wire: `T+`, `D+`, `T2`, `P18`, `P5`, `T2+` (= text, 2 
 sub-directory). A client **MUST** parse the type as this grammar and dispatch on the **base**
 letter alone:
 
-| Base | Meaning | Selecting it |
+| Base | Meaning | SHOW action (`D`+index) |
 |---|---|---|
 | `T` | Text page(s) | show the frame(s) (§6) |
-| `D` | Directory (no content of its own) | enter it (new directory response) |
+| `D` | Directory (no content of its own) | nothing to show — this entry is entered with DIR (`P`+index), not SHOW |
 | `P` | Program / telesoftware | download (§8.3) |
 | `PP` | Protected program | download; original required the modem as a dongle |
 | `S` | Sequential file (word-processor format) | download / view |
 | `L` | Link | activate the link subsystem (§8.5 — Partyline on the modern server) |
 
-The `+` marker is **independent of the base** and does **not** change the select action: a
-`T+` entry, when selected, shows its text frame(s) exactly like a bare `T` — it does **not**
-enter the sub-directory. The `+` sub-directory is a *separate* listing reached by navigating
-into the entry (a later `D` while viewing it) or by `GOTO` (§4.4) to the entry's keyword or
-number, not by paging its frames (§6.5). A client **MUST** read the type from screen column
-25 and dispatch on the base letter; it **MUST NOT** treat `+` as a directory-vs-frame
-selector.
+The table above is the **SHOW** action (`D`+index, §4.7) — reading an entry. **Entering** an
+entry *as a directory* is a separate command, **DIR** (`P`+index): DIR works on **any** entry,
+not just base `D`. On a `T+` the two differ — SHOW reads its text frame(s) while DIR descends
+into its sub-directory — so a client **MUST** offer both and **MUST NOT** collapse them.
+
+The `+` marker is **independent of the base**: it means the entry **already has** a
+sub-directory beneath it. It does **not** change the SHOW action (a `T+` shows frames exactly
+like a bare `T`) and it is **not** a directory-vs-frame selector. Crucially, DIR is **not**
+gated on `+`: a user **MAY** issue DIR on an entry whose type is *not* `D` and has *no* `+`, on
+which the **server** opens a fresh **empty** sub-directory under it. That directory is *latent*
+— it becomes real only once content is uploaded into it (§8.3.2). This is the mechanism by which
+the directory hierarchy is built: the client issues DIR, the server creates the directory. A
+client **MUST** read the type from screen column 25, dispatch
+SHOW on the base letter, and allow DIR regardless of base or `+`.
 
 ## 7.5 The built-in directory template
 

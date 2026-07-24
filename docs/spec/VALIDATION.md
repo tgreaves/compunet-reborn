@@ -105,10 +105,16 @@ A second round of testing (wiring up the commands) surfaced three more, all fixe
 - **§4.7** (new) — the spec gave the *wire* commands but not the *user-facing* Compunet
   command names, so a builder invents labels and gets them wrong (the client first labelled
   the read-entry action "OPEN"). §4.7 now standardises the duckshoot vocabulary (DIR, SHOW,
-  BACK, GOTO, ACCNT, MAIL, UCAT, MORE, FINISH…) and its mapping to the wire commands, and
-  clarifies that opening an entry (DIR/SHOW) uses `D`+index — **not** `P` (FINISH), which
-  carries no index and only refreshes the current directory. (The client had wired DIR→`P`,
-  so DIR did nothing on a highlighted entry.)
+  BACK, GOTO, ACCNT, MAIL, UCAT, MORE, FINISH…) and its mapping to the wire commands.
+- **§4.4/§4.5/§4.7/§7.4/§8.3.2** — the DIR/SHOW/FINISH/MORE model was corrected. Earlier drafts
+  conflated DIR and SHOW onto `D`+index. The right model: **SHOW** = `D`+index (show the
+  highlighted entry's frame(s)/download; never enters a directory); **DIR** = `P`+index (enter
+  the highlighted entry *as a directory*); **MORE** = `D` no-arg; **FINISH** = `P` no-arg
+  (return from a frame). DIR on an entry that is not `D`/`+` opens an **empty latent**
+  directory, which a subsequent upload materialises — this is how the directory hierarchy is
+  built (the client issues DIR/upload; the **server** creates the directory). §8.3.2 corrected:
+  the earlier "a client cannot create directories" was wrong — creation just isn't a dedicated
+  command, it is the server's response to DIR + upload.
 
 *(Caveat: the `client/pygame/` build above and its findings were produced by the spec author,
 who carries the codebase in their head — so it is a contaminated test. Its value is real but

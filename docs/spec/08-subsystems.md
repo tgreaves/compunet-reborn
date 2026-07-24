@@ -138,12 +138,28 @@ you are an editor/admin, or the directory is open for uploads) and space (a dire
 most 11 entries) — otherwise the server silently discards the page. "The Jungle" is simply the
 conventional directory tree for user uploads, not a special upload target.
 
-**A client cannot create directories.** Upload creates **pages** (`T`/`P`) only; there is **no
-protocol command to create a directory** and no directory (`D`) upload type. The directory
-**hierarchy is defined server-side** (in the service's content configuration), where a
-directory can be marked open for uploads; a client only uploads pages **into** the existing,
-upload-enabled directories. Building or editing the directory tree itself is a server-side
-content-management task, outside this specification and not something a client implements.
+**Creating a directory (the hierarchy).** A client cannot create a directory *directly* — the
+**server** does, in response to the client's actions. There is no "make directory" command; a
+new directory falls out of DIR + upload, both of which the server acts on:
+
+1. **Open a latent directory with DIR.** While viewing a listing, the user highlights an entry
+   and issues **DIR** (`P`+index, §4.7). DIR descends into the entry *as a directory*. If the
+   entry has no sub-directory yet — its type is not `D` and carries no `+` (§7.4) — the server
+   opens a **fresh, empty** sub-directory under it (permission permitting) and returns it as a
+   normal directory response. At this point the directory is **latent**: it exists in the
+   session but has not been persisted.
+2. **Upload into it to make it real.** Running a content upload (steps 1–3 above) while
+   navigated into that latent directory **materialises** it: the server persists the new
+   sub-directory together with the uploaded page. A latent directory that never receives an
+   upload is not retained.
+
+So the directory tree grows organically: DIR into an entry and the server spawns an empty child;
+upload into it and the server commits it. The client never writes the tree itself — it only
+issues the DIR and upload commands that cause the server to do so. Creation therefore needs the
+**same permission and space checks** as
+any upload (you own/administer the parent, or it is open for uploads; the parent still has room
+within its 11 entries). A client that offers upload **SHOULD** also expose DIR-on-any-entry so
+the user can build the hierarchy; §7.4 covers the entry-type rule that makes this unambiguous.
 
 A Tier 3 client that uploads **MUST** honour all of: the mail-vs-content detection (`.` in
 `rest[:8]`), the EOS/no-EOS difference in the validation reply, the `@`-ack (not `A`) per
