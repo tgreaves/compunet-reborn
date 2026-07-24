@@ -1,0 +1,54 @@
+Short:        Native Amiga client for the Compunet Reborn service
+Author:       Tristan Greaves (Compunet Reborn); original by Ariadne Software
+Uploader:     Tristan Greaves <tristan@extricate.org>
+Type:         comm/tcp
+Version:      {VERSION}
+Architecture: m68k-amigaos >= 2.1
+Requires:     bsdsocket.library TCP/IP stack
+Distribution: Aminet
+
+Compunet Reborn - Amiga Client
+==============================
+
+Compunet (aka CNet) was a UK interactive online service that ran from 1984 to
+1993, serving the Commodore 64 community: user-generated content, electronic
+mail ("Courier"), telesoftware downloads, a page editor, multi-user Partyline
+chat, and the iconic horizontally-scrolling "duckshoot" menu.
+
+This is the *original 1989 Amiga Compunet client* - recovered and reverse-
+engineered from the shipping binary, reconstructed as recompilable C, and re-
+pointed from its modem/cnet.device transport at the Compunet Reborn server over
+native TCP/IP. The on-the-wire X.25 framing and the entire application-layer
+protocol are preserved unchanged; only the hardware transport is swapped for
+bsdsocket.library.
+
+Features:
+  * Directory browsing with the "duckshoot" menu and PETSCII frame rendering
+  * Electronic mail (Courier) - send, receive, recipient ID lookup
+  * Downloads and uploads (telesoftware, IFF pictures, text pages)
+  * The frame/page Editor
+  * Partyline multi-user chat (via the resident CnetTty viewer)
+  * LIFE / VOTE / user catalogue
+
+Requirements:
+  * Workbench / Kickstart 2.1 or higher
+  * A TCP/IP stack providing bsdsocket.library (Roadshow, AmiTCP, Miami, ...),
+    installed and online
+  * A free Compunet Reborn account - register at https://compunet.live/
+
+Usage:
+  Un-archive the download to get a "Compunet" drawer. If needed, edit the
+  "TCPHOST" file inside; it is preset to the live server:
+
+      {HOST}
+
+  Bring your TCP/IP stack online, then double-click the Compunet icon.
+
+Compunet Reborn is an open recreation of the Compunet online service - connect
+from a C64, a PETSCII terminal, or the Amiga. Register and read more at:
+
+  https://compunet.live/
+
+The reverse-engineering and reconstruction are documented at:
+
+  https://github.com/tgreaves/compunet-reborn

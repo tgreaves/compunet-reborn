@@ -35,6 +35,11 @@ DEV_ARCHIVE  = os.path.join(DIST, f'CompunetReborn-Amiga-{VER}-dev.lha')
 # stable name (matching the .crt/.prg naming) so the Connecting page can link to it.
 WEBSITE_LHA  = os.path.join(ROOT, 'website', 'static', 'compunet-reborn-amiga.lha')
 
+# Aminet submission: an Aminet-style .readme (structured header + description) is written
+# next to the public archive, matching its base name, for a comm/tcp Aminet upload.
+AMINET_TEMPLATE = os.path.join(HERE, 'aminet.readme.template')
+AMINET_README   = os.path.join(DIST, f'CompunetReborn-Amiga-{VER}.readme')
+
 # The drawer icon is a genuine standard Workbench 2.1 drawer icon, extracted from the WB ADF
 # at build time (so no Cloanto content lives in the repo). Override the ADF with $WB_ADF.
 DEFAULT_WB_ADF = os.environ.get(
@@ -221,6 +226,14 @@ def main():
     if os.path.isdir(os.path.dirname(WEBSITE_LHA)):
         shutil.copyfile(PROD_ARCHIVE, WEBSITE_LHA)
         print(f"published live archive -> {os.path.relpath(WEBSITE_LHA, ROOT)}")
+
+    # Aminet .readme (pairs with the public .lha for an Aminet upload).
+    aminet = (open(AMINET_TEMPLATE, encoding='utf-8').read()
+              .replace('{VERSION}', VER).replace('{HOST}', PROD_HOST))
+    aminet = aminet.replace('\r\n', '\n').replace('\r', '\n')
+    with open(AMINET_README, 'w', newline='\n', encoding='utf-8') as f:
+        f.write(aminet)
+    print(f"wrote {os.path.relpath(AMINET_README, ROOT)}")
     return built
 
 if __name__ == '__main__':
