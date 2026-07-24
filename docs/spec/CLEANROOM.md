@@ -62,21 +62,27 @@ and give it the brief below.
 > Build in Python and test everything against the live server as you go:
 > `docker.lan:6400`, user `ADMIN`, password `ADMIN`.
 >
-> **Scope: Tier 2 ("Interact").** Implement Tier 1 (Browse) *and* Tier 2 (Interact) as the
-> spec defines them: connect/identify/login, directory navigation and frame rendering, plus
-> the Tier-2 subsystems — reading mail (Courier), content download, and LIFE / VOTE / BUY.
+> **Scope: Tier 3 ("Full").** Implement Tier 1 (Browse), Tier 2 (Interact) *and* Tier 3 (Full)
+> as the spec defines them: connect/identify/login, directory navigation and frame rendering,
+> the Tier-2 subsystems (mail read/send, content download, LIFE/VOTE/BUY), **and the Tier-3
+> subsystems — content upload (The Jungle), the frame editor, and Partyline.** For the editor,
+> a minimal one is enough: let the user compose a PETSCII page (text + colour) and submit it
+> through the upload path. For Partyline, use the link-activation and raw line protocol the
+> spec describes.
 >
-> **Server-write policy (this is a live dev server).** You may exercise the **full Tier-2
-> command set**, including the state-changing operations — **sending** mail, **VOTE**, **BUY**,
-> and **LIFE**-extend. Keep it reasonable: you are validating the flows, so a handful of
-> representative operations is enough, not hundreds. The one hard rule: **never delete
-> anything.**
+> **Server-write policy (this is a live dev server).** You may exercise the **full command
+> set**, including all state-changing operations — mail send, VOTE, BUY, LIFE-extend, **and
+> content uploads to the Jungle** (uploads create pages; that is fine). Keep it reasonable: a
+> handful of representative operations is enough, not hundreds — e.g. upload one or two small
+> test pages, not dozens. The one hard rule: **never delete anything.**
 >
 > **Stage 1 — Text-mode client (protocol/format correctness).** Use raw TCP sockets; a
 > text-mode 40×24 render printed to the terminal is enough here. Cover: (1) connect, handshake,
 > identification, login; (2) directory navigation (list, select/open, back, page) and frame
-> rendering (colour, character set, RLE); (3) the Tier-2 flows above; (4) let the user invoke
-> the applicable commands and leave cleanly. This stage proves the wire protocol and formats.
+> rendering (colour, character set, RLE); (3) the Tier-2 and Tier-3 flows above — including
+> composing and **uploading** a page, and **Partyline** (activate the link, run the raw
+> line-based chat, exit cleanly and resume the framed protocol); (4) let the user invoke the
+> applicable commands and leave cleanly. This stage proves the wire protocol and formats.
 >
 > **Stage 2 — Visual client (display + UX correctness).** Once Stage 1 works, build a
 > **graphical** version that reproduces the Compunet look and feel: render the 40×24 screen
@@ -86,7 +92,8 @@ and give it the brief below.
 > `pygame` if installed, or emit an image (PPM/PNG) per screen. Expose **user-experience**
 > aspects the spec implies but does not fully pin down: how commands are surfaced and named,
 > the directory layout and colours, how the current selection looks, the border/background, the
-> Tier-2 screens (mailbox, a mail message, a download prompt), and the overall look-and-feel.
+> Tier-2 screens (mailbox, a mail message, a download prompt), the **Tier-3 screens (the frame
+> editor, the upload flow, the Partyline chat window)**, and the overall look-and-feel.
 > Whenever you have to *invent* a presentation or interaction choice because the spec did not
 > specify it, that is a **UX finding** — log it.
 >
