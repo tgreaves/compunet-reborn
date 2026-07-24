@@ -207,6 +207,36 @@ entry**, the selected column header sits at row 7 in the right column, the adver
 and the selection highlight is an explicitly **client-drawn full-width bar** in the entry's
 colour (red first / blue rest) with white text — the server sends nothing about selection.
 
+Between runs 3 and 4 the maintainer also corrected two commands directly (verified in the
+server): `X` is **LIFE** (extend), not BUY — BUY is a duckshoot command that maps to `D`+index;
+and `V`/`X` both target the highlighted entry **by index** (VOTE = index + score, LIFE = index +
+amount), which the spec had omitted.
+
+## Fourth clean-room run (Tier 3)
+
+A fourth isolated agent built a full **Tier 3** client — content upload, a minimal frame
+editor, and Partyline — text-mode then visual, with dev-server write access. Everything worked
+end-to-end (an uploaded page appeared in the Jungle; Partyline chat + teardown succeeded). New
+findings, folded in:
+
+- **§4.4 vs §4.5** — the sharpest internal contradiction found: §4.4's table glossed `L`
+  (GOTO) as "DIR or FRAME", but §4.5 (authoritative) and the live server make it **always a
+  directory** — the directory containing the target. §4.4 corrected to DIR.
+- **§8.3.2** — a content upload commits to the client's **current directory** (verified:
+  `_complete_content_upload` adds to `current_page.children`), needs write permission and space,
+  and is **not** a fixed "Jungle root". A client must navigate to the target directory first.
+- **§4.5** — ACCOUNT's 10-byte reply is delivered as a **normal DAT stream + EOS**, not a bare
+  ACK.
+- **§4.3** — a native-identified client **always** gets the `@` prefix on `I`/mail-send replies
+  and **must strip it** (or field-shift by one byte); the old "not sent to non-leading-ack
+  clients" wording was misleading.
+- **§8.5** — the Partyline `L` link is often **nested** inside a `PARTYLINE` directory (dispatch
+  on the type letter, not the title); the default room may display as `Lobby` (cosmetic).
+
+The UX findings were all presentation choices the spec deliberately leaves open (button bar vs
+duckshoot, the highlight modelled as a flag distinct from reverse video, editor form, Partyline
+chrome) — the client made reasonable ones and hit no new display gaps.
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across

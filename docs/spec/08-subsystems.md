@@ -129,6 +129,22 @@ non-COM packet during an upload as frame data:
 - **Content:** `P` (directory refresh) — the server commits the new page and returns the
   directory.
 
+**A content upload commits to the client's *current directory*** — the directory the client
+is navigated to when the upload runs, **not** a fixed "Jungle root". A Tier 3 client **MUST
+first navigate to the target directory** (e.g. `L JUNGLE`, or `D` into the intended
+sub-directory) *before* sending `U`; the finishing `P` returns that same directory with the new
+page in it. Uploading also requires **permission** to write there (you own the directory/page,
+you are an editor/admin, or the directory is open for uploads) and space (a directory holds at
+most 11 entries) — otherwise the server silently discards the page. "The Jungle" is simply the
+conventional directory tree for user uploads, not a special upload target.
+
+**A client cannot create directories.** Upload creates **pages** (`T`/`P`) only; there is **no
+protocol command to create a directory** and no directory (`D`) upload type. The directory
+**hierarchy is defined server-side** (in the service's content configuration), where a
+directory can be marked open for uploads; a client only uploads pages **into** the existing,
+upload-enabled directories. Building or editing the directory tree itself is a server-side
+content-management task, outside this specification and not something a client implements.
+
 A Tier 3 client that uploads **MUST** honour all of: the mail-vs-content detection (`.` in
 `rest[:8]`), the EOS/no-EOS difference in the validation reply, the `@`-ack (not `A`) per
 frame, the 8-byte big-endian header for programs, and the correct finish command (`N` for
@@ -148,9 +164,15 @@ is therefore Tier 3 by virtue of depending on uploads, but imposes no protocol o
 
 ## 8.5 Partyline
 
-**Partyline** is multi-user chat, reached through a directory **link** entry (type `L`,
+**Partyline** is multi-user chat, reached through a directory **link** entry (base type `L`,
 §7.4). It is the one subsystem that leaves the framed protocol: after activation, the
 session switches to a **raw, line-based** exchange.
+
+The link entry may be **nested**: a menu item titled "PARTYLINE" is often a *directory*
+(`D+`) that the user enters first, and the actual `L`-type link (e.g. "JOIN PARTYLINE") is an
+entry **inside** it. A client **MUST** dispatch on the entry's **type letter** (`L`), not its
+title — activate whichever entry is base type `L`, wherever it sits in the tree, by selecting
+it with `D`+index (§7.4).
 
 **Activation and transport differ by platform**, but the chat protocol is identical:
 
@@ -190,7 +212,8 @@ session switches to a **raw, line-based** exchange.
 - **Scrollback** is by the cursor up/down keys.
 
 **Rooms.** Every user is always *in a room*, and **messages are seen only by others in the
-same room**. On entry a user starts in the default room (**`lobby`**). `*enter <room>` moves
+same room**. On entry a user starts in the default room (**`lobby`** — the server may display
+its name capitalised, e.g. `Lobby`, in `*who`; the casing is cosmetic). `*enter <room>` moves
 to (and creates, if new) a named room; others in the old room see `{USER} has left the room.`
 and others in the new room see `{USER} has entered the room.`
 
