@@ -66,12 +66,11 @@ and give it the brief below.
 > spec defines them: connect/identify/login, directory navigation and frame rendering, plus
 > the Tier-2 subsystems — reading mail (Courier), content download, and LIFE / VOTE / BUY.
 >
-> **Server-write policy (IMPORTANT — this is a live dev server).** Reads are unrestricted:
-> browse, read mail, and download content freely. For **state-changing** operations —
-> **sending** mail, **VOTE**, **BUY**, **LIFE**-extend — perform **at most one minimal,
-> self-targeted test of each** to exercise the wire flow (e.g. a mail from `ADMIN` to `ADMIN`,
-> a single vote), never in bulk; if unsure, describe the flow from the spec and skip executing
-> it. Log the flow either way. **Never delete anything.**
+> **Server-write policy (this is a live dev server).** You may exercise the **full Tier-2
+> command set**, including the state-changing operations — **sending** mail, **VOTE**, **BUY**,
+> and **LIFE**-extend. Keep it reasonable: you are validating the flows, so a handful of
+> representative operations is enough, not hundreds. The one hard rule: **never delete
+> anything.**
 >
 > **Stage 1 — Text-mode client (protocol/format correctness).** Use raw TCP sockets; a
 > text-mode 40×24 render printed to the terminal is enough here. Cover: (1) connect, handshake,
