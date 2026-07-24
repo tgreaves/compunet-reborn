@@ -8,6 +8,8 @@ A recreation of the Compunet online service for the Commodore 64, faithfully pre
 
 Users connected via a custom 1200/75 baud modem (the "brick") that plugged into the C64's cartridge port. The modem contained an 8K ROM that bootstrapped the system — the full terminal software was downloaded from the server during each session ("LINKING"), or cached locally via the CNSAVE command.
 
+Compunet also shipped a native **Amiga** client in 1989. That original binary has been recovered and reverse-engineered, reconstructed as recompilable C (vbcc), and re-pointed from its modem/`cnet.device` transport to native TCP/IP — so a real or emulated Amiga running Workbench/Kickstart 2.1+ can connect to Compunet Reborn today. See [Connection Methods](#connection-methods) and [docs/amiga-client.md](docs/amiga-client.md).
+
 ## Live Service
 
 The official live instance is running at [https://compunet.live/](https://compunet.live/)
@@ -26,6 +28,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 - Frame editor (on-line and off-line)
 - PETSCII terminal mode (server-rendered, any terminal program)
 - 8K cartridge ROM — boots directly like the original hardware
+- Native Amiga client — the recovered 1989 Amiga client, reconstructed over TCP/IP
 
 ## Connection Methods
 
@@ -33,6 +36,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 |--------|------|-------------|
 | **C64 Client (CRT)** | 6400 | 8K cartridge — attach and boot. Recommended for VICE / C64 Ultimate. |
 | **C64 Client (PRG)** | 6400 | LOAD + RUN. For real hardware with SwiftLink. |
+| **Amiga Client** | 6400 | Native Amiga client (LHA download). Needs Workbench/Kickstart 2.1+ and a bsdsocket TCP/IP stack. |
 | **PETSCII Terminal** | 6401 | Server-rendered. Works with SyncTerm, CCGMS, StrikeTerm, UltimateTerm. |
 
 ## Quick Start
@@ -59,6 +63,16 @@ Connect with SyncTerm or any PETSCII terminal:
 2. Type `CONNECT`
 3. LINKING downloads terminal software
 4. Login
+
+### Option 4: Amiga
+
+1. Download `compunet-reborn-amiga.lha` from [compunet.live/connect](https://compunet.live/connect)
+2. Un-archive it (`lha x compunet-reborn-amiga.lha`) — you get a **Compunet** drawer
+3. Make sure a bsdsocket TCP/IP stack (Roadshow, AmiTCP, Miami…) is installed and online
+4. Double-click the **Compunet** icon (or run it from a Shell)
+5. Login with your registered account
+
+Requires Workbench / Kickstart 2.1 or higher. The bundled `TCPHOST` file is preset to `vme.compunet.live:6400` — edit it only to point at a different server.
 
 ## Docker Deployment
 
@@ -93,6 +107,17 @@ Produces:
 
 Requires: [cc65](https://cc65.github.io/) (ca65/ld65), `c1541` from VICE.
 
+### Amiga Client
+
+```bash
+cd client/amiga/emulation
+VBCC=/path/to/vbcc ./make_hdd.sh
+```
+
+Compiles the reconstructed client (`client/amiga/src/`) with vbcc, stages a mountable Directory-HD under `hdd/` for emulator testing, and builds the distribution LHA archives into `client/amiga/dist/` (public + `-dev`) plus the Aminet `.readme` — via `make_lha.py`.
+
+Requires: [vbcc](http://sun.hasenbraten.de/vbcc/) (m68k-amigaos) + vasm, and `xdftool` from [amitools](https://github.com/cnvogelg/amitools) for the ADF/icon steps. See [docs/amiga-client.md](docs/amiga-client.md) for the reverse-engineering and reconstruction details.
+
 ### Server (local, without Docker)
 
 ```bash
@@ -117,10 +142,13 @@ On first connect, the server sends the terminal via LINKING (~3 seconds). Users 
 
 ### Client
 
-- **[client/c64/src/](client/c64/src/)** — Client source (6502 assembly, ca65)
+- **[client/c64/src/](client/c64/src/)** — C64 client source (6502 assembly, ca65)
 - **[client/c64/src/partyline/](client/c64/src/partyline/)** — Partyline chat client
 - **[client/c64/src/gen_sfx.py](client/c64/src/gen_sfx.py)** — PRG builder (BASIC stub + relocator)
-- **[client/c64/vintage/](client/c64/vintage/)** — Original reverse engineering artefacts
+- **[client/c64/vintage/](client/c64/vintage/)** — Original C64 reverse engineering artefacts
+- **[client/amiga/src/](client/amiga/src/)** — Reconstructed native Amiga client (C, vbcc)
+- **[client/amiga/emulation/](client/amiga/emulation/)** — Amiga build + packaging (`make_hdd.sh`, `make_lha.py`, Directory-HD, LHA)
+- **[client/amiga/vintage/](client/amiga/vintage/)** — Recovered original Amiga binaries + RE tooling
 
 ### Server
 
