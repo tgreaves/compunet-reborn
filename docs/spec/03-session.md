@@ -33,6 +33,15 @@ bytes** to open the protocol, then treats the connection as connected. A client 
 tolerate this leading run of `$20` bytes and **MUST NOT** treat them as packet data (they
 precede any `$01` framing).
 
+**Do not count the `$20`s or expect them in one read (normative).** The server writes the
+twelve bytes **one at a time, spaced ~100 ms apart**, so a single socket read typically returns
+only a handful (e.g. 5) with the rest dribbling in over the next second — and the count is a
+transport detail that has varied. A client **MUST NOT** gate on receiving exactly twelve, nor
+block waiting for a fixed number. Treat the leading `$20` run as **opaque**: drain whatever
+spaces are immediately available (a short read timeout), then proceed to identification (§3.3).
+The client does not depend on this run at all — it may begin identification without fully
+draining it, since the server tolerates leading spaces.
+
 A client **MAY** send a single `$20` immediately after connecting, before the identification
 (§3.3). The server peeks the first received byte only to tell a Hayes `AT` dialer from a raw
 client (see below); a leading `$20` reads as "raw" and lets the server proceed at once,
