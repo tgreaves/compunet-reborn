@@ -206,6 +206,12 @@ RESP_DIR = 0x44       # 'D' - directory data
 RESP_FRAME = 0x46     # 'F' - frame data
 RESP_ERROR = 0x45     # 'E' - error
 
+# Program-file machine type. Stored human-readably on the page ('c64'/'amiga') and mapped
+# to the download header's byte-0 machine code the client reads (0=C64, 1=Amiga, 2=Atari
+# ST). Uploaded 'P' pages record their uploader's platform; absent/unknown -> C64 (0), so
+# all pre-existing content serves exactly as before.
+MACHINE_CODES = {'c64': 0, 'amiga': 1, 'st': 2}
+
 CMD_ACCNT = 0x41      # 'A'
 CMD_BACK = 0x42       # 'B' (was incorrectly 'C' — verified from terminal disassembly)
 CMD_UCAT = 0x43       # 'C' (user catalogue)
@@ -390,6 +396,7 @@ class CompunetDirectory:
         page._dir_path = page_dir
         page.dynamic = node.get('dynamic', None)
         page.uploaded = node.get('uploaded', None)
+        page.machine_type = node.get('machine_type', 'c64')  # absent -> C64 (existing content)
         self.pages[page.page_num] = page
 
         # Load frames from page folder
@@ -520,6 +527,7 @@ class CompunetSession:
         Returns response bytes to send back.
         """
         self.last_response_type = None  # Reset per-command for WS prefix detection
+        self.tcp_ack_prefix = False     # TCP: prepend '@' ack before the frame (ID / mail-send)
         if len(data) == 0:
             return self._make_error(b'NO COMMAND')
         
@@ -684,7 +692,25 @@ class CompunetSession:
         if self.selected_entry < len(visible_children):
             child = visible_children[self.selected_entry]
             if child.page_type == 'L' and child.frames:
-                # Type L: send MODEM_INIT_DOWNLOAD format for the linked program
+                if getattr(self, 'is_amiga', False):
+                    # Amiga: the CnetTty viewer ("Scrollback v1.0") is resident and does NOT
+                    # load 6502 code. Send only the 8-byte link header its download_link
+                    # validates (LONG 0x01000001 then a zero LONG) — no program payload.
+                    # RESP_ACK suppresses the trailing EOS: the viewer switches to raw reads
+                    # immediately after the 8 bytes, so an EOS empty-DAT would be misread as
+                    # raw link-preamble bytes. The raw session (preamble handshake + ASCII
+                    # chat + 0x02 teardown) runs in partyline.handle_amiga_session, entered
+                    # below via _enter_partyline. serial_io_c peeks the header's first byte
+                    # (0x01), sees it is not an ack char, and pushes it back for serial_read,
+                    # so no '@' ack prefix is needed.
+                    log.info('LINK(amiga): user=%s activating link page %d "%s"',
+                             self.user_id, child.page_num, child.title)
+                    self.tcp_ack_prefix = False
+                    self.last_response_type = RESP_ACK
+                    self._enter_partyline = True
+                    self._amiga_partyline = True
+                    return bytes([0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00])
+                # Type L: send MODEM_INIT_DOWNLOAD format for the linked program (C64)
                 log.info('LINK: user=%s activating link page %d "%s" (%d bytes)',
                          self.user_id, child.page_num, child.title, len(child.frames[0]))
                 prg_data = child.frames[0]
@@ -833,13 +859,24 @@ class CompunetSession:
             # Program download: send header, wait for proceed token
             if self.show_page.page_type == 'P':
                 prg_data = self.show_page.frames[self.show_frame_index]
-                load_lo = prg_data[0]
-                load_hi = prg_data[1]
-                program_bytes = prg_data[2:]
+                if getattr(self.show_page, 'machine_type', 'c64') == 'amiga':
+                    # Amiga programs are stored as the raw relocatable HUNK executable —
+                    # there is no C64-style 2-byte load address to strip. Serve it whole;
+                    # the Amiga client LoadSeg/Execute()s it and ignores the load field.
+                    load_lo = 0
+                    load_hi = 0
+                    program_bytes = prg_data
+                else:
+                    load_lo = prg_data[0]
+                    load_hi = prg_data[1]
+                    program_bytes = prg_data[2:]
                 size = len(program_bytes)
                 size_lo = size & 0xFF
                 size_hi = (size >> 8) & 0xFF
-                header = bytes([0x00, 0x00, 0x00, 0x00, load_lo, load_hi, size_lo, size_hi])
+                # Header byte 0 = machine type (0=C64, 1=Amiga) from the page's stored
+                # platform; absent/unknown -> C64. The client's download dialog keys off it.
+                machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
+                header = bytes([machine, 0x00, 0x00, 0x00, load_lo, load_hi, size_lo, size_hi])
                 self._program_download_pending = True
                 self._program_download_data = program_bytes
                 self._download_page_num = self.show_page.page_num
@@ -897,6 +934,10 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(real_name))
             data.append(0x1E)
             offset += 8
+        # TCP/Amiga: the client reads a command ack via serial_io_c before the frame, so send
+        # a leading '@'. Without it, serial_io_c mis-reads the frame's first byte (an id char,
+        # e.g. 'A' from ADMIN) as an ack and renders "Host error". (WS path is unaffected.)
+        self.tcp_ack_prefix = True
         return bytes(data)
 
     def _cmd_leave(self):
@@ -926,16 +967,22 @@ class CompunetSession:
         For other pages: extend life (original behaviour).
 
         Params: entry_index (2 ASCII digits) + extension (up to 4 ASCII digits).
+
+        Every path returns b'\x40' ('@'), a *recognised* ack byte. (It used to return
+        b'\x00': the C64 client keys success off the DAT token so it didn't care, but the
+        Amiga client's serial_io_c only recognises '@'/'A'/'B' as acks — an unrecognised
+        0x00 fell through to its frame-data pushback path and left a stale byte in the RX
+        stream that corrupted the *next* command's read. '@' is consumed cleanly by both.)
         """
         self.last_response_type = RESP_ACK
         if len(params) < 2:
-            return bytes([0x00])
+            return bytes([0x40])
 
         try:
             entry_idx = int(params[0:2].decode('ascii'))
             extend_by = int(params[2:].decode('ascii').strip()) if len(params) > 2 else 0
         except (ValueError, UnicodeDecodeError):
-            return bytes([0x00])
+            return bytes([0x40])
 
         # Find the page from current directory (or UCAT if active)
         if getattr(self, '_ucat_active', False):
@@ -944,13 +991,13 @@ class CompunetSession:
             offset = getattr(self, 'dir_page_offset', 0)
             visible_children = self.current_page.children[offset:offset+11]
         if entry_idx >= len(visible_children):
-            return bytes([0x00])
+            return bytes([0x40])
 
         child = visible_children[entry_idx]
 
         # Type 'L' — link: handled by _cmd_dir, BUY just returns ACK
         if child.page_type == 'L':
-            return bytes([0x00])
+            return bytes([0x40])
 
         # Positive extend: any user can extend anyone's content
         # Negative extend: only owner, admin, or editor
@@ -958,7 +1005,7 @@ class CompunetSession:
             if child.author != self.user_id and not self.is_admin and not self.is_editor:
                 log.info('EXTEND DENIED: user=%s cannot reduce page %d (author=%s)',
                          self.user_id, child.page_num, child.author)
-                return bytes([0x00])
+                return bytes([0x40])
 
         num_frames = len(child.frames) if child.frames else 1
 
@@ -1014,7 +1061,7 @@ class CompunetSession:
             self._save_directory()
 
         self.dir_displayed = False
-        return bytes([0x00])
+        return bytes([0x40])
 
     def _get_quarter_start(self):
         """Return the start date of the current calendar quarter."""
@@ -1086,11 +1133,19 @@ class CompunetSession:
         return self._make_dir_response()
     
     def _cmd_vote(self, params):
-        """VOTE command. Params: 2-digit entry index + 1-digit score (1-9)."""
+        """VOTE command. Params: 2-digit entry index + 1-digit score (1-9).
+
+        Returns b'\x40' ('@' = clean accept). RESP_ACK (0x41 = 'A') must NOT be used as
+        the payload here: in the client protocol '@'/'A'/'B' are accept/host-error/fatal-
+        error, so the Amiga client's serial_io_c renders an 'A' reply as a "Host error"
+        requester (verified against the original at 0x119870: `pea $41` ->
+        show_status_message(0x41) -> "Host error"). The C64 client keys off the DAT token
+        and ignores the payload, so '@' is correct for both.
+        """
         if len(params) < 3:
             log.warning('VOTE: params too short: %s', params.hex())
             self.last_response_type = RESP_ACK
-            return bytes([RESP_ACK])
+            return bytes([0x40])
 
         try:
             index = int(params[:2].decode('ascii'))
@@ -1098,7 +1153,7 @@ class CompunetSession:
         except (ValueError, UnicodeDecodeError):
             log.warning('VOTE: invalid params: %s', params.hex())
             self.last_response_type = RESP_ACK
-            return bytes([RESP_ACK])
+            return bytes([0x40])
 
         offset = getattr(self, 'dir_page_offset', 0)
         visible_children = self.current_page.children[offset:offset+11]
@@ -1106,7 +1161,7 @@ class CompunetSession:
         if index >= len(visible_children) or score < 1 or score > 9:
             log.warning('VOTE: out of range index=%d score=%d', index, score)
             self.last_response_type = RESP_ACK
-            return bytes([RESP_ACK])
+            return bytes([0x40])
 
         page = visible_children[index]
         page_key = str(page.page_num)
@@ -1127,7 +1182,7 @@ class CompunetSession:
                  self.user_id, page.page_num, page.title, score, avg)
 
         self.last_response_type = RESP_ACK
-        return bytes([RESP_ACK])
+        return bytes([0x40])
 
     def _get_vote_count(self, page_num):
         votes = self._load_votes()
@@ -1232,11 +1287,18 @@ class CompunetSession:
         data.extend(ascii_to_petscii(' USER ID : ' + self.user_id))
         data.append(0x0D)
         data.extend(ascii_to_petscii(real_name))
-        data.append(0x0D)
-        data.append(0x0D)
-        data.extend(ascii_to_petscii(now.strftime('%d-%m-%y')))
-        data.append(0x0D)
-        data.extend(ascii_to_petscii(now.strftime('%H:%M')))
+        if not getattr(self, 'is_amiga', False):
+            # C64 ONLY: its SEND screen reads FROM/DATE/TIME from here ($D40B) to stamp
+            # outgoing mail. The Amiga has no date/time handling — it stamps server-side and
+            # never reads these — yet its info-line renderer (FUN_00109a5e) draws these extra
+            # CR-separated lines down into the body rows (rows 10-11), overwriting the
+            # message-number column (e.g. 100041 -> 1000412). Omit them for the Amiga so the
+            # breadcrumb stays within its cleared region (rows 7-8).
+            data.append(0x0D)
+            data.append(0x0D)
+            data.extend(ascii_to_petscii(now.strftime('%d-%m-%y')))
+            data.append(0x0D)
+            data.extend(ascii_to_petscii(now.strftime('%H:%M')))
         data.append(0x00)
 
         # Part 5: column headers
@@ -1253,7 +1315,14 @@ class CompunetSession:
         visible = self.mail_messages[offset:offset+11]
 
         if not self.mail_messages:
-            data.extend(ascii_to_petscii('      (NO MAIL)'))
+            # Full-width first field (27 chars) so the Amiga's fixed-width body-row parser
+            # (col A 6 + col B 16 + sep 1 = 23, then col C scans for a comma) finds a comma
+            # instead of letting col B swallow the commas + CR — a short field makes col C run
+            # past end-of-stream and spin forever (no EOF guard, faithful to FUN_00109a5e) →
+            # 'Waiting' hang. Mirrors the DIR empty-placeholder fix (77c84a6); the mail
+            # placeholder was missed.
+            first_field = '0'.rjust(6) + ' ' + '(NO MAIL)'.ljust(17) + '   '   # 27 chars
+            data.extend(ascii_to_petscii(first_field))
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
@@ -1330,8 +1399,22 @@ class CompunetSession:
                 self.mail_messages[actual_index]['read_date'] = datetime.datetime.now().strftime('%Y-%m-%d')
             self._save_mail()
             return self._send_mail_frame()
+        elif not self.mail_messages:
+            # Empty mailbox: DOWNLOAD landed on the (NO MAIL) placeholder row, which the client
+            # counts as a real body row. mail_download (FUN_0010e0fc) expects a FRAME back and
+            # loops on the frame header's more-bit; answering with a directory makes frame_display
+            # misparse it (its 0x8E first byte sets the more-bit) into an endless D/MORE loop that
+            # advances the mail page each time -> Guru. Return a single frame with the more-bit
+            # (byte 0, bit 7) CLEAR so the client displays it and stops. Same format as the
+            # goodbye/not-found frames; C64-safe (it also expects a frame from 'D').
+            self.last_response_type = RESP_FRAME
+            frame = bytearray(b'\x00\x06\x0f\x8e\x0d\x0d')
+            frame.extend(b'YOU HAVE NO MAIL')
+            frame.append(0x0d)
+            frame.append(0x00)
+            return bytes(frame)
         else:
-            # Beyond visible entries — advance to next page
+            # Non-empty mailbox: real paging past the visible entries.
             self.mail_page_offset = offset + 11
             return self._make_mail_response()
 
@@ -1351,10 +1434,11 @@ class CompunetSession:
             frame_data = bytearray(b'\x00\x06\x0f\x8e\x0d\x0d  MESSAGE NOT FOUND\x0d\x00')
 
         has_more = self.mail_frame_index < len(frames) - 1
-        if has_more:
-            frame_data[0] |= 0x80
-        else:
-            frame_data[0] &= 0x7F
+        if frame_data:  # guard: pre-existing mail may hold an empty frame (see accumulator fix)
+            if has_more:
+                frame_data[0] |= 0x80
+            else:
+                frame_data[0] &= 0x7F
         log.info('MAIL FRAME: msg=%d frame=%d/%d file=%s (%d bytes, more=%s)',
                  self.mail_show_msg, self.mail_frame_index + 1, len(frames),
                  frame_file, len(frame_data), has_more)
@@ -1428,11 +1512,14 @@ class CompunetSession:
         Content UPLOAD params: title(16) + type(1) + price(8) + lifetime(1)
         Distinguish by: price field contains '.' → upload; otherwise → mail.
         """
-        # Second 'U' (no params) = ready to send a frame, just ACK it
+        # Second 'U' (no params) = ready to send a frame, just ACK it.
+        # Reply '@' (0x40 = clean accept), NOT RESP_ACK (0x41='A'): the Amiga's put_frame_xfer
+        # reads this via serial_io_c, where 'A' means host-error (renders a requester and
+        # counts as failure). C64 keys off the DAT token so the payload byte is irrelevant.
         if len(params) == 0:
             log.info('UPLOAD: frame-ready signal, sending ACK')
             self.last_response_type = RESP_ACK
-            return bytes([RESP_ACK])
+            return bytes([0x40])
 
         if len(params) < 17:
             return self._make_error(ascii_to_petscii('INVALID SEND'))
@@ -1481,6 +1568,9 @@ class CompunetSession:
                 data.extend(ascii_to_petscii(real_name))
             data.append(0x1E)
         log.info('MAIL: validation response %d bytes: %s', len(data), data.hex())
+        # TCP/Amiga: leading '@' ack so serial_io_c doesn't misread the first recipient-id
+        # byte as an ack (see _cmd_id). WS path is unaffected.
+        self.tcp_ack_prefix = True
         return bytes(data)
 
     def _cmd_upload_content(self, title, page_type, rest):
@@ -1685,12 +1775,19 @@ class CompunetSession:
         page_dir = os.path.join(parent_dir, page_slug)
         os.makedirs(page_dir, exist_ok=True)
 
-        # Save frames into page folder
+        # Save frames into page folder. Program frames are [8-byte header][body]; the
+        # header's byte 0 is the machine type (1=Amiga, 0=C64).
         frame_files = []
         is_program = send['type'] == 'P'
+        prog_machine = send['frames'][0][0] if (is_program and send['frames']) else None
         for i, frame_data in enumerate(send['frames']):
             if is_program:
-                frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
+                if prog_machine == 1:
+                    # Amiga: relocatable HUNK executable — store the raw body, no prefix.
+                    frame_data = bytes(frame_data[8:])
+                else:
+                    # C64: prepend the 2-byte load address (header bytes 4-5) to the body.
+                    frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
                 frame_file = f'{page_slug}.prg' if i == 0 else f'{page_slug}-{i+1}.prg'
             else:
                 frame_file = f'frame-{i+1}.seq'
@@ -1700,7 +1797,11 @@ class CompunetSession:
             frame_files.append(frame_file)
 
         if is_program and send['frames']:
-            size = (len(send['frames'][0]) - 2 + 1023) // 1024
+            hdr = send['frames'][0]
+            if prog_machine == 1:
+                size = (len(hdr) - 8 + 1023) // 1024   # raw body length (KB)
+            else:
+                size = (len(hdr) - 2 + 1023) // 1024   # C64 calc (unchanged)
         else:
             size = len(send['frames'])
 
@@ -1714,6 +1815,11 @@ class CompunetSession:
             life=send['lifetime'],
         )
         new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        if is_program and prog_machine is not None:
+            # Program uploads carry their machine type in the header byte (authoritative).
+            new_page.machine_type = 'amiga' if prog_machine == 1 else 'c64'
+        else:
+            new_page.machine_type = 'amiga' if getattr(self, 'is_amiga', False) else 'c64'
         new_page.parent = self.current_page
         new_page._frame_files = frame_files
         new_page._dir_path = page_dir
@@ -1773,6 +1879,8 @@ class CompunetSession:
                     node['dynamic'] = child.dynamic
                 if getattr(child, 'uploaded', None):
                     node['uploaded'] = child.uploaded
+                if getattr(child, 'machine_type', 'c64') != 'c64':
+                    node['machine_type'] = child.machine_type  # only write non-default
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files
@@ -1867,7 +1975,12 @@ class CompunetSession:
 
         # Part 6: entries (max 11 per page)
         if not visible:
-            data.extend(ascii_to_petscii('      (NO UPLOADS)'))
+            # Full-width first field (27 chars) so the Amiga body-row parser (FUN_00109a5e)
+            # finds a comma for col C instead of running past end-of-stream and spinning
+            # forever (no EOF guard) — matches the DIR/mail empty placeholders (77c84a6). The
+            # C64 reads the title up to a comma and is length-tolerant.
+            first_field = '0'.rjust(6) + ' ' + '(NO UPLOADS)'.ljust(17) + '   '   # 27 chars
+            data.extend(ascii_to_petscii(first_field))
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
@@ -2060,7 +2173,16 @@ class CompunetSession:
         visible = children[:11] if has_more else children
         
         if not visible:
-            data.extend(ascii_to_petscii('0     (EMPTY)'))
+            # Full-width placeholder entry. The Amiga client parses body rows with
+            # FIXED-WIDTH fields (col A 6 + col B 16 + 1 separator = 23 chars before it
+            # scans col C for a comma); a short field lets col B swallow the commas + CR
+            # so col C runs past end-of-stream and its loop (no EOF guard, faithful to
+            # FUN_00109a5e) spins forever -> freeze. Mirror a normal entry's 27-char first
+            # field: page_num(6)+space + title(17)+type(3), then the 5 comma columns + CR.
+            # Safe for the C64 too: its parser (L_A5F3) reads the title until a comma and
+            # pads to 30, so a 27-char field is length-tolerant there.
+            first_field = '0'.rjust(6) + ' ' + '(EMPTY)'.ljust(17) + '   '   # 27 chars
+            data.extend(ascii_to_petscii(first_field))
             data.append(0x2C)
             data.append(0x2C)
             data.append(0x2C)
@@ -2463,13 +2585,19 @@ async def tcp_handler(reader, writer):
                     return False
                 # Feed into X.25 parser
                 packets = x25.feed_data(data)
+                got_ack = False
                 for token, seq, payload in packets:
                     if token == TOKEN_ACK:
                         log.debug('ACK received: seq=$%02X', seq)
-                        return True
+                        got_ack = True
+                        # Keep scanning: any non-ACK packets batched in the SAME read
+                        # after the ACK (e.g. an upload's 8-byte header arriving right
+                        # behind the ACK) must still be stashed, not dropped.
                     else:
                         # Stash non-ACK packet for main loop
                         pending_packets.append((token, seq, payload))
+                if got_ack:
+                    return True
         except (asyncio.TimeoutError, ConnectionResetError, BrokenPipeError):
             log.debug('ACK wait: timeout or disconnect')
         return False
@@ -2572,25 +2700,43 @@ async def tcp_handler(reader, writer):
                     printable_field = ''.join(chr(b) if 32 <= b < 127 else f'[{b:02X}]' for b in field)
                     log.info('TCP:   field[%d]: %r (%s)', i, printable_field, field.hex())
                 
+                # Classify the client. C64/Reborn identify with "{hash}/100" (contains
+                # '/'); the native Amiga client sends "C CNET\r" TWICE plus a 14-zero
+                # field and has NO '/'. The client may deliver these in separate TCP
+                # segments (the two "C CNET" lines, then a 5s pause, then the zeros), so
+                # wait until we can actually tell them apart rather than judging a partial
+                # identification. Detecting Amiga lets us skip the C64 hash gate + LINKING;
+                # this is harmless to C64 clients (their field[1] always carries '/').
+                ident_blob = bytes(rx_buffer)
+                has_slash = b'/' in ident_blob
+                is_amiga  = (ident_blob.count(b'CNET') >= 2
+                             or b'00000000000000' in ident_blob)
+                if not has_slash and not is_amiga:
+                    continue   # identification incomplete — keep buffering
+
+                session.is_amiga = is_amiga
                 ident_received = True
                 rx_buffer.clear()
 
-                # Check client version (field[1] = "{hash}/100")
-                field1 = fields[1].decode('ascii', errors='ignore').strip() if len(fields) > 1 else ''
-                client_hash = field1.split('/')[0] if '/' in field1 else ''
-                client_version_path = os.path.join(CFG_DIR, 'client_version.txt')
-                if os.path.exists(client_version_path):
-                    expected_hash = open(client_version_path).read().strip().upper()
-                    if not client_hash or client_hash.upper() != expected_hash:
-                        log.warning('TCP: client version mismatch: got=%r expected=%s',
-                                    client_hash, expected_hash)
-                        # Send error message and close
-                        msg = b'*PLEASE DOWNLOAD LATEST CLIENT\x0d'
-                        writer.write(msg)
-                        await writer.drain()
-                        await asyncio.sleep(3.0)
-                        writer.close()
-                        return
+                if is_amiga:
+                    log.info('TCP: *** Amiga client detected — skipping hash check + LINKING ***')
+                else:
+                    # Check client version (field[1] = "{hash}/100") — C64/Reborn clients.
+                    field1 = fields[1].decode('ascii', errors='ignore').strip() if len(fields) > 1 else ''
+                    client_hash = field1.split('/')[0] if '/' in field1 else ''
+                    client_version_path = os.path.join(CFG_DIR, 'client_version.txt')
+                    if os.path.exists(client_version_path):
+                        expected_hash = open(client_version_path).read().strip().upper()
+                        if not client_hash or client_hash.upper() != expected_hash:
+                            log.warning('TCP: client version mismatch: got=%r expected=%s',
+                                        client_hash, expected_hash)
+                            # Send error message and close
+                            msg = b'*PLEASE DOWNLOAD LATEST CLIENT\x0d'
+                            writer.write(msg)
+                            await writer.drain()
+                            await asyncio.sleep(3.0)
+                            writer.close()
+                            return
 
                 # Send MOTD (if present) before *CON
                 # Each line must start with '*' to activate client display.
@@ -2742,35 +2888,41 @@ async def tcp_handler(reader, writer):
                             await writer.drain()
                             log.info('TCP: sent welcome frame (%d bytes + EOS)', len(response))
 
-                        # LINKING: send terminal binary or header-only (if client is current)
-                        terminal_path = os.path.join(CFG_DIR, 'terminal.bin')
-                        linking_header = bytes([TERMINAL_HASH[0], TERMINAL_HASH[1],
-                                               0x05, 0xA0, 0x00, 0xA0, 0x00, 0x00])
-                        if not skip_linking and os.path.exists(terminal_path):
-                            with open(terminal_path, 'rb') as f:
-                                terminal_data = f.read()
-                            linking_stream = linking_header + terminal_data
+                        # LINKING: the native Amiga client has its own terminal and does
+                        # NOT load 6502 code, so skip LINKING entirely for it (sending even
+                        # a header-only stream would desync its frame reader). C64/Reborn
+                        # clients get the terminal binary or header-only stream as before.
+                        if getattr(session, 'is_amiga', False):
+                            log.info('LINKING: skipped (Amiga native client)')
                         else:
-                            # Header + 1 padding byte — avoids EOS pre-fetch timeout.
-                            # The 1 byte writes $00 to $A000 but the hash PLA overwrites it after.
-                            linking_stream = linking_header + b'\x00'
-                            if skip_linking:
-                                log.info('LINKING: skipped (client has current terminal)')
-                        MAX_PAYLOAD = 100
-                        offset = 0
-                        pkt_num = 0
-                        while offset < len(linking_stream):
-                            chunk = linking_stream[offset:offset + MAX_PAYLOAD]
-                            pkt = x25.make_data_packet(chunk, TOKEN_DAT)
-                            await send_pkt_with_ack(pkt)
-                            pkt_num += 1
-                            offset += MAX_PAYLOAD
-                        eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
-                        writer.write(eos_pkt)
-                        await writer.drain()
-                        if not skip_linking:
-                            log.info('LINKING: sent terminal (%d bytes, %d packets)',
-                                     len(linking_stream), pkt_num)
+                            terminal_path = os.path.join(CFG_DIR, 'terminal.bin')
+                            linking_header = bytes([TERMINAL_HASH[0], TERMINAL_HASH[1],
+                                                   0x05, 0xA0, 0x00, 0xA0, 0x00, 0x00])
+                            if not skip_linking and os.path.exists(terminal_path):
+                                with open(terminal_path, 'rb') as f:
+                                    terminal_data = f.read()
+                                linking_stream = linking_header + terminal_data
+                            else:
+                                # Header + 1 padding byte — avoids EOS pre-fetch timeout.
+                                # The 1 byte writes $00 to $A000 but the hash PLA overwrites it after.
+                                linking_stream = linking_header + b'\x00'
+                                if skip_linking:
+                                    log.info('LINKING: skipped (client has current terminal)')
+                            MAX_PAYLOAD = 100
+                            offset = 0
+                            pkt_num = 0
+                            while offset < len(linking_stream):
+                                chunk = linking_stream[offset:offset + MAX_PAYLOAD]
+                                pkt = x25.make_data_packet(chunk, TOKEN_DAT)
+                                await send_pkt_with_ack(pkt)
+                                pkt_num += 1
+                                offset += MAX_PAYLOAD
+                            eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
+                            writer.write(eos_pkt)
+                            await writer.drain()
+                            if not skip_linking:
+                                log.info('LINKING: sent terminal (%d bytes, %d packets)',
+                                         len(linking_stream), pkt_num)
                     
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it
@@ -2783,6 +2935,14 @@ async def tcp_handler(reader, writer):
                         async with _lock_content:
                             cmd_response = session.handle_command(cmd_payload)
                         if cmd_response:
+                            # AMIGA ONLY: some commands (ID, mail-send) return frame data whose
+                            # first byte can collide with an ack char ('A'/'B'/'@'). The Amiga
+                            # reads a command ack via serial_io_c before the frame, so prepend
+                            # '@'. Gated on is_amiga so the C64 stream is byte-for-byte unchanged
+                            # (the C64 keys off the DAT token and reads the frame directly).
+                            if (getattr(session, 'tcp_ack_prefix', False)
+                                    and getattr(session, 'is_amiga', False)):
+                                cmd_response = bytes([0x40]) + cmd_response
                             log.info('CMD: sending %d bytes in %d-byte chunks', len(cmd_response), 100)
                             MAX_PAYLOAD = 100
                             offset = 0
@@ -2812,6 +2972,15 @@ async def tcp_handler(reader, writer):
                             # Enter partyline mode after LINK download
                             if getattr(session, '_enter_partyline', False):
                                 session._enter_partyline = False
+                                if getattr(session, '_amiga_partyline', False):
+                                    # Amiga: the 8-byte link header was just sent (no EOS).
+                                    # Run the raw preamble + ASCII chat + 0x02 teardown.
+                                    session._amiga_partyline = False
+                                    log.info('TCP: entering AMIGA partyline for user=%s', session.user_id)
+                                    audit_log('partyline', user=session.user_id)
+                                    await partyline.handle_amiga_session(reader, writer, session.user_id)
+                                    log.info('TCP: exited AMIGA partyline, resuming X.25 for user=%s', session.user_id)
+                                    continue
                                 log.info('TCP: entering partyline mode for user=%s', session.user_id)
                                 audit_log('partyline', user=session.user_id)
                                 await asyncio.sleep(1.0)
@@ -2852,8 +3021,40 @@ async def tcp_handler(reader, writer):
                 elif token == TOKEN_ACK:
                     log.debug('TCP: received ACK seq=$%02X', seq)
 
+                elif (session.pending_send is not None and token != 0x43
+                        and session.pending_send.get('type') == 'P'):
+                    # PROGRAM upload (Amiga/C64 binary). The client sends an 8-byte header
+                    # DAT first (byte0 = machine type: 1=Amiga, 0=C64; bytes 4-7 = body size,
+                    # big-endian), then the raw file as DAT chunks. We can't use the PETSCII
+                    # "<100 bytes ends the frame" heuristic here (the 8-byte header would end a
+                    # frame, and a binary body rarely ends on a short chunk). Instead: read the
+                    # size from the header, accumulate exactly that many body bytes, then store
+                    # ONE frame (header + body) and send a single final ACK. No per-chunk ACK,
+                    # so the client — which blasts every chunk before reading — never stalls.
+                    ps = session.pending_send
+                    if '_prog_header' not in ps:
+                        ps['_prog_header'] = bytes(payload[:8])
+                        ps['_prog_size'] = int.from_bytes(ps['_prog_header'][4:8], 'big')
+                        ps['_prog_body'] = bytearray()
+                        log.info('UPLOAD: program header machine=%d body_size=%d',
+                                 ps['_prog_header'][0], ps['_prog_size'])
+                    else:
+                        ps['_prog_body'].extend(payload)
+                        log.info('TCP: program body +%d (%d/%d)', len(payload),
+                                 len(ps['_prog_body']), ps['_prog_size'])
+                        if len(ps['_prog_body']) >= ps['_prog_size']:
+                            frame_data = ps['_prog_header'] + bytes(ps['_prog_body'][:ps['_prog_size']])
+                            ps['frames'].append(frame_data)
+                            log.info('UPLOAD: program complete (%d bytes = 8 header + %d body)',
+                                     len(frame_data), ps['_prog_size'])
+                            ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
+                            ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
+                            await send_pkt_with_ack(ack_pkt)
+                            await writer.drain()
+                            log.info('UPLOAD: sent final program ACK (%d wire)', len(ack_pkt))
+
                 elif session.pending_send is not None and token != 0x43:
-                    # Any non-COM packet during upload = frame data chunk
+                    # Any non-COM packet during a NON-program upload = PETSCII frame chunk
                     log.info('TCP: upload chunk token=$%02X seq=$%02X payload=%d bytes',
                              token, seq, len(payload))
                     # Accumulate chunks into current frame buffer
@@ -2863,15 +3064,24 @@ async def tcp_handler(reader, writer):
                     # Final chunk (< 100 bytes) = end of this frame
                     if len(payload) < 100:
                         frame_data = bytes(session.pending_send['_current_frame'])
-                        session.pending_send['frames'].append(frame_data)
                         session.pending_send['_current_frame'] = bytearray()
-                        log.info('UPLOAD: frame %d complete (%d bytes)',
-                                 len(session.pending_send['frames']), len(frame_data))
-                        ack_data = bytes([RESP_ACK]) + b'\x00' * 10
-                        ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
-                        await send_pkt_with_ack(ack_pkt)
-                        await writer.drain()
-                        log.info('UPLOAD: sent frame ACK (%d wire)', len(ack_pkt))
+                        # A non-empty buffer is a real frame (its <100 last chunk, or an
+                        # exact-multiple-of-100 frame terminated by the EOS). An EMPTY buffer
+                        # here is the Amiga's trailing empty-DAT EOS arriving after the frame
+                        # already completed on its <100 chunk: store nothing and send no second
+                        # ACK (the client reads exactly one ACK per frame). The C64 ends a frame
+                        # with its <100 data chunk and never sends an empty EOS, so it is
+                        # unaffected. (Without this guard the EOS was stored as an empty trailing
+                        # frame, which crashed _send_mail_frame on DNLD.)
+                        if frame_data:
+                            session.pending_send['frames'].append(frame_data)
+                            log.info('UPLOAD: frame %d complete (%d bytes)',
+                                     len(session.pending_send['frames']), len(frame_data))
+                            ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
+                            ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
+                            await send_pkt_with_ack(ack_pkt)
+                            await writer.drain()
+                            log.info('UPLOAD: sent frame ACK (%d wire)', len(ack_pkt))
 
                 else:
                     log.debug('TCP: other token=$%02X seq=$%02X', token, seq)

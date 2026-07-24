@@ -1,0 +1,199 @@
+{
+ "base": 1048576,
+ "entry": 1048576,
+ "total": 106496,
+ "hunks": [
+  {
+   "i": 0,
+   "kind": "CODE",
+   "addr": 1048576,
+   "data_len": 3304,
+   "alloc_bytes": 3304,
+   "nrelocs": 60
+  },
+  {
+   "i": 1,
+   "kind": "CODE",
+   "addr": 1052672,
+   "data_len": 2404,
+   "alloc_bytes": 2404,
+   "nrelocs": 25
+  },
+  {
+   "i": 2,
+   "kind": "CODE",
+   "addr": 1056768,
+   "data_len": 1016,
+   "alloc_bytes": 1016,
+   "nrelocs": 4
+  },
+  {
+   "i": 3,
+   "kind": "CODE",
+   "addr": 1060864,
+   "data_len": 44,
+   "alloc_bytes": 44,
+   "nrelocs": 1
+  },
+  {
+   "i": 4,
+   "kind": "CODE",
+   "addr": 1064960,
+   "data_len": 1128,
+   "alloc_bytes": 1128,
+   "nrelocs": 18
+  },
+  {
+   "i": 5,
+   "kind": "CODE",
+   "addr": 1069056,
+   "data_len": 800,
+   "alloc_bytes": 800,
+   "nrelocs": 12
+  },
+  {
+   "i": 6,
+   "kind": "CODE",
+   "addr": 1073152,
+   "data_len": 468,
+   "alloc_bytes": 468,
+   "nrelocs": 9
+  },
+  {
+   "i": 7,
+   "kind": "CODE",
+   "addr": 1077248,
+   "data_len": 432,
+   "alloc_bytes": 432,
+   "nrelocs": 9
+  },
+  {
+   "i": 8,
+   "kind": "CODE",
+   "addr": 1081344,
+   "data_len": 1776,
+   "alloc_bytes": 1776,
+   "nrelocs": 6
+  },
+  {
+   "i": 9,
+   "kind": "DATA",
+   "addr": 1085440,
+   "data_len": 1080,
+   "alloc_bytes": 1080,
+   "nrelocs": 0
+  },
+  {
+   "i": 10,
+   "kind": "CODE",
+   "addr": 1089536,
+   "data_len": 1364,
+   "alloc_bytes": 1364,
+   "nrelocs": 13
+  },
+  {
+   "i": 11,
+   "kind": "CODE",
+   "addr": 1093632,
+   "data_len": 1228,
+   "alloc_bytes": 1228,
+   "nrelocs": 5
+  },
+  {
+   "i": 12,
+   "kind": "CODE",
+   "addr": 1097728,
+   "data_len": 2440,
+   "alloc_bytes": 2440,
+   "nrelocs": 34
+  },
+  {
+   "i": 13,
+   "kind": "DATA",
+   "addr": 1101824,
+   "data_len": 10488,
+   "alloc_bytes": 10488,
+   "nrelocs": 155
+  },
+  {
+   "i": 14,
+   "kind": "CODE",
+   "addr": 1114112,
+   "data_len": 276,
+   "alloc_bytes": 276,
+   "nrelocs": 0
+  },
+  {
+   "i": 15,
+   "kind": "CODE",
+   "addr": 1118208,
+   "data_len": 20,
+   "alloc_bytes": 20,
+   "nrelocs": 0
+  },
+  {
+   "i": 16,
+   "kind": "CODE",
+   "addr": 1122304,
+   "data_len": 220,
+   "alloc_bytes": 220,
+   "nrelocs": 9
+  },
+  {
+   "i": 17,
+   "kind": "CODE",
+   "addr": 1126400,
+   "data_len": 36,
+   "alloc_bytes": 36,
+   "nrelocs": 2
+  },
+  {
+   "i": 18,
+   "kind": "CODE",
+   "addr": 1130496,
+   "data_len": 116,
+   "alloc_bytes": 116,
+   "nrelocs": 2
+  },
+  {
+   "i": 19,
+   "kind": "CODE",
+   "addr": 1134592,
+   "data_len": 32,
+   "alloc_bytes": 32,
+   "nrelocs": 1
+  },
+  {
+   "i": 20,
+   "kind": "CODE",
+   "addr": 1138688,
+   "data_len": 260,
+   "alloc_bytes": 260,
+   "nrelocs": 11
+  },
+  {
+   "i": 21,
+   "kind": "CODE",
+   "addr": 1142784,
+   "data_len": 560,
+   "alloc_bytes": 560,
+   "nrelocs": 26
+  },
+  {
+   "i": 22,
+   "kind": "CODE",
+   "addr": 1146880,
+   "data_len": 204,
+   "alloc_bytes": 204,
+   "nrelocs": 7
+  },
+  {
+   "i": 23,
+   "kind": "CODE",
+   "addr": 1150976,
+   "data_len": 528,
+   "alloc_bytes": 528,
+   "nrelocs": 21
+  }
+ ]
+}

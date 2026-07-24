@@ -1,0 +1,8 @@
+# Build artifacts (vbcc / SAS/C)
+*.o
+*.asm
+compunet-client
+nettest
+
+# ...but the extracted data section is generated SOURCE, not a build artifact
+!g_data_blob.asm

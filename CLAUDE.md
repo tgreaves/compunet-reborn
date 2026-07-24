@@ -12,6 +12,30 @@ The application-layer protocol (command bytes, response types, directory format,
 
 The client and server must always behave like the original Compunet system. All functionality must be verified against the disassembly before implementation. Do not guess or assume behaviour — check the code first.
 
+## NEVER Infer — Verify Everything
+
+NEVER infer, guess, approximate, or "reason about what it probably does". Every fact
+you rely on MUST be confirmed against ground truth before you write or change code:
+
+1. **Ground truth is the relocated disassembly of the original binary**, not the Ghidra
+   decompile. The decompile (`recon_annotated.c`) is lossy — it drops operands, guesses
+   types and field widths, and mislabels data as `PTR_`. Use it only as a guide; confirm
+   every detail against the actual machine code.
+2. **Always disassemble a RELOCATED image.** Disassembling un-relocated hunk bytes decodes
+   garbage (mid-instruction, `jmp $0`). Run `flatten.py` first, then `disasm_fn.py`
+   (`client/amiga/vintage/tools/re/`) — it dumps a function's correctly-relocated
+   disassembly and, with `--our`, our compiled `vc -S` beside it for comparison.
+3. **Verify EVERY magic value**: struct-field offsets, field widths (byte vs word vs long),
+   command bytes, flag masks, argument order, table strides and terminators, and which
+   memory a global actually aliases. These are exactly where reconstruction bugs hide
+   (e.g. a command at msg+0x14 not +0x15; `SetWindowTitles(win,-1,text)` arg order; a
+   config block that is ONE shared record, not separate globals).
+4. **If you cannot confirm something, say so and go find out** — read the bytes, ask the
+   user to run the emulator/monitor, or build a tool. Do NOT proceed on a plausible guess.
+   State plainly what is verified versus what remains unconfirmed.
+5. A comment like "recon FUN_xxxxxx" is a claim of fidelity — only write it once you have
+   actually checked that function's disassembly and the reconstruction matches it.
+
 ## Debugging Rules
 
 1. When investigating client behaviour, check `client/c64/src/compunet.s` source directly — do not disassemble the PRG binary.

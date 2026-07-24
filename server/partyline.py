@@ -234,8 +234,34 @@ def _ascii_to_petscii(text):
     return bytes(result)
 
 
+class _AmigaQuit(Exception):
+    """Raised when the Amiga CnetTty viewer tears its link down (Done gadget / 0x02)."""
+
+
+async def _drain_raw(reader, n, timeout):
+    """Best-effort: read and discard up to n raw bytes (handshake replies). Never raises."""
+    got = 0
+    while got < n:
+        try:
+            data = await asyncio.wait_for(reader.read(n - got), timeout=timeout)
+        except (asyncio.TimeoutError, ConnectionResetError, BrokenPipeError, OSError):
+            return
+        if not data:
+            return
+        got += len(data)
+
+
 async def send_line(writer, text):
     """Send one CR-terminated line to a client."""
+    if getattr(writer, '_amiga', False):
+        # The Amiga CnetTty viewer is a plain ASCII terminal (renders 0x20-0x7e via the
+        # system font, drops everything else). Protocol sentinels (*EXIT/*PING) mean nothing
+        # to it — its link is torn down out-of-band with 0x02 bytes — so drop those lines.
+        if text.startswith('*'):
+            return
+        writer.write(text.encode('ascii', errors='replace') + CR)
+        await writer.drain()
+        return
     if text.startswith('*'):
         # Protocol sentinels (*EXIT, *PING) sent as raw ASCII
         writer.write(text.encode('ascii', errors='replace') + CR)
@@ -254,20 +280,34 @@ async def broadcast_room(room, text, exclude=None):
                 logger.debug("Failed to send broadcast to %s (disconnected)", uid)
 
 
-async def read_line(reader):
+async def read_line(reader, amiga=False):
     """Read bytes from reader until CR ($0D). Returns the line as a string.
 
     Raises asyncio.TimeoutError if no data within 60 seconds.
     Raises ConnectionResetError if the connection is closed.
+    In amiga mode: input is raw ASCII (not PETSCII), and a 0x02 byte signals the CnetTty
+    viewer tearing the link down (Done gadget / link_end) -> _AmigaQuit.
     """
     buf = bytearray()
     while True:
         data = await asyncio.wait_for(reader.read(1), timeout=60.0)
         if not data:
             raise ConnectionResetError("Client disconnected")
+        if amiga:
+            b = data[0]
+            if b == 0x02:            # CnetTty link teardown (Done / link_end)
+                raise _AmigaQuit()
+            if b == 0x0d:            # CnetTty sends 0x0d 0x0d on RETURN-twice; break on each
+                break
+            if b < 0x20:             # ignore other control bytes (stray LF etc.)
+                continue
+            buf.append(b)
+            continue
         if data == CR:
             break
         buf.extend(data)
+    if amiga:
+        return buf.decode('ascii', errors='replace')
     return petscii_to_ascii(buf)
 
 
@@ -535,7 +575,7 @@ async def _cmd_quit(writer, user_id):
     partyline_log('leave', user=user_id, room=room)
 
 
-async def handle_session(reader, writer, user_id):
+async def handle_session(reader, writer, user_id, amiga=False):
     """Handle a partyline session. Returns when user quits."""
     logger.info("User %s entering partyline", user_id)
     partyline_log('join', user=user_id)
@@ -564,7 +604,7 @@ async def handle_session(reader, writer, user_id):
         idle_pings = 0
         while user_id in _users:
             try:
-                line = await read_line(reader)
+                line = await read_line(reader, amiga=amiga)
                 idle_pings = 0  # Reset on any received data
             except asyncio.TimeoutError:
                 # Send keepalive to prevent NAT/firewall dropping the connection
@@ -606,6 +646,49 @@ async def handle_session(reader, writer, user_id):
             await broadcast_room(room, f"{name} has left partyline")
             await broadcast_room(room, "")
             logger.info("User %s removed from partyline (cleanup)", user_id)
+
+
+async def handle_amiga_session(reader, writer, user_id):
+    """Partyline for the Amiga CnetTty viewer ("Scrollback v1.0", Zugger '89).
+
+    The 8-byte link header has already been sent (framed) by the caller. This runs the raw
+    phase: the link preamble handshake, the ASCII chat session (reusing handle_session), and
+    the 0x02-based teardown that returns CnetTty's terminal loop to the client.
+
+    Protocol (verified against the decrunched viewer, tools/re/cnettty-re.md):
+      - CnetTty's link_drain_preamble reads raw bytes until it sees three consecutive 0x01,
+        then replies with 0x01 x6.
+      - the session is raw ASCII, CR-terminated (RETURN-twice sends 0x0d 0x0d).
+      - the viewer's loop returns on three consecutive 0x02 from us (server-initiated *quit)
+        or on its own "Done" gadget, after which the client sends 0x02 x6 (link_end).
+    """
+    writer._amiga = True
+    client_left = False
+    try:
+        writer.write(b'\x01\x01\x01')          # arm markers for link_drain_preamble
+        await writer.drain()
+        await _drain_raw(reader, 6, timeout=2.0)   # its 0x01 x6 reply
+        await handle_session(reader, writer, user_id, amiga=True)
+    except _AmigaQuit:
+        client_left = True                     # user hit "Done"; client already tore down
+    except (ConnectionResetError, BrokenPipeError, OSError):
+        client_left = True
+    finally:
+        try:
+            if not client_left:
+                # Server-initiated (*quit): three 0x02 return CnetTty's loop; it then sends
+                # 0x02 x6 (link_end), which we drain before resuming X.25.
+                writer.write(b'\x02\x02\x02')
+                await writer.drain()
+                await _drain_raw(reader, 6, timeout=2.0)
+            else:
+                await _drain_raw(reader, 6, timeout=0.5)   # drain any residual link_end 0x02s
+        except (ConnectionResetError, BrokenPipeError, OSError):
+            pass
+        try:
+            del writer._amiga
+        except AttributeError:
+            pass
 
 
 async def handle_web_session(ws, user_id):

@@ -1,0 +1,63 @@
+{
+ "base": 1048576,
+ "entry": 1048576,
+ "total": 36864,
+ "hunks": [
+  {
+   "i": 0,
+   "kind": "CODE",
+   "addr": 1048576,
+   "data_len": 10512,
+   "alloc_bytes": 10512,
+   "nrelocs": 576
+  },
+  {
+   "i": 1,
+   "kind": "DATA",
+   "addr": 1060864,
+   "data_len": 808,
+   "alloc_bytes": 808,
+   "nrelocs": 10
+  },
+  {
+   "i": 2,
+   "kind": "BSS",
+   "addr": 1064960,
+   "data_len": 0,
+   "alloc_bytes": 2164,
+   "nrelocs": 0
+  },
+  {
+   "i": 3,
+   "kind": "CODE",
+   "addr": 1069056,
+   "data_len": 328,
+   "alloc_bytes": 328,
+   "nrelocs": 0
+  },
+  {
+   "i": 4,
+   "kind": "CODE",
+   "addr": 1073152,
+   "data_len": 20,
+   "alloc_bytes": 20,
+   "nrelocs": 0
+  },
+  {
+   "i": 5,
+   "kind": "CODE",
+   "addr": 1077248,
+   "data_len": 212,
+   "alloc_bytes": 212,
+   "nrelocs": 9
+  },
+  {
+   "i": 6,
+   "kind": "CODE",
+   "addr": 1081344,
+   "data_len": 204,
+   "alloc_bytes": 204,
+   "nrelocs": 9
+  }
+ ]
+}

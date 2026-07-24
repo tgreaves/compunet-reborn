@@ -136,11 +136,14 @@ On first connect, the server sends the terminal via LINKING (~3 seconds). Users 
 
 ### Documentation
 
-- **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — X.25-derived binary protocol specification
-- **[docs/LINKING.md](docs/LINKING.md)** — Terminal download mechanism and CRT architecture
+- **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — X.25-derived binary protocol specification (incl. terminal linking / CNLOAD)
 - **[docs/TERMINAL.md](docs/TERMINAL.md)** — PETSCII terminal mode architecture
 - **[docs/MODEM.md](docs/MODEM.md)** — Hardware comparison and ACIA driver approach
+- **[docs/ROM-REWRITE.md](docs/ROM-REWRITE.md)** — C64 ROM rewrite rationale and structure
 - **[docs/partyline.md](docs/partyline.md)** — Partyline chat system design
+- **[docs/amiga-client.md](docs/amiga-client.md)** — Analysis of the recovered vintage Amiga Compunet client
+- **[docs/amiga-modern-ux.md](docs/amiga-modern-ux.md)** — Modern-UX proposal for the Amiga client
+- **[docs/historical/](docs/historical/)** — Retired investigation notes and completed implementation plans
 
 ### Historical
 

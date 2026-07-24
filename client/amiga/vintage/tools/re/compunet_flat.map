@@ -1,0 +1,295 @@
+{
+ "base": 1048576,
+ "entry": 1048576,
+ "total": 180224,
+ "hunks": [
+  {
+   "i": 0,
+   "kind": "CODE",
+   "addr": 1048576,
+   "data_len": 6220,
+   "alloc_bytes": 6220,
+   "nrelocs": 3
+  },
+  {
+   "i": 1,
+   "kind": "CODE",
+   "addr": 1056768,
+   "data_len": 2904,
+   "alloc_bytes": 2904,
+   "nrelocs": 37
+  },
+  {
+   "i": 2,
+   "kind": "CODE",
+   "addr": 1060864,
+   "data_len": 2128,
+   "alloc_bytes": 2128,
+   "nrelocs": 38
+  },
+  {
+   "i": 3,
+   "kind": "CODE",
+   "addr": 1064960,
+   "data_len": 364,
+   "alloc_bytes": 364,
+   "nrelocs": 10
+  },
+  {
+   "i": 4,
+   "kind": "CODE",
+   "addr": 1069056,
+   "data_len": 1776,
+   "alloc_bytes": 1776,
+   "nrelocs": 6
+  },
+  {
+   "i": 5,
+   "kind": "CODE",
+   "addr": 1073152,
+   "data_len": 688,
+   "alloc_bytes": 688,
+   "nrelocs": 9
+  },
+  {
+   "i": 6,
+   "kind": "CODE",
+   "addr": 1077248,
+   "data_len": 432,
+   "alloc_bytes": 432,
+   "nrelocs": 9
+  },
+  {
+   "i": 7,
+   "kind": "CODE",
+   "addr": 1081344,
+   "data_len": 676,
+   "alloc_bytes": 676,
+   "nrelocs": 6
+  },
+  {
+   "i": 8,
+   "kind": "CODE",
+   "addr": 1085440,
+   "data_len": 5616,
+   "alloc_bytes": 5616,
+   "nrelocs": 37
+  },
+  {
+   "i": 9,
+   "kind": "CODE",
+   "addr": 1093632,
+   "data_len": 2220,
+   "alloc_bytes": 2220,
+   "nrelocs": 25
+  },
+  {
+   "i": 10,
+   "kind": "CODE",
+   "addr": 1097728,
+   "data_len": 1788,
+   "alloc_bytes": 1788,
+   "nrelocs": 26
+  },
+  {
+   "i": 11,
+   "kind": "CODE",
+   "addr": 1101824,
+   "data_len": 612,
+   "alloc_bytes": 612,
+   "nrelocs": 13
+  },
+  {
+   "i": 12,
+   "kind": "CODE",
+   "addr": 1105920,
+   "data_len": 1832,
+   "alloc_bytes": 1832,
+   "nrelocs": 24
+  },
+  {
+   "i": 13,
+   "kind": "CODE",
+   "addr": 1110016,
+   "data_len": 1524,
+   "alloc_bytes": 1524,
+   "nrelocs": 13
+  },
+  {
+   "i": 14,
+   "kind": "CODE",
+   "addr": 1114112,
+   "data_len": 1364,
+   "alloc_bytes": 1364,
+   "nrelocs": 13
+  },
+  {
+   "i": 15,
+   "kind": "CODE",
+   "addr": 1118208,
+   "data_len": 1976,
+   "alloc_bytes": 1976,
+   "nrelocs": 13
+  },
+  {
+   "i": 16,
+   "kind": "CODE",
+   "addr": 1122304,
+   "data_len": 1216,
+   "alloc_bytes": 1216,
+   "nrelocs": 20
+  },
+  {
+   "i": 17,
+   "kind": "CODE",
+   "addr": 1126400,
+   "data_len": 264,
+   "alloc_bytes": 264,
+   "nrelocs": 5
+  },
+  {
+   "i": 18,
+   "kind": "CODE",
+   "addr": 1130496,
+   "data_len": 188,
+   "alloc_bytes": 188,
+   "nrelocs": 3
+  },
+  {
+   "i": 19,
+   "kind": "CODE",
+   "addr": 1134592,
+   "data_len": 620,
+   "alloc_bytes": 620,
+   "nrelocs": 12
+  },
+  {
+   "i": 20,
+   "kind": "DATA",
+   "addr": 1138688,
+   "data_len": 1080,
+   "alloc_bytes": 1080,
+   "nrelocs": 0
+  },
+  {
+   "i": 21,
+   "kind": "CODE",
+   "addr": 1142784,
+   "data_len": 1612,
+   "alloc_bytes": 1612,
+   "nrelocs": 20
+  },
+  {
+   "i": 22,
+   "kind": "CODE",
+   "addr": 1146880,
+   "data_len": 360,
+   "alloc_bytes": 360,
+   "nrelocs": 11
+  },
+  {
+   "i": 23,
+   "kind": "CODE",
+   "addr": 1150976,
+   "data_len": 2920,
+   "alloc_bytes": 2920,
+   "nrelocs": 27
+  },
+  {
+   "i": 24,
+   "kind": "CODE",
+   "addr": 1155072,
+   "data_len": 2440,
+   "alloc_bytes": 2440,
+   "nrelocs": 34
+  },
+  {
+   "i": 25,
+   "kind": "CODE",
+   "addr": 1159168,
+   "data_len": 1228,
+   "alloc_bytes": 1228,
+   "nrelocs": 5
+  },
+  {
+   "i": 26,
+   "kind": "CODE",
+   "addr": 1163264,
+   "data_len": 220,
+   "alloc_bytes": 220,
+   "nrelocs": 2
+  },
+  {
+   "i": 27,
+   "kind": "DATA",
+   "addr": 1167360,
+   "data_len": 12520,
+   "alloc_bytes": 25320,
+   "nrelocs": 406
+  },
+  {
+   "i": 28,
+   "kind": "CODE",
+   "addr": 1196032,
+   "data_len": 20,
+   "alloc_bytes": 20,
+   "nrelocs": 0
+  },
+  {
+   "i": 29,
+   "kind": "CODE",
+   "addr": 1200128,
+   "data_len": 220,
+   "alloc_bytes": 220,
+   "nrelocs": 9
+  },
+  {
+   "i": 30,
+   "kind": "CODE",
+   "addr": 1204224,
+   "data_len": 36,
+   "alloc_bytes": 36,
+   "nrelocs": 2
+  },
+  {
+   "i": 31,
+   "kind": "CODE",
+   "addr": 1208320,
+   "data_len": 116,
+   "alloc_bytes": 116,
+   "nrelocs": 2
+  },
+  {
+   "i": 32,
+   "kind": "CODE",
+   "addr": 1212416,
+   "data_len": 316,
+   "alloc_bytes": 316,
+   "nrelocs": 13
+  },
+  {
+   "i": 33,
+   "kind": "CODE",
+   "addr": 1216512,
+   "data_len": 504,
+   "alloc_bytes": 504,
+   "nrelocs": 24
+  },
+  {
+   "i": 34,
+   "kind": "CODE",
+   "addr": 1220608,
+   "data_len": 312,
+   "alloc_bytes": 312,
+   "nrelocs": 11
+  },
+  {
+   "i": 35,
+   "kind": "CODE",
+   "addr": 1224704,
+   "data_len": 652,
+   "alloc_bytes": 652,
+   "nrelocs": 26
+  }
+ ]
+}

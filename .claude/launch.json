@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "website",
+      "runtimeExecutable": "website/venv/Scripts/python.exe",
+      "runtimeArgs": ["website/app.py"],
+      "port": 6464
+    }
+  ]
+}

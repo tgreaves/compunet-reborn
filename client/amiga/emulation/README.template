@@ -1,0 +1,36 @@
+Compunet Reborn - Amiga Client v{VERSION}
+=========================================
+
+A native Amiga client for the Compunet Reborn online service - the recovered 1989
+Amiga Compunet client, reconstructed and re-pointed at the Reborn server over TCP/IP.
+
+WHAT IS COMPUNET?
+  Compunet (aka CNet) was a UK interactive online service that ran from 1984
+  to 1993, serving the Commodore 64 community. It offered user-generated content,
+  electronic mail ("Courier"), telesoftware downloads, a page editor, multi-user
+  Partyline chat, and the iconic horizontally-scrolling "duckshoot" menu.
+  Compunet Reborn brings it back to life over the modern internet.
+
+REGISTRATION (required)
+  You need a (free) Compunet Reborn account to log in. Register on the website:
+
+      https://compunet.live/
+
+REQUIREMENTS
+  * An Amiga running Workbench / Kickstart 2.1 or higher.
+  * A TCP/IP stack that provides bsdsocket.library (AmiTCP, Roadshow, Miami, ...),
+    installed and online.
+
+SETUP
+  * Edit the "TCPHOST" file to point at the server. Format:  host  or  host:port
+    (default port {PORT}). The shipped default is:  {HOST}
+  * Make sure your TCP/IP stack is up, then double-click the Compunet icon.
+
+CONTENTS
+  Compunet            the client
+  CnetEditor          frame / page editor (launched from the client)
+  CnetTty             interactive terminal viewer (Partyline, live sessions)
+  cnet-configuration  saved settings (phone/user fields; edit in-client via Setup)
+  TCPHOST             server address
+
+Compunet Reborn:  https://compunet.live/
