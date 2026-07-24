@@ -84,8 +84,8 @@ echo "  client: $(wc -c < "$SRC/compunet-client" | tr -d ' ') bytes"
 
 # Distribution LHA: build the "Compunet" drawer + icons from the freshly-staged files
 # (see make_lha.py — produces a public build for the live server and a -dev build for the
-# local server). The -dev archive is dropped into hdd/ so it can be mounted and
-# test-extracted against the local server. Regenerated on every HDD build. Needs python.
+# local server). Both archives are dropped into hdd/ so either can be mounted and
+# test-extracted on the Amiga. Regenerated on every HDD build. Needs python.
 # Pick a working python: verify it actually runs (skips the Windows Store alias stub, which
 # is on PATH as python3 but only prints an install message).
 PY=""
@@ -98,7 +98,7 @@ if [ -n "$PY" ]; then
     echo "== building distribution LHA =="
     ( cd "$HERE" && "$PY" make_lha.py )
     rm -f "$HDD"/CompunetReborn-Amiga-*.lha
-    cp "$HERE"/../dist/CompunetReborn-Amiga-*-dev.lha "$HDD/" 2>/dev/null || true
+    cp "$HERE"/../dist/CompunetReborn-Amiga-*.lha "$HDD/" 2>/dev/null || true
 else
     echo "(python not found — skipping distribution LHA)"
 fi
