@@ -4,9 +4,9 @@
 > explicitly marked non-normative.
 >
 > Authority & triangulation: the server frame builders (`_make_info_frame`,
-> `_send_current_frame` in `server/compunet_server.py`), the server-side renderer
-> (`server/terminal.py`), and the Amiga frame parser (`client/amiga/src/frame.c`, verified
-> against the original disassembly). The three agree on the header, RLE, and terminator.
+> `_send_current_frame` in `server/compunet_server.py`), the Amiga frame parser
+> (`client/amiga/src/frame.c`, verified against the original disassembly), and the C64 model
+> (`docs/PROTOCOL.md`). They agree on the header, RLE, and terminator.
 
 A **frame** is one page of displayable content. Frames are the payload of most `FRAME`-type
 responses (§4) and the login welcome/error screens (§3). This section defines the byte
@@ -40,11 +40,11 @@ renderer reads exactly one byte here and sets its character set from it, and the
 always emits `$0E`/`$8E` at this position. Placing anything else at byte 3 would be consumed
 and lost by such a client. Additional charset switches within the body are permitted (§5.2).
 
-*(Non-normative: the server-side terminal renderer skips these 4 header bytes wholesale
-because a text terminal supplies its own colour; a graphical client uses border/background
-and the charset. A comment in that renderer mislabels the header bytes — the authoritative
-layout is the table above, as emitted by the server's frame builders and consumed by the
-Amiga.)*
+The authoritative layout is the table above, as emitted by the server's frame builders and
+consumed by the Amiga renderer (`frame.c` reads flags, border, background, then the charset
+byte). The C64 model in `docs/PROTOCOL.md` describes the same bytes with byte 3 as the first
+CHROUT'd body byte — equivalent, because `$0E`/`$8E` at that position is a charset control
+either way.
 
 ## 6.3 Body
 
@@ -52,12 +52,34 @@ After the header comes the **body**: a stream of PETSCII bytes (§5) — charact
 codes, cursor/mode controls, and RLE runs (§6.4) — rendered a cell at a time into the
 40×24 grid. The body is terminated by a `$00` byte.
 
-A client **MUST**:
+**Processing algorithm.** A client processes the body one byte at a time, maintaining a
+cursor (row, column), a current text colour, a reverse-video flag, and the active character
+set (§5). For each byte `b` read from the body:
 
-- render the body per the display contract of §5;
-- stop rendering at the `$00` terminator;
-- treat the terminator `$00` as the end of the frame's content regardless of any remaining
-  bytes in the current packet.
+1. `b == $00` → **stop**: the frame is complete.
+2. `b == $06` → **space run**: read the next byte `N`; emit a space (`$20`) into `1 + N`
+   successive cells (§6.4).
+3. `b == $07` → **character run**: read the next two bytes `c`, `N`; emit character `c` into
+   `1 + N` successive cells (§6.4).
+4. `b` in `$00`–`$1F` or `$80`–`$9F` → **control code**: act on it (§5.6) — set colour,
+   move/home the cursor, clear, toggle reverse, or switch character set — and emit nothing.
+5. otherwise → **character**: convert `b` to a screen code (§5.3), draw the active set's
+   glyph (§5.4) at the cursor in the current colour and reverse state, then advance the
+   cursor (wrapping per §5.6).
+
+"Emitting into a cell" writes the glyph with the current colour/reverse attributes and
+advances the cursor with the same wrapping as a normal character.
+
+A client **MUST** implement this loop (or an equivalent producing the same cell contents),
+**MUST** stop at the `$00` terminator regardless of any remaining bytes in the current
+packet, and **MUST** decode the RLE runs with the `1 + N` semantics of §6.4.
+
+**Initial text colour.** A frame's body **SHOULD** set the text colour with a colour control
+(§5.6) before printing text, and Compunet frames do so at the start of the body (typically
+right after the charset byte). The text colour that applies *before* any colour control is
+**not defined** by this specification — a frame **MUST NOT** rely on a particular default, and
+a client **MAY** initialise it to any colour (the reference clients do not reset it per
+frame). Border and background always come from the header (§6.2).
 
 ## 6.4 RLE compression
 

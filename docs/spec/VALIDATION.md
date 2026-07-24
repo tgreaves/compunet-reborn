@@ -23,11 +23,11 @@ emits/accepts **and** explained both clients' behaviour. The cross-reference in
 | Identification | `is_amiga`/`has_slash` detect | `{hash}/100` | doubled `C CNET` + 14 zeros | agree ✓ |
 | Login packet layout | `[1:9]`/`[9:15]` | `$C100` build | — | agree ✓ |
 | Command set (single letters) | `handle_command` | ROM dispatch | `identification-and-commands.md` | agree ✓ |
-| Content grid **40×24** | `terminal.py` `range(24)`×40 | 40×25 less status row | `frame_control.c` bounds `0x28`/`0x17` | agree ✓ (two renderers) |
+| Content grid **40×24** | — | 40×25 less status row | `frame_control.c` bounds `0x28`/`0x17` + `clear_screen` | agree ✓ |
 | PETSCII→screen-code | — | ROM CHROUT | `frame.c` `render_char` | canonical ✓ |
 | Palette (16 C64 colours) | — | VIC-II | `g_palette` remap + LUT | agree ✓ (remap reconciled) |
 | Control codes `$00–$1F`/`$80–$9F` | — | ROM | `frame_control.c` (verified byte-for-byte) | agree ✓ |
-| RLE `$06`/`$07`, `1+N` | `terminal.py` `expand_frame` | PROTOCOL.md (`$06`) | `frame.c` `frame_rle_getchar` | agree ✓ (traced the `1+N` off-by-one) |
+| RLE `$06`/`$07`, `1+N` | — | PROTOCOL.md (`$06`) | `frame.c` `frame_rle_getchar` | ✓ (Amiga has both escapes; traced the `1+N` decrement) |
 | Frame header (4-byte) | `_make_info_frame` | 3-byte + charset body | `frame.c` reads 4th byte | agree ✓ (offset 3 = charset in all) |
 | Directory 6-part stream | `_make_page_response` | L_A5F3 parser | `directory_parse.c` | agree ✓ |
 | Entry layout (dual constraint) | 27-char fixed + commas | comma-delimited | fixed-width 6/16/5 | agree ✓ (spec requires both) |
@@ -57,8 +57,10 @@ These are known, deliberately-bounded, and do not block building a conformant cl
 - **Upload state machine detail.** §8.3.2 specifies the flow and the mail-vs-content
   distinction; some byte-exact validation-stream framing still references PROTOCOL.md and
   would benefit from a captured trace.
-- **WebSocket transport.** Mentioned (§4.3) as the reason the response-type bytes exist, but
-  not specified — it is the browser client's transport, out of this spec's TCP scope.
+- **Browser transport.** The spec is TCP-only; a browser cannot open a raw TCP socket, so a
+  web client would need a WebSocket transport binding that this spec does not yet define. The
+  abandoned `client/web/` experiment is **broken and non-compliant** (flagged in its README)
+  and is **not** a reference — the spec's assets are extracted from the C64/Amiga clients only.
 - **`xref.md` line numbers** drift as code changes; symbol names are the stable anchor.
 - **Live wire trace.** §A.7 is a hand-constructed trace. A captured real session (byte dump)
   would strengthen it; none is bundled yet.

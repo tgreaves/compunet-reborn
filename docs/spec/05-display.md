@@ -3,10 +3,11 @@
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.
 >
-> Authority & triangulation: the C64 display model (`docs/PROTOCOL.md`), the Amiga frame
+> Authority & triangulation: the C64 display model (`docs/PROTOCOL.md`) and the Amiga frame
 > renderer (`client/amiga/src/frame.c`, `frame_control.c` — verified against the original
-> disassembly), and the server-side renderer (`server/terminal.py`). The window dimensions
-> and colour/control tables below are agreed across all three.
+> disassembly). The window dimensions and the colour/control tables below are agreed between
+> the two reference clients, and the font and palette are extracted from the Amiga client
+> (Appendix §A).
 
 Compunet content is **PETSCII** — the Commodore 64's character and colour scheme. A client
 renders it into a fixed character grid using the C64 character glyphs and the C64 colour
@@ -22,11 +23,11 @@ directories cannot be shown.
 The Compunet content window is a character grid of **40 columns × 24 rows**.
 
 - Columns are numbered 0–39 (`$00`–`$27`); rows 0–23 (`$00`–`$17`).
-- This is confirmed from two independent renderers: the Amiga frame renderer wraps the
-  cursor column at `$28` and caps the row at `$17`, and the server-side renderer composes
-  into a 40×24 grid. It is one row shorter than the C64's full 40×25 hardware screen — the
-  original C64 reserves the bottom line for the duckshoot / status row, which is client
-  chrome and **not** part of the content grid.
+- The Amiga frame renderer wraps the cursor column at `$28` (40) and caps the row at `$17`
+  (row 23), and its `clear_screen` clears exactly `(0,0)–($17,$27)`. This is one row shorter
+  than the C64's full 40×25 hardware screen — the C64 reserves the bottom line for the
+  duckshoot / status row, which is client chrome and **not** part of the content grid, so the
+  two clients agree on a 40×24 content area.
 - Each cell holds one glyph (§5.3–5.4) plus two attributes: a **colour** (§5.5) and a
   **reverse-video** flag (§5.6).
 
