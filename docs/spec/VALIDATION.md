@@ -150,11 +150,40 @@ credit; `A`-vs-frame). Non-issues: the §5.4 pixel-exact-font MUST vs. a text-mo
 test-harness artifact, not a spec defect), and Part 3 field-definitions (never exercised
 live, so unverified rather than wrong).
 
+## Second clean-room run (patched spec + visual client)
+
+A second isolated agent built from the patched spec (commit `1504dde`), with a two-stage
+brief: Stage 1 a text-mode Tier-1 client, then **Stage 2 a graphical client** to surface UX
+gaps the text-mode run could not. **Regression held: none of the eight run-1 findings
+recurred** — several are now cited as working. New items, all folded in:
+
+Protocol:
+- **§7.2** — the six-part directory stream's text is **plain ASCII**, not PETSCII-shifted like
+  the MOTD (§3.4); a client must not apply the shift to directory text.
+- **§7.2** — Part-5 column headers are **response-specific** (MAIL sends `SENDER,DATE,STATUS`,
+  not the top directory's five); read them from each response, don't hard-code.
+- **§7.6** — a paged listing signals "more pages" with a trailing synthetic `MORE >>>>` entry
+  (outside the §7.4 type grammar).
+- **README** — a stale banner still said "Skeleton (Phase 2), stubs until Phase 3"; corrected.
+
+Display / UX (Stage 2, confirmed with the maintainer):
+- **§7.7** — the directory **colour scheme** was unspecified and both the clean-room and the
+  author's earlier §7.7 had it wrong. Correct scheme: breadcrumb, footer, and entries default
+  to **blue**; the **first entry is always red**; a selection highlight is a bar in the
+  entry's own colour (blue, or red on the first entry) with **white text**. Parts 2/4/6 carry
+  no colour codes — the client applies these.
+- **§7.7** — the selected **column header** (PRICE/AUTHOR…) must be *displayed* above the
+  values; the spec previously described showing the values but not the header (a spec
+  omission, not a client error).
+- **§4.7** — the **duckshoot** appearance is now specified for clients that reproduce it:
+  white-on-black command words, the selection centred and drawn inverse, scrolled left/right.
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across
 transport, session, commands, display, frames, directories, and subsystems, with the
-contradictions above resolved in the server's favour. An **independent** reader built a
-working Tier-1 client from this document alone (see the clean-room run above), which is the
-honest evidence that the spec is buildable; the residual gaps are confined to optional
-subsystems and client-local presentation.
+contradictions above resolved in the server's favour. **Two independent clean-room readers**
+built working Tier-1 clients from this document alone, and the second (with a visual stage)
+confirmed the display/UX layer down to the directory colour scheme. Each run's findings are
+smaller than the last — the signal that the spec has largely stabilised; the residual gaps are
+confined to optional subsystems and finer presentation detail.

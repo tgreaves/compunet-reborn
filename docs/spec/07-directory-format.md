@@ -34,8 +34,19 @@ The response body is six consecutive parts. Each part has its own terminator; a 
 | **5 — Column headers** | The column titles, comma-separated, `CR`-terminated, then a `$00` separator byte | one line ended by `$0D`, then a `$00` |
 | **6 — Entries** | The directory entries, one per line (§7.3) | the stream ends (EOS) after the last entry's `$0D` |
 
-The five column headers the server emits in Part 5 are, in order: `PRICE`, `AUTHOR`,
-`VOTE/NUM`, `UPLDDATE`, `LIFE`. A client cycles which column is shown alongside each entry.
+**The Part-5 column headers are response-specific — read them, do not hard-code them.** The
+top directory sends five: `PRICE`, `AUTHOR`, `VOTE/NUM`, `UPLDDATE`, `LIFE`. But other DIR-type
+responses send a **different set** — e.g. `MAIL` (`M`) sends three: `SENDER`, `DATE`, `STATUS`.
+A client **MUST** take the column names (and their count) from each response's own Part 5 and
+label the entry columns from that, cycling among whichever columns that response defines. It
+**MUST NOT** assume the five top-directory names apply everywhere.
+
+**Encoding: the six-part stream's text is plain ASCII.** Unlike the raw MOTD (§3.4), which is
+sent in PETSCII lowercase mode (`A`–`Z` as `$C1`–`$DA`), the directory stream's text fields —
+titles, breadcrumb, footer, column headers — are **plain, unshifted ASCII** (`"JUNGLE"`,
+`"WHAT'S NEW?"`, `"T+"`). A client **MUST NOT** apply the MOTD's PETSCII shift to directory
+text. (Part 1, the header *frame*, is the exception: it is frame content, §6, and is decoded
+as such — including any PETSCII control codes and RLE.)
 
 ## 7.3 Directory entries (Part 6)
 
@@ -148,6 +159,12 @@ through them:
   server advances its offset by 11 and returns the next page.
 - If there is no next page, the server returns a directory whose only entry is the `(EMPTY)`
   placeholder (§7.3), which a client can treat as "no more entries".
+- **A page that has more pages after it signals so with a trailing `MORE` entry.** When a
+  listing is truncated to 11 because more entries follow, its **last row is a synthetic
+  pagination entry**: an empty page number, the title `MORE        >>>>`, and an **empty type**
+  field. This row is *not* real content and does **not** fit the §7.4 type grammar. A client
+  **SHOULD** treat it as a "there is more" indicator; selecting it (or sending `D` + the entry
+  count) pages forward — both reach the next page.
 - A client **MUST** support paging and **MUST NOT** assume a directory fits in one response.
 
 *(Non-normative: the modern server reloads its content tree on each directory request, so
@@ -157,9 +174,10 @@ listings reflect live content changes without a reconnect.)*
 
 The six parts (§7.2) and the template (§7.5) are composed onto the 40×24 grid at **fixed
 rows**. The path line (row 7) and footer (row 22) are confirmed in both reference clients;
-the entry-region rows and the normal/highlight pens are taken from the Amiga
-`parse_directory_frame` (the C64 places entries in the same box region below the path). A
-client reproduces the layout by placing each part at the row below:
+the entry-region rows are from the Amiga `parse_directory_frame` (the C64 places entries in
+the same box region below the path). The list **colours** are the canonical Compunet scheme
+(see *Directory colours* below). A client reproduces the layout by placing each part at the
+row below:
 
 | Rows | Content | Source part |
 |---|---|---|
@@ -186,10 +204,35 @@ client **MUST** render only two pieces of each entry:
    user cycles which column is shown) — drawn in the right-hand region (about columns 31–38).
 
 The remaining Part-6 column fields for that entry are **not** displayed until the user cycles
-to them. The **normal** entry text uses colour index 2 and the **highlighted / selected**
-entry uses colour index 6 (the reference clients' `frame_pen_lower` / `frame_pen_upper`); a
-client **MUST** visually distinguish the selected entry so the user can see the current
-selection.
+to them.
+
+### Directory colours (client-applied)
+
+Parts 2, 4, and 6 (footer, breadcrumb, entries) arrive as **plain text with no colour
+codes** — only Part 1 (the header frame) carries colour. The client therefore colours the
+list itself, and a conforming client **MUST** use this scheme so the directory looks right:
+
+- The **breadcrumb** (Part 4) and the **footer / advert** (Part 2) are drawn in **blue**
+  (colour index 6).
+- Each entry has a **positional** colour, independent of selection: the **first entry in the
+  list is always red** (index 2); **every other entry is blue** (index 6).
+- If the client offers a **selection highlight** (e.g. cursor-key navigation), the selected
+  entry is shown as a **bar in that entry's own colour** with the **text in white** (index 1)
+  — i.e. a **blue bar** with white text for a normal entry, a **red bar** with white text for
+  the first entry. The highlight takes the entry's positional colour; it is **not** a single
+  fixed colour, and white is the text colour inside the bar.
+
+A client **MUST** visually distinguish the selected entry (a bar, reverse video, or a colour
+change are all acceptable), but the underlying red-first / blue-rest entry colouring above is
+**required** — it is part of the authored Compunet look.
+
+### The selected column header
+
+The header of the currently-selected column (the Part-5 name — `PRICE`, `AUTHOR`, …) **MUST**
+be displayed above the entry values so the user can see which column the right-hand values
+belong to. It is drawn in the right-hand column region (near column 31), just above the entry
+list. A client that shows the column *values* but omits the *header* leaves the values
+unlabelled — that was a spec omission, not a client choice.
 
 A client **MUST** place the parts at these rows (or reproduce the equivalent visual layout)
 so that content authored for Compunet — which assumes this geometry — lands correctly.

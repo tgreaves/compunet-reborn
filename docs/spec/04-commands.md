@@ -175,9 +175,13 @@ long as the user can reach the applicable commands:
 - keyboard shortcuts (e.g. a key per command);
 - an on-screen menu, button bar, or command palette;
 - the original Compunet **"duckshoot"** — a horizontally-scrolling row of command words at
-  the foot of the screen that the user scrolls through and selects (this is the reference
-  user experience, reproduced by the C64 and Amiga clients; a client **MAY** emulate it but
-  is not required to).
+  the foot of the screen (this is the reference user experience, reproduced by the C64 and
+  Amiga clients; a client **MAY** emulate it but is not required to). A client that *does*
+  reproduce it **SHOULD** follow the original's look and behaviour: the command words are
+  **white text on a black background**; the user scrolls the row **left and right**; the
+  **currently-selected command stays in the centre** of the row; and that centred selection is
+  drawn **inverse** (black text on a white background). The user commits the centred command
+  to invoke it.
 
 Concretely, the minimum obligations by tier are:
 
