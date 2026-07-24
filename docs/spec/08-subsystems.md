@@ -212,10 +212,11 @@ A Tier 3 client **MUST** implement the raw line protocol and the activation/tear
 least one transport variant. *(Non-normative: the detailed C64 memory map and the resident
 Amiga viewer "CnetTty" are platform mechanics — see `docs/partyline.md`.)*
 
-## 8.6 UCAT, VOTE, and BUY / LIFE
+## 8.6 UCAT, VOTE, and LIFE
 
-Three commands round out the interactive tier: `C` (UCAT), `V` (VOTE), and `X` (BUY / LIFE).
-**`V` and `X` are separate commands** — do not conflate them.
+Three commands round out the interactive tier: `C` (UCAT), `V` (VOTE), and `X` (LIFE). They
+are three **distinct** commands. Note that **BUY is *not* one of them** — see the box at the
+end of this section.
 
 ### UCAT — `C`
 
@@ -227,23 +228,41 @@ user's* content, not a global catalogue.
 
 ### VOTE — `V`
 
-`V` + an ASCII digit casts a vote on the current page. The server replies with a bare **ACK**
-(§4.3, single packet, no EOS); a client **MUST** treat the ACK as success and **MUST NOT** wait
-for a frame stream. *(A vote's effect may not be immediately visible in the directory's
-`VOTE/NUM` column on the next listing.)*
+Casts a vote on a **directory entry** — the currently-highlighted one, identified by its
+index the same way `D` selects an entry (§4.5/§7.7). The argument is therefore **two parts**,
+as ASCII digits with no separator:
 
-### BUY / LIFE — `X`
+```
+V <entry index, 2 digits> <score, 1 digit 1–9>
+```
 
-`X` is a **single command** whose effect depends on the target page. There is **no separate
-LIFE command** — LIFE is simply what `X` does on your own content:
+e.g. `V 00 5` votes score 5 on the first visible entry. A client **MUST** send the
+highlighted entry's index (its client-local selection), not just the score — voting is
+targeted at a specific listed entry, not "the current page". The score is 1–9. The server
+replies with a bare **ACK** (§4.3, single packet, no EOS); a client **MUST** treat the ACK as
+success and **MUST NOT** wait for a frame stream. *(A vote's effect may not be immediately
+visible in the directory's `VOTE/NUM` column on the next listing.)*
 
-| Target page | What `X` does |
-|---|---|
-| A **paid page** you have not bought | **BUY** it — credit is deducted (paid pages are also bought implicitly on first view, §7) |
-| **Your own** uploaded content | **LIFE** — extend its lifetime |
-| A **link** entry | **Activate** it (§8.5) |
+### LIFE — `X`
 
-In every case the server replies with a bare **ACK**.
+`X` **extends the lifetime** of a directory entry's content (the LIFE duckshoot command). Like
+VOTE, it targets an entry by index:
+
+```
+X <entry index, 2 digits> <extension amount, up to 4 digits>
+```
+
+e.g. `X 03 10` extends the fourth visible entry's life by 10. A client **MUST** send the
+highlighted entry's index (its client-local selection). The extension is charged against the
+user's free storage, overflowing to credit; a negative amount reduces life (owner/admin/editor
+only). The server replies with a bare **ACK** (§4.3). On a **link** entry `X` is a no-op ACK
+(links are activated by *selecting* them, not by `X`).
+
+> **BUY is not a command.** "Buying" — downloading a program, viewing a chargeable page, or
+> activating a link — is done by **selecting the entry** with `D` + index (§4.4), which routes
+> to the download (§8.3.1) or link (§8.5) flow; a paid page's credit is deducted **implicitly
+> on first view** (§7). There is no separate `BUY` wire command, and `X` does **not** buy
+> anything — it is LIFE (extend), not BUY.
 
 These are Tier 2. Each is a single command with a simple ACK reply and adds no new wire
 mechanics beyond §4.
@@ -256,8 +275,9 @@ mechanics beyond §4.
 | Mail (Courier) read | `M`, `D` | DIR, then FRAME | 2 |
 | **Mail send** (Courier) | `U`, `N` | validation stream, ACK | **2** |
 | Program download | `D` then `$40`/`$41` | header, then DAT stream | 2 |
-| VOTE | `V` | ACK | 2 |
-| BUY / LIFE | `X` | ACK | 2 |
+| VOTE | `V` + index + score | ACK | 2 |
+| LIFE (extend life) | `X` + index + amount | ACK | 2 |
+| BUY (download / activate / pay) | `D` + index (no separate command) | per entry type | 2 |
 | UCAT | `C` | DIR | 2 |
 | Content upload (Jungle) | `U`, `P` | validation stream, ACK | 3 |
 | Editor | (client-side) → `U` | via upload | 3 |

@@ -97,8 +97,8 @@ whether a frame is currently being viewed).
 | `I` | `$49` | ID lookup | one or more 8-byte user IDs | Look up user IDs; returns per-ID `id` + real name (if known) + `$1E`. With no argument it returns **nothing** (see note). Not "who is online" — that is a content page, not this command | lookup stream |
 | `C` | `$43` | UCAT | — | User catalogue | DIR |
 | `M` | `$4D` | MAIL | — | Enter mail (Courier); see §8.2 | DIR |
-| `V` | `$56` | VOTE | choice | Cast a vote on the current page (§8.6) | ACK |
-| `X` | `$58` | BUY / LIFE | page/amount | Context-dependent: **buy** a paid page, **extend the life** (LIFE) of your own content, or **activate** a link — depending on the target (§8.6) | ACK |
+| `V` | `$56` | VOTE | index + score | Vote on the highlighted directory entry — 2-digit index + 1-digit score 1–9 (§8.6) | ACK |
+| `X` | `$58` | LIFE | index + amount | **Extend the life** of the highlighted entry's content — 2-digit index + extension amount (§8.6). **Not** BUY | ACK |
 | `U` | `$55` | UPLOAD | params | Begin an upload (content or mail); see §8.3 | ACK |
 | `E` | `$45` | LEAVE | — | Log off; the server sends a final frame then closes (§3.8) | FRAME |
 | `Z` | `$5A` | LOGIN | credentials | The login packet (§3.5) — only valid as the first command | FRAME |
@@ -203,7 +203,7 @@ Concretely, the minimum obligations by tier are:
   (more), `L` (GOTO), `A` (account), and `E` (leave). Selecting a directory entry (§7.7)
   is itself the `D` command and satisfies the entry-selection requirement.
 - **Tier 2 (Interact):** additionally the commands for the subsystems it implements — e.g.
-  `M` (mail), `C` (UCAT), `I` (who), `V` (vote), `X` (buy).
+  `M` (mail), `C` (UCAT), `I` (who), `V` (vote), `X` (LIFE / extend).
 - **Tier 3 (Full):** additionally `U` (upload) and the editor / Partyline entry points.
 
 A command the client's tier does not implement need not be offered. The command byte and
@@ -229,8 +229,9 @@ this table standardises the *names*, not the interface.)
 | `ACCNT` | Show the account / personal-information page | `A` |
 | `MAIL` | Enter Courier (mailbox) | `M` |
 | `UCAT` | User catalogue | `C` |
-| `VOTE` | Vote on the current content | `V` + digit |
-| `BUY` | Purchase a paid page | `X` + page |
+| `VOTE` | Vote on the highlighted entry | `V` + index + score |
+| `LIFE` | Extend the highlighted entry's life | `X` + index + amount |
+| `BUY` | Download / activate / pay for the highlighted entry | `D` + index (no separate command) |
 | `UPLD` | Upload content | `U` (§8.3.2) |
 | `LEAVE` | Log off | `E` |
 | `EDITR`, `HELP`, `PRINT`, `SAVE` | Editor / help / print / save | client-side (no wire command) |
