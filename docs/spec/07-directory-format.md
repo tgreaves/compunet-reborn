@@ -133,9 +133,10 @@ listings reflect live content changes without a reconnect.)*
 ## 7.7 Screen composition
 
 The six parts (§7.2) and the template (§7.5) are composed onto the 40×24 grid at **fixed
-rows**. These positions are verified against both reference clients (the C64 and the Amiga
-`parse_directory_frame` agree), so a client reproduces the layout by placing each part at the
-row below:
+rows**. The path line (row 7) and footer (row 22) are confirmed in both reference clients;
+the entry-region rows and the normal/highlight pens are taken from the Amiga
+`parse_directory_frame` (the C64 places entries in the same box region below the path). A
+client reproduces the layout by placing each part at the row below:
 
 | Rows | Content | Source part |
 |---|---|---|

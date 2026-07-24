@@ -583,8 +583,11 @@ Pixel grids for representative glyphs, to cross-check the hex above (`#` = set p
 The directory chrome a client draws when Part 1 of a directory response is empty
 (§7.5), extracted verbatim from the C64 terminal at `$BCE1`–`$BD77` (151 bytes). It is
 an ordinary frame (§6): header `[flags=$00][border=$F4][background=$FF]`, charset `$8E`
-(uppercase), then an RLE/PETSCII body drawing the bordered box, title row, column guides
-and footer, terminated by `$00`.
+(uppercase), then an RLE/PETSCII body, terminated by `$00`. Rendered (verified), it draws the
+bordered content box with its **vertical column dividers** (near columns 30 and 39) and a
+mid-height separator line carrying the **`<F7)(F8>` column-cycle indicator**. The title, path
+(§7 Part 4), entry list (Part 6) and footer (Part 2) are **overlaid** onto this frame from the
+directory response (§7.7) — they are not part of the template.
 ```
   $BCE1: 00 F4 FF 8E 07 0D 05 05 D5 07 C3 1B C0 B2 07 C0
   $BCF1: 07 C9 0D DD 06 1C DD 06 07 DD 0D DD 06 1C C2 06

@@ -112,10 +112,14 @@ The first **framed** packet the client sends is the **login packet**: a COM (`$4
 | 0 | `'Z'` (`$5A`) | 1 | Login command |
 | 1 | User ID | 8 | Space-padded (`$20`) to 8 bytes |
 | 9 | Password | 6 | Space-padded to 6 bytes |
-| 15 | System info | ≥ 0 | Client/terminal info |
+| 15–24 | System info | 10 | ROM/terminal state; **not interpreted by the server** |
 | 25–26 | Terminal hash | 2 | (ROM clients) current cached-terminal hash, for the LINKING skip check |
 
-The server trims trailing spaces from the User ID and password and authenticates.
+The server reads **only** the User ID (offsets 1–8), the password (9–14), and — for ROM
+clients — the terminal hash at 25–26; it trims trailing spaces from the ID and password and
+authenticates. The system-info region (15–24) is not interpreted, so a native client **MAY**
+zero- or space-fill it. A native client (which never links) **MAY** also leave the terminal
+hash zero, since it is classified to skip the hash gate and LINKING (§3.3, §3.6).
 
 **On failure**, the server sends a single-page error frame with the text
 `  INVALID ID OR PASSWORD` (as a DAT stream terminated by a zero-length-payload EOS packet,
