@@ -145,12 +145,20 @@ client reproduces the layout by placing each part at the row below:
 | 10–20 | The entry list — up to 11 entries, one per row, starting at column 1 | Part 6 (+ selected Part 5 column) |
 | 22 | Footer / advert line | Part 2 |
 
-Within the entry rows, each entry occupies one row: the fixed-layout first field (§7.3) —
-page number, title, and type at column 25 — plus the currently-selected column value (the
-Part-5 header the user has cycled to with the column toggle). The **normal** text uses colour
-index 2 and the **highlighted / selected** entry uses colour index 6 (the reference clients'
-`frame_pen_lower` / `frame_pen_upper`); a client **MUST** visually distinguish the selected
-entry so the user can see the current selection.
+Within the entry rows, each entry occupies **one** row, and a client **MUST NOT** render the
+whole comma-separated Part-6 line — it is wider than 40 columns and would overflow/wrap. A
+client **MUST** render only two pieces of each entry:
+
+1. the **first field** (§7.3) — the fixed 27-character `page number · title · type`
+   block — drawn from column 1 (it occupies roughly columns 1–27, with the type at column 25);
+2. **one** column value — the field under the currently-selected Part-5 column header (the
+   user cycles which column is shown) — drawn in the right-hand region (about columns 31–38).
+
+The remaining Part-6 column fields for that entry are **not** displayed until the user cycles
+to them. The **normal** entry text uses colour index 2 and the **highlighted / selected**
+entry uses colour index 6 (the reference clients' `frame_pen_lower` / `frame_pen_upper`); a
+client **MUST** visually distinguish the selected entry so the user can see the current
+selection.
 
 A client **MUST** place the parts at these rows (or reproduce the equivalent visual layout)
 so that content authored for Compunet — which assumes this geometry — lands correctly.

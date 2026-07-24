@@ -69,6 +69,27 @@ These are known, deliberately-bounded, and do not block building a conformant cl
 byte-exact from the server handlers; the §A.6 directory template was rendered to confirm what
 it draws; §3.5 states the server ignores the login system-info field.)*
 
+## Test-client validation (Tier 1)
+
+A clean-room Tier-1 client (`client/pygame/`) was written **from `docs/spec/` alone** — not
+referencing the server or the C64/Amiga source — and run against the live `docker.lan:6400`
+server. It successfully connected, identified (native handshake), logged in, rendered the
+welcome/personal-info frame, listed the top directory, selected an entry, and rendered the
+live `WHO IS ONLINE?` page. The framing, CRC, ACK pacing, session flow, PETSCII display, and
+directory parsing all matched the server on the wire. The build surfaced eight findings; the
+substantive three were fixed in the spec this pass:
+
+- **§6.2** — softened: byte 3 is *consumed* as the charset selector (non-`$0E` = uppercase);
+  the server's own error frame carries `$0D` there, so a client must tolerate any value.
+- **§5.6.1** (new) — the auto-wrap/`CR` guard ("just-wrapped" flag) is now spelled out; it was
+  only alluded to before, which caused a blank line between every full-width row.
+- **§7.7** — made explicit that each entry row shows only its first field + one selected
+  column, never the whole comma-separated line (which overflows 40 columns).
+
+Three further clarifications were added (§2.8 client sequence start, §3.2 initial handshake
+byte, §4.5 reading the entry type from the first field). Two remain non-normative by design
+(§6.3 pre-colour default, §4.2 non-DAT mid-stream).
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across

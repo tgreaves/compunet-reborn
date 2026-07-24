@@ -34,11 +34,14 @@ A frame begins with a **4-byte header**:
 | 2 | background colour | C64 palette index in the low nibble |
 | 3 | initial charset | A charset control code: `$0E` = lowercase/mixed, `$8E` = uppercase/graphics |
 
-Byte 3 **MUST** be a charset control (`$0E` or `$8E`). This is required because a client may
-consume byte 3 as a dedicated charset selector rather than as body: the reference Amiga
-renderer reads exactly one byte here and sets its character set from it, and the server
-always emits `$0E`/`$8E` at this position. Placing anything else at byte 3 would be consumed
-and lost by such a client. Additional charset switches within the body are permitted (§5.2).
+Byte 3 is the **initial charset selector**, and a client **MUST** consume it as such: `$0E`
+selects lowercase/mixed, and **any other value** selects uppercase/graphics (the reference
+Amiga renderer reads exactly one byte here and tests only for `$0E`). Frames **SHOULD** place
+a charset control (`$0E`/`$8E`) at byte 3; a client **MUST** tolerate any other value —
+notably, the server's own `INVALID ID OR PASSWORD` error frame carries `$0D` here, which
+correctly resolves to uppercase. Because byte 3 is *consumed* as the charset selector, a
+printable byte placed there would be lost, so frames begin their visible content at byte 4.
+Additional charset switches within the body are permitted (§5.2).
 
 The authoritative layout is the table above, as emitted by the server's frame builders and
 consumed by the Amiga renderer (`frame.c` reads flags, border, background, then the charset
@@ -65,7 +68,8 @@ set (§5). For each byte `b` read from the body:
    move/home the cursor, clear, toggle reverse, or switch character set — and emit nothing.
 5. otherwise → **character**: convert `b` to a screen code (§5.3), draw the active set's
    glyph (§5.4) at the cursor in the current colour and reverse state, then advance the
-   cursor (wrapping per §5.6).
+   cursor, applying the **auto-wrap guard** of §5.6.1 (a full-width line followed by a `CR`
+   must not leave a blank row).
 
 "Emitting into a cell" writes the glyph with the current colour/reverse attributes and
 advances the cursor with the same wrapping as a normal character.

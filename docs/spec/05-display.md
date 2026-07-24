@@ -157,6 +157,27 @@ Cursor motion is bounded by the 40×24 grid: column wraps at 40, rows clamp at 0
 client **MUST** reproduce these bounds so that content laid out by cursor positioning
 lands in the same cells as on the reference clients.
 
+### 5.6.1 The auto-wrap guard (important)
+
+Printing a character in the last column (39) advances the cursor to column 0 of the **next
+row** — an *auto-wrap*. Frames are authored assuming this, so a line that is exactly 40
+characters wide is **immediately followed by a `CR`** in the byte stream. Without a guard a
+client would advance the row twice (once for the wrap, once for the `CR`), inserting a blank
+line between every full-width row.
+
+A client **MUST** implement the guard, exactly as the reference clients do:
+
+- Maintain a **"just-wrapped"** flag. Printing a character that carries the column past 39
+  (wrapping to the next row) **sets** the flag; printing any character that does **not** wrap
+  clears it; any explicit cursor move (`$11`/`$91`/`$1D`/`$9D`/`$13`) clears it.
+- A `CR` (`$0D` or `$8D`) sets the column to 0 and clears the reverse attribute (§5.7); it
+  advances the row **only if the just-wrapped flag is not set**. Either way it clears the
+  flag.
+
+In other words, a `CR` immediately after an auto-wrap resets the column but does **not**
+advance the row a second time. (This mirrors the Amiga's `P_WRAP` guard in `carriage_return`
+and the C64's screen-editor behaviour.)
+
 ## 5.7 Reverse video
 
 `$12` turns reverse video on and `$92` turns it off. While on, each rendered cell uses the

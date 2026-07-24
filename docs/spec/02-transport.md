@@ -182,6 +182,9 @@ wire    : $01 <byte-stuffed content> $02
 - A client **MUST** echo the received `DAT` sequence number in the ACK it returns (§2.9)
   and **MUST** keep its own transmit sequence within the `$20`–`$5F` range with the same
   wrap.
+- A client **MAY** begin its transmit sequence at any value in range (`$20` is fine). The
+  server does not reject an out-of-order client sequence — it reads the number rather than
+  validating it — so the client's starting value is not significant for interoperation.
 
 ## 2.9 Flow control (ACK pacing)
 

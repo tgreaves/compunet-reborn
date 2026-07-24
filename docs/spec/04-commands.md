@@ -135,7 +135,10 @@ the client. The rule:
 
 So the two context-sensitive commands are `D` and `P`: a client **MUST** track whether it is
 viewing a directory or a frame, and for `D`-with-index **MUST** use the selected entry's type
-(known from the directory listing it is displaying) to choose the parser. Everything else is
+to choose the parser. That type is not delivered separately — the client reads it from the
+entry it selected, where the type occupies characters 24–26 of the entry's first field
+(screen column 25; see §7.3/§7.4). A client therefore **MUST** retain each listed entry's
+type when it parses a directory, so it can dispatch the subsequent `D`. Everything else is
 determined by the command byte alone. The ERROR type (§4.3) is delivered as a frame and can
 be rendered by the frame parser, so a client **MAY** treat an unexpected frame where it
 expected a directory as an error message rather than crashing.
