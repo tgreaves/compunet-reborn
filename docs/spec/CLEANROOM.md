@@ -20,17 +20,36 @@ test needs a reader who genuinely has *only* the spec.
 
 ## Setup (isolate the spec)
 
-Copy only the spec into a neutral directory that contains nothing else and is **not inside
-the repository**, so the builder cannot reach the source even by accident:
+Copy **only the normative spec** into a neutral directory that contains nothing else and is
+**not inside the repository**, so the builder cannot reach the source even by accident. Copy
+the README, the numbered section files, and the appendix — and **deliberately exclude** the
+companion docs, because they would contaminate the test: `VALIDATION.md` lists the findings
+(the answers), `xref.md` gives server source locations (an invitation to cheat), and
+`AUDIT.md` / this file are meta.
+
+macOS / Linux / Git-Bash:
 
 ```bash
-rm -rf /tmp/cleanroom && mkdir -p /tmp/cleanroom && cp docs/spec/*.md /tmp/cleanroom/
+CR=/tmp/cleanroom            # any path OUTSIDE the repo
+rm -rf "$CR" && mkdir -p "$CR"
+cp docs/spec/README.md docs/spec/0*.md docs/spec/99-appendices.md "$CR/"
+git rev-parse HEAD > "$CR/SPEC-COMMIT.txt"
 ```
 
-Then start a **brand-new** agent session (a fresh `claude` in `/tmp/cleanroom`, or an
+Windows (PowerShell):
+
+```powershell
+$CR = "$HOME\cleanroom"      # any path OUTSIDE the repo
+Remove-Item -Recurse -Force $CR -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $CR | Out-Null
+Copy-Item docs\spec\README.md, docs\spec\0*.md, docs\spec\99-appendices.md $CR
+git rev-parse HEAD | Out-File -Encoding ascii "$CR\SPEC-COMMIT.txt"
+```
+
+The copied set must be exactly: `README.md`, `01`–`08`, `99-appendices.md` (plus the commit
+stamp). Then start a **brand-new** agent session (a fresh `claude` in that directory, or an
 otherwise isolated agent) — not a continuation of any session that has seen the codebase —
-and give it the brief below. Record which spec commit you are testing (e.g. `git rev-parse
-HEAD`) so the result is tied to an exact version of the spec.
+and give it the brief below.
 
 ## The brief (paste this to the fresh agent)
 
