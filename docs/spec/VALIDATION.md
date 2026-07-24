@@ -90,6 +90,19 @@ Three further clarifications were added (§2.8 client sequence start, §3.2 init
 byte, §4.5 reading the entry type from the first field). Two remain non-normative by design
 (§6.3 pre-colour default, §4.2 non-DAT mid-stream).
 
+A second round of testing (wiring up the commands) surfaced three more, all fixed:
+
+- **§4.6** (new) — the spec described commands but never required a client to let the user
+  *invoke* them; a conforming client now **MUST** provide a means to issue the commands of
+  its tier (the interface — keys, menu, duckshoot — remains its choice).
+- **§7.2/§7.7** — the top directory's **Part 1 header** (the COMPUNET logo) was being
+  dropped; clarified that the template is always the base and Part 1 overlays the header
+  region.
+- **§4.4** — the `I` command was mislabelled "ID / WHO". It is an **ID lookup** (takes 8-byte
+  user IDs, returns name pairs); with no argument it returns nothing. "Who is online" is a
+  content page, not this command. Also noted: a client **MUST** read with a timeout, since a
+  command can legitimately produce no response.
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across

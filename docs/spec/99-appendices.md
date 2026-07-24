@@ -22,7 +22,7 @@ argument]` (§4). "Typical reply" is indicative; some commands vary by context.
 | `B` | `$42` | BACK | — | Parent directory | DIR | 1 |
 | `L` | `$4C` | GOTO | keyword/page | Jump to a page by number or keyword | DIR | 1 |
 | `A` | `$41` | ACCOUNT | — | Account / personal-information frame | FRAME | 1 |
-| `I` | `$49` | ID / WHO | — | Identify / who-is-online | DIR | 2 |
+| `I` | `$49` | ID lookup | 8-byte user IDs | Look up user IDs → name pairs (`id`+name+`$1E`); no arg = no response | lookup | 2 |
 | `C` | `$43` | UCAT | — | User catalogue | DIR | 2 |
 | `M` | `$4D` | MAIL | — | Enter Courier (mailbox directory) | DIR | 2 |
 | `V` | `$56` | VOTE | choice | Cast a vote (LIFE / VOTE) | ACK | 2 |
