@@ -18,10 +18,12 @@ historical file extension for stored frames; the wire encoding is identical.)
 A frame is delivered as a **DAT (`$22`) stream** (§2): its bytes are split across one or
 more DAT packets (the server chunks at 100 payload bytes), each ACK-paced, followed by a
 zero-length **EOS** packet. A client reassembles the frame by concatenating DAT payloads
-until either the in-band terminator `$00` (§6.3) or the EOS packet — in a well-formed
-frame these coincide, the `$00` being the last content byte before EOS. A client **MUST**
-reassemble across packet boundaries and **MUST NOT** assume any field lies within a single
-packet.
+until either the in-band terminator `$00` (§6.3) **or** the EOS packet — **whichever comes
+first**. These do **not** always coincide: some frames (the login welcome frame, for one) have
+**no `$00` in the body at all** and simply end at the EOS packet. A client **MUST** treat the
+EOS as an equally valid end of frame — render whatever was decoded up to that point — and
+**MUST NOT** require a `$00`. It **MUST** reassemble across packet boundaries and **MUST NOT**
+assume any field lies within a single packet.
 
 ## 6.2 Header
 

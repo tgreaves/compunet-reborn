@@ -25,8 +25,8 @@ argument]` (§4). "Typical reply" is indicative; some commands vary by context.
 | `I` | `$49` | ID lookup | 8-byte user IDs | Look up user IDs → name pairs (`id`+name+`$1E`); no arg = no response | lookup | 2 |
 | `C` | `$43` | UCAT | — | User catalogue | DIR | 2 |
 | `M` | `$4D` | MAIL | — | Enter Courier (mailbox directory) | DIR | 2 |
-| `V` | `$56` | VOTE | choice | Cast a vote (LIFE / VOTE) | ACK | 2 |
-| `X` | `$58` | BUY | page | Purchase a paid page | ACK | 2 |
+| `V` | `$56` | VOTE | choice | Cast a vote on the current page | ACK | 2 |
+| `X` | `$58` | BUY / LIFE | page | Buy a paid page, extend own content's life (LIFE), or activate a link (§8.6) | ACK | 2 |
 | `U` | `$55` | UPLOAD | params | Content upload or mail send | ACK / stream | 3 |
 | `E` | `$45` | LEAVE | — | Log off (server closes) | FRAME | 1 |
 

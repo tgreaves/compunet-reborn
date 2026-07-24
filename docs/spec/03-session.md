@@ -168,9 +168,11 @@ client compatibility measure described in §4, not a change to the wire format i
 
 A session ends in one of these ways:
 
-- **Client LEAVE.** The `LEAVE` command causes the server to send its final response and
-  then close the connection after ~2 seconds. A client **SHOULD** offer LEAVE as the clean
-  way to log off.
+- **Client LEAVE.** The `LEAVE` command (`E`, §4.4) causes the server to send a **goodbye
+  frame** (an ordinary §6 FRAME response, DAT stream + EOS) and then close the connection
+  after ~2 seconds. A client **MUST read and render that goodbye frame before handling the
+  close** — it is not merely "quit and disconnect"; the server sends a farewell screen first.
+  A client **SHOULD** offer LEAVE as the clean way to log off.
 - **Idle timeout.** The server closes a session that sends no command for **20 minutes**
   (1200 s). A client **MAY** send activity to keep the session alive.
 - **Transport close.** Either side closing the TCP connection ends the session. A client
