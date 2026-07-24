@@ -59,26 +59,38 @@ and give it the brief below.
 > documentation. If something you need is not in these files, that is a finding: **do not go
 > hunting for it** — record it, make a documented assumption, and continue.
 >
-> **Goal.** Build a **Tier 1 ("Browse")** client in Python. Use raw TCP sockets. A text-mode
-> 40×24 render printed to the terminal is sufficient — no graphics library is required. The
-> client must:
+> Build in Python and test everything against the live server as you go:
+> `docker.lan:6400`, user `ADMIN`, password `ADMIN`. (Development server; only browse — do
+> not upload, vote, buy, or delete.) Iterate: build, connect, observe what breaks, consult
+> the spec, fix, repeat.
 >
-> 1. connect to the server, complete the handshake and identification, and log in;
-> 2. show the directory and let the user navigate it (list, select/open an entry, go back);
-> 3. render frames (pages) correctly, including colour, the character set, and run-length
->    compression;
-> 4. let the user invoke the applicable commands and leave cleanly.
+> **Stage 1 — Tier 1 client (protocol/format correctness).** Use raw TCP sockets; a text-mode
+> 40×24 render printed to the terminal is enough here. It must: (1) connect, complete the
+> handshake and identification, and log in; (2) show the directory and let the user navigate
+> it (list, select/open an entry, go back, page); (3) render frames correctly — colour,
+> character set, run-length compression; (4) let the user invoke the applicable commands and
+> leave cleanly. This stage proves the wire protocol and the content formats.
 >
-> **Test target.** `docker.lan:6400`, user `ADMIN`, password `ADMIN`. (This is a development
-> server; only browse — do not upload, vote, buy, or delete.) Iterate against it: build,
-> connect, observe what breaks, consult the spec, fix, repeat.
+> **Stage 2 — Visual client (display + UX correctness).** Once Stage 1 works, build a
+> **graphical** version that reproduces the Compunet look and feel: render the 40×24 screen
+> with **pixel-accurate C64 glyphs and the 16-colour palette from the appendix**, and give the
+> user a **visual way to invoke commands** (e.g. buttons, a menu, or the on-screen command
+> bar). Use whatever rendering is available with least friction — `tkinter` (Python standard
+> library), `pygame` if installed, or emit an image (PPM/PNG) per screen. The point of this
+> stage is to expose **user-experience** aspects the spec implies but does not fully pin down:
+> how commands are surfaced and named, how the directory and the current selection look, the
+> colours, the on-screen layout and margins, the border/background, and the overall
+> look-and-feel of the Compunet window. Whenever you have to *invent* a presentation or
+> interaction choice because the spec did not specify it, that is a **UX finding** — log it.
 >
-> **Findings log (the main deliverable).** Keep a running list. Every time the spec is
-> silent, ambiguous, contradictory, or contradicted by the server, write down: the spec
-> section, exactly what you needed, what you had to assume, and whether your assumption
-> worked against the live server. Be specific.
+> **Findings log (the main deliverable).** Keep a running list across both stages. Every time
+> the spec is silent, ambiguous, contradictory, or contradicted by the server, write down: the
+> spec section, exactly what you needed, what you had to assume, and whether your assumption
+> worked (against the live server for protocol items; visually for UX items). Tag each finding
+> **[PROTOCOL]** or **[UX]**. Be specific.
 >
-> **Deliver:** the client source, and the findings log.
+> **Deliver:** the Stage 1 client, the Stage 2 visual client, and the findings log. If you can
+> save a few screenshots (or rendered image files) of the visual client, include them.
 
 ## Rules that keep the test valid
 
@@ -88,7 +100,9 @@ and give it the brief below.
   run is **void** — restart it clean.
 - The builder is told to **log and assume**, never to go find the answer elsewhere. A build
   that "succeeds" by reading the source proves nothing about the spec.
-- Prefer text-mode rendering: the goal is protocol and format coverage, not graphics.
+- Stage 1 uses text-mode rendering (fast protocol/format coverage); Stage 2 adds a graphical
+  client to expose display and UX gaps. Both stages share one findings log, tagged
+  `[PROTOCOL]` / `[UX]`.
 
 ## After the run — reconcile
 
