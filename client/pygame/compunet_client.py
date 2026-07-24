@@ -501,7 +501,7 @@ def main():
     # Tier-1 client offers both on-screen buttons and keyboard shortcuts (the
     # spec leaves the interface to the client).
     print('\nClick a button, or use keys: P dir  B back  M mail  C ucat  A account  '
-          'SPACE more\nUP/DOWN move  ENTER open  digits+G goto  ESC leave\n')
+          'SPACE more\nUP/DOWN move  ENTER show selected  digits+G goto  ESC leave\n')
 
     dir_parts = None                                   # last directory (for entry types + selection)
     selected = 0
@@ -587,7 +587,7 @@ def main():
         ('BACK',    lambda: cmd_dir(b'B')),
         ('UP',      lambda: move(-1)),
         ('DOWN',    lambda: move(1)),
-        ('OPEN',    lambda: select_entry(selected)),
+        ('SHOW',    lambda: select_entry(selected)),   # read/open the highlighted entry (§4.5 D+index)
         ('MORE',    do_more),
         ('MAIL',    lambda: cmd_dir(b'M')),
         ('UCAT',    lambda: cmd_dir(b'C')),
