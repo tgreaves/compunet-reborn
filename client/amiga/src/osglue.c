@@ -73,6 +73,8 @@ void fatal_exit(ULONG code)
      * restores the entry stack pointer and returns to DOS. (An earlier version looped
      * on cleanup_resources() level-by-level, which was the wrong unwind primitive.) */
     extern void cleanup_all_resources(void);
+    wb_startup_end();          /* if launched from Workbench: restore cwd + reply the WBStartup
+                                * message (while DOSBase is still open) so WB can unload us */
     cleanup_all_resources();   /* frees the whole list — incl. CloseWindow/CloseScreen */
     exit((int)code);
 }

@@ -208,6 +208,12 @@ LONG id_check_mode(void);    /* was FUN_0010f116 */
 LONG load_config(void);      /* was FUN_00102000 */
 LONG launch_editor(void);    /* was FUN_001025de */
 void launch_tty(void);       /* was FUN_001026ae */
+
+/* Workbench-launch handling (wbstartup.c): wb_startup_begin() at program start (cwd = the
+ * icon's drawer + take the WBStartup msg), wb_startup_end() at exit (restore + reply). */
+void wb_startup_begin(void);
+void wb_startup_end(void);
+extern APTR g_wb_startup;    /* struct WBStartup * if launched from Workbench, else NULL */
 void client_main(void);      /* was FUN_001029e6 — top-level: launch + setjmp + loop */
 void event_loop(void);       /* was FUN_00102814 — Intuition IDCMP dispatch loop     */
 void disconnect(void);       /* was FUN_00102968 — abort/disconnect teardown         */

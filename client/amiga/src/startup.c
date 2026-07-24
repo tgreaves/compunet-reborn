@@ -29,6 +29,10 @@ int main(void)
      * FUN_001029e6): launch_tty() brings up the UI, an abort setjmp is armed, and the
      * Intuition event loop runs forever. client_main() does not return. */
     open_dos_library();
+    wb_startup_begin();   /* Workbench launch: take the WBStartup msg + cwd = icon's drawer,
+                           * so the startup LoadSeg("CnetEditor"/"CnetTty") and TCPHOST/config
+                           * reads resolve (minstart.o, unlike the original's SAS/C c.o, does
+                           * not do this — hence the guru on double-click). Harmless from CLI. */
     client_main();
     return 0;
 }
