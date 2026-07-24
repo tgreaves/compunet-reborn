@@ -105,7 +105,10 @@ A second round of testing (wiring up the commands) surfaced three more, all fixe
 - **§4.7** (new) — the spec gave the *wire* commands but not the *user-facing* Compunet
   command names, so a builder invents labels and gets them wrong (the client first labelled
   the read-entry action "OPEN"). §4.7 now standardises the duckshoot vocabulary (DIR, SHOW,
-  BACK, GOTO, ACCNT, MAIL, UCAT, MORE, FINISH…) and its mapping to the wire commands.
+  BACK, GOTO, ACCNT, MAIL, UCAT, MORE, FINISH…) and its mapping to the wire commands, and
+  clarifies that opening an entry (DIR/SHOW) uses `D`+index — **not** `P` (FINISH), which
+  carries no index and only refreshes the current directory. (The client had wired DIR→`P`,
+  so DIR did nothing on a highlighted entry.)
 
 ## Conclusion
 

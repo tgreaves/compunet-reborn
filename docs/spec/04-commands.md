@@ -221,3 +221,11 @@ this table standardises the *names*, not the interface.)
 > a single "SHOW"/open action that does the right thing per entry type, or keep the separate
 > `DIR`/`SHOW`/`BUY` labels — both are conformant, since the byte on the wire is identical.
 > A client **SHOULD NOT** invent a non-Compunet label (e.g. "OPEN") for this action.
+>
+> **Opening an entry uses `D`+index, not `P`.** On the framed (TCP) transport there is no
+> "move the selection" command — the client tracks the highlighted entry **locally** and acts
+> on it by sending `D` + that entry's index. `FINISH` (`P`) carries **no index**: it returns
+> to, or refreshes, the current directory, using only the server's last-selected entry. A
+> client **MUST NOT** use `P` to enter a highlighted sub-directory (the server does not know
+> the client's local highlight, so `P` will appear to "do nothing" or act on the wrong entry).
+> `DIR` and `SHOW` are therefore both `D`+index; `FINISH` is `P`.
