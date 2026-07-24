@@ -28,8 +28,11 @@ python compunet_client.py docker.lan:6400 <userid> <password>
 
 If you omit the userid/password it will prompt. Defaults to `docker.lan:6400`.
 
-Keys: digits + **Enter** select a directory entry · **B** back · **Space** more ·
-**P** show current directory · **Esc/Q** leave.
+The window has an **on-screen button bar** (DIR · BACK · UP · DOWN · OPEN · MORE ·
+MAIL · UCAT · ACCOUNT · LEAVE) — click to invoke commands. Equivalent keys also work:
+**P** dir · **B** back · **UP/DOWN** move selection · **Enter** open selected (or
+digits + Enter) · **Space** more · **M** mail · **C** ucat · **A** account ·
+digits + **G** goto · **Esc** leave.
 
 ## Findings (spec suitability)
 
