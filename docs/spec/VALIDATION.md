@@ -102,6 +102,10 @@ A second round of testing (wiring up the commands) surfaced three more, all fixe
   user IDs, returns name pairs); with no argument it returns nothing. "Who is online" is a
   content page, not this command. Also noted: a client **MUST** read with a timeout, since a
   command can legitimately produce no response.
+- **§4.7** (new) — the spec gave the *wire* commands but not the *user-facing* Compunet
+  command names, so a builder invents labels and gets them wrong (the client first labelled
+  the read-entry action "OPEN"). §4.7 now standardises the duckshoot vocabulary (DIR, SHOW,
+  BACK, GOTO, ACCNT, MAIL, UCAT, MORE, FINISH…) and its mapping to the wire commands.
 
 ## Conclusion
 

@@ -180,3 +180,44 @@ Concretely, the minimum obligations by tier are:
 A command the client's tier does not implement need not be offered. The command byte and
 wire exchange for each are defined in §4.4 and §8; this section only requires that a user
 can trigger them.
+
+## 4.7 Standard command vocabulary
+
+When a client surfaces commands to the user, it **SHOULD** use the original Compunet command
+names below rather than inventing its own, so the experience is recognisable across clients.
+These are the words the original "duckshoot" presented; they map onto the wire commands of
+§4.4. (The *how* — buttons, menu, scrolling duckshoot — remains the client's choice, §4.6;
+this table standardises the *names*, not the interface.)
+
+**While viewing a directory:**
+
+| Name | User action | Wire command |
+|---|---|---|
+| `DIR` | Enter the highlighted entry's sub-directory | `D` + index |
+| `SHOW` | Read the highlighted entry's page | `D` + index |
+| `BACK` | Go to the parent directory | `B` |
+| `GOTO` | Jump to a page by number or keyword | `L` + arg |
+| `ACCNT` | Show the account / personal-information page | `A` |
+| `MAIL` | Enter Courier (mailbox) | `M` |
+| `UCAT` | User catalogue | `C` |
+| `VOTE` | Vote on the current content | `V` + digit |
+| `BUY` | Purchase a paid page | `X` + page |
+| `UPLD` | Upload content | `U` (§8.3.2) |
+| `LEAVE` | Log off | `E` |
+| `EDITR`, `HELP`, `PRINT`, `SAVE` | Editor / help / print / save | client-side (no wire command) |
+
+**While reading a page (frame):**
+
+| Name | User action | Wire command |
+|---|---|---|
+| `MORE` | Show the next page of a multi-frame item | `D` (no arg) / `N` |
+| `FINISH` | Return to the directory | `P` |
+
+> **DIR vs SHOW — one wire command, two names.** In the original, `DIR` (enter a
+> sub-directory) and `SHOW` (read a text page) were distinct duckshoot commands, but in
+> Reborn **both send `D` + index** and the server dispatches on the selected entry's type
+> (§4.5, §7.4): a directory-type entry is entered, a text-type entry is shown, a
+> program/link entry is downloaded/activated (§8.3.1/§8.5). A client **MAY** therefore expose
+> a single "SHOW"/open action that does the right thing per entry type, or keep the separate
+> `DIR`/`SHOW`/`BUY` labels — both are conformant, since the byte on the wire is identical.
+> A client **SHOULD NOT** invent a non-Compunet label (e.g. "OPEN") for this action.
