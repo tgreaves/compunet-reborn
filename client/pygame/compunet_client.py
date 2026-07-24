@@ -380,7 +380,12 @@ def render_directory(screen, template, parts, sel_col=0, selected=0):
     shows ONLY its first field + one selected column value (§7.3/§7.7) — never
     the whole comma-separated line (which overflows 40 columns)."""
     screen.reset()
-    render_frame_bytes(screen, template, start=0)      # base chrome (§7.5)
+    render_frame_bytes(screen, template, start=0)      # base chrome (§7.5) — 6 blank header rows + box
+    # §7.2 Part 1: an optional header frame (e.g. the COMPUNET logo) overlaid on
+    # the header region (rows 0–5). A leading-only $8E (empty header) draws nothing.
+    if len(parts['part1']) > 1:
+        screen.row, screen.col, screen.colour = 0, 0, 1
+        render_frame_bytes(screen, parts['part1'] + b'\x00', start=1)
     if parts['part4']:                                 # path @ row 7 col 1
         screen.row, screen.col = 7, 1
         render_frame_bytes(screen, parts['part4'] + b'\x00', start=1)

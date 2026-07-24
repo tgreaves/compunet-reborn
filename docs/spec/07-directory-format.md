@@ -140,10 +140,18 @@ client reproduces the layout by placing each part at the row below:
 
 | Rows | Content | Source part |
 |---|---|---|
-| 0–5 | Header region | Part 1 header frame, else the built-in template (§7.5) |
+| 0–5 | Header region — overlaid with Part 1 if present, else left as the template drew it | Part 1 |
 | 7 | Path / breadcrumb line (from column 1); page-number column at column 31 | Part 4 |
 | 10–20 | The entry list — up to 11 entries, one per row, starting at column 1 | Part 6 (+ selected Part 5 column) |
 | 22 | Footer / advert line | Part 2 |
+
+The **built-in template (§7.5) is always drawn first as the base chrome** — the bordered box,
+column dividers, and the column-cycle indicator. The template intentionally begins with six
+blank rows (its body opens with a six-fold `CR` run), leaving the **header region (rows 0–5)**
+empty. A client then **overlays Part 1 there when it is non-empty** (e.g. the COMPUNET logo);
+when Part 1 is empty (`$00`), rows 0–5 simply remain as the template left them. The path,
+entries, and footer overlay on top as below. A client that draws only the template and skips
+Part 1 will render every directory without its header graphic.
 
 Within the entry rows, each entry occupies **one** row, and a client **MUST NOT** render the
 whole comma-separated Part-6 line — it is wider than 40 columns and would overflow/wrap. A
