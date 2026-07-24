@@ -488,7 +488,7 @@ def main():
 
     pygame.init()
     SCREEN_W, SCREEN_H = 40 * CELL * SCALE, 24 * CELL * SCALE
-    BTN_COLS, BTN_H, BTN_PAD = 5, 34, 4
+    BTN_COLS, BTN_H, BTN_PAD = 6, 34, 4
     BAR_H = 2 * (BTN_H + BTN_PAD) + BTN_PAD
     surf = pygame.display.set_mode((SCREEN_W, SCREEN_H + BAR_H))
     pygame.display.set_caption('Compunet Reborn — pygame test client (Tier 1)')
@@ -500,8 +500,10 @@ def main():
     # §4.6: a client MUST let the user invoke the commands of its tier. This
     # Tier-1 client offers both on-screen buttons and keyboard shortcuts (the
     # spec leaves the interface to the client).
-    print('\nClick a button, or use keys: P dir  B back  M mail  C ucat  A account  '
-          'SPACE more\nUP/DOWN move  ENTER show selected  digits+G goto  ESC leave\n')
+    print('\nThe welcome frame is shown first — press FINISH to enter the directory.\n'
+          'Buttons/keys: DIR|SHOW open highlighted (also ENTER)  UP/DOWN move  BACK (B)  '
+          'FINISH (P)\n              MORE (SPACE)  MAIL (M)  UCAT (C)  ACCNT (A)  '
+          'digits+G goto  LEAVE (ESC)\n')
 
     dir_parts = None                                   # last directory (for entry types + selection)
     selected = 0
@@ -550,6 +552,9 @@ def main():
         return ''
 
     def select_entry(idx):                             # §4.5: dispatch by the entry's type
+        if not dir_parts:
+            print('[hint] no directory loaded — press FINISH to show the directory first')
+            return
         typ = entry_type(idx)
         if typ[:1] in ('P', 'S', 'L'):
             print(f'[tier1] entry {idx} type {typ!r} is a download/link — Tier 1 skips it')
@@ -582,16 +587,19 @@ def main():
         running = False
 
     # Build the button bar (§4.6 — the user-facing way to invoke commands).
+    # §4.7 command vocabulary. DIR and SHOW both open the highlighted entry via D+index
+    # (the server dispatches by type); FINISH is P (return to / show the current directory).
     BTN_DEFS = [
-        ('DIR',     lambda: cmd_dir(b'P')),
+        ('DIR',     lambda: select_entry(selected)),   # enter highlighted entry (§4.7: D+index)
+        ('SHOW',    lambda: select_entry(selected)),   # read highlighted entry (§4.7: D+index)
         ('BACK',    lambda: cmd_dir(b'B')),
+        ('FINISH',  lambda: cmd_dir(b'P')),            # return to / show current directory (§4.7)
         ('UP',      lambda: move(-1)),
         ('DOWN',    lambda: move(1)),
-        ('SHOW',    lambda: select_entry(selected)),   # read/open the highlighted entry (§4.5 D+index)
         ('MORE',    do_more),
         ('MAIL',    lambda: cmd_dir(b'M')),
         ('UCAT',    lambda: cmd_dir(b'C')),
-        ('ACCOUNT', lambda: cmd_frame(b'A')),
+        ('ACCNT',   lambda: cmd_frame(b'A')),
         ('LEAVE',   do_leave),
     ]
     bw = SCREEN_W // BTN_COLS
