@@ -500,9 +500,9 @@ def main():
     # §4.6: a client MUST let the user invoke the commands of its tier. This
     # Tier-1 client offers both on-screen buttons and keyboard shortcuts (the
     # spec leaves the interface to the client).
-    print('\nThe welcome frame is shown first — press FINISH to enter the directory.\n'
-          'Buttons/keys: DIR|SHOW open highlighted (also ENTER)  UP/DOWN move  BACK (B)  '
-          'FINISH (P)\n              MORE (SPACE)  MAIL (M)  UCAT (C)  ACCNT (A)  '
+    print('\nThe welcome frame is shown first — press DIR (or FINISH) to enter the directory.\n'
+          'Buttons/keys: DIR|SHOW show dir / open highlighted (also ENTER)  UP/DOWN move  '
+          'BACK (B)\n              MORE (SPACE)  MAIL (M)  UCAT (C)  ACCNT (A)  '
           'digits+G goto  LEAVE (ESC)\n')
 
     dir_parts = None                                   # last directory (for entry types + selection)
@@ -510,6 +510,7 @@ def main():
     typed = ''
     hover = -1
     running = True
+    mode = 'frame'                                     # 'frame' or 'dir' — what's on screen now
     buttons = []                                       # filled below: (rect, label, callback)
 
     def present():
@@ -524,12 +525,14 @@ def main():
         pygame.display.flip()
 
     def render_dir(data):
-        nonlocal dir_parts, selected
-        dir_parts = parse_directory(data); selected = 0
+        nonlocal dir_parts, selected, mode
+        dir_parts = parse_directory(data); selected = 0; mode = 'dir'
         render_directory(screen, template, dir_parts, selected=selected)
         draw_screen(screen_surf, screen, fonts, palette); present()
 
     def render_frame(data):
+        nonlocal mode
+        mode = 'frame'
         screen.reset(); render_frame_bytes(screen, data, start=0)
         draw_screen(screen_surf, screen, fonts, palette); present()
 
@@ -566,6 +569,15 @@ def main():
         except (TimeoutError, socket.timeout):
             print('[warn] no response to select')
 
+    def open_or_dir():
+        # §4.7: DIR/SHOW is context-sensitive, mirroring the server's 'P'. While a
+        # frame is shown (welcome / a page), act as FINISH and show the directory;
+        # while a directory is shown, open the highlighted entry (D+index).
+        if mode == 'dir':
+            select_entry(selected)
+        else:
+            cmd_dir(b'P')
+
     def move(delta):
         nonlocal selected
         if not dir_parts or not dir_parts['entries']:
@@ -590,8 +602,8 @@ def main():
     # §4.7 command vocabulary. DIR and SHOW both open the highlighted entry via D+index
     # (the server dispatches by type); FINISH is P (return to / show the current directory).
     BTN_DEFS = [
-        ('DIR',     lambda: select_entry(selected)),   # enter highlighted entry (§4.7: D+index)
-        ('SHOW',    lambda: select_entry(selected)),   # read highlighted entry (§4.7: D+index)
+        ('DIR',     open_or_dir),                      # §4.7: show dir (from a frame) or open entry
+        ('SHOW',    open_or_dir),                      # §4.7: show dir (from a frame) or open entry
         ('BACK',    lambda: cmd_dir(b'B')),
         ('FINISH',  lambda: cmd_dir(b'P')),            # return to / show current directory (§4.7)
         ('UP',      lambda: move(-1)),
@@ -648,9 +660,10 @@ def main():
                 elif ev.unicode.isdigit():
                     typed += ev.unicode
                 elif k in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                    idx = int(typed) if typed else selected
-                    typed = ''
-                    select_entry(idx)
+                    if typed:
+                        idx = int(typed); typed = ''; select_entry(idx)
+                    else:
+                        open_or_dir()                  # from a frame → show dir; in a dir → open highlighted
         pygame.time.wait(20)
 
     pygame.quit()

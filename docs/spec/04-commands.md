@@ -229,3 +229,13 @@ this table standardises the *names*, not the interface.)
 > client **MUST NOT** use `P` to enter a highlighted sub-directory (the server does not know
 > the client's local highlight, so `P` will appear to "do nothing" or act on the wrong entry).
 > `DIR` and `SHOW` are therefore both `D`+index; `FINISH` is `P`.
+>
+> **Reaching the directory from a frame.** The login welcome / personal-information frame
+> (§3.5) — and any page the user is reading — is left by `FINISH` (`P`), which shows the
+> current directory. There is no highlighted entry to open while a frame is on screen, so a
+> client **SHOULD** make its `DIR`/`SHOW` control **context-sensitive**: while a frame is
+> displayed it acts as `FINISH` (send `P`, show the directory); while a directory is displayed
+> it opens the highlighted entry (`D`+index). This mirrors the server's `P` handler, whose
+> behaviour depends on whether a frame or a directory is currently in view, and means the same
+> control moves the user "into" the service from the welcome screen and "into" an entry from a
+> listing.
