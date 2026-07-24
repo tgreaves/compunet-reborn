@@ -4,9 +4,9 @@
 > reference tables and carry the concrete binary assets (font, palette, template) so the
 > specification is self-contained — a client can be built from this document alone.
 >
-> The font and directory template are extracted verbatim from the reference clients
-> (`client/web/charrom.js`; the C64 terminal in `client/c64/src/compunet.s`); the palette is
-> the VIC-II palette from `client/web/petscii.js`.
+> All assets are extracted verbatim from the reference clients: the font and palette from the
+> **Amiga client** (its embedded C64 character ROM and its `LoadRGB4` colour table), and the
+> directory template from the **C64 terminal** (`client/c64/src/compunet.s`).
 
 ## §A.1 — Command table
 
@@ -20,7 +20,7 @@ argument]` (§4). "Typical reply" is indicative; some commands vary by context.
 | `P` | `$50` | SHOW / finish | page | Show current directory; FINISH from frame view | FRAME or DIR | 1 |
 | `N` | `$4E` | MORE | — | Next frame / upload continuation | FRAME | 1 |
 | `B` | `$42` | BACK | — | Parent directory | DIR | 1 |
-| `L` | `$4C` | GOTO | keyword/page | Jump to a page by number or keyword | DIR or FRAME | 1 |
+| `L` | `$4C` | GOTO | keyword/page | Jump to a page by number or keyword | DIR | 1 |
 | `A` | `$41` | ACCOUNT | — | Account / personal-information frame | FRAME | 1 |
 | `I` | `$49` | ID / WHO | — | Identify / who-is-online | DIR | 2 |
 | `C` | `$43` | UCAT | — | User catalogue | DIR | 2 |
@@ -51,8 +51,7 @@ Packet `token` byte (§2.5) and, separately, the response-type taxonomy (§4.3).
 ERR=$24, FTL=$25, COM=$26`; of these only `$20`/`$22` match the wire, and COM on the wire is
 `$43`, not `$26` — see §2.5.)*
 
-**Response types** (§4.3 — explicit prefix on the WebSocket transport; inferred from content
-+ the EOS convention on the TCP path):
+**Response types** (§4.3 — inferred by the client from the issued command and its mode, §4.5):
 
 | Type | Byte | Meaning |
 |---|---|---|
@@ -64,20 +63,23 @@ ERR=$24, FTL=$25, COM=$26`; of these only `$20`/`$22` match the wire, and COM on
 
 The single-byte command ack read by native clients is `@` (`$40`) = OK/proceed (§4.3).
 
-## §A.3 — Colour palette (VIC-II)
+## §A.3 — Colour palette
 
-The 16 C64 colours, index 0–15 (§5.5), with RGB values (from `client/web/petscii.js`).
+The 16 C64 colours, index 0–15 (§5.5), with the RGB values the **Amiga client** loads via
+`LoadRGB4` (table at `0x11d0c2`, indexed through the C64-index→pen remap of §5.5). These are
+4-bit-per-channel values (each channel a multiple of `$11`) — the Amiga hardware's rendition
+of the C64 palette, and the authoritative extractable RGB in the repository.
 
 | Idx | Colour | RGB | | Idx | Colour | RGB |
 |---|---|---|---|---|---|---|
-| 0 | black | `#000000` | | 8 | orange | `#DD8855` |
-| 1 | white | `#FFFFFF` | | 9 | brown | `#664400` |
-| 2 | red | `#880000` | | 10 | light red | `#FF7777` |
-| 3 | cyan | `#AAFFEE` | | 11 | dark grey | `#333333` |
-| 4 | purple | `#CC44CC` | | 12 | medium grey | `#777777` |
-| 5 | green | `#00CC55` | | 13 | light green | `#AAFF66` |
-| 6 | blue | `#0000AA` | | 14 | light blue | `#0088FF` |
-| 7 | yellow | `#EEEE77` | | 15 | light grey | `#BBBBBB` |
+| 0 | black | `#000000` | | 8 | orange | `#FF9944` |
+| 1 | white | `#FFFFFF` | | 9 | brown | `#BB7700` |
+| 2 | red | `#DD0000` | | 10 | light red | `#FF9999` |
+| 3 | cyan | `#00DDDD` | | 11 | dark grey | `#888888` |
+| 4 | purple | `#DD00DD` | | 12 | medium grey | `#AAAAAA` |
+| 5 | green | `#00DD00` | | 13 | light green | `#99FF99` |
+| 6 | blue | `#0000DD` | | 14 | light blue | `#9999FF` |
+| 7 | yellow | `#DDDD00` | | 15 | light grey | `#CCCCCC` |
 
 ## §A.4 — PETSCII control codes
 
@@ -105,12 +107,12 @@ the rest move the cursor, switch mode, or toggle reverse. Unlisted codes in `$00
 
 ## §A.5 — Font (C64 character ROM)
 
-The content font is the standard Commodore 64 character ROM, verified present in both
-the Amiga client (embedded at `0x11d9c0`/`0x11ddc0`) and the web client
-(`client/web/charrom.js`, reproduced here). Each glyph is 8 bytes, one per pixel row,
-MSB = leftmost pixel. Screen codes `$00`–`$7F` are the base glyphs below; codes
-`$80`–`$FF` are their reverse-video forms, produced by inverting all 8 rows (§5.7).
-A glyph is looked up by screen code (§5.3) in the currently-selected set (§5.2).
+The content font is the C64 character ROM **embedded in the Amiga client** and
+extracted verbatim from it (`0x11d9c0` uppercase/graphics, `0x11ddc0` lowercase/mixed;
+128 glyphs per set, 8 bytes each, one byte per pixel row, MSB = leftmost pixel). It is
+the standard C64 character ROM. Screen codes `$00`–`$7F` are the base glyphs below;
+codes `$80`–`$FF` are their reverse-video forms (invert all 8 rows, §5.7). A glyph is
+looked up by screen code (§5.3) in the currently-selected set (§5.2).
 
 ### Set 1 (uppercase / graphics), screen codes $00–$7F
 ```
@@ -275,7 +277,7 @@ A glyph is looked up by screen code (§5.3) in the currently-selected set (§5.2
   $1A: 00 00 7E 0C 18 30 7E 00
   $1B: 3C 30 30 30 30 30 3C 00
   $1C: 0C 12 30 7C 30 62 FC 00
-  $1D: 3C 0C 0C 0C 0C 0C 3C 00
+  $1D: 3C 0C 0C 0C 0C 0C 0C 00
   $1E: 00 18 3C 7E 18 18 18 18
   $1F: 00 10 30 7F 7F 30 10 00
   $20: 00 00 00 00 00 00 00 00
@@ -579,10 +581,10 @@ Pixel grids for representative glyphs, to cross-check the hex above (`#` = set p
 ## §A.6 — Built-in directory template
 
 The directory chrome a client draws when Part 1 of a directory response is empty
-(§7.5). This is the verbatim 151-byte frame from the C64 terminal at `$BCE1`–`$BD77`.
-It is an ordinary frame (§6): header `[flags=$00][border=$F4][background=$FF]`, charset
-`$8E` (uppercase), then an RLE/PETSCII body drawing the bordered box, title row, column
-guides and footer, terminated by `$00`.
+(§7.5), extracted verbatim from the C64 terminal at `$BCE1`–`$BD77` (151 bytes). It is
+an ordinary frame (§6): header `[flags=$00][border=$F4][background=$FF]`, charset `$8E`
+(uppercase), then an RLE/PETSCII body drawing the bordered box, title row, column guides
+and footer, terminated by `$00`.
 ```
   $BCE1: 00 F4 FF 8E 07 0D 05 05 D5 07 C3 1B C0 B2 07 C0
   $BCF1: 07 C9 0D DD 06 1C DD 06 07 DD 0D DD 06 1C C2 06

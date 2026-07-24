@@ -129,3 +129,27 @@ through them:
 
 *(Non-normative: the modern server reloads its content tree on each directory request, so
 listings reflect live content changes without a reconnect.)*
+
+## 7.7 Screen composition
+
+The six parts (§7.2) and the template (§7.5) are composed onto the 40×24 grid at **fixed
+rows**. These positions are verified against both reference clients (the C64 and the Amiga
+`parse_directory_frame` agree), so a client reproduces the layout by placing each part at the
+row below:
+
+| Rows | Content | Source part |
+|---|---|---|
+| 0–5 | Header region | Part 1 header frame, else the built-in template (§7.5) |
+| 7 | Path / breadcrumb line (from column 1); page-number column at column 31 | Part 4 |
+| 10–20 | The entry list — up to 11 entries, one per row, starting at column 1 | Part 6 (+ selected Part 5 column) |
+| 22 | Footer / advert line | Part 2 |
+
+Within the entry rows, each entry occupies one row: the fixed-layout first field (§7.3) —
+page number, title, and type at column 25 — plus the currently-selected column value (the
+Part-5 header the user has cycled to with the column toggle). The **normal** text uses colour
+index 2 and the **highlighted / selected** entry uses colour index 6 (the reference clients'
+`frame_pen_lower` / `frame_pen_upper`); a client **MUST** visually distinguish the selected
+entry so the user can see the current selection.
+
+A client **MUST** place the parts at these rows (or reproduce the equivalent visual layout)
+so that content authored for Compunet — which assumes this geometry — lands correctly.

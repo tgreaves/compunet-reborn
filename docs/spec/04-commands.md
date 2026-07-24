@@ -57,11 +57,10 @@ Every response has a **type**, which tells the client how to interpret the bytes
 | **ERROR** | `E` (`$45`) | Error; the payload is a renderable message frame | DAT stream + EOS |
 | **LINKING** | `L` (`$4C`) | Terminal (re)link required | (ROM path; see §3.6) |
 
-On the TCP protocol path a client distinguishes ACK from the streamed types by the
-**EOS convention** above (ACK has no EOS) together with the response content; the type is
-implicit. *(Non-normative: the server also offers a WebSocket transport that prepends the
-type byte above explicitly to each response. A pure-TCP client does not receive that prefix
-and infers the type from context and the EOS convention.)*
+On the wire there is **no in-band type marker** — nothing in the DAT stream tells the client
+whether the bytes are a frame or a directory. The client determines the type from the
+command it issued and its current mode; this is specified in §4.5. The EOS convention
+distinguishes an ACK (single packet, no EOS) from a streamed DIR/FRAME/ERROR (stream + EOS).
 
 **The single-byte `@` ack (native clients).** A native client that reads a leading
 one-byte acknowledgement before a response expects `@` (`$40`) to mean "OK / proceed". For
@@ -116,3 +115,27 @@ The single-letter set is identical across the C64 and Amiga reference clients (b
 these bytes in COM `$43` frames and both use the `@` ack convention), which is what makes
 one server drive both — see the appendix (§A) for the consolidated table alongside the
 token table.
+
+## 4.5 Determining the response type
+
+Because the DAT stream carries no type marker (§4.3), a client **MUST** decide how to parse
+a response from **the command it just issued and its current mode** — not by inspecting the
+response bytes. Choosing the wrong parser corrupts state: e.g. the reference clients' GOTO
+handler *always* parses its response as a directory, and feeding it frame data will crash
+the client. The rule:
+
+| Command issued | Current mode | Expect | Parse as |
+|---|---|---|---|
+| `P` (show current dir), `B` (back), `M` (mail), `I`, `C`, `L` (goto) | any | directory | 6-part directory (§7) |
+| `A` (account), `E` (leave) | any | frame | frame (§6) |
+| `N` (more) | viewing a frame | frame | frame (§6) |
+| `V`, `X`, `U` | any | acknowledgement | bare ACK (single packet, no EOS) |
+| `D` (select) with index | in a directory | depends on the **selected entry's type** (§7.4): `T`→frame; `D`/`+`→directory; `P`/`PP`/`S`→download (§8.3.1); `L`→link (§8.5) | per entry type |
+| `D` (no argument) | viewing a frame | next frame, or — past the last frame — return to the directory | frame, else directory |
+
+So the two context-sensitive commands are `D` and `P`: a client **MUST** track whether it is
+viewing a directory or a frame, and for `D`-with-index **MUST** use the selected entry's type
+(known from the directory listing it is displaying) to choose the parser. Everything else is
+determined by the command byte alone. The ERROR type (§4.3) is delivered as a frame and can
+be rendered by the frame parser, so a client **MAY** treat an unexpected frame where it
+expected a directory as an error message rather than crashing.
