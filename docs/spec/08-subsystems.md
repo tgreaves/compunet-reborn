@@ -212,28 +212,38 @@ A Tier 3 client **MUST** implement the raw line protocol and the activation/tear
 least one transport variant. *(Non-normative: the detailed C64 memory map and the resident
 Amiga viewer "CnetTty" are platform mechanics — see `docs/partyline.md`.)*
 
-## 8.6 UCAT, LIFE, and VOTE
+## 8.6 UCAT, VOTE, and BUY / LIFE
 
-Three lightweight commands round out the interactive tier:
+Three commands round out the interactive tier: `C` (UCAT), `V` (VOTE), and `X` (BUY / LIFE).
+**`V` and `X` are separate commands** — do not conflate them.
 
-- **UCAT** — `C` (§4.4): the **user catalogue** — a directory listing of the pages **owned by
-  the logged-in user** (the content *they* have uploaded to the Jungle), so they can find and
-  manage their own material (e.g. extend its life with `X`/LIFE). The server replies with an
-  ordinary six-part directory response (§7), paged with MORE (§7.6) like any directory; it
-  resets to the first page each time `C` is issued. It is *the current user's* content, not a
-  global catalogue.
-- **VOTE** — `V` + an ASCII digit choice casts a vote on the current page; the server replies
-  with a bare **ACK** (§4.3, single packet, no EOS). A client **MUST** treat the ACK as success
-  and not wait for a frame stream. *(Note: a vote's effect may not be immediately visible in
-  the directory's `VOTE/NUM` column on the next listing.)*
-- **BUY / LIFE** — `X` (§4.4). **`V` and `X` are distinct commands** — VOTE is `V`, and
-  everything below is `X`. What `X` does depends on the target page:
-  - on a **paid page**: **buy** it (credit is deducted; paid pages are also purchased
-    implicitly on first view, §7);
-  - on **your own uploaded content**: **extend its life** (LIFE) — this is the LIFE
-    operation, not a separate command;
-  - on a **link** entry: **activate** it (§8.5).
-  In each case the server replies with an **ACK**.
+### UCAT — `C`
+
+The **user catalogue**: a directory listing of the pages **owned by the logged-in user** (the
+content *they* have uploaded to the Jungle), so they can find and manage their own material.
+The server replies with an ordinary six-part directory response (§7), paged with MORE (§7.6)
+like any directory, resetting to the first page each time `C` is issued. It is *the current
+user's* content, not a global catalogue.
+
+### VOTE — `V`
+
+`V` + an ASCII digit casts a vote on the current page. The server replies with a bare **ACK**
+(§4.3, single packet, no EOS); a client **MUST** treat the ACK as success and **MUST NOT** wait
+for a frame stream. *(A vote's effect may not be immediately visible in the directory's
+`VOTE/NUM` column on the next listing.)*
+
+### BUY / LIFE — `X`
+
+`X` is a **single command** whose effect depends on the target page. There is **no separate
+LIFE command** — LIFE is simply what `X` does on your own content:
+
+| Target page | What `X` does |
+|---|---|
+| A **paid page** you have not bought | **BUY** it — credit is deducted (paid pages are also bought implicitly on first view, §7) |
+| **Your own** uploaded content | **LIFE** — extend its lifetime |
+| A **link** entry | **Activate** it (§8.5) |
+
+In every case the server replies with a bare **ACK**.
 
 These are Tier 2. Each is a single command with a simple ACK reply and adds no new wire
 mechanics beyond §4.
