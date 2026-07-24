@@ -55,6 +55,8 @@ clients' behaviour.
   spec and server can't silently drift apart.
 - [VALIDATION.md](VALIDATION.md) — validation record: the cross-checks against both
   reference clients, the contradictions resolved, and the honest residual gaps.
+- [CLEANROOM.md](CLEANROOM.md) — how to validate the spec by having a fresh, source-isolated
+  agent build a client from `docs/spec/` alone (the honest "buildable from the spec?" test).
 - [AUDIT.md](AUDIT.md) — the documentation audit & coverage matrix that scoped this work
   (Phase 1); kept for provenance.
 
