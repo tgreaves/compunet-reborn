@@ -1,5 +1,9 @@
 # Compunet Modem vs 6551 ACIA — Hardware Layer
 
+> **C64 platform note (non-normative).** This is the hardware layer of the C64 client and
+> is out of scope for the protocol. The transport a client must implement over TCP is
+> specified in **[docs/spec/§2](spec/02-transport.md)**.
+
 ## Overview
 
 The Compunet ROM was designed for a custom modem ("the brick") with a register-select

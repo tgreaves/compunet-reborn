@@ -1,0 +1,72 @@
+# Validation record
+
+> Part of the [Compunet Client Specification](README.md). Phase 5 of issue #111: confirm
+> the spec explains the behaviour of both reference clients and the server, and record any
+> residual gaps honestly. This is a companion note, not part of the normative spec.
+
+## Method
+
+The spec was written by **triangulation**: every normative claim was derived from the
+server (`compunet_server.py` / `x25_protocol.py`, the protocol authority) and confirmed
+against the two reference clients (C64 terminal in `compunet.s`; the reconstructed Amiga
+client, disasm-verified). A claim was only accepted when it matched the bytes the server
+emits/accepts **and** explained both clients' behaviour. The cross-reference in
+[xref.md](xref.md) links each section to its implementation.
+
+## Cross-checks confirmed
+
+| Area | Server | C64 | Amiga | Result |
+|---|---|---|---|---|
+| Framing / stuffing / CRC | `x25_protocol.py` | PROTOCOL.md wire format | `protocol-analysis.md`, `cnet-device-re.md` | agree ✓ |
+| Tokens (`DAT $22`, `COM $43`, `ACK $20`) | acted on as `$43` | login pkt `$43` | RE `serial_write(...,0x43)` | agree ✓ (resolved the `$26` doc error) |
+| ACK pacing / EOS | `wait_for_ack` | ROM ACK path | link header no-EOS case | agree ✓ |
+| Identification | `is_amiga`/`has_slash` detect | `{hash}/100` | doubled `C CNET` + 14 zeros | agree ✓ |
+| Login packet layout | `[1:9]`/`[9:15]` | `$C100` build | — | agree ✓ |
+| Command set (single letters) | `handle_command` | ROM dispatch | `identification-and-commands.md` | agree ✓ |
+| Content grid **40×24** | `terminal.py` `range(24)`×40 | 40×25 less status row | `frame_control.c` bounds `0x28`/`0x17` | agree ✓ (two renderers) |
+| PETSCII→screen-code | — | ROM CHROUT | `frame.c` `render_char` | canonical ✓ |
+| Palette (16 C64 colours) | — | VIC-II | `g_palette` remap + LUT | agree ✓ (remap reconciled) |
+| Control codes `$00–$1F`/`$80–$9F` | — | ROM | `frame_control.c` (verified byte-for-byte) | agree ✓ |
+| RLE `$06`/`$07`, `1+N` | `terminal.py` `expand_frame` | PROTOCOL.md (`$06`) | `frame.c` `frame_rle_getchar` | agree ✓ (traced the `1+N` off-by-one) |
+| Frame header (4-byte) | `_make_info_frame` | 3-byte + charset body | `frame.c` reads 4th byte | agree ✓ (offset 3 = charset in all) |
+| Directory 6-part stream | `_make_page_response` | L_A5F3 parser | `directory_parse.c` | agree ✓ |
+| Entry layout (dual constraint) | 27-char fixed + commas | comma-delimited | fixed-width 6/16/5 | agree ✓ (spec requires both) |
+| Directory template | Part 1 empty → client | `$BCE1` frame | GUI equivalent | agree ✓ |
+| Partyline raw session | `partyline.py` | downloaded chat prog | resident CnetTty | agree ✓ |
+
+## Contradictions found and resolved (now correct in the spec)
+
+1. `COM = $26` (docs/x25 constant) vs `$43` (what the server acts on) → §2.5 states `$43`.
+2. Two identification handshakes, never unified → §3.3 specifies both + detection.
+3. Frame header size (3-byte "content at byte 3" vs 4-byte charset) → §6.2 = 4-byte, byte 3
+   is a charset control (what the server emits, what both clients consume).
+4. RLE documented as `$06`-only vs `$06`+`$07` with `1+N` count → §6.4 specifies both.
+5. Non-standard Amiga colour mapping → shown to be the `g_palette` pen remap; §5.5 keeps the
+   standard C64 palette.
+6. `CMD_EDITR = $45` constant vs `E` = LEAVE in dispatch → §4.4 states `E` = LEAVE.
+
+## Residual gaps and caveats (honest limitations)
+
+These are known, deliberately-bounded, and do not block building a conformant client:
+
+- **Status-byte text mapping.** Non-`@` status bytes (`A`/`B`) trigger client-specific
+  status messages (e.g. "Host error"); the exact text mapping is a client concern and is
+  left non-normative (§4.3).
+- **Editing UX.** §8.4 specifies only that the editor's output is a valid frame submitted via
+  upload; the editing experience itself is deliberately unspecified.
+- **Upload state machine detail.** §8.3.2 specifies the flow and the mail-vs-content
+  distinction; some byte-exact validation-stream framing still references PROTOCOL.md and
+  would benefit from a captured trace.
+- **WebSocket transport.** Mentioned (§4.3) as the reason the response-type bytes exist, but
+  not specified — it is the browser client's transport, out of this spec's TCP scope.
+- **`xref.md` line numbers** drift as code changes; symbol names are the stable anchor.
+- **Live wire trace.** §A.7 is a hand-constructed trace. A captured real session (byte dump)
+  would strengthen it; none is bundled yet.
+
+## Conclusion
+
+The spec explains the observed behaviour of the server and both reference clients across
+transport, session, commands, display, frames, directories, and subsystems, with the
+contradictions above resolved in the server's favour. A client built to Tier 1 from this
+document alone should connect, log in, navigate, and render authentic Compunet content; the
+residual gaps are confined to optional subsystems and client-local presentation.

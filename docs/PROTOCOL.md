@@ -1,5 +1,12 @@
 # Compunet Communication Protocol - Reverse Engineered from ROM v1.22
 
+> **⚠ Superseded as the protocol authority.** The normative, platform-agnostic protocol
+> specification now lives in **[docs/spec/](spec/README.md)** — use it as the single source
+> of truth for building a client. This document is retained as the **C64 ROM / platform
+> reference and reverse-engineering provenance**: it records the original 6502 ROM's memory
+> maps, hardware layer, and the RE that established the protocol. Where this document and
+> the spec disagree, the spec (verified against the server) wins.
+
 ## Overview
 
 This document describes the communication protocol used by the Compunet Terminal
