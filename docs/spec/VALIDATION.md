@@ -54,16 +54,20 @@ These are known, deliberately-bounded, and do not block building a conformant cl
   left non-normative (§4.3).
 - **Editing UX.** §8.4 specifies only that the editor's output is a valid frame submitted via
   upload; the editing experience itself is deliberately unspecified.
-- **Upload state machine detail.** §8.3.2 specifies the flow and the mail-vs-content
-  distinction; some byte-exact validation-stream framing still references PROTOCOL.md and
-  would benefit from a captured trace.
 - **Browser transport.** The spec is TCP-only; a browser cannot open a raw TCP socket, so a
   web client would need a WebSocket transport binding that this spec does not yet define. The
   abandoned `client/web/` experiment is **broken and non-compliant** (flagged in its README)
   and is **not** a reference — the spec's assets are extracted from the C64/Amiga clients only.
+- **PETSCII→screen-code table (§5.3)** is taken from the Amiga renderer (the canonical C64
+  transform); it has not been independently diffed against the C64 KERNAL path. To confirm
+  when a test client is built.
 - **`xref.md` line numbers** drift as code changes; symbol names are the stable anchor.
 - **Live wire trace.** §A.7 is a hand-constructed trace. A captured real session (byte dump)
   would strengthen it; none is bundled yet.
+
+*(Resolved in a later pass, no longer gaps: §8.3.2 upload/mail-send is now specified
+byte-exact from the server handlers; the §A.6 directory template was rendered to confirm what
+it draws; §3.5 states the server ignores the login system-info field.)*
 
 ## Conclusion
 

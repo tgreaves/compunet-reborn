@@ -78,32 +78,55 @@ executable and the load field is 0 — the client `LoadSeg`s it.)*
 
 ### 8.3.2 Upload (The Jungle) and mail send
 
-Uploads use the `U` command for both content upload and mail send; the server tells them
-apart by the parameter shape:
+Uploads use the `U` command for both content upload and mail send. The `U` payload is:
 
-**Mail-send parameters** (`U` payload): 16-byte subject, a 1-byte type (`T`), then up to
-five 8-byte destination IDs (space-padded).
+```
+subject/title (16 bytes) │ type (1 byte) │ rest…
+```
 
-**Content-upload parameters** (`U` payload): 16-byte title, 1-byte type (`T`/`P`), an
-8-byte price in `NNN.NNNN` form (the `.` is what marks it as an upload rather than mail),
-and a 1-byte life-in-days digit.
+The server distinguishes the two by the **`rest` field**: if a `.` appears in the first 8
+bytes of `rest` it is a **content upload** (the `.` is the decimal point of the price);
+otherwise it is a **mail send**.
 
-Wire flow (verified against live testing):
+- **Mail send** — `rest` is up to five **8-byte destination IDs** (space-padded); the type
+  byte is `T`.
+- **Content upload** — `rest` is a **6-byte price** (e.g. `005.00`) followed by a **lifetime
+  in days** (up to 3 ASCII digits); the type byte is `T` (text) or `P` (program).
 
-1. Client sends `U` + parameters (COM `$43`).
-2. Server returns a **validation stream**: for each destination/target, the echoed ID
-   followed by a confirmation, each terminated by `$1E`; `$1E` immediately after an ID means
-   "no such user". *(Mail send: this stream ends with EOS. Content upload: the validation
-   response has **no EOS** — the client proceeds immediately.)*
-3. **Mail:** on confirm, the client sends a second `U` (no parameters) = "frame ready",
-   waits for an ACK, then sends the frame; repeat per page; `N` (§4.4) finishes and delivers
-   the message.
-   **Content:** the client sends the frame immediately after validation (metadata
-   accompanies each frame); `P` (directory refresh) finishes the upload and the server
-   commits the page.
+**Validation stream (step 1 → server reply).** The server replies with a validation stream
+and remembers a pending-send state:
 
-A Tier 3 client that uploads **MUST** follow the mail-vs-content distinction above; getting
-the EOS/no-EOS or the finish command (`N` vs `P`) wrong desynchronises the session.
+- **Mail send:** for each destination ID, the 8-byte ID (space-padded) followed by the
+  recipient's real name **if the user exists** (nothing if not), then `$1E`. So `$1E`
+  immediately after an ID means "no such user". Delivered as a **DIR stream + EOS**. For a
+  native (Amiga) session the server prepends a `@` (`$40`) ack byte (§4.3).
+- **Content upload:** the 6-byte price echoed back, then `$1E`. Delivered as a **single ACK
+  packet with no EOS** — the client proceeds immediately.
+
+**Frame transfer (step 2).** After validation the client transmits its frame(s). Frame bytes
+are sent as **DAT packets** (not COM) while the pending-send is active; the server treats any
+non-COM packet during an upload as frame data:
+
+- **Text frame** (`type T`): the client streams the frame (§6) as DAT chunks; a chunk
+  **shorter than 100 bytes** ends that frame. The server stores it and replies with **one**
+  DAT packet whose payload is `@` (`$40`) + padding — a "clean accept" ack. (It is `@`, not
+  `A`/`$41`, because a native client reads this byte and treats `A` as a host error.) One ack
+  per frame; repeat for further frames.
+- **Program** (`type P`): the client first sends an **8-byte header** DAT — byte 0 = machine
+  type (`1` = Amiga, `0` = C64), bytes 4–7 = body size, **big-endian** — then the raw file as
+  DAT chunks. The server reads the size, accumulates exactly that many bytes, and sends a
+  single final `@`-ack. There is **no per-chunk ack** for a program body.
+
+**Completion (step 3).** The client finishes the session with a different command per mode:
+
+- **Mail:** `N` (§4.4) — the server delivers the message to the recipients.
+- **Content:** `P` (directory refresh) — the server commits the new page and returns the
+  directory.
+
+A Tier 3 client that uploads **MUST** honour all of: the mail-vs-content detection (`.` in
+`rest[:8]`), the EOS/no-EOS difference in the validation reply, the `@`-ack (not `A`) per
+frame, the 8-byte big-endian header for programs, and the correct finish command (`N` for
+mail, `P` for content). Any of these wrong desynchronises the session.
 
 ## 8.4 Editor
 
