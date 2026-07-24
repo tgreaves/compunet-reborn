@@ -215,8 +215,9 @@ Amiga viewer "CnetTty" are platform mechanics — see `docs/partyline.md`.)*
 ## 8.6 UCAT, VOTE, and LIFE
 
 Three commands round out the interactive tier: `C` (UCAT), `V` (VOTE), and `X` (LIFE). They
-are three **distinct** commands. Note that **BUY is *not* one of them** — see the box at the
-end of this section.
+are three **distinct** commands. **BUY** is also a duckshoot command the user can pick, but it
+is a *separate action* that maps to `D`+index, **not** to `X` — see the box at the end of this
+section.
 
 ### UCAT — `C`
 
@@ -258,11 +259,12 @@ user's free storage, overflowing to credit; a negative amount reduces life (owne
 only). The server replies with a bare **ACK** (§4.3). On a **link** entry `X` is a no-op ACK
 (links are activated by *selecting* them, not by `X`).
 
-> **BUY is not a command.** "Buying" — downloading a program, viewing a chargeable page, or
-> activating a link — is done by **selecting the entry** with `D` + index (§4.4), which routes
-> to the download (§8.3.1) or link (§8.5) flow; a paid page's credit is deducted **implicitly
-> on first view** (§7). There is no separate `BUY` wire command, and `X` does **not** buy
-> anything — it is LIFE (extend), not BUY.
+> **BUY is a duckshoot command, but not `X`.** `BUY` *is* a command the user picks from the
+> duckshoot (§4.7) — but it has **no wire byte of its own**. Selecting BUY on the highlighted
+> entry sends **`D` + index** (§4.4), which routes to the download (§8.3.1) or link-activate
+> (§8.5) flow; a paid page's credit is deducted **implicitly on first view** (§7). So BUY and
+> LIFE are different actions with different wire commands: **BUY → `D`+index**, **LIFE → `X`**.
+> `X` never buys anything.
 
 These are Tier 2. Each is a single command with a simple ACK reply and adds no new wire
 mechanics beyond §4.
