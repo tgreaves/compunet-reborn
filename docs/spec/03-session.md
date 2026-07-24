@@ -33,6 +33,12 @@ bytes** to open the protocol, then treats the connection as connected. A client 
 tolerate this leading run of `$20` bytes and **MUST NOT** treat them as packet data (they
 precede any `$01` framing).
 
+A client **MAY** send a single `$20` immediately after connecting, before the identification
+(§3.3). The server peeks the first received byte only to tell a Hayes `AT` dialer from a raw
+client (see below); a leading `$20` reads as "raw" and lets the server proceed at once,
+whereas sending nothing simply makes the server wait briefly before its burst. Either is
+acceptable; the client does not depend on the server's reply to this byte.
+
 *(Non-normative — Hayes auto-detection.* Before sending the `$20` burst, the server peeks
 at the first received byte. If that byte is an ASCII `'A'` (`$41`, bit 7 ignored) it enters
 a brief Hayes-modem emulation: it consumes an `AT…` command up to a `CR` and replies
