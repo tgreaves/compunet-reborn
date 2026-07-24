@@ -41,12 +41,17 @@ A client **MUST** take the column names (and their count) from each response's o
 label the entry columns from that, cycling among whichever columns that response defines. It
 **MUST NOT** assume the five top-directory names apply everywhere.
 
-**Encoding: the six-part stream's text is plain ASCII.** Unlike the raw MOTD (§3.4), which is
-sent in PETSCII lowercase mode (`A`–`Z` as `$C1`–`$DA`), the directory stream's text fields —
-titles, breadcrumb, footer, column headers — are **plain, unshifted ASCII** (`"JUNGLE"`,
-`"WHAT'S NEW?"`, `"T+"`). A client **MUST NOT** apply the MOTD's PETSCII shift to directory
-text. (Part 1, the header *frame*, is the exception: it is frame content, §6, and is decoded
-as such — including any PETSCII control codes and RLE.)
+**Encoding: the six-part stream's text is unshifted ASCII, but may carry inline control
+codes.** Unlike the raw MOTD (§3.4), which is sent in PETSCII lowercase mode (`A`–`Z` as
+`$C1`–`$DA`), the directory stream's text fields — titles, breadcrumb, footer, column headers —
+use **plain, unshifted ASCII** for their letters (`"JUNGLE"`, `"WHAT'S NEW?"`, `"T+"`), and a
+client **MUST NOT** apply the MOTD's PETSCII shift to them. The stream is **not** pure ASCII,
+however: the server may embed **inline PETSCII control codes** — notably a `$1C` (red) colour
+control in **Part 4** to draw the red `MAIL` unread-mail marker (§8.2), e.g.
+`…600 JUNGLE           \x1cMAIL`. A client **MUST** preserve and act on such control bytes
+(here, switch to red for the trailing `MAIL`) rather than assuming the field is letters only.
+(Part 1, the header *frame*, is fully frame content, §6 — decoded with all its control codes
+and RLE.)
 
 ## 7.3 Directory entries (Part 6)
 
@@ -172,19 +177,25 @@ listings reflect live content changes without a reconnect.)*
 
 ## 7.7 Screen composition
 
-The six parts (§7.2) and the template (§7.5) are composed onto the 40×24 grid at **fixed
-rows**. The path line (row 7) and footer (row 22) are confirmed in both reference clients;
-the entry-region rows are from the Amiga `parse_directory_frame` (the C64 places entries in
-the same box region below the path). The list **colours** are the canonical Compunet scheme
-(see *Directory colours* below). A client reproduces the layout by placing each part at the
-row below:
+The six parts (§7.2) and the template (§7.5) are composed onto the 40×24 grid to reproduce the
+**canonical C64 directory screen** — the reference look a conforming client should match. The
+template provides the bordered box, the **vertical divider** between the entry list and the
+right-hand column, and the column-cycle indicator; the parts overlay onto it:
 
-| Rows | Content | Source part |
+| Rows | Content | Source |
 |---|---|---|
-| 0–5 | Header region — overlaid with Part 1 if present, else left as the template drew it | Part 1 |
-| 7 | Path / breadcrumb line (from column 1); page-number column at column 31 | Part 4 |
-| 10–20 | The entry list — up to 11 entries, one per row, starting at column 1 | Part 6 (+ selected Part 5 column) |
-| 22–23 | Footer / advert — Part 2's two `$0D`-terminated lines: first line row 22, second row 23 | Part 2 |
+| 0–5 | Header region — Part 1 overlaid if present, else the template's own top | Part 1 |
+| 7 | Breadcrumb line 1, aligned with the entry columns (left); **selected column header** e.g. `PRICE` (right column) | Part 4 / Part 5 |
+| 8 | Breadcrumb line 2, e.g. `100 WELCOME`, same alignment (left) | Part 4 |
+| 10–20 | The entry list — up to 11 entries, one per row (see below) | Part 6 (+ selected Part 5 column) |
+| 22–23 | Footer / advert — Part 2's two lines, **centred** on their rows | Part 2 |
+
+**Breadcrumb alignment.** Part 4's two lines are **not** drawn at column 1. They share the
+entry columns: the leading **page number is right-justified** in the same left column the entry
+page numbers use, and the title follows. Part 4 already contains the padding spaces
+(`     1 *** COMPUNET ***`, `   100 WELCOME`), so a client renders each Part-4 line from the
+entry list's base column and the alignment falls out (the shorter `1` ends up more indented
+than `100`).
 
 The **built-in template (§7.5) is always drawn first as the base chrome** — the bordered box,
 column dividers, and the column-cycle indicator. The template intentionally begins with six
@@ -194,45 +205,49 @@ when Part 1 is empty (`$00`), rows 0–5 simply remain as the template left them
 entries, and footer overlay on top as below. A client that draws only the template and skips
 Part 1 will render every directory without its header graphic.
 
-Within the entry rows, each entry occupies **one** row, and a client **MUST NOT** render the
-whole comma-separated Part-6 line — it is wider than 40 columns and would overflow/wrap. A
-client **MUST** render only two pieces of each entry:
+Within the entry rows, each entry occupies **one** row. A client **MUST NOT** render the whole
+comma-separated Part-6 line — it is wider than 40 columns and would overflow. Each entry row
+shows:
 
-1. the **first field** (§7.3) — the fixed 27-character `page number · title · type`
-   block — drawn from column 1 (it occupies roughly columns 1–27, with the type at column 25);
-2. **one** column value — the field under the currently-selected Part-5 column header (the
-   user cycles which column is shown) — drawn in the right-hand region (about columns 31–38).
+1. the **page number** — right-justified in the left page-number column — **only for the
+   currently-selected entry**. Non-selected entries leave that column blank and show just the
+   title. (So as the selection moves, the page number appears on whichever row is selected.)
+2. the **title**, then the **type** (§7.3), with the type at **screen column 25**;
+3. in the **right column** (past the vertical divider), the value of the currently-selected
+   Part-5 column (§*The selected column header*, below) for that entry.
 
-The remaining Part-6 column fields for that entry are **not** displayed until the user cycles
-to them.
+The other Part-6 column fields are **not** displayed until the user cycles to that column.
 
 ### Directory colours (client-applied)
 
-Parts 2, 4, and 6 (footer, breadcrumb, entries) arrive as **plain text with no colour
-codes** — only Part 1 (the header frame) carries colour. The client therefore colours the
-list itself, and a conforming client **MUST** use this scheme so the directory looks right:
+Parts 2, 4, and 6 (footer, breadcrumb, entries) are mostly plain text and carry **no colour
+codes of their own** (aside from the occasional inline control such as the red `MAIL` marker,
+§7.2); only Part 1 (the header frame) is fully colour-coded. So the **client colours the list
+itself**, and a conforming client **MUST** use this scheme so the directory looks right:
 
 - The **breadcrumb** (Part 4) and the **footer / advert** (Part 2) are drawn in **blue**
   (colour index 6).
 - Each entry has a **positional** colour, independent of selection: the **first entry in the
   list is always red** (index 2); **every other entry is blue** (index 6).
-- If the client offers a **selection highlight** (e.g. cursor-key navigation), the selected
-  entry is shown as a **bar in that entry's own colour** with the **text in white** (index 1)
-  — i.e. a **blue bar** with white text for a normal entry, a **red bar** with white text for
-  the first entry. The highlight takes the entry's positional colour; it is **not** a single
-  fixed colour, and white is the text colour inside the bar.
 
-A client **MUST** visually distinguish the selected entry (a bar, reverse video, or a colour
-change are all acceptable), but the underlying red-first / blue-rest entry colouring above is
-**required** — it is part of the authored Compunet look.
+**The selection highlight is drawn by the client — the server sends nothing about it.**
+Selection is entirely client-local (§4.5): there is no wire field for "which row is
+highlighted", so the client draws the highlight itself. It is a **bar spanning the full row
+width** — across both the entry columns **and** the right-hand value column — in **the entry's
+own positional colour** (a **red** bar for the first entry, a **blue** bar for the others),
+with the **text drawn in white** (index 1) on top. This "colour bar + white text" cannot be
+expressed with a single PETSCII cell attribute, which is another reason it is client chrome,
+not wire content. A client **MUST** draw the highlight this way (not a single fixed colour),
+and the red-first / blue-rest entry colouring is **required** either way — it is part of the
+authored Compunet look.
 
 ### The selected column header
 
 The header of the currently-selected column (the Part-5 name — `PRICE`, `AUTHOR`, …) **MUST**
-be displayed above the entry values so the user can see which column the right-hand values
-belong to. It is drawn in the right-hand column region (near column 31), just above the entry
-list. A client that shows the column *values* but omits the *header* leaves the values
-unlabelled — that was a spec omission, not a client choice.
+be displayed so the user can see which column the right-hand values belong to. It sits in the
+**right-hand column, at row 7** (level with breadcrumb line 1, the top of the box), and is
+drawn in blue. A client that shows the column *values* but omits this header leaves them
+unlabelled.
 
-A client **MUST** place the parts at these rows (or reproduce the equivalent visual layout)
-so that content authored for Compunet — which assumes this geometry — lands correctly.
+A client **MUST** reproduce this canonical C64 layout so that content authored for Compunet —
+which assumes this geometry — lands correctly.

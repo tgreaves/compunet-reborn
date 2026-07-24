@@ -97,8 +97,8 @@ whether a frame is currently being viewed).
 | `I` | `$49` | ID lookup | one or more 8-byte user IDs | Look up user IDs; returns per-ID `id` + real name (if known) + `$1E`. With no argument it returns **nothing** (see note). Not "who is online" — that is a content page, not this command | lookup stream |
 | `C` | `$43` | UCAT | — | User catalogue | DIR |
 | `M` | `$4D` | MAIL | — | Enter mail (Courier); see §8.2 | DIR |
-| `V` | `$56` | VOTE | choice | Cast a vote (LIFE / VOTE); see §8.6 | ACK |
-| `X` | `$58` | BUY | page | Purchase a paid page | ACK |
+| `V` | `$56` | VOTE | choice | Cast a vote on the current page (§8.6) | ACK |
+| `X` | `$58` | BUY / LIFE | page/amount | Context-dependent: **buy** a paid page, **extend the life** (LIFE) of your own content, or **activate** a link — depending on the target (§8.6) | ACK |
 | `U` | `$55` | UPLOAD | params | Begin an upload (content or mail); see §8.3 | ACK |
 | `E` | `$45` | LEAVE | — | Log off; the server sends a final frame then closes (§3.8) | FRAME |
 | `Z` | `$5A` | LOGIN | credentials | The login packet (§3.5) — only valid as the first command | FRAME |
@@ -160,6 +160,19 @@ type when it parses a directory, so it can dispatch the subsequent `D`. Everythi
 determined by the command byte alone. The ERROR type (§4.3) is delivered as a frame and can
 be rendered by the frame parser, so a client **MAY** treat an unexpected frame where it
 expected a directory as an error message rather than crashing.
+
+**Exception — `D` (no arg) and `N` require inspecting the response.** For these two, the
+command + mode genuinely does *not* determine the outcome (the same `D`-no-arg reply is a
+frame while pages remain, or a directory at the end; `N` gives a frame or a bare ACK). Here a
+client **MUST** distinguish by the response's **structure**, which is unambiguous:
+
+- a **bare ACK** is a single DAT packet carrying one payload byte, with **no EOS** following;
+- a **frame** is a DAT stream + EOS whose reassembled body is a §6 frame (it may end in `$00`,
+  or simply at EOS, §6.1);
+- a **directory** is a DAT stream + EOS whose body is the six-part structure of §7.
+
+This is the one place inspecting the bytes is required; everywhere else the command + mode
+rule above suffices.
 
 ## 4.6 Command invocation (conformance)
 

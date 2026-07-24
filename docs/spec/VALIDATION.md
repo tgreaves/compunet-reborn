@@ -178,12 +178,39 @@ Display / UX (Stage 2, confirmed with the maintainer):
 - **§4.7** — the **duckshoot** appearance is now specified for clients that reproduce it:
   white-on-black command words, the selection centred and drawn inverse, scrolled left/right.
 
+## Third clean-room run (Tier 2 + visual)
+
+A third isolated agent built a **Tier 1 + Tier 2** client (mail, downloads, LIFE/VOTE/BUY),
+text-mode then visual, with full write access to the dev server. Session (§3) was flawless and
+the run-1/2 fixes held. New findings, folded in — protocol:
+
+- **§7.2** — the directory stream is **not** pure ASCII after all: Part 4 can carry an inline
+  `$1C` (red) control for the `MAIL` marker. The last round's "plain ASCII" claim was
+  over-corrected.
+- **§6.1** — a frame may have **no `$00`** and end only at EOS (the welcome frame does);
+  the "`$00` and EOS coincide" claim was false.
+- **§4.4 / §8.6** — **VOTE (`V`) and LIFE (`X`) are distinct commands**; the spec had
+  conflated LIFE into `V`. `X` is context-dependent (buy / extend-life / activate).
+- **§8.7** — mail *send* was filed under Tier 3, contradicting §1.4/§8.2 (Tier 2); reconciled.
+- **§8.3.1** — the `$40`/`$41` proceed/abort packet bytes were never shown; added. (Also noted
+  that dev-server programs may return a placeholder frame instead of the 8-byte header.)
+- **§4.5** — blessed the structural heuristic for the genuinely-ambiguous `D`-no-arg / `N`
+  case (bare-ACK vs frame vs directory), which the "command+mode, not bytes" rule can't cover.
+- **§3.8** — LEAVE sends a **goodbye frame** that a client must render before the close.
+
+Display / UX — the visual client (and a maintainer-supplied C64 reference screenshot) drove a
+precise §7.7 rewrite to the **canonical C64 directory layout**: the breadcrumb aligns with the
+entry columns (Part 4 carries the padding), the page number shows **only for the selected
+entry**, the selected column header sits at row 7 in the right column, the advert is centred,
+and the selection highlight is an explicitly **client-drawn full-width bar** in the entry's
+colour (red first / blue rest) with white text — the server sends nothing about selection.
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across
 transport, session, commands, display, frames, directories, and subsystems, with the
-contradictions above resolved in the server's favour. **Two independent clean-room readers**
-built working Tier-1 clients from this document alone, and the second (with a visual stage)
-confirmed the display/UX layer down to the directory colour scheme. Each run's findings are
-smaller than the last — the signal that the spec has largely stabilised; the residual gaps are
-confined to optional subsystems and finer presentation detail.
+contradictions above resolved in the server's favour. **Three independent clean-room readers**
+built working clients from this document alone — Tier 1 twice and Tier 2 once, the latter two
+with visual stages that confirmed the display down to the canonical directory layout. Protocol
+findings have shrunk to fine detail and the transport/session core has been clean across every
+run; the remaining work is presentation precision and the optional Tier-3 subsystems.

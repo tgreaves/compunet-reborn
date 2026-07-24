@@ -72,9 +72,15 @@ Exchange:
    drops the pending download.
 
 A client that offers downloads **MUST** implement the `$40`/`$41` control tokens; these two
-values are meaningful only within this exchange. *(Non-normative: for a C64 program the
-load address is honoured; for an Amiga program the body is the raw relocatable HUNK
-executable and the load field is 0 — the client `LoadSeg`s it.)*
+values are meaningful only within this exchange. Each is an ordinary framed packet (§2.2–2.4)
+with that token, the client's current sequence number, and an **empty payload** — i.e. content
+`[length=$05][token=$40 or $41][seq][crc_hi][crc_lo]`, byte-stuffed and framed like any packet.
+*(Non-normative: for a C64 program the load address is honoured; for an Amiga program the body
+is the raw relocatable HUNK executable and the load field is 0 — the client `LoadSeg`s it. Note
+some development-server content is stored as placeholder text frames rather than real
+programs, in which case a selected `P`/`PP`/`S` entry returns a normal frame instead of the
+8-byte header; a client should fall back to rendering it as a frame if the response is not
+exactly 8 bytes.)*
 
 ### 8.3.2 Upload (The Jungle) and mail send
 
@@ -179,15 +185,21 @@ Three lightweight commands round out the interactive tier:
 
 - **UCAT** — `C` (§4.4): the user catalogue; the server replies with a directory response
   (§7).
-- **VOTE / LIFE** — `V` + an ASCII digit choice casts a vote on the current page; the server
-  replies with a bare **ACK** (§4.3, single packet, no EOS). The related **LIFE** operation
-  extends a page's lifetime. A client **MUST** treat the ACK as success and not wait for a
-  frame stream.
-- **BUY** — `X` + page (§4.4): purchase a paid page; the server replies with an ACK and the
-  page's credit is deducted. (Paid pages are also purchased implicitly on first view, §7.)
+- **VOTE** — `V` + an ASCII digit choice casts a vote on the current page; the server replies
+  with a bare **ACK** (§4.3, single packet, no EOS). A client **MUST** treat the ACK as success
+  and not wait for a frame stream. *(Note: a vote's effect may not be immediately visible in
+  the directory's `VOTE/NUM` column on the next listing.)*
+- **BUY / LIFE** — `X` (§4.4). **`V` and `X` are distinct commands** — VOTE is `V`, and
+  everything below is `X`. What `X` does depends on the target page:
+  - on a **paid page**: **buy** it (credit is deducted; paid pages are also purchased
+    implicitly on first view, §7);
+  - on **your own uploaded content**: **extend its life** (LIFE) — this is the LIFE
+    operation, not a separate command;
+  - on a **link** entry: **activate** it (§8.5).
+  In each case the server replies with an **ACK**.
 
-These are Tier 2. Each is a single command with a simple ACK-or-directory reply and adds no
-new wire mechanics beyond §4.
+These are Tier 2. Each is a single command with a simple ACK reply and adds no new wire
+mechanics beyond §4.
 
 ## 8.7 Subsystem → command → tier summary
 
@@ -195,10 +207,11 @@ new wire mechanics beyond §4.
 |---|---|---|---|
 | Content viewing / paging | `D`, `N`, `P` | FRAME / DIR | 1 |
 | Mail (Courier) read | `M`, `D` | DIR, then FRAME | 2 |
+| **Mail send** (Courier) | `U`, `N` | validation stream, ACK | **2** |
 | Program download | `D` then `$40`/`$41` | header, then DAT stream | 2 |
-| LIFE / VOTE | `V` | ACK | 2 |
-| BUY | `X` | ACK | 2 |
+| VOTE | `V` | ACK | 2 |
+| BUY / LIFE | `X` | ACK | 2 |
 | UCAT | `C` | DIR | 2 |
-| Upload (Jungle) / mail send | `U`, `N`/`P` | validation stream, ACK | 3 |
+| Content upload (Jungle) | `U`, `P` | validation stream, ACK | 3 |
 | Editor | (client-side) → `U` | via upload | 3 |
 | Partyline | link (`L`) → raw lines | raw ASCII | 3 |
