@@ -171,9 +171,42 @@ session switches to a **raw, line-based** exchange.
   three `$02` bytes from the server (client replies `$02`×6) after which the framed protocol
   resumes.
 
-**Chat commands** are `*`-prefixed lines the user types (handled by the server's partyline
-module), e.g. `*who`, `*enter <room>`, `*alias <name>`, `*quit`. A client passes them
-through as ordinary input lines; they are not a separate wire format.
+**The chat session.** Once in the raw session:
+
+- The user sees a scrolling **message area** and types into an **input area** (on the C64 the
+  message area has a blue border and the input area a green border with a green cursor; the
+  exact chrome is a client choice). A message or command is **transmitted when the user
+  presses RETURN twice** (a blank line commits it). The client sends the completed line as raw
+  `CR`-terminated ASCII (§2 does not apply here — this is the un-framed stream).
+- Incoming messages arrive as server-pushed lines and are shown as the sender's name on one
+  line followed by the message text:
+  ```
+  {name}:
+  Hello, this is my message.
+  ```
+  where `{name}` is the sender's alias, or their Compunet user ID if no alias is set; a
+  message may span multiple lines. On entry the server broadcasts `{USER} has entered
+  partyline`.
+- **Scrollback** is by the cursor up/down keys.
+
+**Rooms.** Every user is always *in a room*, and **messages are seen only by others in the
+same room**. On entry a user starts in the default room (**`lobby`**). `*enter <room>` moves
+to (and creates, if new) a named room; others in the old room see `{USER} has left the room.`
+and others in the new room see `{USER} has entered the room.`
+
+**Commands** are `*`-prefixed, **lowercase**, and — like messages — committed with a double
+RETURN. The client passes them through **verbatim as ordinary input lines**; the server
+interprets them (they are not a separate wire format):
+
+| Command | Effect |
+|---|---|
+| `*help` | Show Partyline help text |
+| `*alias <name>` | Set a display alias that replaces the user ID in messages |
+| `*who` | List users currently in Partyline (alias, Compunet ID, room) |
+| `*enter <room>` | Join a room, creating it if it does not exist |
+| `*call <user>` | Send a "{sender} calls you from {room}" notification to another user |
+| `*dice <n>` | Roll an *n*-sided die; result shown to the user and broadcast to the room |
+| `*quit` | Leave Partyline and return to Compunet (triggers the teardown above) |
 
 A Tier 3 client **MUST** implement the raw line protocol and the activation/teardown for at
 least one transport variant. *(Non-normative: the detailed C64 memory map and the resident
@@ -183,8 +216,12 @@ Amiga viewer "CnetTty" are platform mechanics — see `docs/partyline.md`.)*
 
 Three lightweight commands round out the interactive tier:
 
-- **UCAT** — `C` (§4.4): the user catalogue; the server replies with a directory response
-  (§7).
+- **UCAT** — `C` (§4.4): the **user catalogue** — a directory listing of the pages **owned by
+  the logged-in user** (the content *they* have uploaded to the Jungle), so they can find and
+  manage their own material (e.g. extend its life with `X`/LIFE). The server replies with an
+  ordinary six-part directory response (§7), paged with MORE (§7.6) like any directory; it
+  resets to the first page each time `C` is issued. It is *the current user's* content, not a
+  global catalogue.
 - **VOTE** — `V` + an ASCII digit choice casts a vote on the current page; the server replies
   with a bare **ACK** (§4.3, single packet, no EOS). A client **MUST** treat the ACK as success
   and not wait for a frame stream. *(Note: a vote's effect may not be immediately visible in
