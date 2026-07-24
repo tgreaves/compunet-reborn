@@ -67,12 +67,17 @@ distinguishes an ACK (single packet, no EOS) from a streamed DIR/FRAME/ERROR (st
 **The single-byte `@` ack (native clients).** A native client that reads a leading
 one-byte acknowledgement before a response expects `@` (`$40`) to mean "OK / proceed". For
 the two commands whose response could begin with a byte that collides with an ack
-character (`ID` and mail-send), the server prepends `@` (`$40`) to the response so the
-native client's ack read succeeds; it then reads the frame that follows. This prefix is
-applied **only** to native (Amiga-classified) sessions — the C64/ROM stream is unchanged,
-because the ROM keys off the DAT token rather than a leading ack byte. A client that does
-not use a leading-ack read **MUST NOT** be sent this prefix (it is gated on the native
-classification of §3.3).
+character (`I` (ID lookup, §8.6-adjacent) and mail-send, §8.3.2), the server prepends `@`
+(`$40`) to the response. This prefix is applied to **every native (Amiga-classified) session**
+(§3.3) — the C64/ROM stream is unchanged, because the ROM keys off the DAT token rather than a
+leading ack byte.
+
+Because a native-identified client (the recommended path, §3.3) **always** receives this
+prefix on `I` and mail-send replies, it **MUST** account for it — either by consuming a leading
+one-byte ack before reading the body, **or** by **stripping a single leading `@` (`$40`) byte**
+from the response before parsing. Forgetting to strip it shifts every field by one byte (e.g.
+an `ID` lookup returns `@ADMIN…` and the records parse wrong), and the first record still looks
+plausible, so the bug is easy to miss.
 
 *(Non-normative — status bytes. The original ROM treats a non-`@` status byte such as `A`
 (`$41`) or `B` (`$42`) arriving in place of frame data as an error/status indication and
@@ -92,7 +97,7 @@ whether a frame is currently being viewed).
 | `P` | `$50` | SHOW / finish | page (digits) | Show the current page's directory; also used by FINISH to leave frame view and return to the directory | FRAME or DIR |
 | `N` | `$4E` | MORE | — | Advance to the next frame of the item being read (or the continuation step in an upload, §8). At the last frame it returns a bare **ACK** (`$41`), **not** the directory — see §4.5 | FRAME / ACK |
 | `B` | `$42` | BACK | — | Go to the parent directory | DIR |
-| `L` | `$4C` | GOTO | keyword/page | Jump directly to a page by keyword or number | DIR or FRAME |
+| `L` | `$4C` | GOTO | keyword/page | Jump to a page by keyword or number. The reply is **always a directory** — the directory *containing* the target (with the target as an entry within it), never the target's own frame (§4.5) | DIR |
 | `A` | `$41` | ACCOUNT | — | Returns the account **credit balance** as a fixed **10-byte ASCII** string (e.g. `999.00␣␣␣␣`), left-justified and space-padded; a leading `-` marks a debit. **Not** a §6 frame — the client formats it (e.g. "YOU ARE {value} IN CREDIT/DEBIT") | 10-byte text |
 | `I` | `$49` | ID lookup | one or more 8-byte user IDs | Look up user IDs; returns per-ID `id` + real name (if known) + `$1E`. With no argument it returns **nothing** (see note). Not "who is online" — that is a content page, not this command | lookup stream |
 | `C` | `$43` | UCAT | — | User catalogue | DIR |
@@ -135,7 +140,7 @@ the client. The rule:
 |---|---|---|---|
 | `P` (show current dir), `B` (back), `M` (mail), `C` (ucat), `L` (goto) | any | directory | 6-part directory (§7) |
 | `E` (leave) | any | frame | frame (§6) |
-| `A` (account) | any | 10-byte text | fixed 10-byte credit string (§4.4) — not a frame |
+| `A` (account) | any | 10-byte text | fixed 10-byte credit string (§4.4) — not a §6 frame, but delivered as a **normal DAT stream + EOS** (not a bare ACK); read it with the ordinary stream reader |
 | `I` (ID lookup) | any | lookup stream | `id`+name+`$1E` per requested ID (§4.4) — not a 6-part directory |
 | `N` (more) | viewing a frame | frame **or** bare ACK | next frame (§6); at the last frame, a bare ACK `$41` (single packet, no EOS) — **not** the directory |
 | `D` (no argument) | viewing a frame | frame **or** directory | next frame (§6); past the last frame, the 6-part directory (§7) |
