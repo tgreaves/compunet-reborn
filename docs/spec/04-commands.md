@@ -88,13 +88,13 @@ mapping is a client concern and is not required to interoperate.)*
 
 The commands the server dispatches. Command bytes are ASCII letters; the "Arg" column
 notes the ASCII-decimal argument where one is used. "Typical response type" is indicative
-(§4.3) — some commands vary by context (e.g. `D` and `P` change behaviour depending on
-whether a frame is currently being viewed).
+(§4.3) — `D` and `P` each carry two commands, distinguished by whether an index argument is
+present: `D`+index = SHOW / `D` alone = MORE; `P`+index = DIR / `P` alone = FINISH (§4.7).
 
 | Cmd | Byte | Name | Arg | Meaning | Typical response |
 |---|---|---|---|---|---|
-| `D` | `$44` | DIR / next | entry index (2 digits) | Select a directory entry: enter a sub-directory, show an entry's first frame, or — with no arg while viewing — advance to the next frame; past the last entry, page the directory | DIR or FRAME |
-| `P` | `$50` | SHOW / finish | page (digits) | Show the current page's directory; also used by FINISH to leave frame view and return to the directory | FRAME or DIR |
+| `D` | `$44` | SHOW / MORE | entry index (2 digits) | With an index = **SHOW**: display the highlighted entry's text **frame(s)** (or, for a program/link entry, download/activate it — "BUY"). **Never enters a directory** — use DIR for that. With no argument = **MORE**: advance to the next frame; past the last frame, page the directory | FRAME / download |
+| `P` | `$50` | DIR / FINISH | entry index (2 digits) | With an index = **DIR**: enter the highlighted entry **as a directory**. If the entry has no sub-directory yet, this opens an **empty** one (permission permitting), which becomes real once something is uploaded into it — this is how directories are created (§8.3.2). With no argument = **FINISH**: leave the frame currently being viewed and return to its directory (only meaningful while viewing a frame) | DIR |
 | `N` | `$4E` | MORE | — | Advance to the next frame of the item being read (or the continuation step in an upload, §8). At the last frame it returns a bare **ACK** (`$41`), **not** the directory — see §4.5 | FRAME / ACK |
 | `B` | `$42` | BACK | — | Go to the parent directory | DIR |
 | `L` | `$4C` | GOTO | keyword/page | Jump to a page by keyword or number. The reply is **always a directory** — the directory *containing* the target (with the target as an entry within it), never the target's own frame (§4.5) | DIR |
@@ -138,14 +138,14 @@ the client. The rule:
 
 | Command issued | Current mode | Expect | Parse as |
 |---|---|---|---|
-| `P` (show current dir), `B` (back), `M` (mail), `C` (ucat), `L` (goto) | any | directory | 6-part directory (§7) |
+| `P` + index (DIR), `P` no-arg (FINISH), `B` (back), `M` (mail), `C` (ucat), `L` (goto) | any | directory | 6-part directory (§7) |
 | `E` (leave) | any | frame | frame (§6) |
 | `A` (account) | any | 10-byte text | fixed 10-byte credit string (§4.4) — not a §6 frame, but delivered as a **normal DAT stream + EOS** (not a bare ACK); read it with the ordinary stream reader |
 | `I` (ID lookup) | any | lookup stream | `id`+name+`$1E` per requested ID (§4.4) — not a 6-part directory |
 | `N` (more) | viewing a frame | frame **or** bare ACK | next frame (§6); at the last frame, a bare ACK `$41` (single packet, no EOS) — **not** the directory |
-| `D` (no argument) | viewing a frame | frame **or** directory | next frame (§6); past the last frame, the 6-part directory (§7) |
+| `D` no-arg (MORE) | viewing a frame | frame **or** directory | next frame (§6); past the last frame, the 6-part directory (§7) |
 | `V`, `X`, `U` | any | acknowledgement | bare ACK (single packet, no EOS) |
-| `D` (select) with index | in a directory | depends on the selected entry's **base type** (§7.4): `T`→frame; `D`→directory; `P`/`PP`/`S`→download (§8.3.1); `L`→link (§8.5). The `+` modifier does **not** change this — a `T+` shows a frame | per base type |
+| `D` + index (SHOW / BUY) | in a directory | the selected entry's **base type** (§7.4): `T`→frame; `P`/`PP`/`S`→download (§8.3.1); `L`→link (§8.5). To **enter** a directory-type entry, use DIR (`P`+index), not this | frame / download / link |
 
 **Paging a multi-frame item: prefer `D` (no argument) over `N`.** Both advance to the next
 frame, but they differ at the end: `D` (no arg) returns to the directory after the last
@@ -156,15 +156,17 @@ frame sets bit 7 yet has no further frames (its extra content is a sub-directory
 navigation, not paging), so `N`/`D` on it return an ACK / the directory immediately. Drive
 paging from the **actual response** (a frame vs. an ACK/directory), not from the flag.
 
-So the two context-sensitive commands are `D` and `P`: a client **MUST** track whether it is
-viewing a directory or a frame, and for `D`-with-index **MUST** use the selected entry's type
-to choose the parser. That type is not delivered separately — the client reads it from the
-entry it selected, where the type occupies characters 24–26 of the entry's first field
-(screen column 25; see §7.3/§7.4). A client therefore **MUST** retain each listed entry's
-type when it parses a directory, so it can dispatch the subsequent `D`. Everything else is
-determined by the command byte alone. The ERROR type (§4.3) is delivered as a frame and can
-be rendered by the frame parser, so a client **MAY** treat an unexpected frame where it
-expected a directory as an error message rather than crashing.
+`D` and `P` each mean two things depending on whether an index is present (§4.7): `D`+index =
+**SHOW** (parse per the selected entry's base type below), `D` no-arg = **MORE**; `P`+index =
+**DIR** → a directory, `P` no-arg = **FINISH** → a directory. So a client that tracks whether
+it is viewing a directory or a frame, and whether it is sending an index, knows the parser
+before the bytes arrive. For `D`+index (SHOW/BUY) it **MUST** use the selected entry's base
+type to pick between frame / download / link — that type is not delivered separately; the
+client reads it from characters 24–26 of the entry's first field (screen column 25, §7.3/§7.4),
+so it **MUST** retain each listed entry's type when it parses a directory. Everything else is
+determined by the command byte alone. The ERROR type (§4.3) is delivered as a frame and can be
+rendered by the frame parser, so a client **MAY** treat an unexpected frame where it expected a
+directory as an error message rather than crashing.
 
 **Exception — `D` (no arg) and `N` require inspecting the response.** For these two, the
 command + mode genuinely does *not* determine the outcome (the same `D`-no-arg reply is a
@@ -204,9 +206,9 @@ long as the user can reach the applicable commands:
 Concretely, the minimum obligations by tier are:
 
 - **Tier 1 (Browse):** the user **MUST** be able to invoke directory navigation and frame
-  viewing — at least `P` (show directory), `D` (select entry / next), `B` (back), `N`
-  (more), `L` (GOTO), `A` (account), and `E` (leave). Selecting a directory entry (§7.7)
-  is itself the `D` command and satisfies the entry-selection requirement.
+  viewing — at least SHOW (`D`+index), DIR (`P`+index), BACK (`B`), MORE (`D` no-arg / `N`),
+  FINISH (`P` no-arg), GOTO (`L`), ACCOUNT (`A`), and LEAVE (`E`). Highlighting a directory
+  entry (§7.7) and issuing SHOW or DIR on it satisfies the entry-selection requirement.
 - **Tier 2 (Interact):** additionally the commands for the subsystems it implements — e.g.
   `M` (mail), `C` (UCAT), `I` (who), `V` (vote), `X` (LIFE / extend).
 - **Tier 3 (Full):** additionally `U` (upload) and the editor / Partyline entry points.
@@ -223,12 +225,12 @@ These are the words the original "duckshoot" presented; they map onto the wire c
 §4.4. (The *how* — buttons, menu, scrolling duckshoot — remains the client's choice, §4.6;
 this table standardises the *names*, not the interface.)
 
-**While viewing a directory:**
+**While viewing a directory** (these act on the client's locally-highlighted entry, §4.5):
 
 | Name | User action | Wire command |
 |---|---|---|
-| `DIR` | Enter the highlighted entry's sub-directory | `D` + index |
-| `SHOW` | Read the highlighted entry's page | `D` + index |
+| `SHOW` | Show the highlighted entry's **text frame(s)** — never enters a directory | `D` + index |
+| `DIR` | **Enter** the highlighted entry *as a directory* (opens an empty one if it has none — directory creation, §8.3.2/§7.4) | `P` + index |
 | `BACK` | Go to the parent directory | `B` |
 | `GOTO` | Jump to a page by number or keyword | `L` + arg |
 | `ACCNT` | Show the account / personal-information page | `A` |
@@ -236,41 +238,33 @@ this table standardises the *names*, not the interface.)
 | `UCAT` | User catalogue | `C` |
 | `VOTE` | Vote on the highlighted entry | `V` + index + score |
 | `LIFE` | Extend the highlighted entry's life | `X` + index + amount |
-| `BUY` | Download / activate / pay for the highlighted entry | `D` + index (no separate command) |
-| `UPLD` | Upload content | `U` (§8.3.2) |
+| `BUY` | Download / activate / pay for the highlighted entry | `D` + index (no separate byte) |
+| `UPLD` | Upload into the current directory | `U` (§8.3.2) |
 | `LEAVE` | Log off | `E` |
 | `EDITR`, `HELP`, `PRINT`, `SAVE` | Editor / help / print / save | client-side (no wire command) |
 
-**While reading a page (frame):**
+**While reading a page (frame)** (these apply *only* while a frame is on screen):
 
 | Name | User action | Wire command |
 |---|---|---|
 | `MORE` | Show the next page of a multi-frame item | `D` (no arg) / `N` |
-| `FINISH` | Return to the directory | `P` |
+| `FINISH` | Return to the directory | `P` (no arg) |
 
-> **DIR vs SHOW — one wire command, two names.** In the original, `DIR` (enter a
-> sub-directory) and `SHOW` (read a text page) were distinct duckshoot commands, but in
-> Reborn **both send `D` + index** and the server dispatches on the selected entry's type
-> (§4.5, §7.4): a directory-type entry is entered, a text-type entry is shown, a
-> program/link entry is downloaded/activated (§8.3.1/§8.5). A client **MAY** therefore expose
-> a single "SHOW"/open action that does the right thing per entry type, or keep the separate
-> `DIR`/`SHOW`/`BUY` labels — both are conformant, since the byte on the wire is identical.
-> A client **SHOULD NOT** invent a non-Compunet label (e.g. "OPEN") for this action.
+> **`D` and `P`, with or without an index — four distinct actions.** The presence of the
+> entry index distinguishes each pair:
 >
-> **Opening an entry uses `D`+index, not `P`.** On the framed (TCP) transport there is no
-> "move the selection" command — the client tracks the highlighted entry **locally** and acts
-> on it by sending `D` + that entry's index. `FINISH` (`P`) carries **no index**: it returns
-> to, or refreshes, the current directory, using only the server's last-selected entry. A
-> client **MUST NOT** use `P` to enter a highlighted sub-directory (the server does not know
-> the client's local highlight, so `P` will appear to "do nothing" or act on the wrong entry).
-> `DIR` and `SHOW` are therefore both `D`+index; `FINISH` is `P`.
+> | Byte | + index | no index |
+> |---|---|---|
+> | `D` | **SHOW** — show the highlighted entry's text frames | **MORE** — next frame |
+> | `P` | **DIR** — enter the highlighted entry as a directory | **FINISH** — return to the directory |
 >
-> **Reaching the directory from a frame.** The login welcome / personal-information frame
-> (§3.5) — and any page the user is reading — is left by `FINISH` (`P`), which shows the
-> current directory. There is no highlighted entry to open while a frame is on screen, so a
-> client **SHOULD** make its `DIR`/`SHOW` control **context-sensitive**: while a frame is
-> displayed it acts as `FINISH` (send `P`, show the directory); while a directory is displayed
-> it opens the highlighted entry (`D`+index). This mirrors the server's `P` handler, whose
-> behaviour depends on whether a frame or a directory is currently in view, and means the same
-> control moves the user "into" the service from the welcome screen and "into" an entry from a
-> listing.
+> **DIR and SHOW are different commands, not one.** `SHOW` (`D`+index) *only* shows the entry's
+> text frames and never enters a directory; `DIR` (`P`+index) enters the entry as a directory.
+> On a `T+` entry, SHOW reads its pages while DIR goes into its sub-directory — two actions on
+> the same entry. A client **MUST NOT** collapse them onto one byte, and **SHOULD NOT** invent a
+> non-Compunet label like "OPEN".
+>
+> **Context.** SHOW / DIR and the other directory commands apply while a **directory** is
+> displayed; MORE / FINISH apply *only* while a **frame** is displayed (there is no "finish" in
+> a directory). Selection is client-local (§4.5): the client sends the highlighted entry's index
+> with `D`/`P`; `FINISH` and `MORE` carry no index because there is no selection while reading.

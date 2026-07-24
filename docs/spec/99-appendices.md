@@ -16,8 +16,8 @@ argument]` (§4). "Typical reply" is indicative; some commands vary by context.
 | Cmd | Byte | Name | Arg | Meaning | Typical reply | Tier |
 |---|---|---|---|---|---|---|
 | `Z` | `$5A` | LOGIN | credentials | Login packet (first command only, §3.5) | FRAME | 1 |
-| `D` | `$44` | DIR / next | entry index | Select entry / next frame / page directory | DIR or FRAME | 1 |
-| `P` | `$50` | SHOW / finish | page | Show current directory; FINISH from frame view | FRAME or DIR | 1 |
+| `D` | `$44` | SHOW / MORE | entry index | +index = SHOW (frame(s)/download of the highlighted entry, never enters a dir); no arg = MORE (next frame) | FRAME/download | 1 |
+| `P` | `$50` | DIR / FINISH | entry index | +index = DIR (enter/create the highlighted entry as a directory); no arg = FINISH (leave a frame → its directory) | DIR | 1 |
 | `N` | `$4E` | MORE | — | Next frame; bare ACK `$41` past the last frame (§4.5) | FRAME/ACK | 1 |
 | `B` | `$42` | BACK | — | Parent directory | DIR | 1 |
 | `L` | `$4C` | GOTO | keyword/page | Jump to a page by number or keyword | DIR | 1 |
