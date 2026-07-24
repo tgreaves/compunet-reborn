@@ -1,7 +1,8 @@
 # Compunet Client Specification
 
-> **Status:** Skeleton (Phase 2). Section files are stubs until Phase 3 writing.
-> Tracking: issue #111. Branch: `client-spec`.
+> **Status:** Written and validated. All section files (§§1–8 + appendices) are complete,
+> and the spec has been independently verified by a source-isolated clean-room build (see
+> [VALIDATION.md](VALIDATION.md)). Tracking: issue #111.
 
 This is the normative, platform-agnostic specification for building a **Compunet Reborn**
 client that connects to the modern server over **TCP/IP**. It is the single source of
