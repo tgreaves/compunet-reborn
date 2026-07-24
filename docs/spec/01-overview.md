@@ -64,6 +64,10 @@ Compunet client. Tiers 2 and 3 add optional application subsystems that ride on 
 transport, command, and display machinery; a client MAY implement any subset of §8 at
 Tier 2 but MUST implement all of it to claim Tier 3.
 
+"Can" here means the user can actually do it: a conforming client MUST give the user a way to
+**invoke** the commands of its tier (§4.6), not merely render the results. The interface —
+keys, menu, or the original duckshoot — is the client's choice.
+
 ## 1.5 Requirement conventions
 
 The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **SHOULD**,

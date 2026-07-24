@@ -496,16 +496,58 @@ def main():
     render_frame_bytes(screen, welcome, start=0)
     draw_screen(surf, screen, fonts, palette); pygame.display.flip()
 
-    mode = 'frame'           # 'frame' or 'dir'
+    # §4.6: a client MUST let the user invoke the commands of its tier. This
+    # Tier-1 client maps each to a key (the spec leaves the interface to us).
+    HELP = ("Commands:  P dir  B back  M mail  C ucat  A account  "
+            "SPACE more\n           digits+ENTER select   digits+G goto   "
+            "UP/DOWN move   ENTER open selected   ESC leave")
+    print('\n' + HELP + '\n')
+
+    dir_parts = None                                   # last directory (for entry types + selection)
+    selected = 0
     typed = ''
 
-    def show_directory():
-        nonlocal mode
-        t.send_com(b'P')                               # §4.4 show current dir
-        data = t.read_dat_stream()
-        render_directory(screen, template, parse_directory(data))
+    def draw():
         draw_screen(surf, screen, fonts, palette); pygame.display.flip()
-        mode = 'dir'
+
+    def render_dir(data):
+        nonlocal dir_parts, selected
+        dir_parts = parse_directory(data); selected = 0
+        render_directory(screen, template, dir_parts, selected=selected); draw()
+
+    def render_frame(data):
+        screen.reset(); render_frame_bytes(screen, data, start=0); draw()
+
+    def cmd_dir(payload):                              # §4.5: reply parsed as directory
+        try:
+            t.send_com(payload); render_dir(t.read_dat_stream())
+        except (TimeoutError, socket.timeout):
+            print(f'[warn] no response to {payload!r} (command may need parameters)')
+
+    def cmd_frame(payload):                            # §4.5: reply parsed as frame
+        try:
+            t.send_com(payload); render_frame(t.read_dat_stream())
+        except (TimeoutError, socket.timeout):
+            print(f'[warn] no response to {payload!r}')
+
+    def entry_type(idx):                               # §7.3: type at chars 24-26 of first field
+        if dir_parts and 0 <= idx < len(dir_parts['entries']):
+            ff = dir_parts['entries'][idx].split(b',')[0]
+            return ff[24:27].decode('latin-1', 'ignore').strip()
+        return ''
+
+    def select_entry(idx):                             # §4.5: dispatch by the entry's type
+        typ = entry_type(idx)
+        if typ[:1] in ('P', 'S', 'L'):
+            print(f'[tier1] entry {idx} type {typ!r} is a download/link — Tier 1 skips it')
+            return
+        t.send_com(b'D' + str(idx).encode())
+        data = t.read_dat_stream()
+        render_dir(data) if typ[:1] == 'D' else render_frame(data)
+
+    CMDS_DIR = {pygame.K_p: b'P', pygame.K_b: b'B', pygame.K_m: b'M',
+                pygame.K_c: b'C'}                      # §4.6 dir commands (I omitted: needs user-ID params)
+    CMDS_FRAME = {pygame.K_a: b'A'}                     # account
 
     running = True
     while running:
@@ -513,40 +555,31 @@ def main():
             if ev.type == pygame.QUIT:
                 running = False
             elif ev.type == pygame.KEYDOWN:
-                if ev.key in (pygame.K_ESCAPE, pygame.K_q):
+                k = ev.key
+                if k == pygame.K_ESCAPE:
                     try: t.send_com(b'E')              # §4.4 LEAVE
                     except Exception: pass
                     running = False
-                elif ev.key == pygame.K_p:
-                    show_directory()
-                elif ev.key == pygame.K_b:
-                    t.send_com(b'B'); data = t.read_dat_stream()
-                    render_directory(screen, template, parse_directory(data))
-                    draw_screen(surf, screen, fonts, palette); pygame.display.flip()
-                elif ev.key == pygame.K_SPACE:         # MORE (next frame)
-                    t.send_com(b'D');
-                    data = t.read_dat_stream()
-                    # SPEC-GAP: §4.5 — after 'D' with no arg while viewing a frame
-                    # the reply may be the next frame OR (past the last) a directory.
-                    # We assume frame here; a real client tracks paging state.
-                    screen.reset(); render_frame_bytes(screen, data, start=0)
-                    draw_screen(surf, screen, fonts, palette); pygame.display.flip()
+                elif k in CMDS_DIR:
+                    cmd_dir(CMDS_DIR[k])
+                elif k in CMDS_FRAME:
+                    cmd_frame(CMDS_FRAME[k])
+                elif k == pygame.K_SPACE:              # §4.4 MORE (next frame)
+                    t.send_com(b'D'); render_frame(t.read_dat_stream())
+                elif k == pygame.K_g and typed:       # §4.4/§4.5 GOTO (always a directory)
+                    cmd_dir(b'L' + typed.encode()); typed = ''
+                elif k == pygame.K_UP and dir_parts:
+                    selected = max(0, selected - 1)
+                    render_directory(screen, template, dir_parts, selected=selected); draw()
+                elif k == pygame.K_DOWN and dir_parts:
+                    selected = min(len(dir_parts['entries']) - 1, selected + 1)
+                    render_directory(screen, template, dir_parts, selected=selected); draw()
                 elif ev.unicode.isdigit():
                     typed += ev.unicode
-                elif ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                    if typed:
-                        t.send_com(b'D' + typed.encode())   # §4.4 select entry
-                        data = t.read_dat_stream()
-                        # §4.5: parse per the selected entry's type. For this Tier-1
-                        # probe we sniff: a 6-part directory tends to start with a
-                        # charset byte + CRs; a frame starts with the 4-byte header.
-                        # SPEC-GAP: with no in-band marker (§4.3) the client must
-                        # know the selected entry's TYPE from the listing (§7.4) to
-                        # choose the parser — see findings.
-                        typed = ''
-                        screen.reset(); render_frame_bytes(screen, data, start=0)
-                        draw_screen(surf, screen, fonts, palette); pygame.display.flip()
-                        mode = 'frame'
+                elif k in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    idx = int(typed) if typed else selected
+                    typed = ''
+                    select_entry(idx)
         pygame.time.wait(20)
 
     pygame.quit()

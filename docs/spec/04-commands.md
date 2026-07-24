@@ -92,7 +92,7 @@ whether a frame is currently being viewed).
 | `B` | `$42` | BACK | — | Go to the parent directory | DIR |
 | `L` | `$4C` | GOTO | keyword/page | Jump directly to a page by keyword or number | DIR or FRAME |
 | `A` | `$41` | ACCOUNT | — | Show the account/personal-information frame | FRAME |
-| `I` | `$49` | ID / WHO | — | Identify / "who is online" listing | DIR |
+| `I` | `$49` | ID lookup | one or more 8-byte user IDs | Look up user IDs; returns per-ID `id` + real name (if known) + `$1E`. With no argument it returns **nothing** (see note). Not "who is online" — that is a content page, not this command | lookup stream |
 | `C` | `$43` | UCAT | — | User catalogue | DIR |
 | `M` | `$4D` | MAIL | — | Enter mail (Courier); see §8.2 | DIR |
 | `V` | `$56` | VOTE | choice | Cast a vote (LIFE / VOTE); see §8.6 | ACK |
@@ -111,6 +111,11 @@ whether a frame is currently being viewed).
 An unknown command byte yields an `UNKNOWN COMMAND` error response; an empty command
 payload yields `NO COMMAND`. A client **SHOULD** only send bytes from the table above.
 
+Note that some commands can legitimately produce **no response at all** — e.g. `I` (ID
+lookup) with no arguments, or a lookup that matches nothing, returns zero bytes and the
+server sends nothing. A client **MUST** therefore read responses with a timeout and treat a
+timed-out read as "no response" rather than blocking forever.
+
 The single-letter set is identical across the C64 and Amiga reference clients (both send
 these bytes in COM `$43` frames and both use the `@` ack convention), which is what makes
 one server drive both — see the appendix (§A) for the consolidated table alongside the
@@ -126,8 +131,9 @@ the client. The rule:
 
 | Command issued | Current mode | Expect | Parse as |
 |---|---|---|---|
-| `P` (show current dir), `B` (back), `M` (mail), `I`, `C`, `L` (goto) | any | directory | 6-part directory (§7) |
+| `P` (show current dir), `B` (back), `M` (mail), `C` (ucat), `L` (goto) | any | directory | 6-part directory (§7) |
 | `A` (account), `E` (leave) | any | frame | frame (§6) |
+| `I` (ID lookup) | any | lookup stream | `id`+name+`$1E` per requested ID (§4.4) — not a 6-part directory |
 | `N` (more) | viewing a frame | frame | frame (§6) |
 | `V`, `X`, `U` | any | acknowledgement | bare ACK (single packet, no EOS) |
 | `D` (select) with index | in a directory | depends on the **selected entry's type** (§7.4): `T`→frame; `D`/`+`→directory; `P`/`PP`/`S`→download (§8.3.1); `L`→link (§8.5) | per entry type |
@@ -142,3 +148,35 @@ type when it parses a directory, so it can dispatch the subsequent `D`. Everythi
 determined by the command byte alone. The ERROR type (§4.3) is delivered as a frame and can
 be rendered by the frame parser, so a client **MAY** treat an unexpected frame where it
 expected a directory as an error message rather than crashing.
+
+## 4.6 Command invocation (conformance)
+
+Rendering content is not enough — a conforming client **MUST** provide the user a means to
+**invoke** every command applicable to its conformance tier (§1.4). A client that displays
+frames and directories but offers no way to issue commands does not conform: the user could
+never navigate, read mail, or leave.
+
+This specification does **not** mandate *how* commands are surfaced — that is a client-UX
+choice and is explicitly non-normative. Any of the following (or others) is acceptable, as
+long as the user can reach the applicable commands:
+
+- keyboard shortcuts (e.g. a key per command);
+- an on-screen menu, button bar, or command palette;
+- the original Compunet **"duckshoot"** — a horizontally-scrolling row of command words at
+  the foot of the screen that the user scrolls through and selects (this is the reference
+  user experience, reproduced by the C64 and Amiga clients; a client **MAY** emulate it but
+  is not required to).
+
+Concretely, the minimum obligations by tier are:
+
+- **Tier 1 (Browse):** the user **MUST** be able to invoke directory navigation and frame
+  viewing — at least `P` (show directory), `D` (select entry / next), `B` (back), `N`
+  (more), `L` (GOTO), `A` (account), and `E` (leave). Selecting a directory entry (§7.7)
+  is itself the `D` command and satisfies the entry-selection requirement.
+- **Tier 2 (Interact):** additionally the commands for the subsystems it implements — e.g.
+  `M` (mail), `C` (UCAT), `I` (who), `V` (vote), `X` (buy).
+- **Tier 3 (Full):** additionally `U` (upload) and the editor / Partyline entry points.
+
+A command the client's tier does not implement need not be offered. The command byte and
+wire exchange for each are defined in §4.4 and §8; this section only requires that a user
+can trigger them.
