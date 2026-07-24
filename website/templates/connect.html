@@ -50,6 +50,17 @@
         <p>Connect to:<br><code>vme.compunet.live:6401</code><br>Raw TCP, C64 screen mode.</p>
         <p><small><a href="https://syncterm.bbsdev.net/">Download SyncTerm</a></small></p>
     </div>
+    <div class="setup-col">
+        <h3>&#128421; Amiga</h3>
+        <p>Native Amiga client (the recovered 1989 Compunet client, over TCP/IP).</p>
+        <table class="download-table">
+            <tr>
+                <td><a href="{{ url_for('static', filename='compunet-reborn-amiga.lha') }}">compunet-reborn-amiga.lha</a></td>
+                <td>LHA archive</td>
+            </tr>
+        </table>
+        <p><small>Workbench / Kickstart 2.1+ and a bsdsocket TCP/IP stack (Roadshow, AmiTCP, Miami&hellip;). See the Amiga setup below.</small></p>
+    </div>
 </div>
 
 <hr>
@@ -97,6 +108,19 @@
         <tr><td>Screen Mode</td><td><code>C64</code></td></tr>
         <tr><td>Font</td><td><code>Commodore 64 (LOWER)</code></td></tr>
     </table>
+</details>
+
+<details>
+    <summary><strong>Amiga Setup</strong> (click to expand)</summary>
+    <ol>
+        <li>You need Workbench / Kickstart <strong>2.1 or higher</strong> and a TCP/IP stack that
+            provides <code>bsdsocket.library</code> (Roadshow, AmiTCP, Miami&hellip;), installed and online.</li>
+        <li>Un-archive <a href="{{ url_for('static', filename='compunet-reborn-amiga.lha') }}">compunet-reborn-amiga.lha</a>
+            (<code>lha x compunet-reborn-amiga.lha</code>) &mdash; it extracts a <strong>Compunet</strong> drawer.</li>
+        <li>The <code>TCPHOST</code> file inside is preset to <code>vme.compunet.live:6400</code>. Edit it only if you
+            use a different server (format: <code>host</code> or <code>host:port</code>).</li>
+        <li>Bring your TCP/IP stack online, then double-click the <strong>Compunet</strong> icon (or run it from a Shell).</li>
+    </ol>
 </details>
 
 <details>
