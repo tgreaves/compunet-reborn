@@ -153,12 +153,15 @@ var frame = null;
 var sel = 0;
 var colIdx = 0;
 var account = null;
+var isWelcome = false;
+var inMail = false;
 function status(s) {
   statusEl.textContent = s;
 }
 function render() {
   if (mode === "directory" && dir) renderer.renderDirectory(dir, sel, colIdx);
   else if (mode === "frame" && frame) renderer.renderFrame(frame);
+  updateBar();
 }
 function onMessage(m) {
   switch (m.type) {
@@ -168,6 +171,8 @@ function onMessage(m) {
       if (r.welcome) {
         mode = "frame";
         frame = r.welcome;
+        isWelcome = true;
+        inMail = false;
         render();
       }
       status(`Welcome, ${account.user} \u2014 press DIR to enter the system`);
@@ -178,12 +183,15 @@ function onMessage(m) {
       dir = m;
       sel = 0;
       colIdx = 0;
+      isWelcome = false;
+      inMail = m.context === "mail";
       render();
       status(`${m.title} \u2014 ${m.entries.length} entries`);
       break;
     case "frame":
       mode = "frame";
       frame = m;
+      isWelcome = false;
       render();
       status("Reading page" + (m.morePages ? " \u2014 MORE follows" : ""));
       break;
@@ -215,6 +223,7 @@ function onMessage(m) {
       break;
     case "partyline.entered":
       setChatVisible(true);
+      updateBar();
       chatLog("*** Partyline \u2014 room " + m.room + " ***");
       status("In Partyline. *help for commands, *quit to leave.");
       break;
@@ -223,6 +232,7 @@ function onMessage(m) {
       break;
     case "partyline.left":
       setChatVisible(false);
+      updateBar();
       status("Left Partyline.");
       break;
     case "error":
@@ -315,6 +325,10 @@ var actions = {
   // In a directory: enter the highlighted entry. On the welcome frame (no directory
   // context): DIR reaches the root — a bare `dir` (§4.7 / Binding-B schema).
   DIR: () => {
+    if (inMail) {
+      gw.send({ type: "back" });
+      return;
+    }
     if (mode === "directory" && curEntry()) gw.send({ type: "enter", page: curEntry().page });
     else gw.send({ type: "dir" });
   },
@@ -378,15 +392,68 @@ var actions = {
     gw.close();
   }
 };
+var CONTEXT_COMMANDS = {
+  idle: [],
+  welcome: ["DIR", "GOTO", "ACCNT", "MAIL", "UCAT", "LEAVE"],
+  // BUY is not a separate button here: it maps to the same D+index as SHOW (§4.7),
+  // and the server deducts credit automatically when a paid page is shown.
+  directory: [
+    "DIR",
+    "SHOW",
+    "BACK",
+    "GOTO",
+    "UCAT",
+    "MAIL",
+    "ACCNT",
+    "LIFE",
+    "UPLD",
+    "VOTE",
+    "WHO",
+    "COL",
+    "PARTY",
+    "LEAVE"
+  ],
+  frame: ["MORE", "FINISH", "LEAVE"],
+  mail: ["DIR", "SEND", "SHOW", "WHO", "COL", "LEAVE"],
+  // Courier set (§4.8)
+  mailFrame: ["MORE", "FINISH", "SEND", "LEAVE"],
+  partyline: ["PARTY"]
+  // PARTY = leave; chat is the input
+};
+var NEEDS_SELECTION = /* @__PURE__ */ new Set(["SHOW", "DIR", "VOTE", "LIFE", "BUY"]);
+function currentContext() {
+  if (inParty) return "partyline";
+  if (mode === "idle") return "idle";
+  if (mode === "frame") return isWelcome ? "welcome" : inMail ? "mailFrame" : "frame";
+  return inMail ? "mail" : "directory";
+}
+function hasSelection() {
+  const e = curEntry();
+  return !!e && e.title.trim() !== "(EMPTY)" && e.title.trim() !== "(NO MAIL)";
+}
+function updateBar() {
+  const ctx = currentContext();
+  const enabled = new Set(CONTEXT_COMMANDS[ctx]);
+  for (const [name, btn] of barButtons) {
+    const applicable = enabled.has(name) && !(NEEDS_SELECTION.has(name) && ctx === "directory" && !hasSelection());
+    btn.disabled = !applicable;
+    btn.title = applicable ? "" : `Not available while ${ctx === "idle" ? "disconnected" : "in this context"}`;
+  }
+  $("ctx").textContent = ctx === "idle" ? "" : `context: ${ctx}`;
+}
+var barButtons = /* @__PURE__ */ new Map();
 function buildBar() {
   const bar = $("bar");
   bar.innerHTML = "";
+  barButtons.clear();
   for (const name of Object.keys(actions)) {
     const b = document.createElement("button");
     b.textContent = name;
     b.onclick = actions[name];
     bar.appendChild(b);
+    barButtons.set(name, b);
   }
+  updateBar();
 }
 async function connect() {
   const wsBase = $("host").value.trim().replace(/\/$/, "");
@@ -423,18 +490,22 @@ window.addEventListener("keydown", (e) => {
       return;
     }
     if (e.key === "Enter") {
-      actions.SHOW();
+      if (hasSelection()) actions.SHOW();
       return;
     }
     if (e.key === "ArrowRight") {
-      actions.DIR();
+      if (hasSelection()) actions.DIR();
       return;
     }
   }
-  if (e.key === "ArrowLeft") actions.BACK();
-  else if (e.key.toLowerCase() === "n") actions.MORE();
-  else if (e.key.toLowerCase() === "f") actions.FINISH();
-  else if (e.key.toLowerCase() === "c") actions.COL();
+  const allowed = new Set(CONTEXT_COMMANDS[currentContext()]);
+  const fire = (name) => {
+    if (allowed.has(name)) actions[name]();
+  };
+  if (e.key === "ArrowLeft") fire("BACK");
+  else if (e.key.toLowerCase() === "n") fire("MORE");
+  else if (e.key.toLowerCase() === "f") fire("FINISH");
+  else if (e.key.toLowerCase() === "c") fire("COL");
 });
 async function boot() {
   buildBar();

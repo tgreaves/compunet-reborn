@@ -23,12 +23,17 @@ let frame: FrameMsg | null = null;
 let sel = 0;          // highlighted entry (client-local)
 let colIdx = 0;       // which Part-5 column shows in the right pane (F7/F8)
 let account: Account | null = null;
+// Context discriminators for §4.8 — the welcome frame is an entry point, not a
+// "reading" context, and mail has its own command set.
+let isWelcome = false;
+let inMail = false;
 
 function status(s: string): void { statusEl.textContent = s; }
 
 function render(): void {
   if (mode === 'directory' && dir) renderer.renderDirectory(dir, sel, colIdx);
   else if (mode === 'frame' && frame) renderer.renderFrame(frame);
+  updateBar();
 }
 
 function onMessage(m: ServerMsg): void {
@@ -36,16 +41,17 @@ function onMessage(m: ServerMsg): void {
     case 'ready': {
       const r = m as { account: Account; welcome: FrameMsg | null };
       account = r.account;
-      if (r.welcome) { mode = 'frame'; frame = r.welcome; render(); }
+      if (r.welcome) { mode = 'frame'; frame = r.welcome; isWelcome = true; inMail = false; render(); }
       status(`Welcome, ${account.user} — press DIR to enter the system`);
       break;
     }
     case 'directory':
-      mode = 'directory'; dir = m as DirectoryMsg; sel = 0; colIdx = 0; render();
+      mode = 'directory'; dir = m as DirectoryMsg; sel = 0; colIdx = 0;
+      isWelcome = false; inMail = (m as DirectoryMsg).context === 'mail'; render();
       status(`${(m as DirectoryMsg).title} — ${(m as DirectoryMsg).entries.length} entries`);
       break;
     case 'frame':
-      mode = 'frame'; frame = m as FrameMsg; render();
+      mode = 'frame'; frame = m as FrameMsg; isWelcome = false; render();
       status('Reading page' + ((m as FrameMsg).morePages ? ' — MORE follows' : ''));
       break;
     case 'download': {
@@ -75,7 +81,7 @@ function onMessage(m: ServerMsg): void {
       status('Joining Partyline…');
       break;
     case 'partyline.entered':
-      setChatVisible(true);
+      setChatVisible(true); updateBar();
       chatLog('*** Partyline — room ' + (m as { room: string }).room + ' ***');
       status('In Partyline. *help for commands, *quit to leave.');
       break;
@@ -83,7 +89,7 @@ function onMessage(m: ServerMsg): void {
       chatLog((m as { line: string }).line);
       break;
     case 'partyline.left':
-      setChatVisible(false);
+      setChatVisible(false); updateBar();
       status('Left Partyline.');
       break;
     case 'error':
@@ -174,6 +180,8 @@ const actions: Record<string, () => void> = {
   // In a directory: enter the highlighted entry. On the welcome frame (no directory
   // context): DIR reaches the root — a bare `dir` (§4.7 / Binding-B schema).
   DIR: () => {
+    // In Courier, DIR means "leave mail" (§4.8) — the server exits mail mode on BACK.
+    if (inMail) { gw.send({ type: 'back' }); return; }
     if (mode === 'directory' && curEntry()) gw.send({ type: 'enter', page: curEntry()!.page });
     else gw.send({ type: 'dir' });
   },
@@ -206,14 +214,69 @@ const actions: Record<string, () => void> = {
   LEAVE: () => { gw.send({ type: 'leave' }); gw.close(); },
 };
 
+// --- Command availability by context (spec §4.8) ----------------------------
+//
+// The command set MUST change with what is on screen; showing everything
+// everywhere would offer MORE on a directory and VOTE in a chat window. The
+// directory order below is the original's priority order (§4.8), so a client
+// short of room drops from the end.
+
+type Context = 'idle' | 'welcome' | 'directory' | 'frame' | 'mail' | 'mailFrame' | 'partyline';
+
+const CONTEXT_COMMANDS: Record<Context, string[]> = {
+  idle:      [],
+  welcome:   ['DIR', 'GOTO', 'ACCNT', 'MAIL', 'UCAT', 'LEAVE'],
+  // BUY is not a separate button here: it maps to the same D+index as SHOW (§4.7),
+  // and the server deducts credit automatically when a paid page is shown.
+  directory: ['DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'LIFE',
+              'UPLD', 'VOTE', 'WHO', 'COL', 'PARTY', 'LEAVE'],
+  frame:     ['MORE', 'FINISH', 'LEAVE'],
+  mail:      ['DIR', 'SEND', 'SHOW', 'WHO', 'COL', 'LEAVE'],   // Courier set (§4.8)
+  mailFrame: ['MORE', 'FINISH', 'SEND', 'LEAVE'],
+  partyline: ['PARTY'],                                        // PARTY = leave; chat is the input
+};
+
+/** Commands that act on the highlighted entry — need a selection (§4.8). */
+const NEEDS_SELECTION = new Set(['SHOW', 'DIR', 'VOTE', 'LIFE', 'BUY']);
+
+function currentContext(): Context {
+  if (inParty) return 'partyline';
+  if (mode === 'idle') return 'idle';
+  if (mode === 'frame') return isWelcome ? 'welcome' : (inMail ? 'mailFrame' : 'frame');
+  return inMail ? 'mail' : 'directory';
+}
+
+/** A real, selectable entry is highlighted (the (EMPTY) placeholder is not). */
+function hasSelection(): boolean {
+  const e = curEntry();
+  return !!e && e.title.trim() !== '(EMPTY)' && e.title.trim() !== '(NO MAIL)';
+}
+
+function updateBar(): void {
+  const ctx = currentContext();
+  const enabled = new Set(CONTEXT_COMMANDS[ctx]);
+  for (const [name, btn] of barButtons) {
+    // Disable rather than hide, so the command row keeps a stable shape (§4.8).
+    const applicable = enabled.has(name) &&
+      !(NEEDS_SELECTION.has(name) && ctx === 'directory' && !hasSelection());
+    btn.disabled = !applicable;
+    btn.title = applicable ? '' : `Not available while ${ctx === 'idle' ? 'disconnected' : 'in this context'}`;
+  }
+  $('ctx').textContent = ctx === 'idle' ? '' : `context: ${ctx}`;
+}
+
+const barButtons = new Map<string, HTMLButtonElement>();
+
 function buildBar(): void {
-  const bar = $('bar'); bar.innerHTML = '';
+  const bar = $('bar'); bar.innerHTML = ''; barButtons.clear();
   for (const name of Object.keys(actions)) {
     const b = document.createElement('button');
     b.textContent = name;
     b.onclick = actions[name];
     bar.appendChild(b);
+    barButtons.set(name, b);
   }
+  updateBar();
 }
 
 async function connect(): Promise<void> {
@@ -240,13 +303,16 @@ window.addEventListener('keydown', (e) => {
   if (mode === 'directory' && dir) {
     if (e.key === 'ArrowDown') { sel = Math.min(sel + 1, dir.entries.length - 1); render(); e.preventDefault(); return; }
     if (e.key === 'ArrowUp') { sel = Math.max(sel - 1, 0); render(); e.preventDefault(); return; }
-    if (e.key === 'Enter') { actions.SHOW(); return; }
-    if (e.key === 'ArrowRight') { actions.DIR(); return; }
+    if (e.key === 'Enter') { if (hasSelection()) actions.SHOW(); return; }
+    if (e.key === 'ArrowRight') { if (hasSelection()) actions.DIR(); return; }
   }
-  if (e.key === 'ArrowLeft') actions.BACK();
-  else if (e.key.toLowerCase() === 'n') actions.MORE();
-  else if (e.key.toLowerCase() === 'f') actions.FINISH();
-  else if (e.key.toLowerCase() === 'c') actions.COL();
+  // Keyboard is just another invocation path — it obeys §4.8 too.
+  const allowed = new Set(CONTEXT_COMMANDS[currentContext()]);
+  const fire = (name: string) => { if (allowed.has(name)) actions[name](); };
+  if (e.key === 'ArrowLeft') fire('BACK');
+  else if (e.key.toLowerCase() === 'n') fire('MORE');
+  else if (e.key.toLowerCase() === 'f') fire('FINISH');
+  else if (e.key.toLowerCase() === 'c') fire('COL');
 });
 
 async function boot(): Promise<void> {
