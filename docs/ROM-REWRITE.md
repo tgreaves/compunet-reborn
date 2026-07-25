@@ -1,5 +1,9 @@
 # ROM Rewrite — Compunet Reborn
 
+> **C64 platform note (non-normative).** This describes the C64 ROM/PRG build and its
+> internal structure — a platform implementation, not the protocol. For the protocol a
+> client speaks, see **[docs/spec/](spec/README.md)**.
+
 ## Rationale
 
 The original approach patched the 8K ROM binary in-place using Python. This became
