@@ -79,7 +79,7 @@ var Renderer = class {
     if (dir2.breadcrumb[0]) this.put(g, 7, 1, dir2.breadcrumb[0], BLUE, TEMPLATE_BG);
     if (dir2.breadcrumb[1]) this.put(g, 8, 1, dir2.breadcrumb[1], BLUE, TEMPLATE_BG);
     if (dir2.mailWaiting) this.put(g, 8, 25, "MAIL", RED, TEMPLATE_BG);
-    this.put(g, 8, 30, dir2.columns[colIdx2] || "", BLUE, TEMPLATE_BG);
+    this.put(g, 8, 31, dir2.columns[colIdx2] || "", BLUE, TEMPLATE_BG);
     dir2.entries.forEach((e, i) => {
       const row = 10 + i;
       const colour = i === 0 ? RED : BLUE;
@@ -87,7 +87,7 @@ var Renderer = class {
       const fg = selected ? WHITE : colour;
       const bg = selected ? colour : TEMPLATE_BG;
       if (selected)
-        for (let c = 1; c <= 37; c++) g[row * COLS + c] = { g: 32, fg: WHITE, bg: colour, rv: 0 };
+        for (let c = 1; c <= 38; c++) g[row * COLS + c] = { g: 32, fg: WHITE, bg: colour, rv: 0 };
       if (selected) {
         const ps = String(e.page);
         this.put(g, row, 7 - ps.length, ps, fg, bg);
@@ -96,7 +96,7 @@ var Renderer = class {
       const type = e.type + (e.size ? String(e.size) : "") + (e.hasSubdir ? "+" : "");
       this.put(g, row, 25, type, fg, bg);
       const val = e.values?.[colIdx2] || "";
-      if (val) this.put(g, row, 30, val, fg, bg);
+      if (val) this.put(g, row, 31, val, fg, bg);
     });
     (dir2.advert || []).slice(0, 2).forEach((line, i) => {
       const col = Math.max(0, Math.floor((COLS - line.length) / 2));

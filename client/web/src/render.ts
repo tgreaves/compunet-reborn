@@ -88,11 +88,11 @@ export class Renderer {
         }
     }
     // Content sits at the box interior: base column 1 (left border col 0), title col 8,
-    // type col 25, right pane col 30 (one in from the divider at col 29). §7.3/§7.7.
+    // type col 25; right pane base col 31 (one past the divider at col 30). §7.3/§7.7.
     if (dir.breadcrumb[0]) this.put(g, 7, 1, dir.breadcrumb[0], BLUE, TEMPLATE_BG);
     if (dir.breadcrumb[1]) this.put(g, 8, 1, dir.breadcrumb[1], BLUE, TEMPLATE_BG);
     if (dir.mailWaiting) this.put(g, 8, 25, 'MAIL', RED, TEMPLATE_BG);   // aligned with the type column
-    this.put(g, 8, 30, dir.columns[colIdx] || '', BLUE, TEMPLATE_BG);
+    this.put(g, 8, 31, dir.columns[colIdx] || '', BLUE, TEMPLATE_BG);
 
     dir.entries.forEach((e, i) => {
       const row = 10 + i;
@@ -101,7 +101,7 @@ export class Renderer {
       const fg = selected ? WHITE : colour;
       const bg = selected ? colour : TEMPLATE_BG;
       if (selected)
-        for (let c = 1; c <= 37; c++) g[row * COLS + c] = { g: 0x20, fg: WHITE, bg: colour, rv: 0 };
+        for (let c = 1; c <= 38; c++) g[row * COLS + c] = { g: 0x20, fg: WHITE, bg: colour, rv: 0 };
       if (selected) {                                // page number only on selected row
         const ps = String(e.page);
         this.put(g, row, 7 - ps.length, ps, fg, bg);  // right-justified, ending at col 6
@@ -109,10 +109,10 @@ export class Renderer {
       this.put(g, row, 8, e.title, fg, bg);
       const type = e.type + (e.size ? String(e.size) : '') + (e.hasSubdir ? '+' : '');
       this.put(g, row, 25, type, fg, bg);
-      // right pane rendered verbatim from col 30 (one past the divider at 29); the
+      // right pane rendered verbatim from col 31 (one past the divider at 30); the
       // server already applied the per-column justification (§7.3), so no client layout.
       const val = e.values?.[colIdx] || '';
-      if (val) this.put(g, row, 30, val, fg, bg);
+      if (val) this.put(g, row, 31, val, fg, bg);
     });
 
     (dir.advert || []).slice(0, 2).forEach((line, i) => {

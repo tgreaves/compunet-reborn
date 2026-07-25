@@ -136,7 +136,7 @@ or null; `hasSubdir` is the `+` marker. The client dispatches SHOW vs DIR from t
 and each entry's `values` are **parallel arrays** carrying the strings **verbatim**, with the
 server's per-column justification already applied (§7.3) — the leading spaces on `" PRICE"` /
 `" AUTHOR"` / `" LIFE"` and the right-justified values are the positioning. The client draws
-`columns[i]` (header) and `values[i]` (value) as-is from the pane's base column (screen col 30);
+`columns[i]` (header) and `values[i]` (value) as-is from the pane's base column (screen col 31);
 it does **not** re-justify. It renders one column at a time and cycles locally (§7.7).
 
 ### 5.2 `frame`

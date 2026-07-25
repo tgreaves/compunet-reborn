@@ -243,7 +243,7 @@ comma-separated Part-6 line — it is wider than 40 columns and would overflow.
 
 Each entry's 27-character first field (§7.3) is rendered starting at **screen column 1** — the
 box interior, just inside the left border (the template draws the left border at **column 0**,
-the vertical divider at **column 29**, and the right border at **column 38**; §7.5/§A.6). So the
+the vertical divider at **column 30**, and the right border at **column 39**; §7.5/§A.6). So the
 page-number sub-field occupies screen columns 1–6, the title 8–24, and the type 25–27. This
 applies to the **whole row together** — page number, title, and type — and matches the base
 column the Part-4 breadcrumb is rendered from (below), so the two align. The columns are
@@ -298,11 +298,11 @@ authored Compunet look.
 The header of the currently-selected column (the Part-5 name — `PRICE`, `AUTHOR`, …) **MUST**
 be displayed so the user can see which column the right-hand values belong to. It sits in the
 **right-hand pane at row 8** (level with breadcrumb line 2, `100 WELCOME`), drawn in blue. Both
-the header and every entry's value are rendered **from the pane's base column — screen column 30
-(one past the divider at column 29)** — **verbatim**: the server has already justified them
+the header and every entry's value are rendered **from the pane's base column — screen column 31
+(one past the divider at column 30)** — **verbatim**: the server has already justified them
 (§7.3), including the leading space on the `PRICE`/`AUTHOR`/`LIFE` headers that indents the text
 one column into the pane. So the client does **not** re-indent or re-justify; it draws the
-Part-5 header string and the per-entry value string as-is at column 30. A client that shows the
+Part-5 header string and the per-entry value string as-is at column 31. A client that shows the
 column *values* but omits this header leaves them unlabelled.
 
 **Cycling the right-hand column is a required capability (normative).** The right-hand pane
