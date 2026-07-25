@@ -24,8 +24,8 @@ Both WebSocket and TCP clients speak the same binary protocol:
     Standard PETSCII control codes for colours, reverse, charset
 
 Transport:
-  WebSocket (port 6502): binary frames containing raw protocol bytes
-  TCP (port 6400): raw protocol bytes over stream
+  TCP (port 6400): raw protocol bytes over stream (X.25 binding)
+  Client API (port 6404): JSON over WebSocket/HTTP (see api_binding.py)
 """
 
 import asyncio
@@ -44,39 +44,14 @@ import partyline
 import terminal
 
 try:
-    import websockets
-except ImportError:
-    print("Install websockets: pip install websockets")
-    raise
-
-try:
     from aiohttp import web as aiohttp_web
 except ImportError:
     aiohttp_web = None
 
-class _DropWSHandshakeTraceback(logging.Filter):
-    """The websockets library rejects non-WebSocket connections (port scanners, health
-    checks, plain HTTP hitting the WS port) correctly with '426 Upgrade Required' — but it
-    also logs the rejection a second time as an ERROR with a full traceback. That is pure
-    noise on a public server. Drop just that record; the concise 'connection rejected
-    (426 ...)' INFO line the library already emits is kept, and genuine errors still show."""
-    def filter(self, record):
-        if record.getMessage() == 'opening handshake failed' and record.exc_info:
-            try:
-                from websockets.exceptions import InvalidHandshake
-                if isinstance(record.exc_info[1], InvalidHandshake):
-                    return False
-            except Exception:
-                pass
-        return True
-
-# Log level is env-configurable (LOG_LEVEL); default INFO for production. DEBUG is very
-# verbose (it includes the websockets library's wire-level tracing). Set LOG_LEVEL=DEBUG
-# in the environment to restore full debug output.
+# Log level is env-configurable (LOG_LEVEL); default INFO for production. Set
+# LOG_LEVEL=DEBUG in the environment to restore full debug output.
 _LOG_LEVEL = getattr(logging, os.environ.get('LOG_LEVEL', 'INFO').upper(), logging.INFO)
 logging.basicConfig(level=_LOG_LEVEL, format='%(asctime)s %(levelname)s %(message)s')
-for _h in logging.getLogger().handlers:
-    _h.addFilter(_DropWSHandshakeTraceback())
 log = logging.getLogger('compunet')
 
 # Load .env file if present (allows restart without rebuild)
@@ -110,7 +85,6 @@ def audit_log(event, user=None, **details):
         log.warning('Failed to write audit log entry: %s', entry)
 
 # Server configuration
-WS_PORT = 6502
 TCP_PORT = 6400
 API_PORT = 6403
 TERM_PORT = 6401
@@ -2473,95 +2447,6 @@ class CompunetSession:
 
 
 # ============================================================
-# WebSocket interface - binary protocol over WebSocket frames
-# ============================================================
-
-async def ws_handler(websocket):
-    """Handle a WebSocket connection. Same protocol as TCP but over WebSocket binary frames.
-
-    Unlike the TCP/C64 path where the client knows what response to expect based
-    on the command it sent, WebSocket responses are prefixed with a type byte so
-    the web client can demultiplex them:
-      $41 = ACK, $44 = Directory, $46 = Frame, $45 = Error
-    """
-    directory = CompunetDirectory()
-    session = CompunetSession(directory)
-
-    log.info('WebSocket client connected: %s', websocket.remote_address)
-
-    def _ws_wrap(response):
-        """Add response type prefix byte for WebSocket clients.
-
-        The session sets last_response_type before building each response.
-        Methods that already embed their own prefix byte (_make_error, _cmd_mail,
-        _cmd_vote) are detected by checking if first byte equals the tracked type.
-        """
-        if not response:
-            return response
-        prefix = session.last_response_type
-        if not prefix:
-            # No type tracked - check if response self-identifies
-            first = response[0]
-            if first in (RESP_ACK, RESP_ERROR, RESP_FRAME, RESP_DIR, RESP_LINKING):
-                return response
-            return bytes([RESP_DIR]) + response
-        # If the response already starts with its own prefix, pass through
-        if response[0] == prefix:
-            return response
-        return bytes([prefix]) + response
-
-    try:
-        # Login loop - keep prompting until successful
-        while True:
-            login_data = await websocket.recv()
-            if isinstance(login_data, str):
-                login_data = login_data.encode('latin-1')
-
-            parts = login_data.split(b'\x00')
-            user_id = parts[0].decode('latin-1') if len(parts) > 0 else 'GUEST'
-            password = parts[1].decode('latin-1') if len(parts) > 1 else ''
-
-            async with _lock_users:
-                response = session.handle_login(user_id, password)
-            await websocket.send(_ws_wrap(response))
-
-            if session.authenticated:
-                break
-
-        # Command loop (only reached after successful login)
-        async for message in websocket:
-            if isinstance(message, str):
-                message = message.encode('latin-1')
-
-            if len(message) == 0:
-                continue
-
-            # Check for GOTO (special: starts with 'G' + page number as ASCII)
-            if message[0] == ord('G') and len(message) > 1:
-                try:
-                    page_num = int(message[1:].decode('latin-1'))
-                    response = session.handle_goto(page_num)
-                except ValueError:
-                    response = session._make_error(ascii_to_petscii('INVALID PAGE'))
-            # Check for SELECT (highlight change: 'S' + index byte)
-            elif message[0] == ord('S') and len(message) > 1:
-                session.handle_select(message[1])
-                continue  # no response
-            else:
-                # Standard command (lock prevents interleaved writes)
-                async with _lock_content:
-                    response = session.handle_command(message)
-
-            if response:
-                await websocket.send(_ws_wrap(response))
-
-    except websockets.exceptions.ConnectionClosed:
-        pass
-    finally:
-        log.info('WebSocket client disconnected')
-
-
-# ============================================================
 # TCP interface - raw protocol for C64 clients
 # ============================================================
 
@@ -3596,9 +3481,6 @@ async def api_get_audit(request):
 # ============================================================
 
 async def main():
-    ws_server = await websockets.serve(ws_handler, '0.0.0.0', WS_PORT)
-    log.info('WebSocket server on port %d', WS_PORT)
-
     tcp_server = await asyncio.start_server(tcp_handler, '0.0.0.0', TCP_PORT)
     log.info('TCP server on port %d', TCP_PORT)
 
@@ -3647,9 +3529,8 @@ async def main():
         _version = 'unknown'
     log.info('Compunet server v%s ready.', _version)
 
-    async with ws_server, tcp_server, term_server:
+    async with tcp_server, term_server:
         await asyncio.gather(
-            ws_server.serve_forever(),
             tcp_server.serve_forever(),
             term_server.serve_forever(),
         )

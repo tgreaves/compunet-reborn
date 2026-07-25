@@ -840,6 +840,69 @@ async def http_session(request):
     })
 
 
+def _bearer(request):
+    """Resolve `Authorization: Bearer <token>` to a user id, or None."""
+    auth = request.headers.get('Authorization', '')
+    if auth.startswith('Bearer '):
+        return _resolve_token(auth[7:].strip())
+    return None
+
+
+def _rest_session(request):
+    """A fresh, authenticated session for one REST read.
+
+    REST reads are stateless (that is what makes them cacheable): each request
+    gets its own session, navigates to the requested page, and is discarded.
+    Interactive state — current directory, paging, pending uploads — belongs to
+    the gateway, not here.
+    """
+    user_id = _bearer(request)
+    if not user_id:
+        return None
+    session = _new_session(request.remote or 'api')
+    return session if _adopt_user(session, user_id) else None
+
+
+async def http_dir(request):
+    """GET /v1/dir/{page} — a directory as JSON (§7)."""
+    session = _rest_session(request)
+    if session is None:
+        return web.json_response({"error": {"code": "unauthorized"}}, status=401)
+    target = request.match_info.get('page', '')
+    session.handle_command(b'L' + str(target).encode('ascii', 'ignore'))
+    if getattr(session, 'show_page', None):
+        return web.json_response({"error": {"code": "not_found",
+                                            "message": "not a directory"}}, status=404)
+    return web.json_response(directory_to_json(session))
+
+
+async def http_frame(request):
+    """GET /v1/frame/{page}[?index=N] — a page's frame as a cell grid (§6)."""
+    session = _rest_session(request)
+    if session is None:
+        return web.json_response({"error": {"code": "unauthorized"}}, status=401)
+    try:
+        page_num = int(request.match_info.get('page', ''))
+    except ValueError:
+        return web.json_response({"error": {"code": "invalid"}}, status=400)
+    page = session.directory.pages.get(page_num)
+    if page is None or not page.frames:
+        return web.json_response({"error": {"code": "not_found"}}, status=404)
+    try:
+        index = int(request.query.get('index', '0'))
+    except ValueError:
+        index = 0
+    if index < 0 or index >= len(page.frames):
+        return web.json_response({"error": {"code": "not_found",
+                                            "message": "no such frame"}}, status=404)
+    session.show_page = page
+    session.show_frame_index = index
+    raw = session._send_current_frame()
+    if getattr(session, '_program_download_pending', False):
+        return web.json_response(_download_json(session))
+    return web.json_response(frame_to_cells(raw))
+
+
 async def ws_gateway(request):
     """GET /v1/gateway — the interactive session (WebSocket)."""
     ws = web.WebSocketResponse(heartbeat=30)
@@ -943,5 +1006,8 @@ def make_app(server_module):
     app = web.Application()
     app.router.add_post('/v1/session', http_session)
     app.router.add_get('/v1/gateway', ws_gateway)
+    # Hybrid: cacheable REST reads carrying the same JSON shapes as the gateway.
+    app.router.add_get('/v1/dir/{page}', http_dir)
+    app.router.add_get('/v1/frame/{page}', http_frame)
     app.router.add_get('/v1/health', lambda r: web.json_response({"ok": True}))
     return app

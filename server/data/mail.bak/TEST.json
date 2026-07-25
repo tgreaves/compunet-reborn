@@ -1,0 +1,16 @@
+{
+  "messages": [
+    {
+      "id": "100000",
+      "from": "ADMIN",
+      "subject": "API HELLO",
+      "date": "2026-07-25",
+      "read": true,
+      "frames": [
+        "100000-0.seq",
+        "100000-1.seq"
+      ],
+      "read_date": "2026-07-25"
+    }
+  ]
+}
