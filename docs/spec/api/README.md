@@ -202,8 +202,15 @@ sync.
   the §5.6.1 auto-wrap guard) and §6.4 RLE, producing a 40×24 grid of `{g,fg,bg,rv}`. `ready`
   now carries the welcome frame; `open`/`more` return real frames. Verified by rendering the
   welcome frame and a page to text.
-- **Phase 1 client (next):** the TypeScript/canvas reference client — login, browse, render a
-  frame (needs the appendix font + palette).
+- **Phase 1 client — DONE:** the canvas reference client (`client/web/`) — login, WS gateway,
+  faithful directory composition (template chrome + red-first / blue-selection bar + column
+  cycling) and frame rendering (font + palette from the appendix). Verified end-to-end in a
+  browser against the dev server (`server/run_api_dev.py`): token, gateway, welcome, directory,
+  arrow-select, DIR into a sub-directory, BACK, and SHOW a page. Written as runnable ES-module
+  JS (ports to TypeScript); assets extracted from the appendix by `client/web/gen_assets.py`.
+  **This completes Phase 1 (Tier 1) end-to-end.**
+- **Next:** Tier 2 (account, mail, download, vote/life) and Tier 3 (upload, editor, Partyline),
+  then the REST read path (hybrid).
 - **Phase 2 (Tier 2):** account, mail read/send, download, vote/life, id-lookup.
 - **Phase 3 (Tier 3):** upload (with `kind`/`price`), the editor path, Partyline.
 - **Then hybrid:** add the REST read endpoints (§1), reusing these exact JSON shapes.

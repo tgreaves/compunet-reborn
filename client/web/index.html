@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compunet Reborn — Web Client (Binding B)</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #101014; color: #cdd; font: 14px/1.4 system-ui, sans-serif;
+         display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
+  h1 { font-size: 15px; font-weight: 600; color: #8ab; margin: 4px 0; letter-spacing: .5px; }
+  #login { display: flex; gap: 8px; align-items: center; }
+  input { background: #1a1a22; color: #eee; border: 1px solid #333; border-radius: 4px; padding: 6px 8px; }
+  button { background: #26263a; color: #dde; border: 1px solid #3a3a55; border-radius: 4px;
+           padding: 6px 10px; cursor: pointer; font: inherit; }
+  button:hover:not(:disabled) { background: #33334d; }
+  button:disabled { opacity: .4; cursor: default; }
+  #screenWrap { padding: 24px; border-radius: 6px; line-height: 0; box-shadow: 0 6px 30px #0008; }
+  canvas { image-rendering: pixelated; display: block; }
+  #bar { display: flex; flex-wrap: wrap; gap: 6px; max-width: 720px; justify-content: center; }
+  #status { font: 12px ui-monospace, monospace; color: #7a8; min-height: 16px; }
+  .hint { color: #667; font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1>◆ COMPUNET REBORN — web client (Binding B / JSON API)</h1>
+  <div id="login">
+    <input id="host" value="ws://localhost:6404" size="22" title="API base (ws://host:port)">
+    <input id="user" value="TEST" size="8" placeholder="user">
+    <input id="pass" type="password" value="" size="10" placeholder="password">
+    <button id="connect">Connect</button>
+  </div>
+  <div id="screenWrap"><canvas id="screen" width="640" height="384"></canvas></div>
+  <div id="bar"></div>
+  <div id="status">Not connected.</div>
+  <div class="hint">Keys: ↑/↓ select · Enter = SHOW · → = DIR · ← = BACK · N = MORE · F = FINISH · C = cycle column</div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
