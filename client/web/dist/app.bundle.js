@@ -639,11 +639,19 @@ async function boot() {
     }
     const i = row - 10;
     if (i < 0 || i >= dir.entries.length) return;
-    if (i === sel) actions.SHOW();
-    else {
-      sel = i;
-      render();
-    }
+    sel = i;
+    render();
+  });
+  canvas.addEventListener("dblclick", (ev) => {
+    if (mode !== "directory" || !dir) return;
+    if (inMail) return;
+    const r = canvas.getBoundingClientRect();
+    const row = Math.floor((ev.clientY - r.top) / r.height * 25);
+    const i = row - 10;
+    if (i < 0 || i >= dir.entries.length) return;
+    sel = i;
+    render();
+    actions.DIR();
   });
   $("edSubmit").onclick = submitEditor;
   $("edCancel").onclick = closeEditor;

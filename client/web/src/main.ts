@@ -380,13 +380,24 @@ async function boot(): Promise<void> {
       render(); status('Column: ' + dir.columns[colIdx].trim());
       return;
     }
-    // Entry rows 10..20: first click highlights, clicking the highlighted entry
-    // again performs SHOW — the default action (§7.7). Never BUY: a paid page
-    // must still refuse with PLEASE USE BUY (§8.6.4), which actions.SHOW does.
+    // Entry rows 10..20: a single click only HIGHLIGHTS (§7.7) — nothing is sent.
     const i = row - 10;
     if (i < 0 || i >= dir.entries.length) return;
-    if (i === sel) actions.SHOW();
-    else { sel = i; render(); }
+    sel = i; render();
+  });
+
+  // Double click on an entry = DIR, the only command a click may invoke (§7.7,
+  // the Amiga client's behaviour). Never SHOW/BUY, so a click can't charge.
+  canvas.addEventListener('dblclick', (ev) => {
+    if (mode !== 'directory' || !dir) return;
+    // No effect in Courier: DIR is not in the mail command set (§4.8/§7.7).
+    if (inMail) return;
+    const r = canvas.getBoundingClientRect();
+    const row = Math.floor(((ev.clientY - r.top) / r.height) * 25);
+    const i = row - 10;
+    if (i < 0 || i >= dir.entries.length) return;
+    sel = i; render();
+    actions.DIR();
   });
   $<HTMLButtonElement>('edSubmit').onclick = submitEditor;
   $<HTMLButtonElement>('edCancel').onclick = closeEditor;

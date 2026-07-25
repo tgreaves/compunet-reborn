@@ -333,17 +333,26 @@ column, `F8` = next), which is why the template draws the **`<F7)(F8>`** indicat
 A client that pins the pane to a single column (e.g. always `PRICE`) does not conform.
 
 **Clicking an entry (pointer clients).** Selection is client-local (§4.5), so a client with a
-pointer **MAY** let the user **click an entry row to highlight it** — the equivalent of moving
-the highlight with the cursor keys, and no command is sent. **Clicking the already-highlighted
-entry again performs `SHOW`** (§4.7), the default action on an entry. This gives pointer users
-the familiar select-then-open idiom without inventing a command: the first click is *selection*
-(which is not a wire operation at all) and the second is `SHOW`, which already exists.
+pointer **MAY** let the user click a directory entry:
 
-Two constraints follow from §4.7 and §8.6.4. The second click is **`SHOW`, not `BUY`** — so on a
-**paid** entry it must behave exactly as `SHOW` does and refuse with `PLEASE USE BUY`, never
-silently charging the user; buying stays a deliberate act through the `BUY` command. And a client
-**MUST NOT** attach any other command to a click (no click-to-enter-directory), because that
-would give a pointer user a route the command set does not define.
+- **Single click — highlight it.** The equivalent of moving the highlight with the cursor keys.
+  Nothing is sent; no command is invoked.
+- **Double click — `DIR`.** Entering the entry as a directory (§4.7) is the *only* command a
+  click may invoke. This is the **Amiga client's** behaviour and is the reference for pointer
+  clients: its event loop tests Intuition's `DoubleClick()` against the same gadget and passes a
+  click count to the entry's handler, so a double click is a distinct signal from a single one.
+
+**In Courier (§8.2) a double click does nothing.** `DIR` is not part of the mail command set
+(§4.8), so there is no command for a double click to invoke — a single click still highlights a
+message, and reading it is `SHOW` from the row. This is not a special case so much as the
+general rule holding: a double click means `DIR`, and where `DIR` does not apply, it means
+nothing.
+
+A click **MUST NOT** invoke any other command — in particular **not `SHOW` and not `BUY`**, so a
+pointer user can never be charged for a paid page by clicking (§8.6.4); reading and buying stay
+deliberate acts through the duckshoot. Nothing here adds to the vocabulary (§4.7): the single
+click is *selection*, which is not a wire operation at all, and the double click is `DIR`, which
+already exists.
 
 **Clicking the indicator (pointer clients).** The template draws `<F7)(F8>` in the box precisely
 because those are the controls, so a client with a mouse or other pointer **MAY** make that
