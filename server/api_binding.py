@@ -11,10 +11,9 @@ Binding B in lock-step by construction.
 Runs on its own aiohttp app / port (default 6404), fully isolated from the
 admin API (6403) and the X.25 protocol (6400).
 
-PHASE 1a (this file): token auth + WebSocket gateway + directory browse.
-Frame rendering (frame_to_cells) is a marked stub — the cell-grid renderer
-lands in its own pass so the §5 control-code interpretation is done against
-the spec rather than guessed.
+Covers Tiers 1-3: token auth, the WebSocket gateway (directory browse, frame
+cell-grid rendering, mail, account, vote/life, ID lookup, download, upload and
+the editor path, Partyline), plus cacheable REST reads.
 """
 
 import os
@@ -617,7 +616,10 @@ class _WsPartylineWriter:
 
 
 async def partyline_enter(session, ws, msg_id=None):
-    """Join Partyline: register with the shared module and stream its output."""
+    """Join Partyline: register with the shared module and stream its output.
+
+    Reached only by activating an `L`-type directory entry (§7.4/§8.5) — there is
+    deliberately no "join partyline" command, because Binding A has none either."""
     import partyline as pl
     if getattr(session, '_pl_writer', None) is not None:
         return {"type": "error", "id": msg_id, "code": "invalid",
@@ -971,11 +973,6 @@ async def ws_gateway(request):
                 continue
             if t == "partyline.leave":
                 await ws.send_json(await partyline_leave(session, mid))
-                continue
-            if t == "partyline.enter":
-                reply = await partyline_enter(session, ws, mid)
-                if reply:
-                    await ws.send_json(reply)
                 continue
 
             reply = handle_message(session, msg)

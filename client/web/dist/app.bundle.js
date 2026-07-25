@@ -409,10 +409,6 @@ var actions = {
     openEditor("upload");
   },
   SEND: () => openEditor("mail"),
-  PARTY: () => {
-    if (inParty) gw.send({ type: "partyline.leave" });
-    else gw.send({ type: "partyline.enter" });
-  },
   LEAVE: () => {
     gw.send({ type: "leave" });
     gw.close();
@@ -435,15 +431,15 @@ var CONTEXT_COMMANDS = {
     "VOTE",
     "WHO",
     "COL",
-    "PARTY",
     "LEAVE"
   ],
   frame: ["MORE", "FINISH", "LEAVE"],
   mail: ["DIR", "SEND", "SHOW", "WHO", "COL", "LEAVE"],
   // Courier set (§4.8)
   mailFrame: ["MORE", "FINISH", "SEND", "LEAVE"],
-  partyline: ["PARTY"]
-  // PARTY = leave; chat is the input
+  // Partyline has no bar commands: chat is driven by its own input, and you
+  // leave with *quit — exactly as in the original (§8.5).
+  partyline: []
 };
 var NEEDS_SELECTION = /* @__PURE__ */ new Set(["SHOW", "DIR", "VOTE", "LIFE", "BUY"]);
 function currentContext() {

@@ -114,7 +114,6 @@ acts on rather than a highlighted index (spec §4.5).
 | `mail.send` | `to` (array), `subject`, `frames` (editor pages, §5.4) | §8.3.2 | send mail |
 | `upload` | `title`, `kind` (`"T"`\|`"P"`), `price`, `life`, `frames` | §8.3.2 | content upload; **`kind` and `price` are required** (§8.3.2) |
 | `download.fetch` | — | §8.3.1 | after a `download` descriptor, pull the payload (the ROM's `$40` proceed) |
-| `partyline.enter` | — | §8.5 | join Partyline explicitly (selecting an `L` entry with `open` does it too) |
 | `partyline.send` | `text` | §8.5 | send a chat line |
 | `partyline.command` | `text` (e.g. `*who`) | §8.5 | a Partyline `*`-command |
 | `partyline.leave` | — | §8.5 | leave Partyline (`*quit`) → normal commands resume |
@@ -234,10 +233,11 @@ instead of discovering a missing entry afterwards.
 recipients produce a `not_found` error listing them, rather than silently dropping them.
 
 **Partyline** (§8.5) does **not** drop out of the protocol as Binding A must. The socket stays a
-gateway: `partyline.enter` joins and replies `partyline.entered`. Selecting an `L` entry with
-`open` also joins, but replies **`partyline.entering`** first (that reply answers the `open`;
-`partyline.entered` follows once the join completes) — a client should treat both as "entering
-Partyline" and wait for `partyline.entered` before showing the chat UI. Then:
+gateway. **Joining is only ever done by activating an `L`-type entry** with `open` (§7.4/§8.5) —
+there is deliberately **no** "join partyline" command, because Binding A has none either and a
+client must not offer a route the original lacks. `open` on an `L` entry replies
+**`partyline.entering`** (answering the `open`), then **`partyline.entered`** once the join
+completes — wait for the latter before showing the chat UI. Then:
 every chat/system line arrives as a `partyline` push; `partyline.send` / `partyline.command`
 carry input; `partyline.leave` (or `*quit`) replies `partyline.left` and normal commands resume
 immediately. Rooms, `*`-commands, bans, and broadcast are the server's existing partyline

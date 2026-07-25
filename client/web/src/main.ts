@@ -229,7 +229,6 @@ const actions: Record<string, () => void> = {
     openEditor('upload');
   },
   SEND: () => openEditor('mail'),
-  PARTY: () => { if (inParty) gw.send({ type: 'partyline.leave' }); else gw.send({ type: 'partyline.enter' }); },
   LEAVE: () => { gw.send({ type: 'leave' }); gw.close(); },
 };
 
@@ -246,11 +245,13 @@ const CONTEXT_COMMANDS: Record<Context, string[]> = {
   idle:      [],
   welcome:   ['DIR', 'GOTO', 'ACCNT', 'MAIL', 'UCAT', 'LEAVE'],
   directory: ['DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'LIFE', 'BUY',
-              'UPLD', 'VOTE', 'WHO', 'COL', 'PARTY', 'LEAVE'],
+              'UPLD', 'VOTE', 'WHO', 'COL', 'LEAVE'],
   frame:     ['MORE', 'FINISH', 'LEAVE'],
   mail:      ['DIR', 'SEND', 'SHOW', 'WHO', 'COL', 'LEAVE'],   // Courier set (§4.8)
   mailFrame: ['MORE', 'FINISH', 'SEND', 'LEAVE'],
-  partyline: ['PARTY'],                                        // PARTY = leave; chat is the input
+  // Partyline has no bar commands: chat is driven by its own input, and you
+  // leave with *quit — exactly as in the original (§8.5).
+  partyline: [],
 };
 
 /** Commands that act on the highlighted entry — need a selection (§4.8). */

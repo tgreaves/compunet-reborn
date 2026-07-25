@@ -102,7 +102,6 @@ export type ClientMsg =
   // Tier 3
   | { type: 'upload'; title: string; kind: string; price: number; life: number; frames: EditorPage[]; id?: number }
   | { type: 'mail.send'; to: string[]; subject: string; frames: EditorPage[]; id?: number }
-  | { type: 'partyline.enter'; id?: number }
   | { type: 'partyline.send'; text: string; id?: number }
   | { type: 'partyline.command'; text: string; id?: number }
   | { type: 'partyline.leave'; id?: number }
