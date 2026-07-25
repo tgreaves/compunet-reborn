@@ -245,6 +245,11 @@ function onMessage(m) {
 function curEntry() {
   return dir ? dir.entries[sel] : void 0;
 }
+function curPrice() {
+  const e = curEntry();
+  if (!e || inMail) return "";
+  return (e.values?.[0] ?? "").trim();
+}
 var editorMode = null;
 function openEditor(kind) {
   editorMode = kind;
@@ -316,11 +321,28 @@ function saveBase64(b64, filename) {
 }
 var actions = {
   // In the mailbox, SHOW reads the highlighted message (§8.2); otherwise it opens the entry.
+  // SHOW refuses a paid page — the user must go through BUY (§8.6.4).
   SHOW: () => {
     const e = curEntry();
     if (!e) return;
-    if (dir?.context === "mail") gw.send({ type: "mail.read", index: e.index });
-    else gw.send({ type: "open", page: e.page });
+    if (dir?.context === "mail") {
+      gw.send({ type: "mail.read", index: e.index });
+      return;
+    }
+    if (curPrice()) {
+      status("PLEASE USE BUY");
+      return;
+    }
+    gw.send({ type: "open", page: e.page });
+  },
+  // BUY is the same wire command as SHOW, plus the price confirmation (§8.6.4).
+  // The server deducts the credit and allows overdraft; we never check locally.
+  BUY: () => {
+    const e = curEntry();
+    if (!e) return;
+    const price = curPrice();
+    if (price && !confirm(`BUY FOR ${price} - SURE?`)) return;
+    gw.send({ type: "open", page: e.page });
   },
   // In a directory: enter the highlighted entry. On the welcome frame (no directory
   // context): DIR reaches the root — a bare `dir` (§4.7 / Binding-B schema).
@@ -395,8 +417,6 @@ var actions = {
 var CONTEXT_COMMANDS = {
   idle: [],
   welcome: ["DIR", "GOTO", "ACCNT", "MAIL", "UCAT", "LEAVE"],
-  // BUY is not a separate button here: it maps to the same D+index as SHOW (§4.7),
-  // and the server deducts credit automatically when a paid page is shown.
   directory: [
     "DIR",
     "SHOW",
@@ -406,6 +426,7 @@ var CONTEXT_COMMANDS = {
     "MAIL",
     "ACCNT",
     "LIFE",
+    "BUY",
     "UPLD",
     "VOTE",
     "WHO",

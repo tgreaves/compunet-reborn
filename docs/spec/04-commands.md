@@ -251,7 +251,7 @@ this table standardises the *names*, not the interface.)
 | `UCAT` | User catalogue | `C` |
 | `VOTE` | Vote on the highlighted entry | `V` + index + score |
 | `LIFE` | Extend the highlighted entry's life | `X` + index + amount |
-| `BUY` | Download / activate / pay for the highlighted entry | `D` + index (no separate byte) |
+| `BUY` | Download / activate / **pay for** the highlighted entry — same bytes as `SHOW`, but `BUY` confirms the price and `SHOW` refuses paid pages (**§8.6.4**) | `D` + index (no separate byte) |
 | `UPLD` | Upload into the current directory | `U` (§8.3.2) |
 | `LEAVE` | Log off | `E` |
 | `EDITR`, `HELP`, `PRINT`, `SAVE` | Editor / help / print / save | client-side (no wire command) |
@@ -313,7 +313,7 @@ This table consolidates the contexts and is the authority for *when* each comman
 | Context | Commands to offer | Notes |
 |---|---|---|
 | **Welcome frame** (just logged in, §3.5) | `DIR`, `GOTO`, `ACCNT`, `MAIL`, `UCAT`, `LEAVE` | The entry point. `DIR` is **required** here (§4.7) — without it the user cannot reach the system. Not a "reading" context: do **not** offer `MORE`/`FINISH` |
-| **Directory listing** | `HELP`, `DIR`, `SHOW`, `BACK`, `GOTO`, `UCAT`, `MAIL`, `ACCNT`, `SAVE`, `EDITR`, `LEAVE`, `PRINT`, `LIFE`, `BUY`, `LOAD`, `UPLD`, `VOTE` | The full working set, **in the original's display order** (see note below). Commands acting on a highlighted entry (`SHOW`, `DIR`, `VOTE`, `LIFE`, `BUY`) require a selection — see below |
+| **Directory listing** | `HELP`, `DIR`, `SHOW`, `BACK`, `GOTO`, `UCAT`, `MAIL`, `ACCNT`, `SAVE`, `EDITR`, `LEAVE`, `PRINT`, `LIFE`, `BUY`, `LOAD`, `UPLD`, `VOTE` — **`BUY` is required alongside `SHOW`**, not redundant with it (§8.6.4) | The full working set, **in the original's display order** (see note below). Commands acting on a highlighted entry (`SHOW`, `DIR`, `VOTE`, `LIFE`, `BUY`) require a selection — see below |
 | **Reading a frame** | `MORE`, `FINISH` (+ `ALL` if implemented) | **Only** these. There is no `FINISH` in a directory and no `MORE` in one (§4.7) |
 | **Mail (Courier, §8.2)** — listing and message | `DIR`, `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `DIR`/`DONE` leave mail — **on the wire that is `B` (BACK)**, which is what clears mail mode (`N`/MORE also does when it runs past the last message); `SHOW` reads the highlighted message and `MORE` pages it |
 | **Upload / send** (§8.3.2) | `SEND`, `LOAD`, `GET`, `FINISH` | The original entered an upload sub-context with its own set |

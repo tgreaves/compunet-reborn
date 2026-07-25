@@ -355,6 +355,30 @@ only). The server replies with a bare **ACK** (§4.3). On a **link** entry `X` i
 > LIFE are different actions with different wire commands: **BUY → `D`+index**, **LIFE → `X`**.
 > `X` never buys anything.
 
+### 8.6.4 BUY vs SHOW — the price gate (client-side, normative)
+
+`BUY` and `SHOW` send the **same wire bytes** (`D`+index) but are **not interchangeable to the
+user**: the difference is a **client-side price check**, and a client that implements only one of
+them gets the behaviour wrong. Both act on the highlighted entry's **PRICE** column (§7.3), which
+the server leaves **empty** when the page is free *or* already purchased.
+
+| Command | Price empty (free / already bought) | Price non-empty (paid, not yet bought) |
+|---|---|---|
+| `SHOW` | sends `D`+index, renders the page | **sends nothing** — the client refuses with `PLEASE USE BUY` |
+| `BUY` | sends `D`+index, renders the page (nothing to confirm) | prompts **`BUY FOR {price} - SURE?`**; on **Y** sends `D`+index, on **N** sends nothing |
+
+So a paid page can only be opened through **BUY**, and the confirmation is the user's one chance
+to decline before being charged. On confirmation the **server** deducts the credit, marks the
+page purchased, and returns the frame; the client does **not** check the balance locally and the
+server **allows overdraft** (a negative balance, which `ACCOUNT` then reports as *in debit*).
+
+The PRICE shown is cached in the current listing: it is not refreshed until the directory is
+re-requested, so an entry just bought may still display its price until the next listing.
+
+A client **MUST** implement both commands with this gate. Offering only `SHOW` makes paid content
+unreachable; offering only `BUY`, or letting `SHOW` open paid pages, charges the user without the
+confirmation the original always gave them.
+
 These are Tier 2. Each is a single command with a simple ACK reply and adds no new wire
 mechanics beyond §4.
 

@@ -102,6 +102,15 @@ function onMessage(m: ServerMsg): void {
 
 function curEntry() { return dir ? dir.entries[sel] : undefined; }
 
+/** The highlighted entry's price, or '' when free / already purchased (§8.6.4).
+ *  PRICE is the first Part-5 column of a content listing and the server blanks it
+ *  in both of those cases, so an empty value is the "no charge" signal. */
+function curPrice(): string {
+  const e = curEntry();
+  if (!e || inMail) return '';
+  return (e.values?.[0] ?? '').trim();
+}
+
 // --- Editor (§8.4 — a client feature; submits via the upload path §8.3.2) ---
 let editorMode: 'upload' | 'mail' | null = null;
 
@@ -172,10 +181,20 @@ function saveBase64(b64: string, filename: string): void {
 
 const actions: Record<string, () => void> = {
   // In the mailbox, SHOW reads the highlighted message (§8.2); otherwise it opens the entry.
+  // SHOW refuses a paid page — the user must go through BUY (§8.6.4).
   SHOW: () => {
     const e = curEntry(); if (!e) return;
-    if (dir?.context === 'mail') gw.send({ type: 'mail.read', index: e.index });
-    else gw.send({ type: 'open', page: e.page });
+    if (dir?.context === 'mail') { gw.send({ type: 'mail.read', index: e.index }); return; }
+    if (curPrice()) { status('PLEASE USE BUY'); return; }
+    gw.send({ type: 'open', page: e.page });
+  },
+  // BUY is the same wire command as SHOW, plus the price confirmation (§8.6.4).
+  // The server deducts the credit and allows overdraft; we never check locally.
+  BUY: () => {
+    const e = curEntry(); if (!e) return;
+    const price = curPrice();
+    if (price && !confirm(`BUY FOR ${price} - SURE?`)) return;
+    gw.send({ type: 'open', page: e.page });
   },
   // In a directory: enter the highlighted entry. On the welcome frame (no directory
   // context): DIR reaches the root — a bare `dir` (§4.7 / Binding-B schema).
@@ -226,9 +245,7 @@ type Context = 'idle' | 'welcome' | 'directory' | 'frame' | 'mail' | 'mailFrame'
 const CONTEXT_COMMANDS: Record<Context, string[]> = {
   idle:      [],
   welcome:   ['DIR', 'GOTO', 'ACCNT', 'MAIL', 'UCAT', 'LEAVE'],
-  // BUY is not a separate button here: it maps to the same D+index as SHOW (§4.7),
-  // and the server deducts credit automatically when a paid page is shown.
-  directory: ['DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'LIFE',
+  directory: ['DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'LIFE', 'BUY',
               'UPLD', 'VOTE', 'WHO', 'COL', 'PARTY', 'LEAVE'],
   frame:     ['MORE', 'FINISH', 'LEAVE'],
   mail:      ['DIR', 'SEND', 'SHOW', 'WHO', 'COL', 'LEAVE'],   // Courier set (§4.8)
