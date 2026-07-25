@@ -99,6 +99,22 @@ otherwise it is a **mail send**.
 - **Content upload** — `rest` is a **6-byte price** (e.g. `005.00`) followed by a **lifetime
   in days** (up to 3 ASCII digits); the type byte is `T` (text) or `P` (program).
 
+**The client MUST gather these fields from the user before sending `U` (normative).** A content
+upload's `U` payload is not derivable from the frame alone — the client **MUST** prompt the user
+for, and send, all of:
+
+- the **title** (the 16-byte subject/title field);
+- the **type** — **`T` for text frames** or **`P` for a program** — this is the type byte, and
+  it also decides the step-2 transfer (a `T` streams §6 frames; a `P` sends the 8-byte header +
+  raw file, §8.3.1). A client that always uploads as `T` cannot upload software;
+- the **price** (the 6-byte `NNN.NN` field — `000.00` for free); and
+- the **lifetime** in days.
+
+An upload UI that omits the **type** or **price** prompt is incomplete: the type is mandatory to
+the wire format and to what gets stored, and the price is the field the server keys the
+mail-vs-content detection on (`.` in `rest[:8]`, above). Collect all four, then build the
+payload.
+
 **Validation stream (step 1 → server reply).** The server replies with a validation stream
 and remembers a pending-send state:
 
@@ -137,6 +153,17 @@ page in it. Uploading also requires **permission** to write there (you own the d
 you are an editor/admin, or the directory is open for uploads) and space (a directory holds at
 most 11 entries) — otherwise the server silently discards the page. "The Jungle" is simply the
 conventional directory tree for user uploads, not a special upload target.
+
+**A full directory silently discards the upload — so the client MUST check for room first
+(normative).** The server gives **no error** when a directory is full (11 entries): the finish
+`P` just returns the directory unchanged, with the new page missing. The client therefore
+**MUST NOT** offer or begin an upload into a directory that already holds **11 entries** — it
+**MUST** check the target's entry count (which it already has from the listing it is showing)
+and, if full, refuse with a clear message ("this directory is full — 11 entries max") rather
+than run an upload the server will throw away. Because a full directory swallows the page
+without a signal, "the exchange completed" is **not** proof of success; the only positive
+confirmation is the new entry appearing in the refreshed listing. (To add content anyway, the
+user opens a **new sub-directory** with DIR and uploads into that — see below.)
 
 **Creating a directory (the hierarchy).** A client cannot create a directory *directly* — the
 **server** does, in response to the client's actions. There is no "make directory" command; a

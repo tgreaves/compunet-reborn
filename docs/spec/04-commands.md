@@ -97,7 +97,7 @@ present: `D`+index = SHOW / `D` alone = MORE; `P`+index = DIR / `P` alone = FINI
 | `P` | `$50` | DIR / FINISH | entry index (2 digits) | With an index = **DIR**: enter the highlighted entry **as a directory**. If the entry has no sub-directory yet, this opens an **empty** one (permission permitting), which becomes real once something is uploaded into it — this is how directories are created (§8.3.2). With no argument = **FINISH**: leave the frame currently being viewed and return to its directory (only meaningful while viewing a frame) | DIR |
 | `N` | `$4E` | MORE | — | Advance to the next frame of the item being read (or the continuation step in an upload, §8). At the last frame it returns a bare **ACK** (`$41`), **not** the directory — see §4.5 | FRAME / ACK |
 | `B` | `$42` | BACK | — | Go to the parent directory | DIR |
-| `L` | `$4C` | GOTO | keyword/page | Jump to a page by keyword or number. The reply is **always a directory** — the directory *containing* the target (with the target as an entry within it), never the target's own frame (§4.5) | DIR |
+| `L` | `$4C` | GOTO | keyword/page | Jump to a page by keyword or number. The reply is **always a directory** (never the target's own frame, §4.5): for a **leaf** target (a text/program page) the server returns the directory *containing* it, with the target as an entry within it; for a **directory-typed** target it returns that directory **opened as a listing** (its own children). Either way the client parses the reply as a §7 directory and takes the breadcrumb/selection from the response — it must **not** compute "the parent" locally | DIR |
 | `A` | `$41` | ACCOUNT | — | Returns the account **credit balance** as a fixed **10-byte ASCII** string (e.g. `999.00␣␣␣␣`), left-justified and space-padded; a leading `-` marks a debit. **Not** a §6 frame — the client formats it (e.g. "YOU ARE {value} IN CREDIT/DEBIT") | 10-byte text |
 | `I` | `$49` | ID lookup | one or more 8-byte user IDs | Look up user IDs; returns per-ID `id` + real name (if known) + `$1E`. With no argument it returns **nothing** (see note). Not "who is online" — that is a content page, not this command | lookup stream |
 | `C` | `$43` | UCAT | — | User catalogue | DIR |
@@ -217,6 +217,18 @@ A command the client's tier does not implement need not be offered. The command 
 wire exchange for each are defined in §4.4 and §8; this section only requires that a user
 can trigger them.
 
+**Prefer one command surface, and make it context-appropriate.** Surfacing *how* is the
+client's choice, but a client **SHOULD** present a **single** primary command surface rather
+than two competing full command bars (e.g. a duckshoot *and* a separate button row that both
+list the same commands) — two parallel menus of commands are confusing and make it unclear which
+is authoritative. Pick one primary surface (a duckshoot, or a button/menu bar) and, if a second
+affordance is offered, keep it clearly secondary (e.g. keyboard shortcuts, or click-to-select on
+entry rows) rather than a duplicate command menu. Whichever surface is used **SHOULD** show the
+commands **appropriate to the current context** — the directory command set while a directory is
+displayed, the reading set (`MORE`/`FINISH`) while a frame is displayed, and the directory set
+(including `DIR`) on the welcome frame (§4.7) — not a fixed list that offers inapplicable
+commands or omits reachable ones.
+
 ## 4.7 Standard command vocabulary
 
 When a client surfaces commands to the user, it **SHOULD** use the original Compunet command
@@ -275,3 +287,14 @@ this table standardises the *names*, not the interface.)
 > issued from within a sub-directory it returns *that* directory. To move **up** the hierarchy,
 > use `B` (BACK), which returns the parent; repeated `B` ascends to the root. (`GOTO`/`L` jumps
 > to a page by keyword/number, but does not "go home" either.)
+
+**The welcome frame is an entry point — surface `DIR` there.** After login the client is showing
+the **welcome frame** (§3.5), but this is *not* an ordinary "reading a page" context: it is the
+gateway into the system, and the original client shows the **directory** command set here — most
+importantly **`DIR`**, which enters the **top directory**. A client **MUST** surface `DIR` on the
+welcome screen (alongside `GOTO`, `ACCNT`, `MAIL`, `LEAVE`); offering only `MORE`/`FINISH` there
+is wrong — the user is left with no visible way into Compunet. Because no entry is highlighted
+yet, `DIR` on the welcome frame carries **no index** and goes on the wire as a **bare `P`**,
+which the server answers with the current directory — the root (this is the "terminal entry"
+`P` that also serves FINISH; the two coincide here). Once inside a directory, `DIR` reverts to
+its normal `P`+index meaning (enter the highlighted entry).
