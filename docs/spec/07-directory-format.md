@@ -141,11 +141,23 @@ letter alone:
 | Base | Meaning | SHOW action (`D`+index) |
 |---|---|---|
 | `T` | Text page(s) | show the frame(s) (§6) |
-| `D` | Directory (no content of its own) | nothing to show — this entry is entered with DIR (`P`+index), not SHOW |
+| `D` | Directory (no content of its own) | **nothing happens** — see below |
 | `P` | Program / telesoftware | download (§8.3) |
 | `PP` | Protected program | download; original required the modem as a dongle |
 | `S` | Sequential file (word-processor format) | download / view |
 | `L` | Link | activate the link subsystem (§8.5 — Partyline on the modern server) |
+
+**⚠ SHOW on an entry with no frames does nothing (normative).** `SHOW` reads an entry's text
+frames; if the entry has none — which is the normal case for a `D` (directory-only) entry — then
+there is nothing to read and **SHOW is inert**: the screen does not change and the user stays in
+the listing. It **MUST NOT** fall back to entering the sub-directory, because that would make
+`SHOW` and `DIR` the same command on exactly the entries where the spec is at pains to keep them
+apart (§4.7). Entering is `DIR`, and only `DIR`.
+
+> **Known server deviation.** The Reborn server currently *does* fall back to entering the
+> sub-directory when a selected entry has no frames (`_cmd_dir`, the `has_subdir()` branch), so
+> `SHOW` on a `D+` entry navigates instead of doing nothing. The behaviour above is correct and
+> the server should be corrected to match; until then a client may observe the fallback.
 
 The table above is the **SHOW** action (`D`+index, §4.7) — reading an entry. **Entering** an
 entry *as a directory* is a separate command, **DIR** (`P`+index): DIR works on **any** entry,
