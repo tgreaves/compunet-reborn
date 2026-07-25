@@ -360,18 +360,122 @@ def frame_to_cells(raw, msg_id=None):
 
 
 def _download_json(session, msg_id=None):
-    """Program/telesoftware entry — Tier 2 transfer; Phase 1 returns a descriptor."""
-    session._program_download_pending = False
+    """Program/telesoftware entry (§8.3.1). The server has staged the program
+    bytes; we describe them and let the client fetch with `download.fetch`
+    (the Binding-B equivalent of the ROM's `$40` proceed token)."""
+    data = getattr(session, '_program_download_data', None) or b''
     return {
         "type": "download", "id": msg_id,
         "page": getattr(session, '_download_page_num', None),
         "title": getattr(session, '_download_title', None),
-        "note": "download transfer is Tier 2 (not yet implemented)",
+        "size": len(data),
+        "machine": getattr(getattr(session, 'show_page', None), 'machine_type', 'c64'),
     }
 
 
+def _download_fetch(session, msg_id=None):
+    """Deliver the staged program bytes as base64 (§8.3.1 proceed)."""
+    import base64
+    data = getattr(session, '_program_download_data', None)
+    if not data:
+        return {"type": "error", "id": msg_id, "code": "not_found",
+                "message": "no download pending"}
+    session._program_download_pending = False
+    session._program_download_data = None
+    return {
+        "type": "download.data", "id": msg_id,
+        "title": getattr(session, '_download_title', None),
+        "size": len(data),
+        "bytes": base64.b64encode(data).decode('ascii'),
+    }
+
+
+def _petscii_to_ascii(b):
+    """Decode a plain PETSCII text field back to ASCII (digits/punctuation are
+    unchanged; letters arrive unshifted in these fields)."""
+    return b.decode('latin-1', 'replace')
+
+
+# --- Tier 2 serializers ----------------------------------------------------
+
+# Mail listings carry their own Part-5 set (§7.2), with the same leading-space
+# positioning the C64 server applies (_cmd_mail Part 5).
+_MAIL_COLUMNS = [" SENDER", " DATE", " STATUS"]
+
+
+def mail_to_json(session, msg_id=None):
+    """Serialize the mailbox as a directory-shaped listing (§8.2). Entries come
+    from session.mail_messages, not the content tree, and use the mail columns."""
+    offset = getattr(session, 'mail_page_offset', 0)
+    msgs = session.mail_messages or []
+    visible = msgs[offset:offset + 11]
+    entries = []
+    for i, m in enumerate(visible):
+        raw_date = m.get('date', '') or ''
+        if len(raw_date) == 10:                       # YYYY-MM-DD -> DD-MM-YY
+            date_s = raw_date[8:10] + '-' + raw_date[5:7] + '-' + raw_date[2:4]
+        else:
+            date_s = raw_date[:8]
+        nframes = len(m.get('frames', []) or [])
+        entries.append({
+            "index": i,
+            "page": m.get('id', offset + i + 1),
+            "title": (m.get('subject', '') or '')[:16],
+            "type": "T",
+            "size": nframes or None,
+            "hasSubdir": False,
+            "values": [(m.get('from', '?') or '?')[:8],
+                       date_s,
+                       ('NEW' if not m.get('read', False) else 'READ')],
+        })
+    if not entries:
+        entries.append({"index": 0, "page": 0, "title": "(NO MAIL)", "type": "T",
+                        "size": None, "hasSubdir": False, "values": ["", "", ""]})
+    return {
+        "type": "directory", "id": msg_id, "context": "mail",
+        "page": 0, "title": "COURIER",
+        "breadcrumb": ["%6d %s" % (1, "*** COMPUNET ***"), "%6s %s" % ("", "COURIER")],
+        "columns": list(_MAIL_COLUMNS),
+        "advert": [],
+        "header": None,
+        "hasMore": len(msgs) > offset + 11,
+        "entries": entries,
+    }
+
+
+def account_to_json(session, raw, msg_id=None):
+    """`A` returns a fixed 10-byte ASCII credit string (§4.4); the client formats it."""
+    text = _petscii_to_ascii(raw or b'').strip()
+    try:
+        credit = float(text)
+    except ValueError:
+        credit = session.credit
+    return {"type": "account", "id": msg_id, "creditText": text, "credit": credit}
+
+
+def idlookup_to_json(raw, msg_id=None):
+    """`I` returns per-ID: 8-byte id + real name (if known) + $1E (§4.4)."""
+    users = []
+    for rec in (raw or b'').split(b'\x1e'):
+        if not rec:
+            continue
+        uid = _petscii_to_ascii(rec[:8]).strip()
+        name = _petscii_to_ascii(rec[8:]).strip()
+        if uid:
+            users.append({"id": uid, "name": name or None})
+    return {"type": "idlookup", "id": msg_id, "users": users}
+
+
 def _find_index(session, page_num):
-    """Map a page number to its index within the current visible window."""
+    """Map a page number to its index within the current visible window (content
+    directory, or the mailbox when in mail mode)."""
+    if getattr(session, 'mail_mode', False):
+        offset = getattr(session, 'mail_page_offset', 0)
+        visible = (session.mail_messages or [])[offset:offset + 11]
+        for i, m in enumerate(visible):
+            if m.get('id', offset + i + 1) == page_num:
+                return i
+        return None
     offset = getattr(session, 'dir_page_offset', 0)
     visible = session.current_page.children[offset:offset + 11]
     for i, c in enumerate(visible):
@@ -384,6 +488,11 @@ def _serialize_state(session, raw, msg_id=None):
     """After driving a command, decide frame vs directory vs download from state."""
     if getattr(session, '_program_download_pending', False):
         return _download_json(session, msg_id)
+    if getattr(session, 'mail_mode', False):
+        # In the mailbox: a selected message renders as a frame, else the listing.
+        if getattr(session, 'mail_show_msg', None) is not None:
+            return frame_to_cells(raw, msg_id)
+        return mail_to_json(session, msg_id)
     if getattr(session, 'show_page', None):
         return frame_to_cells(raw, msg_id)           # raw = frame bytes from handle_command
     return directory_to_json(session, msg_id)
@@ -423,6 +532,59 @@ def handle_message(session, msg):
     if t == "goto":
         target = str(msg.get("target", "")).encode('ascii', 'ignore')
         return _drive(session, b'L' + target, mid)
+
+    # --- Tier 2 ---------------------------------------------------------
+    if t == "account":
+        raw = session.handle_command(b'A')
+        return account_to_json(session, raw, mid)
+
+    if t == "ucat":
+        return _drive(session, b'C', mid)
+
+    if t == "mail.list":
+        session.handle_command(b'M')
+        return mail_to_json(session, mid)
+
+    if t == "mail.read":
+        i = _find_index(session, msg.get("id_"))
+        if i is None:
+            i = msg.get("index")
+        if i is None:
+            return {"type": "error", "id": mid, "code": "not_found",
+                    "message": "no such message"}
+        return _drive(session, b'D' + ('%02d' % int(i)).encode('ascii'), mid)
+
+    if t == "idlookup":
+        ids = msg.get("ids") or []
+        payload = b''.join(str(u).upper().ljust(8)[:8].encode('ascii', 'ignore') for u in ids)
+        raw = session.handle_command(b'I' + payload)
+        return idlookup_to_json(raw, mid)
+
+    if t == "vote":
+        i = _find_index(session, msg.get("page"))
+        score = int(msg.get("score", 0) or 0)
+        if i is None:
+            return {"type": "error", "id": mid, "code": "not_found", "message": "no such entry"}
+        if not (1 <= score <= 9):
+            return {"type": "error", "id": mid, "code": "invalid",
+                    "message": "score must be 1-9"}
+        session.handle_command(b'V' + ('%02d%d' % (i, score)).encode('ascii'))
+        return {"type": "ack", "id": mid, "of": "vote"}
+
+    if t == "life":
+        i = _find_index(session, msg.get("page"))
+        days = int(msg.get("days", 0) or 0)
+        if i is None:
+            return {"type": "error", "id": mid, "code": "not_found", "message": "no such entry"}
+        session.handle_command(b'X' + ('%02d%d' % (i, days)).encode('ascii'))
+        return {"type": "ack", "id": mid, "of": "life"}
+
+    if t == "download.fetch":
+        return _download_fetch(session, mid)
+
+    if t == "leave":
+        session.handle_command(b'E')
+        return {"type": "ack", "id": mid, "of": "leave"}
 
     return {"type": "error", "id": mid, "code": "invalid",
             "message": "unknown or not-yet-implemented command: %r" % t}

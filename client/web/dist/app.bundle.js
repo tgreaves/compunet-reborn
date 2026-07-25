@@ -187,11 +187,28 @@ function onMessage(m) {
       render();
       status("Reading page" + (m.morePages ? " \u2014 MORE follows" : ""));
       break;
-    case "download":
-      status(`Download: ${m.title} (${m.note || ""})`);
+    case "download": {
+      const d = m;
+      status(`Download: ${d.title} \u2014 ${d.size} bytes (${d.machine})`);
+      if (confirm(`Download "${d.title}" (${d.size} bytes)?`)) gw.send({ type: "download.fetch" });
       break;
+    }
+    case "download.data": {
+      const d = m;
+      saveBase64(d.bytes, (d.title || "download").replace(/\s+/g, "_").toLowerCase() + ".prg");
+      status(`Saved ${d.title} (${d.size} bytes)`);
+      break;
+    }
     case "account":
       status(`You are ${m.creditText} in credit`);
+      break;
+    case "idlookup": {
+      const u = m.users;
+      status(u.map((x) => `${x.id} = ${x.name ?? "(unknown)"}`).join(" \xB7 ") || "No such user");
+      break;
+    }
+    case "ack":
+      status(`${m.of ?? "command"} accepted`);
       break;
     case "error":
       status("\u26A0 " + m.code + (m.message ? ": " + m.message : ""));
@@ -203,10 +220,24 @@ function onMessage(m) {
 function curEntry() {
   return dir ? dir.entries[sel] : void 0;
 }
+function saveBase64(b64, filename) {
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([buf], { type: "application/octet-stream" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 var actions = {
+  // In the mailbox, SHOW reads the highlighted message (§8.2); otherwise it opens the entry.
   SHOW: () => {
     const e = curEntry();
-    if (e) gw.send({ type: "open", page: e.page });
+    if (!e) return;
+    if (dir?.context === "mail") gw.send({ type: "mail.read", index: e.index });
+    else gw.send({ type: "open", page: e.page });
   },
   // In a directory: enter the highlighted entry. On the welcome frame (no directory
   // context): DIR reaches the root — a bare `dir` (§4.7 / Binding-B schema).
@@ -227,6 +258,31 @@ var actions = {
       render();
       status("Column: " + dir.columns[colIdx].trim());
     }
+  },
+  ACCNT: () => gw.send({ type: "account" }),
+  MAIL: () => gw.send({ type: "mail.list" }),
+  UCAT: () => gw.send({ type: "ucat" }),
+  VOTE: () => {
+    const e = curEntry();
+    if (!e) {
+      status("Highlight an entry to vote on");
+      return;
+    }
+    const s = prompt(`Vote on "${e.title}" \u2014 score 1-9:`);
+    if (s) gw.send({ type: "vote", page: e.page, score: parseInt(s, 10) });
+  },
+  LIFE: () => {
+    const e = curEntry();
+    if (!e) {
+      status("Highlight an entry to extend");
+      return;
+    }
+    const d = prompt(`Extend life of "${e.title}" by how many days?`);
+    if (d) gw.send({ type: "life", page: e.page, days: parseInt(d, 10) });
+  },
+  WHO: () => {
+    const u = prompt("Look up user ID(s), comma-separated:");
+    if (u) gw.send({ type: "idlookup", ids: u.split(",").map((x) => x.trim()).filter(Boolean) });
   },
   LEAVE: () => {
     gw.send({ type: "leave" });

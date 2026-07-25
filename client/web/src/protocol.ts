@@ -41,6 +41,8 @@ export interface Entry {
 export interface DirectoryMsg {
   type: 'directory';
   id?: number | string;
+  /** 'mail' when this listing is the mailbox (§8.2), else absent */
+  context?: string;
   page: number;
   title: string;
   breadcrumb: string[];
@@ -55,7 +57,15 @@ export interface DirectoryMsg {
 export interface Account { user: string; credit: number; }
 export interface ReadyMsg { type: 'ready'; account: Account; welcome: FrameMsg | null; }
 export interface AccountMsg { type: 'account'; creditText: string; credit: number; }
-export interface DownloadMsg { type: 'download'; id?: number | string; page: number | null; title: string | null; note?: string; }
+export interface IdLookupMsg { type: 'idlookup'; id?: number | string; users: { id: string; name: string | null }[]; }
+export interface DownloadMsg {
+  type: 'download'; id?: number | string;
+  page: number | null; title: string | null; size: number; machine: string;
+}
+export interface DownloadDataMsg {
+  type: 'download.data'; id?: number | string;
+  title: string | null; size: number; /** base64 */ bytes: string;
+}
 export interface ErrorMsg { type: 'error'; id?: number | string; code: string; message?: string; }
 export interface AckMsg { type: 'ack'; id?: number | string; of?: string; }
 export interface PartylineMsg { type: 'partyline'; line: string; }
@@ -63,7 +73,8 @@ export interface NoticeMsg { type: 'notice'; kind: string; [k: string]: unknown;
 
 /** Any message the server may send over the gateway. */
 export type ServerMsg =
-  | ReadyMsg | DirectoryMsg | FrameMsg | AccountMsg | DownloadMsg
+  | ReadyMsg | DirectoryMsg | FrameMsg | AccountMsg | IdLookupMsg
+  | DownloadMsg | DownloadDataMsg
   | ErrorMsg | AckMsg | PartylineMsg | NoticeMsg
   | { type: string;[k: string]: unknown };
 
@@ -78,6 +89,14 @@ export type ClientMsg =
   | { type: 'goto'; target: string; id?: number }
   | { type: 'account'; id?: number }
   | { type: 'dir'; id?: number }
+  // Tier 2
+  | { type: 'ucat'; id?: number }
+  | { type: 'mail.list'; id?: number }
+  | { type: 'mail.read'; id_?: number; index?: number; id?: number }
+  | { type: 'idlookup'; ids: string[]; id?: number }
+  | { type: 'vote'; page: number; score: number; id?: number }
+  | { type: 'life'; page: number; days: number; id?: number }
+  | { type: 'download.fetch'; id?: number }
   | { type: 'leave'; id?: number };
 
 /** Client-side assets, extracted from the spec appendix (gen_assets.py). */

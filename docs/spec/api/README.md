@@ -165,9 +165,23 @@ the draft fixes the logical shape first.)*
 ### 5.3 Others
 
 - `account` → `{ "type":"account", "creditText":"999.00", "credit": 999.0 }` (§4.4).
-- `mail` list/read reuse `directory` (list) and `frame` (a message body), matching §8.2.
-- `download` → program/telesoftware: `{ "type":"download", "filename":…, "machine":…, "bytes": <base64|url> }` (§8.3.1).
+- **Mail** (§8.2) reuses the shapes above: `mail.list` → a `directory` carrying
+  `"context":"mail"`, its own Part-5 set `[" SENDER"," DATE"," STATUS"]`, and entries whose
+  `page` is the message id; `mail.read` → a `frame`. An empty mailbox still returns one
+  `(NO MAIL)` placeholder entry (§7.3). A client **MUST** take the columns from the response —
+  they differ from a content directory's (§7.2).
+- `idlookup` → `{ "type":"idlookup", "users":[{"id":"ADMIN","name":"MR SYSTEM ADMIN"}, …] }`;
+  `name` is `null` when the user does not exist (§4.4).
+- **Download** (§8.3.1) is two steps, mirroring the ROM's proceed token: selecting a
+  program entry replies `{ "type":"download", "page":…, "title":…, "size":…, "machine":"c64"|"amiga" }`
+  (a *descriptor* — nothing is transferred yet); the client then sends `download.fetch` and
+  receives `{ "type":"download.data", "title":…, "size":…, "bytes": "<base64>" }`. Splitting it
+  this way lets the client confirm with the user before pulling the payload, exactly as the
+  `$40`/`$41` proceed/abort choice does in Binding A.
 - `ack` → `{ "type":"ack", "id"?:…, "of":"vote" }` for state-changers that just confirm (§4.3).
+  `vote` requires a score of 1–9 and `life` a day count; both target the page by number and are
+  validated server-side, returning an `error` (`invalid` / `not_found`) rather than a silent
+  no-op.
 
 ## 6. Push events (server → client, no `id`)
 
@@ -219,7 +233,12 @@ sync.
   **This completes Phase 1 (Tier 1) end-to-end.**
 - **Next:** Tier 2 (account, mail, download, vote/life) and Tier 3 (upload, editor, Partyline),
   then the REST read path (hybrid).
-- **Phase 2 (Tier 2):** account, mail read/send, download, vote/life, id-lookup.
+- **Phase 2 (Tier 2) — server + client DONE except mail *send*:** `account`, `mail.list` /
+  `mail.read`, `idlookup`, `vote`, `life`, `ucat`, and the two-step `download` /
+  `download.fetch`. Verified in-browser (credit, mailbox with its own columns, ID lookup,
+  vote + life persisting). **Mail send** is deferred with the editor (Phase 3) since it
+  submits composed frames through the same upload path (§8.3.2). The download payload path is
+  implemented but not yet exercised against a real program page.
 - **Phase 3 (Tier 3):** upload (with `kind`/`price`), the editor path, Partyline.
 - **Then hybrid:** add the REST read endpoints (§1), reusing these exact JSON shapes.
 - **Open:** compact frame-grid encoding; token lifetime/refresh; rate limits; retire the legacy
