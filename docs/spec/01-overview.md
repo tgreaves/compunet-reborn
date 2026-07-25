@@ -87,6 +87,22 @@ Requirement language is used for the protocol (§§2–4, §§6–7) and for the
 constraints in §5 that a user-visible client must honour to look and behave like Compunet.
 Explanatory and background prose is non-normative.
 
+## 1.5.1 Load-bearing details (⚠)
+
+Some facts in this specification look **cosmetic but are structural**: change them and something
+visibly breaks, often somewhere else. They are marked **⚠ load-bearing**, and each says *what
+breaks* if it is altered. Examples already found the hard way: the leading space in the `" PRICE"`
+column header (it is the column's *position*, §7.3); the `1 + N` in RLE counts (§6.4); the
+divider column the selection bar must not overwrite (§7.7); the price gate that separates `BUY`
+from `SHOW` (§8.6.4).
+
+**Treat a ⚠ as "do not tidy".** The recurring failure mode is a *plausible edit* — a competent
+implementer sees a detail with no stated reason, concludes it is redundant or missing, and
+"improves" it. That produces a client that **works**, so no test objects; the divergence is only
+caught by someone who knows the original service. Where this spec states a decision, it also owes
+you the reason; if a reason is missing, treat that as a spec bug and ask, rather than inferring
+one.
+
 ## 1.6 Notation
 
 - Byte values are hexadecimal with a `$` or `0x` prefix (`$01`, `0x43`); the two forms are

@@ -101,7 +101,7 @@ characters:
 | space run | `$06 N` | space (`$20`) repeated `1 + N` times |
 | character run | `$07 c N` | the byte `c`, processed `1 + N` times |
 
-Example: `$06 $03` → four spaces; `$07 $2A $04` → `*****` (five asterisks). A client
+**⚠ Load-bearing: the `1 +` in the counts.** Example: `$06 $03` → four spaces; `$07 $2A $04` → `*****` (five asterisks). A client
 **MUST** decode both escapes with the `1 + N` semantics; an off-by-one corrupts every
 compressed run. `$06` and `$07` never appear as literal content — they are always RLE
 escapes.

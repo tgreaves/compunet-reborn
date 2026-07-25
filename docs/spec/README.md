@@ -92,6 +92,9 @@ binding), this binding's **wire** format (X.25-over-TCP / PETSCII), or **mixed**
     directory/frame shapes, push events. Draft until clean-room-validated.
   - [api/RATIONALE.md](api/RATIONALE.md) — why it is shaped that way, what was rejected, and the
     invariants it must keep (e.g. never expose behaviour Binding A cannot reach).
+- [CONFORMANCE.md](CONFORMANCE.md) — a self-audit to run against a finished client: *did you
+  build the right thing?* Targets the divergences that still produce a **working** client and so
+  pass every other test (§1.5.1).
 - [xref.md](xref.md) — implementation cross-reference: spec § → server location, so the
   spec and server can't silently drift apart.
 - [VALIDATION.md](VALIDATION.md) — validation record: the cross-checks against both

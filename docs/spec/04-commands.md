@@ -232,11 +232,41 @@ which context.**
 
 ## 4.7 Standard command vocabulary
 
-When a client surfaces commands to the user, it **SHOULD** use the original Compunet command
-names below rather than inventing its own, so the experience is recognisable across clients.
-These are the words the original "duckshoot" presented; they map onto the wire commands of
-§4.4. (The *how* — buttons, menu, scrolling duckshoot — remains the client's choice, §4.6;
-this table standardises the *names*, not the interface.)
+When a client surfaces commands to the user, it **MUST** use the original Compunet command names
+below. These are the words the original "duckshoot" presented; they map onto the wire commands of
+§4.4. (The *how* — buttons, menu, scrolling duckshoot — remains the client's choice, §4.6; this
+table standardises the *names*, not the interface.)
+
+> ### ⚠ The command vocabulary is CLOSED (normative)
+>
+> This set is **exhaustive and authored**. A client **MUST NOT**:
+> - **add** a command of its own (however convenient — no "JOIN", "HOME", "REFRESH");
+> - **remove** one because it looks redundant (see the warning below);
+> - **merge** two that share a wire encoding, or **rename** one to something clearer.
+>
+> **Why this rule exists.** Two commands can send *identical bytes* and still be different
+> commands, because the difference is client-side behaviour (`BUY` vs `SHOW`, §8.6.4). And an
+> invented command has no counterpart in Binding A, which breaks the §1.8 invariant that every
+> binding projects the *same* model. Both mistakes produce a client that **works**, so nothing
+> catches them: no error, no crash, no failing test. They are only ever caught by someone who
+> knows the original.
+>
+> If a command looks redundant or missing, the spec is more likely to be under-explained than
+> wrong — check §8 for its behaviour before concluding it is either.
+
+> ### ⚠ Where two commands share a wire encoding (normative)
+>
+> Whenever the same bytes serve more than one user-facing command, this specification **MUST**
+> state what distinguishes them at the client, and a client **MUST** implement that distinction.
+> The cases:
+>
+> | Same bytes | Commands | What separates them |
+> |---|---|---|
+> | `D` + index | `SHOW`, `BUY` | the **price gate** — `SHOW` refuses a paid page, `BUY` confirms the charge (§8.6.4) |
+> | `D` no-arg | `MORE` | (also reached by `N`; see §4.5) |
+> | `P` + index / no-arg | `DIR` / `FINISH` | the presence of the entry index (§4.7 table above) |
+>
+> A client that collapses any of these pairs loses behaviour the user can see.
 
 **While viewing a directory** (these act on the client's locally-highlighted entry, §4.5):
 

@@ -1,0 +1,89 @@
+# Conformance self-audit
+
+> Part of the [Compunet Client Specification](README.md). A checklist to run **against a finished
+> client**, to answer a question the rest of the spec cannot: *did you build the **right** thing?*
+>
+> This exists because the usual tests don't catch the usual failure. A client can be complete,
+> correct on the wire, and pass every clean-room build, while still quietly diverging from
+> Compunet — see §1.5.1 (*load-bearing details* and the **plausible edit**). Those divergences
+> produce a **working** client, so nothing errors. They are caught only by a deliberate check.
+
+## How to use it
+
+Go through it with the client running. Each item is answerable by **looking**, not by reasoning
+about the code — that matters, because the reasoning is what went wrong in the first place. Items
+marked **⚠** are the ones known to have been got wrong in practice.
+
+---
+
+## A. Command set (the most common divergence)
+
+- [ ] **⚠ Exactly the §4.7 vocabulary — no additions.** List every command your client offers.
+      Is each one in §4.7? An invented command (a "join", "home" or "refresh" shortcut) is a
+      conformance failure even if it is useful: it has no counterpart in Binding A (§1.8).
+- [ ] **⚠ No omissions on "redundancy" grounds.** Is every §4.7 command reachable? Two commands
+      sharing wire bytes are still two commands (§4.7 shared-encoding rule) — `BUY` is not a
+      synonym for `SHOW`.
+- [ ] **⚠ Availability matches §4.8 per context.** For each of welcome / directory / frame /
+      mail / mail message / upload / editor / Partyline: does the offered set match the table?
+      In particular `MORE`/`FINISH` must **not** be offered on a directory, and the normal
+      command set must **not** be offered inside Partyline.
+- [ ] **Selection-dependent commands disabled without a selection** — `SHOW`, `DIR`, `VOTE`,
+      `LIFE`, `BUY` on an empty listing or an `(EMPTY)`/`(NO MAIL)` placeholder (§4.8).
+- [ ] **Keyboard/shortcut paths obey the same table.** A shortcut must not reach a command the
+      context forbids.
+
+## B. Behaviour that shares an encoding
+
+- [ ] **⚠ `SHOW` refuses a paid page** with `PLEASE USE BUY`, sending nothing (§8.6.4).
+- [ ] **⚠ `BUY` confirms** with `BUY FOR {price} - SURE?` and sends only on acceptance (§8.6.4).
+- [ ] **`DIR` vs `SHOW`** — `DIR` enters an entry as a directory, `SHOW` only reads frames;
+      on a `T+` entry the two do different things (§4.7).
+- [ ] **`FINISH` returns the current directory**, not "home"; `BACK` ascends (§4.7).
+
+## C. Display fidelity
+
+- [ ] **⚠ Selection bar leaves the divider intact** — filled either side of column 30, not
+      straight across (§7.7).
+- [ ] **⚠ First entry is red, others blue**, independent of selection; the bar takes the entry's
+      own colour with white text (§7.7).
+- [ ] **⚠ Right-pane content rendered verbatim** from column 31 — the server's leading spaces and
+      right-justification are the positioning; do not re-justify (§7.3).
+- [ ] **Page number shown only on the selected row**, right-justified to column 6 (§7.7).
+- [ ] **Column cycling works** through the whole Part-5 set, header and values together (§7.7).
+- [ ] **Part-5 columns read from each response**, not hard-coded — mail's set differs from a
+      content directory's (§7.2).
+- [ ] **⚠ RLE counts are `1 + N`** (§6.4), and a control byte inside a `$07` run repeats the
+      *action*, not the glyph.
+- [ ] **Welcome frame persists after login** until the user acts; `DIR` reaches the root (§4.7).
+
+## D. Silent-failure traps
+
+The server does not report these; a client that ignores them looks fine and loses user data.
+
+- [ ] **Upload into a full directory is refused by the client** (11 entries) rather than
+      attempted — the server discards it with no error (§8.3.2).
+- [ ] **Upload prompts for type *and* price** — omitting type makes program upload impossible
+      (§8.3.2).
+- [ ] **"The exchange completed" is not treated as success** — confirm the entry appears in the
+      refreshed listing (§8.3.2).
+
+## E. Mechanical checks (automate these)
+
+These are cheap to script and catch drift that reading cannot:
+
+- [ ] **Command table vs implementation, both directions.** Diff the commands your client can
+      send against §4.7/§4.8 (and, for Binding B, against the server's dispatch). *Zero* drift
+      either way — implemented-but-undocumented is as much a defect as the reverse.
+- [ ] **Context table vs UI state.** For each context, assert the enabled set equals §4.8's row.
+- [ ] **Geometry by pixel census, not by eye.** Sample the rendered screen per column to confirm
+      borders, divider and content columns (§7.7) — the layout errors in this project's history
+      were all invisible to casual inspection and obvious to a census.
+
+---
+
+## If something fails
+
+Prefer "the spec is under-explained" over "the spec is wrong". Every divergence recorded in
+[VALIDATION.md](VALIDATION.md) turned out to be a fact the spec stated **without its reason** —
+so the fix is usually to add the reason (and a ⚠), not to change the requirement.

@@ -96,7 +96,7 @@ column, it does **not** re-justify. The exact formatting (from the server's Part
 | UPLDDATE | `"UPLDDATE"` | `"D-MMM".rjust(7)` (e.g. `"  5-JAN"`); empty if none |
 | LIFE | `" LIFE"` (leading space) | `"  " + life.rjust(3)` (e.g. `"   99"`); empty if none |
 
-The leading spaces on the `PRICE`/`AUTHOR`/`LIFE` **headers**, and the right-justification of the
+**⚠ Load-bearing.** The leading spaces on the `PRICE`/`AUTHOR`/`LIFE` **headers**, and the right-justification of the
 **values**, are the positioning — they are what place the content one column in from the pane
 edge and align the digits. A client that strips them or re-justifies will mis-place the column.
 
