@@ -180,7 +180,12 @@ def directory_to_json(session, msg_id=None):
         "id": msg_id,
         "page": page.page_num,
         "title": page.title,
-        "breadcrumb": ["1 *** COMPUNET ***", "%d %s" % (page.page_num, page.title or "")],
+        # Part 4 (§7.7): page number right-justified in the 6-char page-number field, then
+        # the title — so, drawn from base column 2, the breadcrumb page numbers line up with
+        # the entry page numbers directly below. Part 4 carries the padding; the client renders
+        # each line verbatim from column 2. Line 1 is the fixed system banner (page 1).
+        "breadcrumb": ["%6d %s" % (1, "*** COMPUNET ***"),
+                       "%6d %s" % (page.page_num, page.title or "")],
         "columns": list(_DIR_COLUMNS),
         "advert": advert,
         "header": _render_header(session),   # Part-1 header frame (COMPUNET logo, §7.7) or null

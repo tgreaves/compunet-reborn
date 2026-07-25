@@ -89,7 +89,7 @@ export class Renderer {
     }
     if (dir.breadcrumb[0]) this.put(g, 7, 2, dir.breadcrumb[0], BLUE, TEMPLATE_BG);
     if (dir.breadcrumb[1]) this.put(g, 8, 2, dir.breadcrumb[1], BLUE, TEMPLATE_BG);
-    if (dir.mailWaiting) this.put(g, 8, 22, 'MAIL', RED, TEMPLATE_BG);
+    if (dir.mailWaiting) this.put(g, 8, 26, 'MAIL', RED, TEMPLATE_BG);   // aligned with the type column
     this.put(g, 8, 31, dir.columns[colIdx] || '', BLUE, TEMPLATE_BG);
 
     dir.entries.forEach((e, i) => {

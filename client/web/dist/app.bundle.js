@@ -78,7 +78,7 @@ var Renderer = class {
     }
     if (dir2.breadcrumb[0]) this.put(g, 7, 2, dir2.breadcrumb[0], BLUE, TEMPLATE_BG);
     if (dir2.breadcrumb[1]) this.put(g, 8, 2, dir2.breadcrumb[1], BLUE, TEMPLATE_BG);
-    if (dir2.mailWaiting) this.put(g, 8, 22, "MAIL", RED, TEMPLATE_BG);
+    if (dir2.mailWaiting) this.put(g, 8, 26, "MAIL", RED, TEMPLATE_BG);
     this.put(g, 8, 31, dir2.columns[colIdx2] || "", BLUE, TEMPLATE_BG);
     dir2.entries.forEach((e, i) => {
       const row = 10 + i;
