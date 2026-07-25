@@ -1000,10 +1000,43 @@ async def ws_gateway(request):
     return ws
 
 
+# --- CORS -------------------------------------------------------------------
+#
+# This API exists to be called by clients served from a DIFFERENT origin: a web
+# client on its own host, and the Electron shell, which serves the page from an
+# ephemeral 127.0.0.1 port. Without these headers the browser blocks the very
+# first call (POST /v1/session) and the client cannot log in at all.
+#
+# `*` is safe here because authentication is a bearer token in a header, not a
+# cookie — nothing is sent automatically by the browser, so there is no CSRF
+# surface to protect. Set CLIENT_API_CORS_ORIGIN to pin it to one origin.
+_CORS_ORIGIN = os.environ.get('CLIENT_API_CORS_ORIGIN', '*')
+
+_CORS_HEADERS = {
+    'Access-Control-Allow-Origin': _CORS_ORIGIN,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',
+}
+
+
+@web.middleware
+async def _cors_middleware(request, handler):
+    if request.method == 'OPTIONS':                   # preflight
+        return web.Response(status=204, headers=_CORS_HEADERS)
+    try:
+        response = await handler(request)
+    except web.HTTPException as exc:                  # keep CORS on error replies
+        exc.headers.update(_CORS_HEADERS)
+        raise
+    response.headers.update(_CORS_HEADERS)
+    return response
+
+
 def make_app(server_module):
     """Build the isolated aiohttp app for the client API (port 6404)."""
     _bind_server(server_module)
-    app = web.Application()
+    app = web.Application(middlewares=[_cors_middleware])
     app.router.add_post('/v1/session', http_session)
     app.router.add_get('/v1/gateway', ws_gateway)
     # Hybrid: cacheable REST reads carrying the same JSON shapes as the gateway.

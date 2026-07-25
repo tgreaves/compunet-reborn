@@ -37,6 +37,21 @@ Phase 1):
 
 `/v1/` is the version prefix so the binding can evolve without a ROM-style hash gate.
 
+**CORS is required (normative).** This binding exists to be called by clients served from a
+**different origin** — a web client on its own host, and the Electron shell, which serves its
+page from an ephemeral `127.0.0.1` port. The server therefore **MUST** send
+`Access-Control-Allow-Origin` (plus `Allow-Methods: GET, POST, OPTIONS` and
+`Allow-Headers: Content-Type, Authorization`) on `/v1/*` responses, and **MUST** answer the
+`OPTIONS` preflight that `POST /v1/session` triggers. Without it a browser blocks the very
+first call and the client cannot log in at all — note the failure is *silent* apart from a
+generic "failed to fetch", so it is easily mistaken for a dead server.
+
+`*` is an acceptable default because authentication is a **bearer token in a header, not a
+cookie**: nothing is sent automatically by the browser, so there is no CSRF surface. Deployments
+that want to pin the API to one origin set `CLIENT_API_CORS_ORIGIN`. (WebSocket connections are
+not subject to CORS preflight, so only the HTTP endpoints need this — but a client that cannot
+reach `/v1/session` never gets a token to open the socket with.)
+
 ## 2. Authentication (token-first)
 
 1. `POST /v1/session` with `{"user": "...", "pass": "..."}`.
