@@ -32,8 +32,8 @@ Phase 1):
 |---|---|---|---|
 | `POST` | `/v1/session` | log in with credentials → bearer token | 1 |
 | `GET`  | `/v1/gateway` (WebSocket upgrade) | the interactive session | 1 |
-| `GET`  | `/v1/dir/{page}` | a directory as JSON (cacheable) | later (hybrid) |
-| `GET`  | `/v1/frame/{page}` | a frame as a cell grid | later (hybrid) |
+| `GET`  | `/v1/dir/{page}` | a directory as JSON (cacheable, bearer auth) | done |
+| `GET`  | `/v1/frame/{page}[?index=N]` | a frame as a cell grid (bearer auth) | done |
 
 `/v1/` is the version prefix so the binding can evolve without a ROM-style hash gate.
 
@@ -275,6 +275,11 @@ sync.
   `mail.send`; and a client-side editor that submits structured pages the server encodes.
   Verified end-to-end: two-user Partyline chat and commands; a page composed in the browser,
   uploaded, stored and rendered back; mail delivered and read from the mailbox.
-- **Then hybrid:** add the REST read endpoints (§1), reusing these exact JSON shapes.
+- **Phase 4 — hybrid + packaging.** REST reads (`GET /v1/dir/{page}`, `GET /v1/frame/{page}`)
+  are live, bearer-authenticated and stateless, carrying the same JSON shapes as the gateway —
+  the hybrid target architecture is complete. The legacy raw-bytes WebSocket (port 6502) is
+  retired and the `websockets` dependency dropped. An Electron shell (`client/electron/`) wraps
+  the same web client for desktop. **Outstanding:** deploying port 6404 to the live server, and
+  a clean-room validation of this binding (as Binding A had, #111).
 - **Open:** compact frame-grid encoding; token lifetime/refresh; rate limits; retire the legacy
   WS 6502 handler once this lands.
