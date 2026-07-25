@@ -6,6 +6,7 @@ var RED = 2;
 var BLUE = 6;
 var WHITE = 1;
 var TEMPLATE_BG = 15;
+var DIVIDER_COL = 30;
 function petsciiToScreencode(b) {
   if (b >= 32 && b <= 63) return b;
   if (b >= 64 && b <= 95) return b & 31;
@@ -87,7 +88,10 @@ var Renderer = class {
       const fg = selected ? WHITE : colour;
       const bg = selected ? colour : TEMPLATE_BG;
       if (selected)
-        for (let c = 1; c <= 38; c++) g[row * COLS + c] = { g: 32, fg: WHITE, bg: colour, rv: 0 };
+        for (let c = 1; c <= 38; c++) {
+          if (c === DIVIDER_COL) continue;
+          g[row * COLS + c] = { g: 32, fg: WHITE, bg: colour, rv: 0 };
+        }
       if (selected) {
         const ps = String(e.page);
         this.put(g, row, 7 - ps.length, ps, fg, bg);

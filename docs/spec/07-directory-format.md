@@ -286,10 +286,18 @@ itself**, and a conforming client **MUST** use this scheme so the directory look
 
 **The selection highlight is drawn by the client — the server sends nothing about it.**
 Selection is entirely client-local (§4.5): there is no wire field for "which row is
-highlighted", so the client draws the highlight itself. It is a **bar spanning the full row
-width** — across both the entry columns **and** the right-hand value column — in **the entry's
-own positional colour** (a **red** bar for the first entry, a **blue** bar for the others),
-with the **text drawn in white** (index 1) on top. This "colour bar + white text" cannot be
+highlighted", so the client draws the highlight itself. It is a **bar spanning the row across
+both panes** — the entry columns **and** the right-hand value column — in **the entry's own
+positional colour** (a **red** bar for the first entry, a **blue** bar for the others), with the
+**text drawn in white** (index 1) on top.
+
+> **The bar must not overwrite the vertical divider (normative).** The template's divider at
+> **column 30** (§7.7 geometry) stays visible *through* the highlighted row: the bar is drawn in
+> the box interior on **either side** of it — columns **1–29** and **31–38** — leaving column 30
+> as the template drew it. The row reads as two highlighted panes separated by the divider, not
+> as one bar painted over the box furniture. A client that fills straight across the row erases
+> the divider on whichever row is selected, so the column separator appears to break as the
+> user moves the highlight. This "colour bar + white text" cannot be
 expressed with a single PETSCII cell attribute, which is another reason it is client chrome,
 not wire content. A client **MUST** draw the highlight this way (not a single fixed colour),
 and the red-first / blue-rest entry colouring is **required** either way — it is part of the

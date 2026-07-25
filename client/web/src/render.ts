@@ -5,6 +5,8 @@ import type { Assets, Cell, DirectoryMsg, FrameMsg } from './protocol';
 
 export const COLS = 40, ROWS = 24, CELL = 8;
 const RED = 2, BLUE = 6, WHITE = 1, TEMPLATE_BG = 15;
+/** template geometry: left border 0, divider 30, right border 39 (§7.7/§A.6) */
+const DIVIDER_COL = 30;
 
 /** PETSCII byte -> C64 screen code (spec §5.3). */
 export function petsciiToScreencode(b: number): number {
@@ -101,7 +103,12 @@ export class Renderer {
       const fg = selected ? WHITE : colour;
       const bg = selected ? colour : TEMPLATE_BG;
       if (selected)
-        for (let c = 1; c <= 38; c++) g[row * COLS + c] = { g: 0x20, fg: WHITE, bg: colour, rv: 0 };
+        // Fill both panes but SKIP the divider at column 30 — it stays visible
+        // through the highlighted row (§7.7).
+        for (let c = 1; c <= 38; c++) {
+          if (c === DIVIDER_COL) continue;
+          g[row * COLS + c] = { g: 0x20, fg: WHITE, bg: colour, rv: 0 };
+        }
       if (selected) {                                // page number only on selected row
         const ps = String(e.page);
         this.put(g, row, 7 - ps.length, ps, fg, bg);  // right-justified, ending at col 6
