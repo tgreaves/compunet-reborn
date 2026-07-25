@@ -48,7 +48,12 @@ template = api.frame_to_cells(bytes(tb))
 
 # HELP frame (§A.8) — a client asset like the template; the server never sends it
 help_path = os.path.join(ROOT, 'server', 'cfg', 'help.pet')
-help_frame = api.frame_to_cells(open(help_path, 'rb').read()) if os.path.exists(help_path) else None
+# help.pet is BODY-ONLY (it opens 93 0E 1F ... = clear, select lowercase, blue),
+# so supply the 4-byte header ourselves: [flags][border][bg][charset]. The body's
+# own $0E then selects the lowercase/mixed set — feeding the file raw eats those
+# bytes as a header and renders the whole page in uppercase/graphics.
+help_frame = (api.frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x0E]) + open(help_path, 'rb').read())
+              if os.path.exists(help_path) else None)
 
 json.dump({'palette': palette, 'font': font, 'template': template, 'help': help_frame},
           open(OUT, 'w'), separators=(',', ':'))

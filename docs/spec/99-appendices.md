@@ -609,8 +609,20 @@ displays a help page the client carries itself, exactly as it carries the direct
 (§A.6). The original C64 client embeds this frame; the server does **not** send it, so a client
 that omits it leaves `HELP` doing nothing.
 
-It is an ordinary **§6 frame** (4-byte header, then PETSCII body with RLE, terminated by `$00`)
-and is rendered by the normal frame path — no special casing. A client **SHOULD** display it in
+**⚠ Load-bearing: the stored bytes are BODY-ONLY — the client supplies the 4-byte header.**
+The file below begins `93 0E 1F …` — *clear screen*, *select the lowercase/mixed charset*, *blue
+text* — i.e. it starts with body content, **not** a §6 header. A client **MUST** prepend its own
+`[flags][border][background][charset]` (§6.2) before rendering: `[$00][$F4][$FF][$0E]` — no more
+pages, purple border, light-grey background, lowercase/mixed set.
+
+Feed the file to a frame parser *raw* and the first four bytes are consumed as the header: the
+opening clear/charset/colour codes are lost, and the charset is taken from a text byte, so the
+whole page renders in **uppercase/graphics** — capitals appear as graphic glyphs (`DIRECTORY`
+becomes `—IRECTORY`) and the colours are wrong. This page is one of the few frames that is
+genuinely **mixed case**, which is why the `$0E` matters here more than anywhere else.
+
+Once the header is supplied it is an ordinary **§6 frame** rendered by the normal path — no
+special casing. A client **SHOULD** display it in
 the reading context (so `FINISH` returns to where the user was) and **MUST NOT** send a command
 to obtain it.
 
