@@ -1679,7 +1679,8 @@ class TerminalSession:
         now = datetime.datetime.now()
         users = cs._api_load_users()
 
-        # Generate message sequence number
+        # Generate message sequence number (MAIL_DIR is runtime data; may not exist yet)
+        os.makedirs(cs.MAIL_DIR, exist_ok=True)
         seq_file = os.path.join(cs.MAIL_DIR, 'sequence.json')
         if os.path.exists(seq_file):
             with open(seq_file, 'r') as f:

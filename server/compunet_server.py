@@ -1469,6 +1469,7 @@ class CompunetSession:
 
     def _save_mail(self):
         """Persist mail metadata (read status etc)."""
+        os.makedirs(MAIL_DIR, exist_ok=True)
         mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
         data = {'messages': self.mail_messages}
         with open(mail_file, 'w') as f:
@@ -1476,6 +1477,9 @@ class CompunetSession:
 
     def _next_message_number(self):
         """Get and increment the global message sequence number."""
+        # MAIL_DIR is runtime data and may not exist on a fresh install; this runs
+        # before _complete_mail_send's per-recipient makedirs, so create it here.
+        os.makedirs(MAIL_DIR, exist_ok=True)
         seq_file = os.path.join(MAIL_DIR, 'sequence.json')
         if os.path.exists(seq_file):
             with open(seq_file, 'r') as f:
