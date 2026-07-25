@@ -201,6 +201,13 @@ long as the user can reach the applicable commands:
   clients. A client **MAY** emulate it but is not required to; one that **does** **MUST** follow
   **§4.9**, which defines it.
 
+**⚠ Commands that need input must still work.** `GOTO`, `VOTE`, `LIFE`, `ID`, `BUY`'s
+confirmation and the upload/mail prompts all take a value from the user. Whatever a client uses
+to collect it **MUST** actually function on every platform it ships to — a command that silently
+does nothing is indistinguishable, to the user, from one that is missing. *(Known trap: Electron
+does **not** implement `window.prompt()` / `window.confirm()` — they throw. A web client that
+uses them works in a browser and quietly loses five commands when packaged as a desktop app.)*
+
 Concretely, the minimum obligations by tier are:
 
 - **Tier 1 (Browse):** the user **MUST** be able to invoke directory navigation and frame
@@ -225,7 +232,8 @@ affordance is offered, keep it clearly secondary (e.g. keyboard shortcuts, or cl
 entry rows) rather than a duplicate command menu. Whichever surface is used **MUST** show the
 commands **appropriate to the current context** — never a fixed list that offers inapplicable
 commands or omits reachable ones. **§4.8 is the authoritative table of which commands belong to
-which context.**
+which context.** (A client showing several contexts at once gives **each** its own surface —
+that is one surface *per context*, not two competing surfaces for one; see **§4.10**.)
 
 ## 4.7 Standard command vocabulary
 
@@ -371,6 +379,9 @@ Courier does **not** move the user's place in the content tree, so leaving it re
 directory they were in — *not* to that directory's parent, and not to the root. On the wire that
 is `B` (BACK), but `B` inside mail is **stepwise**, unwinding one level per command:
 
+0. on the **COURIER screen** (`SEND` / `ID`, §8.2.1) → back to the mailbox listing. This step is
+   **client-side only** — no wire command — because that screen is a client asset and the lookup
+   changed nothing;
 1. reading a message → back to the mailbox listing;
 2. on a later mailbox page → back one page;
 3. on the first page of the listing → **leave Courier**, returning the directory the user came
@@ -472,6 +483,24 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
 
 - **The first command is centred by default** when a context is entered — `HELP` for the
   directory row, and it is what the user sees on the welcome screen.
+- **⚠ A context remembers where its row was left (normative).** The default above applies the
+  **first** time a context is entered, not every time. When the user returns to a context, its
+  row **MUST** be back where they left it: `SHOW` a page from a directory, then `FINISH`, and the
+  directory row is still centred on **`SHOW`** — not reset to `HELP`. Resetting punishes the
+  common case, which is doing the same thing to several entries in turn.
+  - The memory is **per context**, not one shared position: the directory, mail and editor rows
+    each keep their own. A single remembered position would be overwritten by whichever context
+    the user passed through last.
+  - Remember the **command**, not its index. Selection-dependent commands appear and disappear
+    (§4.9.5), so the row's length changes and a stored index drifts onto a different command.
+  - If the remembered command is no longer in the row, fall back to the first.
+- **⚠ Wrapping does not mean tiling.** §4.9.6's wrap makes the row a loop *for scrolling*. It
+  does **not** repeat a short set to fill the view: a command **MUST NOT** appear twice on screen
+  at once. Where a context has fewer commands than the row displays — mail has six, a multi-frame
+  page has three — the surplus positions are **blank**, and the words simply scroll past the
+  blanks. Implementing the wrap as an unguarded modulo over the visible positions tiles the row
+  instead (three commands become "MORE ALL FINISH MORE ALL FINISH MORE"), which is wrong in
+  every context that does not fill the row.
 - The full §4.7 vocabulary continues past the displayed directory row (`PRINT`, `LIFE`, `BUY`,
   `LOAD`, `UPLD`, `VOTE`). These are real commands and a client **MUST** keep them reachable; the
   original simply shows a shorter row by lowering its count.
@@ -502,3 +531,93 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
 - The duckshoot is one invocation path among several (§4.6). If a client also offers keys or
   clicks, those **MUST** obey the same §4.8 availability rules — a shortcut is not a way around
   the context.
+
+## 4.10 Showing more than one context at once (optional)
+
+The original clients could show only **one** context at a time, and that limit came from the
+hardware, not from Compunet. The C64 has a single screen, so entering the editor *replaces* the
+Compunet display and `RETURN` puts it back. The Amiga opened separate Intuition windows — a
+directory window, a frame window, an editor window — which is the same idea with the constraint
+relaxed. Neither arrangement is required by the protocol: **nothing on the wire knows how many
+things are on screen.**
+
+A modern client **MAY** therefore display several contexts **simultaneously** — most usefully the
+Compunet display and the editor (§8.4) side by side, so a page can be composed while the
+directory it is destined for stays visible. This is presentation only. A client that does so
+**MUST** observe the following, all of which exist to keep §4.8 unambiguous when more than one
+context is visible:
+
+1. **Each visible context carries its own command row.** Not one shared row that changes meaning
+   with focus — the Compunet row is always the Compunet context's row, the editor row always the
+   editor's (§8.4.1). A shared row re-labels itself as the user's attention moves, which is
+   exactly the ambiguity §4.8 exists to prevent.
+2. **Exactly one context holds focus, and focus decides what the keyboard drives.** With two
+   contexts on screen, "which commands apply?" has no answer without it.
+3. **Focus MUST be visible** — a highlighted border, title, or equivalent. A user who cannot see
+   which pane is live cannot predict what a keystroke will do.
+4. **Unfocused contexts are inert.** No keystroke may reach a context that does not have focus,
+   even though its commands are on screen. They are *shown*, not *available*.
+5. **No context may obscure another.** If one covers the other, this section buys nothing and the
+   client should show one at a time instead (below).
+6. **§4.8 applies per context, unchanged.** Each row is built from its own context's set, with
+   the same availability rules. Simultaneous visibility grants nothing extra.
+
+**⚠ This is layout, not behaviour.** Showing two contexts **MUST NOT** add, remove, merge or
+rename any command (§4.7), and **MUST NOT** create an action that Binding A cannot express
+(§1.8). A user of a one-screen C64 client and a user of a two-pane desktop client must be able
+to do exactly the same things, in the same contexts, by the same commands.
+
+### 4.10.1 Which contexts tile, and which replace
+
+Not every context should sit beside the others. Two questions decide it, and the second is the
+one that is easy to get wrong:
+
+**Does the original *take over* the screen?** If so, **replace**. **Partyline** (§8.5) is the
+clear case: selecting the link downloads a chat program that occupies the C64's screen, and on
+exit "the client restores the screen and the session returns to the framed protocol". It is
+also the one context that offers **none** of the normal commands (§4.8) — so tiling it beside a
+live Compunet display would show a command row with nothing in it, and imply the two are usable
+together when they are not. Partyline **SHOULD** therefore take over the Compunet surface and
+restore it on exit, rather than opening as an additional pane.
+
+**Is it genuinely used *alongside* another context?** If so, **tile**. The **editor** (§8.4) is
+the case that earns a pane of its own: composing a page while the directory it is destined for
+stays visible is real, and it is the thing the C64's single screen prevented.
+
+**Replacement is still a context switch, so §4.10's rules still bind:** a replaced context is no
+longer visible, so it is no longer focusable and its commands are no longer offered.
+
+### 4.10.2 Focus follows the content being committed
+
+When the user acts on content that lives in another context, focus **SHOULD** move to the
+context that *owns that content*, for as long as the action is in flight.
+
+The case that matters is **upload and mail send** (§8.3.2, §8.2). Both submit the **editor's
+buffer** — the metadata (title, type, price, recipients) is collected wherever the client likes,
+but the pages come from the editor. A client **SHOULD** therefore bring the editor in front of
+the user when `UPLD` or `SEND` is invoked, and keep it there until the server has taken the
+pages. Asking someone to name and price pages they cannot see is how the **wrong buffer gets
+published** — and unlike a mistyped title, that is visible to every other user.
+
+Once the result arrives — the refreshed directory for an upload, an acknowledgement for mail —
+focus returns to the Compunet context. **If the submission is refused, focus stays with the
+editor**: the buffer is intact (§8.4), and the user is already looking at what needs fixing.
+
+**This does not conflict with §4.6's "single primary surface".** That rule forbids *two competing
+surfaces for the same context* — a duckshoot and a button bar both listing the directory
+commands, where neither is clearly authoritative. One surface **per context** is the rule being
+followed here, not broken.
+
+**The grids do not reflow.** Every Compunet surface is a fixed 40×24 character grid (§5), and the
+editor edits a page of the same size — which is what makes tiling them practical: two panes sit
+side by side at a legible scale on any modern display, with no reflow and no resizing. Where the
+viewport cannot fit them (a narrow window, a phone), a client **SHOULD** fall back to showing
+**one context at a time** — the C64 arrangement — rather than shrinking a grid below legibility.
+Scaling a 40×24 grid down is never the right answer; showing fewer of them is.
+
+*(Non-normative — the reference client's arrangement: one application window; the Compunet pane
+always present; the editor pane opened on demand beside it and closed by `RETURN`; **Partyline
+takes over the Compunet pane** and restores it on exit (§4.10.1); mail stays inside the Compunet
+pane, since it is a Compunet screen with its own row (§4.8). Focus follows click, `Tab` toggles,
+and the unfocused pane is dimmed. `UPLD`/`SEND` open and focus the editor until the server
+responds (§4.10.2).)*

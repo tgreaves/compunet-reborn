@@ -146,28 +146,32 @@ export class Renderer {
     this.setBorder(this.assets.template.border);
   }
 
-  /** Draw the editor's current page (§8.4.1): 23 rows of page, then a status
-   *  line showing the buffer position — the editor is a multi-page buffer, so
-   *  "page 2 of 5" is part of the interface, not decoration. */
-  renderEditorPage(
-    lines: string[], colour: number, background: number, border: number,
-    cur: number, total: number, row: number, col: number, editing: boolean,
-  ): void {
-    const g: Cell[] = Array.from({ length: COLS * ROWS }, () => ({ g: 0x20, fg: colour, bg: background, rv: 0 as 0 | 1 }));
-    for (let r = 0; r < ROWS - 1; r++) {
-      const t = (lines[r] ?? '').toUpperCase();
-      for (let c = 0; c < COLS && c < t.length; c++)
-        g[r * COLS + c] = { g: asciiGlyph(t[c]), fg: colour, bg: background, rv: 0 };
-    }
-    // cursor block, only while editing
-    if (editing && row < ROWS - 1) {
+  /** The Compunet pane before a session exists. Deliberately plain: with no
+   *  session there is no Compunet screen and no command row (§8.4). */
+  renderIdle(): void {
+    const g: Cell[] = Array.from({ length: COLS * ROWS }, () => ({ g: 0x20, fg: 6, bg: 0, rv: 0 as 0 | 1 }));
+    const put = (r: number, t: string, fg: number): void => {
+      const c0 = Math.max(0, Math.floor((COLS - t.length) / 2));
+      for (let i = 0; i < t.length && c0 + i < COLS; i++)
+        g[r * COLS + c0 + i] = { g: asciiGlyph(t[i]), fg, bg: 0, rv: 0 };
+    };
+    put(10, 'COMPUNET REBORN', 14);
+    put(12, 'NOT CONNECTED', 11);
+    this.renderGrid(g, 0);
+    this.setBorder(6);
+  }
+
+  /** Draw the editor's current page (§8.4.1).
+   *  ⚠ The page is the FULL 40x24 grid — an editor page and a frame are the
+   *  same thing (§8.4.2), so nothing may be reserved here for chrome. The
+   *  buffer position ("page 2 of 5") belongs in the pane's own furniture, not
+   *  in a row stolen from the page. */
+  renderEditorPage(cells: Cell[], background: number, border: number,
+                   row: number, col: number, editing: boolean): void {
+    const g: Cell[] = cells.map((c) => ({ ...c }));
+    if (editing) {                       // cursor block
       const i = row * COLS + col;
-      g[i] = { ...g[i], rv: 1 };
-    }
-    const bar = ` PAGE ${cur + 1} OF ${total}${editing ? '   EDIT — ESC STOPS' : ''}`;
-    for (let c = 0; c < COLS; c++) {
-      const ch = bar[c] ?? ' ';
-      g[(ROWS - 1) * COLS + c] = { g: asciiGlyph(ch.toUpperCase()), fg: 0, bg: 1, rv: 0 };
+      if (g[i]) g[i] = { ...g[i], rv: g[i].rv ? 0 : 1 };
     }
     this.renderGrid(g, background);
     this.setBorder(border);
@@ -197,8 +201,12 @@ export class Renderer {
     // outermost words clip — as on the original.
     const startCol = Math.floor((COLS - VISIBLE * WORD) / 2);
     for (let slot = 0; slot < VISIBLE; slot++) {
-      // wrap: the row is a loop, not a strip with ends (§4.9.6)
-      const wi = (((centre + slot - MID) % words.length) + words.length) % words.length;
+      // Wrapping (§4.9.6) makes the row a LOOP for scrolling — it does not mean
+      // tiling a short row across the view. A command must never appear twice
+      // at once: with fewer commands than slots, the surplus slots stay BLANK.
+      const linear = centre + slot - MID;
+      if (words.length < VISIBLE && (linear < 0 || linear >= words.length)) continue;
+      const wi = ((linear % words.length) + words.length) % words.length;
       const name = words[wi];
       const text = (DUCK_CELL[name] ?? name.padEnd(WORD)).slice(0, WORD);
       const selected = slot === MID;

@@ -5,73 +5,164 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Compunet Reborn — Web Client (Binding B)</title>
 <style>
-  :root { color-scheme: dark; }
-  body { margin: 0; background: #101014; color: #cdd; font: 14px/1.4 system-ui, sans-serif;
-         display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
-  h1 { font-size: 15px; font-weight: 600; color: #8ab; margin: 4px 0; letter-spacing: .5px; }
-  #login { display: flex; gap: 8px; align-items: center; }
-  input { background: #1a1a22; color: #eee; border: 1px solid #333; border-radius: 4px; padding: 6px 8px; }
-  button { background: #26263a; color: #dde; border: 1px solid #3a3a55; border-radius: 4px;
-           padding: 6px 10px; cursor: pointer; font: inherit; }
-  button:hover:not(:disabled) { background: #33334d; }
+  :root {
+    color-scheme: dark;
+    --bg: #0d0d12; --panel: #16161f; --line: #2a2a3a; --ink: #cdd;
+    --dim: #667; --accent: #6c8cff; --ok: #7a8; --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+         display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* --- top bar ------------------------------------------------------- */
+  header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+           padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .brand { font-weight: 650; letter-spacing: .3px; color: #9ab; margin-right: 6px; white-space: nowrap; }
+  .brand span { color: var(--accent); }
+  input, select { background: #10101a; color: #eee; border: 1px solid var(--line);
+                  border-radius: 6px; padding: 6px 9px; font: inherit; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input.bad { border-color: var(--bad); }
+  button { background: #23233a; color: #dde; border: 1px solid #3a3a55; border-radius: 6px;
+           padding: 6px 12px; cursor: pointer; font: inherit; }
+  button:hover:not(:disabled) { background: #2e2e4d; }
   button:disabled { opacity: .4; cursor: default; }
-  #screenWrap { padding: 24px; border-radius: 6px; line-height: 0; box-shadow: 0 6px 30px #0008; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0b0b12; font-weight: 600; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.1); }
+  .spacer { flex: 1; }
+  .credit { font: 12px ui-monospace, monospace; color: var(--ok); }
+
+  /* --- workspace: fixed-size panes side by side ----------------------- */
+  #workspace { flex: 1; display: flex; gap: 16px; padding: 16px; align-items: flex-start;
+               justify-content: center; flex-wrap: wrap; }
+  .pane { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          overflow: hidden; box-shadow: 0 8px 28px #0006; transition: border-color .12s, box-shadow .12s; }
+  .pane.focused { border-color: var(--accent); box-shadow: 0 8px 28px #0008, 0 0 0 1px var(--accent); }
+  .paneHead { display: flex; align-items: center; gap: 8px; padding: 7px 11px;
+              border-bottom: 1px solid var(--line); background: #12121b; }
+  .paneTitle { font-size: 12px; font-weight: 650; letter-spacing: .6px; text-transform: uppercase; color: var(--dim); }
+  .pane.focused .paneTitle { color: var(--accent); }
+  .paneMeta { font: 11px ui-monospace, monospace; color: var(--dim); margin-left: auto; }
+  .paneHead button { padding: 1px 8px; font-size: 13px; line-height: 1.3; }
+  .screenWrap { padding: 18px; line-height: 0; }
   canvas { image-rendering: pixelated; display: block; }
-  #status { font: 12px ui-monospace, monospace; color: #7a8; min-height: 16px; }
-  #ctx { font: 11px ui-monospace, monospace; color: #667; min-height: 14px; }
-  /* Partyline: blue message area, green input — the C64 chrome (§8.5), modernised */
-  #chat { width: 640px; display: flex; flex-direction: column; gap: 6px; }
-  #chatLog { height: 220px; overflow-y: auto; background: #000060; border: 2px solid #0000dd;
-             color: #99ff99; font: 13px/1.35 ui-monospace, monospace; padding: 8px;
+  /* Unfocused panes recede — the focused one owns the keyboard (spec §4.8). */
+  .pane:not(.focused) .screenWrap { filter: saturate(.55) brightness(.72); }
+
+  /* --- footer -------------------------------------------------------- */
+  footer { padding: 8px 16px 14px; display: flex; flex-direction: column; gap: 4px; }
+  #status { font: 12px ui-monospace, monospace; color: var(--ok); min-height: 16px; }
+  #status.bad { color: var(--bad); }
+  .hint { color: var(--dim); font-size: 12px; }
+
+  /* --- Partyline (§8.5): occupies the Compunet pane, same footprint ---- */
+  #chat { padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+  #chat[hidden] { display: none; }
+  #chatLog { width: 640px; height: 352px; overflow-y: auto; background: #000060; border: 2px solid #0000dd;
+             color: #9f9; font: 13px/1.35 ui-monospace, monospace; padding: 8px;
              white-space: pre-wrap; word-break: break-word; }
-  #chatInput { background: #001000; border: 2px solid #00dd00; color: #99ff99;
-               font: 13px ui-monospace, monospace; padding: 6px 8px; caret-color: #00dd00; }
-  /* Editor (client-side feature, §8.4) */
-  #editor { width: 640px; display: flex; flex-direction: column; gap: 8px;
-            background: #16161f; border: 1px solid #33334d; border-radius: 6px; padding: 12px; }
-  #editorTitle { font-weight: 600; color: #8ab; }
-  #editor .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  #edBody { background: #0b0b12; color: #cde; border: 1px solid #333; border-radius: 4px;
-            font: 13px/1.3 ui-monospace, monospace; padding: 8px; resize: vertical; }
-  select { background: #1a1a22; color: #eee; border: 1px solid #333; border-radius: 4px; padding: 6px; }
-  .hint { color: #667; font-size: 12px; }
+  #chatInput { width: 640px; background: #001000; border: 2px solid #0d0; color: #9f9;
+               font: 13px ui-monospace, monospace; caret-color: #0d0; }
+
+  /* --- submit dialog (metadata only; the body comes from the editor) -- */
+  #submit, #ask { position: fixed; inset: 0; background: #000a; display: flex;
+            align-items: center; justify-content: center; z-index: 10; }
+  #submit[hidden], #ask[hidden] { display: none; }
+  #askBox { width: 420px; max-width: calc(100vw - 32px); background: var(--panel);
+            border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+            display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px #000a; }
+  #askTitle { font-weight: 650; color: #9ab; }
+  #askFields { display: flex; flex-direction: column; gap: 6px; }
+  #askFields input { width: 100%; }
+  #submitBox { width: 520px; max-width: calc(100vw - 32px); background: var(--panel);
+               border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+               display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px #000a; }
+  #submitTitle { font-weight: 650; color: #9ab; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 </style>
 </head>
 <body>
-  <h1>◆ COMPUNET REBORN — web client (Binding B / JSON API)</h1>
-  <div id="login">
-    <input id="host" value="ws://localhost:6404" size="22" title="API base (ws://host:port)">
-    <input id="user" value="TEST" size="8" placeholder="user">
-    <input id="pass" type="password" value="" size="10" placeholder="password">
-    <button id="connect">Connect</button>
-  </div>
-  <div id="screenWrap"><canvas id="screen" width="640" height="384"></canvas></div>
-  <div id="editor" hidden>
-    <div id="editorTitle">Compose</div>
-    <div class="row">
-      <input id="edTitle" placeholder="title (16 chars)" maxlength="16">
-      <span id="edContentFields">
-        <select id="edKind"><option value="T">T — text</option><option value="P">P — program</option></select>
-        <input id="edPrice" type="number" step="0.01" min="0" value="0" title="price" style="width:6em">
-        <input id="edLife" type="number" min="0" value="30" title="life (days)" style="width:5em">
-      </span>
-      <input id="edTo" placeholder="to: ID,ID" hidden>
-    </div>
-    <div class="row">
-      <button id="edSubmit">Submit</button>
-      <button id="edCancel">Cancel</button>
-      <span class="hint" id="edHint"></span>
+  <header>
+    <div class="brand">◆ COMPUNET <span>REBORN</span></div>
+    <input id="host" value="ws://localhost:6404" size="20" title="API base (ws://host:port)">
+    <input id="user" value="TEST" size="8" placeholder="user" autocomplete="username">
+    <input id="pass" type="password" size="10" placeholder="password" autocomplete="current-password">
+    <button id="connect" class="primary">Connect</button>
+    <!-- Offline entry to the editor (§8.4). With no session there is no Compunet
+         screen and so no duckshoot: on the original this is the BASIC `EDITOR`
+         command, and here it is a host-environment button. EDITR in the
+         directory/mail rows is the in-session route to the same place. -->
+    <button id="openEditor" title="The editor works offline — compose now, connect later">Editor</button>
+    <div class="spacer"></div>
+    <div class="credit" id="credit"></div>
+  </header>
+
+  <main id="workspace">
+    <section class="pane focused" id="paneNet">
+      <div class="paneHead">
+        <span class="paneTitle" id="netTitle">Compunet</span>
+        <span class="paneMeta" id="netMeta">not connected</span>
+      </div>
+      <div class="screenWrap" id="screenWrap"><canvas id="screen"></canvas></div>
+      <!-- Partyline (§8.5) REPLACES the Compunet surface rather than tiling
+           beside it: on the C64 the link downloads a chat program that takes
+           over the screen, and the client restores it on exit. It is also the
+           one context with none of the normal commands (§4.8). -->
+      <div id="chat" hidden>
+        <div id="chatLog"></div>
+        <input id="chatInput" placeholder="Type a message, or *help for commands — Enter to send" autocomplete="off">
+      </div>
+    </section>
+
+    <section class="pane" id="paneEditor" hidden>
+      <div class="paneHead">
+        <span class="paneTitle">Editor</span>
+        <span class="paneMeta" id="edMeta"></span>
+        <button id="edClose" title="RETURN — leave the editor (the buffer is kept)">✕</button>
+      </div>
+      <div class="screenWrap" id="edWrap"><canvas id="edScreen"></canvas></div>
+    </section>
+  </main>
+
+  <footer>
+    <div id="status">Not connected.</div>
+    <div class="hint" id="hint"></div>
+  </footer>
+
+  <!-- ⚠ Electron does not implement window.prompt()/confirm() — they throw.
+       Any command needing input (ID, GOTO, VOTE, LIFE, BUY) must use this. -->
+  <div id="ask" hidden>
+    <div id="askBox">
+      <div id="askTitle"></div>
+      <div id="askFields"></div>
+      <div class="row">
+        <button id="askOk" class="primary">OK</button>
+        <button id="askCancel">Cancel</button>
+      </div>
     </div>
   </div>
 
-  <div id="chat" hidden>
-    <div id="chatLog"></div>
-    <input id="chatInput" placeholder="Type a message, or *help for commands — Enter to send" autocomplete="off">
+  <div id="submit" hidden>
+    <div id="submitBox">
+      <div id="submitTitle">Compose</div>
+      <div class="row">
+        <input id="edTitle" placeholder="title (16 chars)" maxlength="16" style="flex:1">
+        <span id="edContentFields" class="row">
+          <select id="edKind"><option value="T">T — text</option><option value="P">P — program</option></select>
+          <input id="edPrice" type="number" step="0.01" min="0" value="0" title="price" style="width:6.5em">
+          <input id="edLife" type="number" min="0" value="30" title="life (days)" style="width:5.5em">
+        </span>
+        <input id="edTo" placeholder="to: ID,ID" hidden style="flex:1">
+      </div>
+      <div class="row">
+        <button id="edSubmit" class="primary">Submit</button>
+        <button id="edCancel">Cancel</button>
+        <span class="hint" id="edHint"></span>
+      </div>
+    </div>
   </div>
-  <div id="status">Not connected.</div>
-  <div id="ctx"></div>
-  <div class="hint">↑/↓ highlight an entry · ←/→ scroll the duckshoot (it wraps) · Enter runs the centred command · F7/F8 cycle the right-hand column</div>
-  <div class="hint">In the editor: EDIT starts typing (ESC stops) · F3/F4 insert/delete a line · LAST/NEXT move between pages · RETURN leaves</div>
+
   <script type="module" src="./dist/app.bundle.js"></script>
 </body>
 </html>

@@ -30,6 +30,63 @@ It has been validated by repeated source-isolated clean-room builds against the 
 	  and per-frame upload accepts must be ACKed); handshake-drain and bare-`P` FINISH semantics;
 	  and client obligations (surface `DIR` on the welcome screen, prompt for upload type and
 	  price, mandatory right-hand column cycling and full-directory checks).
+* Client API - **Binding B** (new, `server/api_binding.py`, port 6404) (#91):
+	* A JSON API (WebSocket gateway + REST) for modern clients, added as a *second transport
+	  binding* over the same application model rather than a parallel implementation: it is a
+	  **serializer over the existing core**, driving the authoritative `handle_command` and
+	  serializing the resulting state. Binding A (X.25-over-TCP + PETSCII, port 6400) is frozen
+	  and byte-for-byte unchanged for the C64 and Amiga ROM clients.
+	* Frames are delivered as a rendered **40x24 cell grid** (glyph, foreground, background,
+	  reverse) so a client never parses PETSCII, plus the exact source bytes (`raw`) so a page
+	  can be stored and republished unchanged.
+	* Token-first auth, typed errors for the checks Binding A applies silently
+	  (`permission_denied`, `directory_full`), per-column server-side justification of directory
+	  values, and a CORS layer (the desktop shell serves from an ephemeral loopback origin).
+	* The old, broken WebSocket handler and its port are removed. The admin API (port 6403,
+	  used by the website) is untouched.
+* Reference client - web and desktop (new, `client/web/`, `client/electron/`) (#91):
+	* TypeScript (strict) + esbuild, rendering the authentic 40x24 screen on a canvas from the
+	  spec's font and palette; an Electron shell serves the same build as a desktop app, so
+	  browser and desktop share one codebase.
+	* Full duckshoot (the row scrolls, the centre is the selection, it wraps), per-context
+	  command sets, click-to-highlight and double-click-DIR, F7/F8 column cycling.
+	* A **multi-pane workspace**: the Compunet surface and the editor side by side, each owning
+	  its own command row, with focus deciding which the keyboard drives - so composing a page
+	  while the target directory stays visible is possible for the first time. Partyline takes
+	  over the Compunet pane, as the C64's chat program takes over the screen.
+	* A full **frame editor**: a multi-page cell-grid buffer (`LAST`/`NEXT`/`NEW`/`COPY`/
+	  `ERASE`), local `GET`/`PUT`/`STORE`, works offline, and captures every page viewed on
+	  Compunet **verbatim** - colour, reverse video, graphics and charset preserved.
+* Specification extensions:
+	* `§1.8` the model-and-bindings architecture; `docs/spec/api/` (the Binding-B spec and its
+	  design rationale); `CONFORMANCE.md`, a self-audit checklist for the failure the usual
+	  tests miss - a client that is complete, correct on the wire, and quietly not Compunet.
+	* `§4.8` command availability by context (normative, eight contexts); `§4.9` the duckshoot
+	  defined in full; `§4.10` showing more than one context at once, which contexts tile and
+	  which replace, and focus following the content being committed.
+	* `§8.4.1` the editor's fourteen commands defined (`PUT` saves one page, `STORE` the
+	  buffer - not synonyms); `§8.4.2` verbatim capture of viewed pages; `§8.2.1` the mail send
+	  flow (subject, up to five destination IDs, each validated before anything is sent).
+	* `§A.8`/`§A.9`/`§A.10`: the embedded HELP, editor-help and COURIER frames extracted from
+	  the C64 client and reproduced verbatim, each stating whether it carries its own header -
+	  they disagree, and assuming otherwise renders a page in the wrong character set.
+	* `§1.5.1` names the recurring failure mode these guards exist for - the **plausible edit**,
+	  where a command is dropped as redundant or invented for convenience, producing a client
+	  that works and is not Compunet.
+* Corrections found by reconstruction, verified against the disassembly:
+	* The editor duckshoot order ends `FREE RETURN DOS`, not `FREE DOS RETURN`: the offset table
+	  at `$83FE` is non-monotonic, which is what proves it is a display order rather than the
+	  order the strings happen to be stored in. `docs/PROTOCOL.md` carried the storage order.
+	* The mail and directory duckshoot lists in `docs/PROTOCOL.md` were wrong (five of seven
+	  mail names mis-decoded, `LOAD` missing from the directory row).
+	* `BUY` is a distinct command from `SHOW` despite sharing wire bytes - `SHOW` refuses a paid
+	  page, `BUY` confirms the charge - and had been dropped as redundant.
+* Server:
+	* `SHOW` on an entry with no frames is now **inert**, as the original: it no longer falls
+	  back to entering the sub-directory, which had collapsed `SHOW` and `DIR` into one command
+	  on exactly the entries where they differ. The old `NO CONTENT` error was not inert either -
+	  the C64 renders any non-ACK, non-LINKING response as data, so it painted over the screen.
+	* Mail directory is created on demand, fixing a send failure on a fresh deployment.
 
 # 1.1.0 (2026-07-24)
 

@@ -1,12 +1,18 @@
 # §A — Appendices
 
 > Part of the [Compunet Client Specification](README.md). These appendices consolidate the
-> reference tables and carry the concrete binary assets (font, palette, template) so the
-> specification is self-contained — a client can be built from this document alone.
+> reference tables and carry the concrete binary assets so the specification is self-contained —
+> a client can be built from this document alone.
 >
-> All assets are extracted verbatim from the reference clients: the font and palette from the
-> **Amiga client** (its embedded C64 character ROM and its `LoadRGB4` colour table), and the
-> directory template from the **C64 terminal** (`client/c64/src/compunet.s`).
+> All assets are extracted verbatim from the reference clients: the **font** (§A.5) and
+> **palette** (§A.3) from the **Amiga client** (its embedded C64 character ROM and its
+> `LoadRGB4` colour table); the **directory template** (§A.6), **HELP** frame (§A.8), **editor
+> help** frame (§A.9) and **COURIER** frame (§A.10) from the **C64 terminal**
+> (`client/c64/src/compunet.s`).
+>
+> **⚠ The four frame assets do not agree on headers.** §A.6 and §A.10 carry their own 4-byte
+> header and are parsed as-is; §A.8 and §A.9 are **body-only** and the client must supply one.
+> Each appendix states which it is — check, rather than assuming from the one you read first.
 
 ## §A.1 — Command table
 
@@ -805,3 +811,42 @@ is the **actual** case — this is the mixed-case evidence that the `$0E` took e
 Each block is a **key** (uppercase heading) with its two actions indented beneath — the left
 action belongs to the heading key, the right to the function key beside it. If your render comes
 out entirely in capitals with graphic glyphs, the header was not supplied; see the ⚠ above.
+
+## §A.10 — COURIER frame (client asset)
+
+The mail screen, embedded in the C64 client at **`$BDD6`** and shown by both `SEND` and `ID`
+(§8.2) before either asks for anything — so the user is *in* Courier before they start typing.
+Like §A.6/§A.8/§A.9 it is a **client asset**: the server never sends it.
+
+**Unlike §A.8 and §A.9, this one carries its own 4-byte header** — `00 F4 F1 8E`: no more pages,
+**border 4** (purple), **background 1** (white), uppercase/graphics set. Feed it to a frame
+parser as-is; do **not** synthesise a header for it. (The three embedded frames differ on this
+point, which is why each says so explicitly.)
+
+44 bytes, reproduced verbatim; also kept as `server/cfg/courier.pet`:
+
+```
+  0000: 00 F4 F1 8E 07 0D 02 06 02 1C 43 4F 55 52 49 45
+  0010: 52 0D 06 02 07 A3 06 0D 0D 06 0B 3A 0D 06 0B 3A
+  0020: 0D 06 0B 3A 0D 06 0B 3A 0D 06 0B 3A
+```
+
+It renders as a title and **five empty slots**:
+
+```
+   3 |    COURIER            (red, fg 2)
+   4 |    ▔▔▔▔▔▔▔            (7 x $A3, red)
+   6 |             :
+   7 |             :
+   8 |             :
+   9 |             :
+  10 |             :
+```
+
+**⚠ The five slots are the point.** Compunet mail takes **up to five recipients** (§8.2), and the
+frame has exactly five rows for them — the `:` sits at **column 12**, with the ID written from
+**column 3**. A client filling these in should use those columns, and **MUST NOT** offer a sixth.
+
+Note the body is almost all run-length codes (`07 0D 02` = three CRs; `06 02` = three spaces;
+`07 A3 06` = seven `$A3`; `06 0B 3A` = twelve spaces then `:`), so it is also a compact worked
+example of §6.4's `1 + N` counts.

@@ -247,6 +247,11 @@ def _is_control(b):
     return b <= 0x1F or 0x80 <= b <= 0x9F
 
 
+def _b64(data):
+    import base64
+    return base64.b64encode(bytes(data)).decode('ascii')
+
+
 def frame_to_cells(raw, msg_id=None):
     """Render frame bytes [4-byte header][body][$00] into a 40x24 cell grid
     (spec §6.3 processing loop + §5 control codes). Each cell is {g,fg,bg,rv}:
@@ -355,6 +360,11 @@ def frame_to_cells(raw, msg_id=None):
         "morePages": bool(flags & 0x80),
         "rows": ROWS, "cols": COLS,
         "cells": grid,
+        # The exact bytes this grid was rendered from. A client that stores
+        # viewed pages in its editor (§8.4.2) keeps this alongside the cells, so
+        # an UNEDITED captured page can be re-uploaded byte-for-byte rather than
+        # re-encoded. Opaque to the client — it never has to parse PETSCII.
+        "raw": _b64(raw),
     }
 
 
@@ -473,12 +483,93 @@ def idlookup_to_json(raw, msg_id=None):
 # The client never encodes PETSCII — it sends text + colours and the server
 # builds the §6 frame, consistent with this binding delivering decoded content.
 
-def _encode_frame(spec):
-    """Build §6 frame bytes from a structured editor page.
+def _screencode_to_petscii(sc):
+    """Inverse of _petscii_to_screencode over the printable range (§5.3)."""
+    if 0x00 <= sc <= 0x1F:
+        return sc + 0x40           # @, A-Z, [ \ ] etc
+    if 0x20 <= sc <= 0x3F:
+        return sc                  # space, digits, punctuation
+    if 0x40 <= sc <= 0x5D:
+        return sc + 0x80           # graphics
+    if 0x5E == sc:
+        return 0xFF               # pi
+    if 0x60 <= sc <= 0x7F:
+        return sc + 0x40           # further graphics
+    return 0x20
 
-    spec: {lines: [str], colour?: 0-15, border?: 0-15, background?: 0-15}
-    Produces [flags][border][bg][charset $8E] + colour control + PETSCII body + $00.
+
+def _encode_cells(spec):
+    """Build §6 frame bytes from a full 40x24 CELL GRID — the verbatim path.
+
+    A captured page (§8.4.2) carries per-cell colour, reverse video and both
+    character sets; the text form below cannot express any of that. This walks
+    the grid and emits the control codes needed to reproduce it exactly:
+    colour ($05 etc), reverse on/off ($12/$92) and charset switches ($0E/$8E).
+
+    Background is a frame-level property (the header), not per cell, which is
+    why only fg/rv/charset are tracked here.
     """
+    code_for = {v: k for k, v in _COLOUR.items()}
+    cells = spec.get('cells') or []
+    COLS, ROWS = 40, 24
+    border = int(spec.get('border', 6)) & 0x0F
+    background = int(spec.get('background', 0)) & 0x0F
+
+    # Header charset = whichever set the first cell uses; switches mid-body are
+    # emitted as they occur.
+    first = cells[0] if cells else {"g": 0x20}
+    lower = int(first.get('g', 0x20)) >= 128
+    out = bytearray([0x00, border, background, 0x0E if lower else 0x8E])
+
+    colour, reverse = None, 0
+    for r in range(ROWS):
+        row = cells[r * COLS:(r + 1) * COLS]
+        if len(row) < COLS:
+            row = list(row) + [{"g": 0x20, "fg": 1, "bg": background, "rv": 0}] * (COLS - len(row))
+        # Trailing plain spaces need not be written — the grid is already spaces
+        # in the background colour, so a CR is enough.
+        last = COLS - 1
+        while last >= 0 and (row[last].get('g', 0x20) & 0x7F) == 0x20 and not row[last].get('rv'):
+            last -= 1
+        for c in range(last + 1):
+            cell = row[c]
+            g = int(cell.get('g', 0x20))
+            want_lower = g >= 128
+            if want_lower != lower:
+                out.append(0x0E if want_lower else 0x8E)
+                lower = want_lower
+            rv = 1 if cell.get('rv') else 0
+            if rv != reverse:
+                out.append(0x12 if rv else 0x92)
+                reverse = rv
+            fg = int(cell.get('fg', 1)) & 0x0F
+            if fg != colour:
+                out.append(code_for.get(fg, 0x05))
+                colour = fg
+            out.append(_screencode_to_petscii(g & 0x7F))
+        if reverse:                      # CR clears reverse (§5.6.1); keep in step
+            out.append(0x92)
+            reverse = 0
+        out.append(0x0D)
+    out.append(0x00)
+    return bytes(out)
+
+
+def _encode_frame(spec):
+    """Build §6 frame bytes from an editor page. Three accepted forms (§5.4):
+
+    - {raw: base64}   verbatim bytes — a captured page the user has not edited,
+                      re-uploaded byte-for-byte (§8.4.2). Nothing is re-encoded.
+    - {cells: [...]}  a full 40x24 grid: per-cell colour, reverse and charset.
+    - {lines: [str], colour?, border?, background?}
+                      the simple text form, one colour for the page.
+    """
+    raw = spec.get('raw')
+    if raw:
+        import base64
+        return base64.b64decode(raw)
+    if spec.get('cells'):
+        return _encode_cells(spec)
     # colour index -> the §5.6 control code that selects it
     code_for = {v: k for k, v in _COLOUR.items()}
     border = int(spec.get('border', 6)) & 0x0F

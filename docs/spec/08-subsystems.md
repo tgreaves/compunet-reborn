@@ -42,7 +42,52 @@ directory listing.
 - **Read a message:** selecting a message entry (with `D` + index) returns the message body
   as frame(s) (§6), paged like any other content.
 - **Send a message:** mail send uses the upload command `U` — see §8.3, which distinguishes
-  mail-send from content-upload by the parameter shape.
+  mail-send from content-upload by the parameter shape. The user-facing flow is §8.2.1.
+
+### 8.2.1 Sending mail, and checking IDs
+
+Both `SEND` and `ID` (§4.8's mail row) **open on the COURIER frame** — the client asset at
+§A.10, displayed *before* anything is asked, so the user is in Courier before they start typing.
+Its five slots are the five recipients.
+
+**`SEND`** follows this sequence, verified from the C64 client (the prompt strings live at
+`$AFDC`–`$B003`, the recipient loop at `$AEBA`):
+
+1. **`SUBJECT?`** — up to **16** characters.
+2. **`DESTINATION ID?`** — up to **five** IDs of **8** characters each. The original asks
+   repeatedly, ending the list on an empty entry, and stops at five (`CMP #$05`).
+3. **⚠ Each ID is validated before anything is sent.** The server accepts unknown recipients
+   **silently**, so an unchecked typo becomes a message that is never delivered and never
+   reported — the §8.3.2 silent-failure pattern again. A client **MUST** resolve every ID
+   (`I`, §4.4) and **MUST NOT** proceed while any is unknown.
+4. **`OKAY?`** — confirm.
+5. **`SENDING`** — the composed frames go via the upload path (§8.3.2).
+
+**The message body comes from the editor** (§8.4), not from a text box in the send dialogue:
+`SEND` submits the editor buffer, and a client **SHOULD** bring the editor in front of the user
+while sending (§4.10.2).
+
+**⚠ An empty buffer MUST NOT block the flow.** Addressing a message before writing it is a
+normal order of work, and the editor is where the writing happens — so a client **MUST NOT**
+refuse `SEND` because nothing has been composed yet. Collect the subject and recipients, validate
+them, then hand the user the editor and **keep the addressing** so a second `SEND` transmits
+without asking again. The same applies to `UPLD` and its metadata (§8.3.2): fill the form first,
+compose second, upload third. Refusing at step one forces the user to guess the client's
+preferred order, which the original never imposed.
+
+**⚠ `DONE` on the COURIER screen returns to the MAILBOX, not out of Courier.** The `SEND` and
+`ID` screens are **client-side** sub-states — the frame is a client asset (§A.10) and an ID
+lookup changes nothing on the server — so leaving them is a **local redraw**, not a wire command.
+A client that issues `B` here unwinds one level too many and drops the user out of mail
+altogether. This is the same stepwise model as §4.8's `DONE` note: COURIER screen → mailbox
+listing → out of Courier, one step per command.
+
+**`ID`** is the same screen used for lookup alone: prompt **`ID TO CHECK?`** (`$B0D9`), up to
+five IDs, then show each one's real name against its slot. It is **not** a "who is online"
+command — there is no such command (§4.7).
+
+*(Layout: the C64 writes each ID from **column 3**, with the frame's `:` at **column 12** and the
+name after it — §A.10.)*
 
 *(Non-normative: once read, a message is presented in the client's editor buffer and is not
 re-served by the server; the login screen and the next directory carry an unread-mail
@@ -230,6 +275,69 @@ after logout, and while disconnected — and **MUST NOT** require connectivity f
 `HELP` (§8.4.1). None of them touch the wire. Only the **submission** of the finished buffer —
 `UPLD` (§8.3.2) or `SEND` (§8.2) — needs a session, and those are commands of the *directory*
 and *mail* contexts, not of the editor.
+
+### 8.4.2 Pages viewed on Compunet are stored in the editor
+
+**Pages the user views are automatically added to the editor buffer as new pages** — this is
+original behaviour, not a convenience. It is what makes the editor a *reading* tool as well as a
+writing one: having read something online, the user can hang up and still have it, edit it, `PUT`
+it to disk, or use it as the basis of their own page. Combined with offline working (above), it
+is how the original kept call charges down.
+
+A client implementing the editor **SHOULD** capture viewed frames into the buffer, subject to:
+
+- **Capture must not disturb the user.** It happens while they may be editing something else, so
+  it **MUST NOT** move the current page position, steal focus, or interrupt an edit in progress.
+- **A full buffer must be reported.** The original's limit was **memory** — it held "10–15 pages
+  simultaneously", a range because pages compress differently (§6.4). When a page cannot be
+  stored the client **MUST** say so; silently dropping it is the §8.3.2 failure pattern again,
+  where the user believes something was kept and it was not.
+- **Directory listings are not frames** and are not captured; nor are client-side assets such as
+  the help pages (§A.8, §A.9), which the user did not fetch.
+
+**⚠ Capture is VERBATIM (normative).** A captured page **MUST** preserve everything that was on
+screen: **per-cell colour**, **reverse video**, **graphics characters**, **both character sets**,
+and the frame's border and background. The user is storing the page they read — not an
+impression of it. A client **MUST NOT** capture into a reduced form and **MUST NOT** present a
+degraded page as the captured one.
+
+This is what dictates the **page model**: an editor page is a **40×24 cell grid**, exactly what a
+frame is (§5, §6). The two are the same object, which is why capture is a copy rather than a
+conversion, and why an edited page can be uploaded as a frame at all.
+
+Two consequences worth stating, because both are easy to get wrong:
+
+- **A page is the FULL 40×24.** A client **MUST NOT** reserve a row of the page for its own
+  furniture — a status line, a page counter, a mode indicator. Doing so makes the editor unable
+  to represent a frame it can display, so some captured pages cannot be held without loss.
+  Buffer position ("page 2 of 5") belongs in the surrounding interface.
+- **An unedited captured page SHOULD be re-uploaded as the bytes it arrived as**, not re-encoded
+  from its grid. Re-encoding is *visually* faithful but need not be byte-identical (RLE choices,
+  redundant control codes differ), and a page that is republished unchanged should be unchanged.
+  Keep the original bytes with the page and drop them the moment it is edited — after an edit
+  they no longer describe it.
+
+> **⚠ Do not model a page as lines of text.** It is the obvious shortcut and it silently
+> discards colour, reverse video and graphics. It also introduces a trap that survives casual
+> inspection: converting a rendered frame back to text means inverting §5.3, where the two
+> character sets map letters **differently**. In the **lowercase/mixed** set (`$0E`) screen codes
+> `$01`–`$1A` are `a`–`z` and **capitals live at `$41`–`$5A`**; in the **uppercase/graphics** set
+> (`$8E`), `$01`–`$1A` are `A`–`Z` and `$41`+ is graphics. Handle only `$01`–`$1A` and every
+> capital on a mixed-case page becomes a **space** — `DIRECTORY` reads back as `IRECTORY`,
+> `USER GUIDE` as `SER UIDE`. The result still looks like text, which is why it passes review.
+> Storing cells avoids the conversion, and therefore the trap, entirely.
+
+**⚠ Offline entry is a host-environment affordance, not a command row.** With no session there
+is no Compunet screen, and therefore **no duckshoot** — the original sits at the **BASIC prompt**,
+where `EDITOR` is one of the BASIC commands the ROM installs (`$8249`), typed like `CONNECT`. A
+client **MUST NOT** manufacture a command row for the disconnected state to hold a lone `EDITR`:
+that invents a context the original does not have, and (if the row is a duckshoot) produces a
+one-word row, which §4.9 does not describe because it never occurs. Use whatever the host
+environment offers — a menu item, a button, a command line. Once **inside** the editor, the
+duckshoot returns with the editor's own row (§8.4.1).
+
+`EDITR` in the **directory** and **mail** rows (§4.8) is the *in-session* route to the same
+editor. Both routes are correct; they differ only in where the user is when they take them.
 
 This has two consequences a client is likely to get wrong:
 

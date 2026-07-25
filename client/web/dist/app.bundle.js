@@ -140,24 +140,30 @@ var Renderer = class {
     this.renderGrid(g, TEMPLATE_BG);
     this.setBorder(this.assets.template.border);
   }
-  /** Draw the editor's current page (§8.4.1): 23 rows of page, then a status
-   *  line showing the buffer position — the editor is a multi-page buffer, so
-   *  "page 2 of 5" is part of the interface, not decoration. */
-  renderEditorPage(lines, colour, background, border, cur, total, row, col, editing) {
-    const g = Array.from({ length: COLS * ROWS }, () => ({ g: 32, fg: colour, bg: background, rv: 0 }));
-    for (let r = 0; r < ROWS - 1; r++) {
-      const t = (lines[r] ?? "").toUpperCase();
-      for (let c = 0; c < COLS && c < t.length; c++)
-        g[r * COLS + c] = { g: asciiGlyph(t[c]), fg: colour, bg: background, rv: 0 };
-    }
-    if (editing && row < ROWS - 1) {
+  /** The Compunet pane before a session exists. Deliberately plain: with no
+   *  session there is no Compunet screen and no command row (§8.4). */
+  renderIdle() {
+    const g = Array.from({ length: COLS * ROWS }, () => ({ g: 32, fg: 6, bg: 0, rv: 0 }));
+    const put = (r, t, fg) => {
+      const c0 = Math.max(0, Math.floor((COLS - t.length) / 2));
+      for (let i = 0; i < t.length && c0 + i < COLS; i++)
+        g[r * COLS + c0 + i] = { g: asciiGlyph(t[i]), fg, bg: 0, rv: 0 };
+    };
+    put(10, "COMPUNET REBORN", 14);
+    put(12, "NOT CONNECTED", 11);
+    this.renderGrid(g, 0);
+    this.setBorder(6);
+  }
+  /** Draw the editor's current page (§8.4.1).
+   *  ⚠ The page is the FULL 40x24 grid — an editor page and a frame are the
+   *  same thing (§8.4.2), so nothing may be reserved here for chrome. The
+   *  buffer position ("page 2 of 5") belongs in the pane's own furniture, not
+   *  in a row stolen from the page. */
+  renderEditorPage(cells, background, border, row, col, editing) {
+    const g = cells.map((c) => ({ ...c }));
+    if (editing) {
       const i = row * COLS + col;
-      g[i] = { ...g[i], rv: 1 };
-    }
-    const bar = ` PAGE ${cur + 1} OF ${total}${editing ? "   EDIT \u2014 ESC STOPS" : ""}`;
-    for (let c = 0; c < COLS; c++) {
-      const ch = bar[c] ?? " ";
-      g[(ROWS - 1) * COLS + c] = { g: asciiGlyph(ch.toUpperCase()), fg: 0, bg: 1, rv: 0 };
+      if (g[i]) g[i] = { ...g[i], rv: g[i].rv ? 0 : 1 };
     }
     this.renderGrid(g, background);
     this.setBorder(border);
@@ -182,7 +188,9 @@ var Renderer = class {
     if (words.length === 1 && words[0] === "\0PRESSANYKEY") return;
     const startCol = Math.floor((COLS - VISIBLE * WORD) / 2);
     for (let slot = 0; slot < VISIBLE; slot++) {
-      const wi = ((centre + slot - MID) % words.length + words.length) % words.length;
+      const linear = centre + slot - MID;
+      if (words.length < VISIBLE && (linear < 0 || linear >= words.length)) continue;
+      const wi = (linear % words.length + words.length) % words.length;
       const name = words[wi];
       const text = (DUCK_CELL[name] ?? name.padEnd(WORD)).slice(0, WORD);
       const selected = slot === MID;
@@ -233,11 +241,31 @@ var Gateway = class {
 
 // src/editor.ts
 var PAGE_COLS = 40;
-var PAGE_ROWS = 23;
-function blankPage() {
-  return { lines: Array(PAGE_ROWS).fill(""), colour: 5, border: 6, background: 0 };
+var PAGE_ROWS = 24;
+var CELLS = PAGE_COLS * PAGE_ROWS;
+function blankCells(bg, fg) {
+  return Array.from({ length: CELLS }, () => ({ g: 32, fg, bg, rv: 0 }));
 }
-var CAPACITY = 64 * PAGE_COLS * PAGE_ROWS;
+function blankPage() {
+  return { cells: blankCells(0, 1), border: 6, background: 0, colour: 1 };
+}
+var CAPACITY = 12 * CELLS;
+var MAX_PAGES = 15;
+function charToGlyph(ch) {
+  const b = ch.toUpperCase().charCodeAt(0) & 255;
+  if (b >= 32 && b <= 63) return b;
+  if (b >= 64 && b <= 95) return b & 31;
+  return 32;
+}
+function frameToPage(f) {
+  return {
+    cells: f.cells.map((c) => ({ ...c })),
+    border: f.border,
+    background: f.background,
+    colour: 1,
+    raw: f.raw
+  };
+}
 var EditorBuffer = class {
   constructor() {
     this.pages = [blankPage()];
@@ -249,6 +277,10 @@ var EditorBuffer = class {
   }
   page() {
     return this.pages[this.cur];
+  }
+  /** Any change to a page's content invalidates its captured bytes. */
+  touch() {
+    delete this.page().raw;
   }
   // --- page navigation (LAST / NEXT) ---
   last() {
@@ -272,7 +304,7 @@ var EditorBuffer = class {
   /** COPY — a DUPLICATE of the current page after it. Not NEW. */
   copyPage() {
     const p = this.page();
-    this.pages.splice(++this.cur, 0, { ...p, lines: p.lines.slice() });
+    this.pages.splice(++this.cur, 0, { ...p, cells: p.cells.map((c) => ({ ...c })) });
     this.home();
   }
   /** ERASE — remove the current page. The buffer never becomes empty. */
@@ -286,19 +318,39 @@ var EditorBuffer = class {
     this.row = 0;
     this.col = 0;
   }
+  /** True while the buffer is just its initial untouched blank page. */
+  isPristine() {
+    return this.pages.length === 1 && this.isBlank(this.pages[0]);
+  }
+  isBlank(p) {
+    return p.cells.every((c) => (c.g & 127) === 32 && !c.rv);
+  }
+  /** Append a page viewed on Compunet (§8.4.2). Returns false when the buffer
+   *  is full — the original's limit was memory, and it does not silently
+   *  discard. The user's current position is NOT disturbed: capture happens
+   *  while they may be editing something else entirely. */
+  capture(p) {
+    if (this.isPristine()) {
+      this.pages[0] = p;
+      return true;
+    }
+    if (this.pages.length >= MAX_PAGES || this.free() < this.cost(p)) return false;
+    this.pages.push(p);
+    return true;
+  }
+  cost(p) {
+    return p.cells.filter((c) => (c.g & 127) !== 32 || c.rv).length;
+  }
   /** FREE — characters remaining, in the original's units. */
   free() {
-    const used = this.pages.reduce((n, p) => n + p.lines.reduce((m, l) => m + l.length, 0), 0);
-    return Math.max(0, CAPACITY - used);
+    return Math.max(0, CAPACITY - this.pages.reduce((n, p) => n + this.cost(p), 0));
   }
   // --- editing (EDIT mode) ---
-  setLine(r, text) {
-    this.page().lines[r] = text.slice(0, PAGE_COLS);
-  }
   /** Overwrite-at-cursor, as the original edits (its f6 toggles insert). */
   typeChar(ch) {
-    const line = (this.page().lines[this.row] ?? "").padEnd(this.col, " ");
-    this.setLine(this.row, line.slice(0, this.col) + ch.toUpperCase() + line.slice(this.col + 1));
+    const p = this.page();
+    this.touch();
+    p.cells[this.row * PAGE_COLS + this.col] = { g: charToGlyph(ch), fg: p.colour, bg: p.background, rv: 0 };
     if (++this.col >= PAGE_COLS) {
       this.col = 0;
       this.moveRow(1);
@@ -313,8 +365,9 @@ var EditorBuffer = class {
       return;
     }
     this.col--;
-    const line = (this.page().lines[this.row] ?? "").padEnd(this.col + 1, " ");
-    this.setLine(this.row, line.slice(0, this.col) + " " + line.slice(this.col + 1));
+    const p = this.page();
+    this.touch();
+    p.cells[this.row * PAGE_COLS + this.col] = { g: 32, fg: p.colour, bg: p.background, rv: 0 };
   }
   newline() {
     this.col = 0;
@@ -326,44 +379,48 @@ var EditorBuffer = class {
   moveCol(d) {
     this.col = Math.max(0, Math.min(PAGE_COLS - 1, this.col + d));
   }
+  /** Change the colour subsequent typing uses (the original's f7/f8). */
+  cycleColour(d) {
+    const p = this.page();
+    p.colour = ((p.colour + d) % 16 + 16) % 16;
+  }
   /** DELETE/INSERT a line above the cursor (the original's f3/f4). */
   insertLine() {
-    this.page().lines.splice(this.row, 0, "");
-    this.page().lines.length = PAGE_ROWS;
+    const p = this.page();
+    this.touch();
+    p.cells.splice(this.row * PAGE_COLS, 0, ...blankCells(p.background, p.colour).slice(0, PAGE_COLS));
+    p.cells.length = CELLS;
   }
   deleteLine() {
-    this.page().lines.splice(this.row, 1);
-    while (this.page().lines.length < PAGE_ROWS) this.page().lines.push("");
+    const p = this.page();
+    this.touch();
+    p.cells.splice(this.row * PAGE_COLS, PAGE_COLS);
+    p.cells.push(...blankCells(p.background, p.colour).slice(0, PAGE_COLS));
   }
   // --- serialisation (GET / PUT / STORE) ---
-  /** Wire form for upload / mail.send (§5.4 of the Binding-B spec). */
+  /** Wire form for upload / mail.send (§5.4 of the Binding-B spec).
+   *  ⚠ An unedited captured page goes back as its ORIGINAL BYTES; only pages
+   *  the user actually composed or altered are re-encoded from cells. */
   toFrames() {
-    return this.pages.map((p) => ({
-      lines: p.lines.slice(),
-      colour: p.colour,
-      border: p.border,
-      background: p.background
-    }));
+    return this.pages.map((p) => p.raw ? { raw: p.raw } : { cells: p.cells, border: p.border, background: p.background });
   }
-  /** True when nothing has actually been composed — used to refuse an upload
-   *  of an empty buffer rather than send a blank page. */
+  /** True when nothing has been composed or captured — used to refuse an
+   *  upload of an empty buffer rather than send a blank page. */
   isEmpty() {
-    return this.pages.every((p) => p.lines.every((l) => !l.trim()));
+    return this.pages.every((p) => this.isBlank(p));
   }
   toJSON(pagesOnly) {
-    return JSON.stringify({ format: "compunet-editor-1", pages: pagesOnly ?? this.pages });
+    return JSON.stringify({ format: "compunet-editor-2", pages: pagesOnly ?? this.pages });
   }
   /** GET — replace the buffer from a previously PUT/STOREd file. */
   load(text) {
     const data = JSON.parse(text);
-    if (data.format !== "compunet-editor-1" || !Array.isArray(data.pages) || !data.pages.length)
+    if (data.format !== "compunet-editor-2" || !Array.isArray(data.pages) || !data.pages.length)
       throw new Error("not an editor file");
-    this.pages = data.pages.map((p) => ({
-      lines: Array.from({ length: PAGE_ROWS }, (_, i) => String(p.lines?.[i] ?? "").slice(0, PAGE_COLS)),
-      colour: p.colour ?? 5,
-      border: p.border ?? 6,
-      background: p.background ?? 0
-    }));
+    this.pages = data.pages.map((p) => {
+      const cells = Array.from({ length: CELLS }, (_, i) => p.cells?.[i] ? { ...p.cells[i] } : { g: 32, fg: 1, bg: p.background ?? 0, rv: 0 });
+      return { cells, border: p.border ?? 6, background: p.background ?? 0, colour: p.colour ?? 1, raw: p.raw };
+    });
     this.cur = 0;
     this.row = 0;
     this.col = 0;
@@ -375,10 +432,14 @@ var EditorBuffer = class {
 var $ = (id) => document.getElementById(id);
 var canvas = $("screen");
 var wrap = $("screenWrap");
+var edCanvas = $("edScreen");
+var edWrap = $("edWrap");
 var statusEl = $("status");
 var assets;
 var renderer;
+var edRenderer;
 var gw = new Gateway();
+var focusPane = "net";
 var mode = "idle";
 var dir = null;
 var frame = null;
@@ -388,27 +449,44 @@ var account = null;
 var isWelcome = false;
 var inMail = false;
 var exitingMail = false;
-function status(s) {
+function status(s, bad = false) {
   statusEl.textContent = s;
+  statusEl.classList.toggle("bad", bad);
+}
+function setFocus(p) {
+  if (p === "editor" && !inEditor) return;
+  focusPane = p;
+  $("paneNet").classList.toggle("focused", p === "net");
+  $("paneEditor").classList.toggle("focused", p === "editor");
+  updateBar();
 }
 function render() {
-  if (inEditor) renderEditor();
+  if (courierSlots) drawCourier();
   else if (mode === "directory" && dir) renderer.renderDirectory(dir, sel, colIdx);
   else if (mode === "frame" && frame) renderer.renderFrame(frame);
+  else renderer.renderIdle();
+  if (inEditor) renderEditor();
   updateBar();
 }
 function onMessage(m) {
+  const rid = m.id;
+  if (typeof rid === "number" && pending.has(rid)) {
+    pending.get(rid)(m);
+    pending.delete(rid);
+    if (m.type === "idlookup") return;
+  }
   switch (m.type) {
     case "ready": {
       const r = m;
       account = r.account;
+      $("credit").textContent = `${account.user} \xB7 \xA3${account.credit.toFixed(2)}`;
       if (r.welcome) {
         mode = "frame";
         frame = r.welcome;
         isWelcome = true;
         inMail = false;
-        render();
       }
+      render();
       status(`Welcome, ${account.user} \u2014 press DIR to enter the system`);
       break;
     }
@@ -419,14 +497,19 @@ function onMessage(m) {
       colIdx = 0;
       isWelcome = false;
       inMail = m.context === "mail";
+      courierSlots = null;
       render();
+      if (submitting) {
+        submitting = false;
+        setFocus("net");
+      }
       if (exitingMail) {
         if (inMail) gw.send({ type: "back" });
         else exitingMail = false;
       }
       status(`${m.title} \u2014 ${m.entries.length} entries`);
       break;
-    case "frame":
+    case "frame": {
       mode = "frame";
       frame = m;
       isWelcome = false;
@@ -436,9 +519,11 @@ function onMessage(m) {
         gw.close();
         return;
       }
+      captureViewedFrame(m);
       if (exitingMail && inMail) gw.send({ type: "back" });
       status("Reading page" + (m.morePages ? " \u2014 MORE follows" : ""));
       break;
+    }
     case "download": {
       const d = m;
       status(`Download: ${d.title} \u2014 ${d.size} bytes (${d.machine})`);
@@ -461,6 +546,10 @@ function onMessage(m) {
     }
     case "ack":
       status(`${m.of ?? "command"} accepted`);
+      if (submitting) {
+        submitting = false;
+        setFocus("net");
+      }
       break;
     case "partyline.entering":
       status("Joining Partyline\u2026");
@@ -480,7 +569,8 @@ function onMessage(m) {
       status("Left Partyline.");
       break;
     case "error":
-      status("\u26A0 " + m.code + (m.message ? ": " + m.message : ""));
+      status("\u26A0 " + m.code + (m.message ? ": " + m.message : ""), true);
+      submitting = false;
       break;
     default:
       status("\xB7 " + m.type);
@@ -498,44 +588,51 @@ var buf = new EditorBuffer();
 var inEditor = false;
 var editorReturn = null;
 var submitMode = null;
+var submitting = false;
 function enterEditor() {
   inEditor = true;
   buf.editing = false;
-  status("Editor \u2014 EDIT types on the page, RETURN leaves. Page " + (buf.cur + 1) + " of " + buf.pages.length);
+  $("paneEditor").hidden = false;
+  setFocus("editor");
   render();
+  status("Editor \u2014 EDIT types on the page, RETURN leaves. Page " + (buf.cur + 1) + " of " + buf.pages.length);
 }
 function leaveEditor() {
   inEditor = false;
   buf.editing = false;
+  $("paneEditor").hidden = true;
+  setFocus("net");
   if (editorReturn) {
     const f = editorReturn;
     editorReturn = null;
     f();
   } else render();
-  status(mode === "idle" ? "Left the editor. Connect, then UPLD or SEND submits the buffer." : "Left the editor. UPLD or SEND submits the buffer.");
+  status(mode === "idle" ? "Left the editor \u2014 the buffer is kept. Connect, then UPLD or SEND submits it." : "Left the editor. UPLD or SEND submits the buffer.");
+}
+function captureViewedFrame(f) {
+  const wasEmpty = buf.isEmpty();
+  if (!buf.capture(frameToPage(f))) {
+    status("Editor buffer full \u2014 this page was not stored (use STORE, then ERASE)", true);
+    return;
+  }
+  if (inEditor) renderEditor();
+  if (wasEmpty) $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}`;
 }
 function renderEditor() {
   const p = buf.page();
-  renderer.renderEditorPage(
-    p.lines,
-    p.colour,
-    p.background,
-    p.border,
-    buf.cur,
-    buf.pages.length,
-    buf.row,
-    buf.col,
-    buf.editing
-  );
+  edRenderer.renderEditorPage(p.cells, p.background, p.border, buf.row, buf.col, buf.editing);
+  $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}` + (buf.editing ? ` \xB7 EDIT ${buf.row + 1},${buf.col + 1}` : "") + (p.raw ? " \xB7 captured" : "");
 }
+var pendingUpload = null;
 function openSubmit(kind) {
-  if (buf.isEmpty()) {
-    status("Nothing composed yet \u2014 use EDITR to write a page first");
-    return;
-  }
   submitMode = kind;
-  $("editor").hidden = false;
-  $("editorTitle").textContent = kind === "upload" ? `Upload ${buf.pages.length} page(s) into "${dir?.title ?? "this directory"}"` : `Send ${buf.pages.length} page(s) as mail`;
+  if (!inEditor) {
+    editorReturn = () => render();
+    enterEditor();
+  }
+  setFocus("editor");
+  $("submit").hidden = false;
+  $("submitTitle").textContent = kind === "upload" ? `Upload ${buf.pages.length} page(s) into "${dir?.title ?? "this directory"}"` : `Send ${buf.pages.length} page(s) as mail`;
   $("edContentFields").hidden = kind !== "upload";
   $("edTo").hidden = kind !== "mail";
   $("edHint").textContent = kind === "upload" ? "Type and price are required (\xA78.3.2). Body comes from the editor buffer." : "Recipients: up to five user IDs, comma-separated.";
@@ -544,7 +641,7 @@ function openSubmit(kind) {
 }
 function closeSubmit() {
   submitMode = null;
-  $("editor").hidden = true;
+  $("submit").hidden = true;
 }
 function doSubmit() {
   const title = $("edTitle").value.trim();
@@ -561,15 +658,28 @@ function doSubmit() {
     }
     gw.send({ type: "mail.send", to, subject: title, frames });
   } else {
-    gw.send({
-      type: "upload",
+    const meta = {
       title,
       kind: $("edKind").value,
       price: parseFloat($("edPrice").value) || 0,
-      life: parseInt($("edLife").value, 10) || 0,
-      frames
-    });
+      life: parseInt($("edLife").value, 10) || 0
+    };
+    if (buf.isEmpty()) {
+      pendingUpload = meta;
+      closeSubmit();
+      if (!inEditor) {
+        editorReturn = () => render();
+        enterEditor();
+      }
+      setFocus("editor");
+      status(`"${title}" ready to upload \u2014 compose the page, then UPLD again`);
+      return;
+    }
+    gw.send({ type: "upload", ...meta, frames });
+    pendingUpload = null;
   }
+  submitting = true;
+  status(`Sending ${frames.length} page(s)\u2026`);
   closeSubmit();
 }
 function saveText(text, filename) {
@@ -606,9 +716,9 @@ var editorActions = {
       status("No editor help frame embedded");
       return;
     }
-    renderer.renderFrame(assets.editorHelp);
-    renderer.renderDuckshoot(duck, duckIx);
-    status("Editor help \u2014 any editor command returns");
+    edRenderer.renderFrame(assets.editorHelp);
+    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix);
+    status("Editor help \u2014 any other editor command returns to the page");
   },
   EDIT: () => {
     buf.editing = !buf.editing;
@@ -662,17 +772,162 @@ var inParty = false;
 function setChatVisible(on) {
   inParty = on;
   $("chat").hidden = !on;
+  $("screenWrap").hidden = on;
+  $("netTitle").textContent = on ? "Partyline" : "Compunet";
   if (on) {
+    setFocus("net");
     $("chatInput").value = "";
     $("chatInput").focus();
   } else {
     $("chatLog").textContent = "";
+    render();
   }
 }
 function chatLog(line) {
   const log = $("chatLog");
   log.textContent += (log.textContent ? "\n" : "") + line;
   log.scrollTop = log.scrollHeight;
+}
+function ask(title, fields) {
+  return new Promise((resolve) => {
+    $("askTitle").textContent = title;
+    const host = $("askFields");
+    host.textContent = "";
+    const inputs = fields.map((f) => {
+      const el = document.createElement("input");
+      el.placeholder = f.label;
+      el.value = f.value ?? "";
+      if (f.maxlength) el.maxLength = f.maxlength;
+      if (f.type) el.type = f.type;
+      host.appendChild(el);
+      return el;
+    });
+    $("ask").hidden = false;
+    inputs[0]?.focus();
+    const done = (v) => {
+      $("ask").hidden = true;
+      $("askOk").onclick = null;
+      $("askCancel").onclick = null;
+      host.onkeydown = null;
+      resolve(v);
+    };
+    $("askOk").onclick = () => done(inputs.map((i) => i.value.trim()));
+    $("askCancel").onclick = () => done(null);
+    host.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        done(inputs.map((i) => i.value.trim()));
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        done(null);
+      }
+    };
+  });
+}
+async function askConfirm(title) {
+  return await ask(title, []) !== null;
+}
+var nextId = 1;
+var pending = /* @__PURE__ */ new Map();
+function request(msg) {
+  const id = nextId++;
+  return new Promise((resolve) => {
+    pending.set(id, resolve);
+    gw.send({ ...msg, id });
+    setTimeout(() => {
+      if (pending.delete(id)) resolve({ type: "error", code: "timeout" });
+    }, 1e4);
+  });
+}
+var courierSlots = null;
+function showCourier(slots) {
+  courierSlots = slots;
+  drawCourier();
+}
+function drawCourier() {
+  const slots = courierSlots ?? [];
+  if (!assets.courier) return;
+  const f = assets.courier;
+  const cells = f.cells.map((c) => ({ ...c }));
+  slots.slice(0, 5).forEach((text, i) => {
+    const row = 6 + i;
+    for (let j = 0; j < text.length && 3 + j < 40; j++) {
+      const ch = text.toUpperCase().charCodeAt(j) & 255;
+      const sc = ch >= 64 && ch <= 95 ? ch & 31 : ch >= 32 && ch <= 63 ? ch : 32;
+      cells[row * 40 + 3 + j] = { g: sc, fg: 2, bg: f.background, rv: 0 };
+    }
+  });
+  renderer.renderGrid(cells, f.background);
+  renderer.setBorder(f.border);
+}
+async function idCheck() {
+  showCourier([]);
+  const r = await ask("ID TO CHECK?", Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
+  if (!r) {
+    render();
+    return;
+  }
+  const ids = r.filter(Boolean);
+  if (!ids.length) {
+    render();
+    return;
+  }
+  const reply = await request({ type: "idlookup", ids });
+  const users = reply.users ?? [];
+  showCourier(users.map((u) => `${u.id.padEnd(8)} : ${u.name ?? "NOT KNOWN"}`));
+  status(`${users.filter((u) => u.name).length} of ${ids.length} ID(s) known`);
+}
+var pendingMail = null;
+async function sendMail() {
+  if (!pendingMail) {
+    showCourier([]);
+    const subj = await ask("SUBJECT?", [{ label: "subject", maxlength: 16 }]);
+    if (!subj?.[0]) {
+      courierSlots = null;
+      render();
+      return;
+    }
+    const dest = await ask("DESTINATION ID?", Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
+    if (!dest) {
+      courierSlots = null;
+      render();
+      return;
+    }
+    const ids = dest.filter(Boolean);
+    if (!ids.length) {
+      status("At least one recipient is required");
+      return;
+    }
+    const reply = await request({ type: "idlookup", ids });
+    const users = reply.users ?? [];
+    const bad = ids.filter((id) => !users.find((u) => u.id.trim().toUpperCase() === id.toUpperCase() && u.name));
+    showCourier(ids.map((id) => {
+      const u = users.find((x) => x.id.trim().toUpperCase() === id.toUpperCase());
+      return `${id.padEnd(8)} : ${u?.name ?? "NOT KNOWN"}`;
+    }));
+    if (bad.length) {
+      status(`Unknown ID(s): ${bad.join(", ")} \u2014 nothing sent`, true);
+      return;
+    }
+    pendingMail = { subject: subj[0], ids };
+  }
+  if (buf.isEmpty()) {
+    if (!inEditor) {
+      editorReturn = () => render();
+      enterEditor();
+    }
+    setFocus("editor");
+    status(`Addressed to ${pendingMail.ids.join(", ")} \u2014 compose your message, then SEND again`);
+    return;
+  }
+  if (!await askConfirm(`OKAY? \u2014 send ${buf.pages.length} page(s) to ${pendingMail.ids.join(", ")}`)) return;
+  submitMode = "mail";
+  setFocus("editor");
+  gw.send({ type: "mail.send", to: pendingMail.ids, subject: pendingMail.subject, frames: buf.toFrames() });
+  submitting = true;
+  pendingMail = null;
+  status("SENDING\u2026");
 }
 function saveBase64(b64, filename) {
   const bin = atob(b64);
@@ -707,8 +962,13 @@ var actions = {
     const e = curEntry();
     if (!e) return;
     const price = curPrice();
-    if (price && !confirm(`BUY FOR ${price} - SURE?`)) return;
-    gw.send({ type: "open", page: e.page });
+    if (!price) {
+      gw.send({ type: "open", page: e.page });
+      return;
+    }
+    void askConfirm(`BUY FOR ${price} - SURE?`).then((ok) => {
+      if (ok) gw.send({ type: "open", page: e.page });
+    });
   },
   // In a directory: enter the highlighted entry. On the welcome frame (no directory
   // context): DIR reaches the root — a bare `dir` (§4.7 / Binding-B schema).
@@ -724,7 +984,17 @@ var actions = {
   // DONE returns the user where they were before Courier. `back` unwinds one
   // level at a time (message -> listing -> page -> out), so keep going until the
   // session is actually out of mail (§4.8).
+  // DONE from the COURIER screen (ID / SEND) returns to the MAILBOX — that
+  // screen is client-side, so this is a redraw, not a wire command (§8.2.1).
+  // Only from the mailbox itself does DONE leave Courier.
   DONE: () => {
+    if (courierSlots) {
+      courierSlots = null;
+      pendingMail = null;
+      render();
+      status("Back to the mailbox");
+      return;
+    }
     exitingMail = true;
     gw.send({ type: "back" });
   },
@@ -753,8 +1023,9 @@ var actions = {
   MORE: () => gw.send({ type: "more" }),
   FINISH: () => gw.send({ type: "finish" }),
   GOTO: () => {
-    const t = prompt("GOTO page number or keyword:");
-    if (t) gw.send({ type: "goto", target: t });
+    void ask("GOTO", [{ label: "page number or keyword" }]).then((r) => {
+      if (r?.[0]) gw.send({ type: "goto", target: r[0] });
+    });
   },
   // (column cycling is F7/F8, §7.7 — not a command)
   ACCNT: () => gw.send({ type: "account" }),
@@ -766,8 +1037,9 @@ var actions = {
       status("Highlight an entry to vote on");
       return;
     }
-    const s = prompt(`Vote on "${e.title}" \u2014 score 1-9:`);
-    if (s) gw.send({ type: "vote", page: e.page, score: parseInt(s, 10) });
+    void ask(`Vote on "${e.title}"`, [{ label: "score 1-9", type: "number" }]).then((r) => {
+      if (r?.[0]) gw.send({ type: "vote", page: e.page, score: parseInt(r[0], 10) });
+    });
   },
   LIFE: () => {
     const e = curEntry();
@@ -775,12 +1047,13 @@ var actions = {
       status("Highlight an entry to extend");
       return;
     }
-    const d = prompt(`Extend life of "${e.title}" by how many days?`);
-    if (d) gw.send({ type: "life", page: e.page, days: parseInt(d, 10) });
+    void ask(`Extend life of "${e.title}"`, [{ label: "days", type: "number" }]).then((r) => {
+      if (r?.[0]) gw.send({ type: "life", page: e.page, days: parseInt(r[0], 10) });
+    });
   },
+  // ID — "ID TO CHECK?" ($B0D9). Up to five, shown on the COURIER frame (§8.2).
   ID: () => {
-    const u = prompt("Look up user ID(s), comma-separated:");
-    if (u) gw.send({ type: "idlookup", ids: u.split(",").map((x) => x.trim()).filter(Boolean) });
+    void idCheck();
   },
   UPLD: () => {
     if (mode !== "directory" || !dir) {
@@ -791,9 +1064,20 @@ var actions = {
       status("This directory is full (11 entries max)");
       return;
     }
+    if (pendingUpload && !buf.isEmpty()) {
+      gw.send({ type: "upload", ...pendingUpload, frames: buf.toFrames() });
+      pendingUpload = null;
+      submitMode = "upload";
+      submitting = true;
+      setFocus("editor");
+      status("Uploading\u2026");
+      return;
+    }
     openSubmit("upload");
   },
-  SEND: () => openSubmit("mail"),
+  SEND: () => {
+    void sendMail();
+  },
   // §3.8: read and render the goodbye frame BEFORE handling the close — do not
   // close the socket here; the server closes after sending it.
   LEAVE: () => {
@@ -802,9 +1086,12 @@ var actions = {
   }
 };
 var CONTEXT_COMMANDS = {
-  // ⚠ Not empty: the EDITOR works offline (§8.4), so it is reachable before any
-  // login and after a disconnect. Nothing else is available with no session.
-  idle: ["EDITR"],
+  // ⚠ Empty, and NOT because the editor is unavailable offline. With no session
+  // there is no Compunet screen, so there is no duckshoot — the original sits at
+  // the BASIC prompt, where EDITOR is a BASIC command ($8249), not a row entry.
+  // Offline entry is a HOST-ENVIRONMENT affordance (our "Editor" button, beside
+  // Connect); the duckshoot reappears inside the editor with its own row (§8.4).
+  idle: [],
   // The welcome screen carries the DIRECTORY row, with HELP centred by default (§4.8).
   welcome: ["HELP", "DIR", "SHOW", "BACK", "GOTO", "UCAT", "MAIL", "ACCNT", "SAVE", "EDITR", "LEAVE"],
   directory: [
@@ -851,9 +1138,8 @@ var CONTEXT_COMMANDS = {
   partyline: []
 };
 var NEEDS_SELECTION = /* @__PURE__ */ new Set(["SHOW", "DIR", "VOTE", "LIFE", "BUY"]);
-function currentContext() {
+function netContext() {
   if (inParty) return "partyline";
-  if (inEditor) return "editor";
   if (mode === "idle") return "idle";
   if (mode === "frame") return isWelcome ? "welcome" : inMail ? "mailFrame" : "frame";
   return inMail ? "mail" : "directory";
@@ -862,32 +1148,49 @@ function hasSelection() {
   const e = curEntry();
   return !!e && e.title.trim() !== "(EMPTY)" && e.title.trim() !== "(NO MAIL)";
 }
-var duck = [];
-var duckIx = 0;
-function updateBar() {
-  const ctx = currentContext();
-  const prev = duck[duckIx];
+var rows = { net: { words: [], ix: 0 }, editor: { words: [], ix: 0 } };
+var lastCommand = {};
+function rememberRow(pane) {
+  const r = rows[pane];
+  const ctx = pane === "editor" ? "editor" : netContext();
+  if (r.words[r.ix]) lastCommand[ctx] = r.words[r.ix];
+}
+function buildRow(ctx) {
   const table = ctx === "editor" ? editorActions : actions;
-  duck = CONTEXT_COMMANDS[ctx].filter((name) => {
+  return CONTEXT_COMMANDS[ctx].filter((name) => {
     if (!table[name]) return false;
     if (NEEDS_SELECTION.has(name) && ctx === "directory" && !hasSelection()) return false;
     return true;
   });
-  const keep = duck.indexOf(prev);
-  duckIx = duck.length ? keep >= 0 ? keep : 0 : 0;
-  if (ctx === "frame" && frame && !frame.morePages && !inEditor) {
-    renderer?.renderPrompt("PRESS ANY KEY");
-  } else renderer?.renderDuckshoot(duck, duckIx);
-  $("ctx").textContent = ctx === "idle" ? "" : `context: ${ctx}`;
+}
+function updateBar() {
+  const nctx = netContext();
+  rows.net.words = buildRow(nctx);
+  const keep = rows.net.words.indexOf(lastCommand[nctx] ?? "");
+  rows.net.ix = rows.net.words.length ? keep >= 0 ? keep : 0 : 0;
+  if (nctx === "frame" && frame && !frame.morePages) renderer?.renderPrompt("PRESS ANY KEY");
+  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix);
+  if (inEditor) {
+    rows.editor.words = buildRow("editor");
+    const keepE = rows.editor.words.indexOf(lastCommand.editor ?? "");
+    rows.editor.ix = keepE >= 0 ? keepE : rows.editor.ix;
+    edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix);
+  }
+  $("netMeta").textContent = mode === "idle" ? "not connected" : nctx;
+  $("hint").textContent = focusPane === "editor" ? "Editor focused \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 EDIT then type \xB7 ESC stops editing" : "\u2191/\u2193 highlight an entry \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 F7/F8 cycle the right column";
 }
 function duckScroll(delta) {
-  if (!duck.length) return;
-  duckIx = ((duckIx + delta) % duck.length + duck.length) % duck.length;
-  renderer.renderDuckshoot(duck, duckIx);
+  const r = rows[focusPane];
+  if (!r.words.length) return;
+  r.ix = ((r.ix + delta) % r.words.length + r.words.length) % r.words.length;
+  rememberRow(focusPane);
+  (focusPane === "editor" ? edRenderer : renderer).renderDuckshoot(r.words, r.ix);
 }
 function duckCommit() {
-  const name = duck[duckIx];
-  const table = currentContext() === "editor" ? editorActions : actions;
+  const r = rows[focusPane];
+  const name = r.words[r.ix];
+  const table = focusPane === "editor" ? editorActions : actions;
+  rememberRow(focusPane);
   if (name && table[name]) table[name]();
 }
 async function connect() {
@@ -903,15 +1206,25 @@ async function connect() {
       () => status("WebSocket error.")
     );
     $("connect").disabled = true;
+    $("pass").classList.remove("bad");
   } catch (e) {
-    status("Connect error: " + e.message);
+    const msg = e.message;
+    const bad = /401|403/.test(msg);
+    $("pass").classList.toggle("bad", bad);
+    if (bad) $("pass").focus();
+    status(bad ? "Login refused \u2014 check the user ID and password." : "Connect error: " + msg, true);
   }
 }
 window.addEventListener("keydown", (e) => {
   const el = e.target;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
   if (inParty) return;
-  if (inEditor && buf.editing) {
+  if (e.key === "Tab" && inEditor) {
+    setFocus(focusPane === "net" ? "editor" : "net");
+    e.preventDefault();
+    return;
+  }
+  if (focusPane === "editor" && inEditor && buf.editing) {
     if (e.key === "Escape") {
       buf.editing = false;
       status("Edit stopped");
@@ -975,7 +1288,7 @@ window.addEventListener("keydown", (e) => {
     }
     return;
   }
-  if (inEditor) {
+  if (focusPane === "editor" && inEditor) {
     if (e.key === "ArrowLeft") {
       duckScroll(-1);
       e.preventDefault();
@@ -1036,7 +1349,16 @@ window.addEventListener("keydown", (e) => {
 async function boot() {
   assets = await (await fetch("./assets.json")).json();
   renderer = new Renderer(canvas, assets, wrap);
+  edRenderer = new Renderer(edCanvas, assets, edWrap);
   $("connect").onclick = connect;
+  $("paneNet").addEventListener("mousedown", () => setFocus("net"));
+  $("paneEditor").addEventListener("mousedown", () => setFocus("editor"));
+  $("edClose").onclick = () => leaveEditor();
+  $("openEditor").onclick = () => {
+    if (inEditor) return;
+    editorReturn = () => render();
+    enterEditor();
+  };
   canvas.addEventListener("click", (ev) => {
     if (mode !== "directory" || !dir) return;
     const r = canvas.getBoundingClientRect();
@@ -1075,8 +1397,8 @@ async function boot() {
     gw.send({ type: text.startsWith("*") ? "partyline.command" : "partyline.send", text });
     input.value = "";
   });
-  updateBar();
-  status("Ready. Connect \u2014 or use EDITR now: the editor works offline.");
+  render();
+  status("Ready. Connect \u2014 or open the Editor now: it works offline.");
 }
 void boot();
 //# sourceMappingURL=app.bundle.js.map

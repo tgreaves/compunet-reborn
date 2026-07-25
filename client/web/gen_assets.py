@@ -61,8 +61,15 @@ ehelp_path = os.path.join(ROOT, 'server', 'cfg', 'editor-help.pet')
 editor_help = (api.frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x0E]) + open(ehelp_path, 'rb').read())
                if os.path.exists(ehelp_path) else None)
 
+# COURIER frame (§A.10) — the mail screen the C64 embeds at $BDD6. Unlike §A.8
+# and §A.9 this one DOES carry its own 4-byte header, so it is fed in raw.
+courier_path = os.path.join(ROOT, 'server', 'cfg', 'courier.pet')
+courier = (api.frame_to_cells(open(courier_path, 'rb').read())
+           if os.path.exists(courier_path) else None)
+
 json.dump({'palette': palette, 'font': font, 'template': template, 'help': help_frame,
-           'editorHelp': editor_help}, open(OUT, 'w'), separators=(',', ':'))
-print('wrote %s (palette %d, font %d, template %d cells, help %s, editorHelp %s)' %
+           'editorHelp': editor_help, 'courier': courier}, open(OUT, 'w'), separators=(',', ':'))
+print('wrote %s (palette %d, font %d, template %d cells, help %s, editorHelp %s, courier %s)' %
       (OUT, len(palette), len(font), len(template['cells']),
-       'yes' if help_frame else 'MISSING', 'yes' if editor_help else 'MISSING'))
+       'yes' if help_frame else 'MISSING', 'yes' if editor_help else 'MISSING',
+       'yes' if courier else 'MISSING'))

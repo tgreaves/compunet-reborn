@@ -36,6 +36,32 @@ marked **⚠** are the ones known to have been got wrong in practice.
       the selection (not a highlight moving along a fixed row); it sits outside the 40×24 grid;
       contents are the context's set in the §4.8 priority order, truncated **from the end**; and
       the row **wraps** at both ends rather than clamping.
+- [ ] **⚠ No command appears twice at once.** Look at a **short** row — mail (six) and a
+      multi-frame page (three). Are the surplus positions blank? A modulo-based wrap tiles them
+      instead, repeating the set across the row (§4.9.4).
+- [ ] **⚠ No invented row for the disconnected state.** Offline, the editor is reached by a host
+      affordance (menu/button), not by a command row holding a lone `EDITR` (§8.4).
+- [ ] **If you show two contexts at once (§4.10):** each has its **own** command row; focus is
+      **visible**; the unfocused one is **inert** (type into it — nothing should happen); and
+      neither can obscure the other. Then check the whole command set is unchanged from a
+      one-context client — simultaneous visibility must grant nothing extra (§1.8).
+- [ ] **Partyline replaces rather than tiles** (§4.10.1) — it takes over the Compunet surface and
+      restores it on exit, as the C64's chat program does. A Partyline pane sitting beside a live
+      directory, with an empty command row, is the wrong shape.
+- [ ] **`UPLD`/`SEND` put the editor in front of the user** (§4.10.2) and keep it there until the
+      server responds; on refusal focus **stays** with the editor and the buffer is intact.
+- [ ] **⚠ Rows return where you left them** (§4.9.4). From a directory, centre `SHOW`, run it,
+      then `FINISH`. Is the row still on `SHOW`? Resetting to `HELP` is the known failure.
+      Check mail and the editor keep their **own** positions, not one shared one.
+- [ ] **⚠ Viewed pages land in the editor buffer** (§8.4.2), without moving the user's current
+      page or stealing focus — and a **full** buffer is reported, not silently dropped.
+- [ ] **⚠ Capture is verbatim** (§8.4.2). View a page with **several colours** and some
+      **graphics characters**, then look at it in the editor: it must be identical, colour for
+      colour. A monochrome or text-only rendering means the page model is lines, not cells.
+- [ ] **⚠ An editor page is the full 40×24** — no row reserved for a status line or page
+      counter (§8.4.2). Capture a page that uses all 24 rows and check the last one survives.
+- [ ] **Unedited captured pages re-upload unchanged** — as their original bytes, not re-encoded
+      (§8.4.2). Edit one character and the client must switch to sending the grid.
 
 ## B. Behaviour that shares an encoding
 
@@ -82,6 +108,19 @@ The server does not report these; a client that ignores them looks fine and lose
       (§8.3.2).
 - [ ] **"The exchange completed" is not treated as success** — confirm the entry appears in the
       refreshed listing (§8.3.2).
+- [ ] **⚠ Mail recipients are validated before sending** (§8.2.1). Send to a made-up ID: the
+      client must refuse. The server accepts unknown recipients silently, so an unvalidated
+      typo is mail that vanishes with no error.
+- [ ] **⚠ No input uses `window.prompt()`/`confirm()`.** They are **not implemented in
+      Electron** and throw, so any command relying on them (`ID`, `GOTO`, `VOTE`, `LIFE`, `BUY`)
+      silently does nothing in a desktop build while working in a browser.
+- [ ] **`SEND` and `ID` open on the COURIER frame** (§A.10, §8.2.1), with **five** recipient
+      slots — not four, not six.
+- [ ] **⚠ `DONE` after `ID` returns to the mailbox**, not out of Courier (§8.2.1). Sending `B`
+      here unwinds one level too many.
+- [ ] **⚠ `SEND`/`UPLD` work with an empty buffer** (§8.2.1) — address first, compose second.
+      Refusing at step one is the known failure; the addressing must survive to the second
+      attempt.
 
 ## E. Mechanical checks (automate these)
 

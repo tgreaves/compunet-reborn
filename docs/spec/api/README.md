@@ -180,7 +180,8 @@ paints each cell (glyph from the appendix font, `fg`/`bg` from the palette).
     // g   = glyph index 0–255 (0–127 = uppercase/graphics set, 128–255 = lowercase set; 128 glyphs each, §5.2/§5.4)
     // fg,bg = palette index 0–15 (§5.5)
     // rv  = reverse-video flag 0|1 (§5.7)
-  ]
+  ],
+  "raw": "AAD0/w4T…"               // base64 of the exact §6 bytes this grid was rendered from
 }
 ```
 
@@ -220,23 +221,35 @@ composed page is submitted **structurally** and the server encodes the §6 frame
 `colour` is a palette index (§5.5) applied as the frame's text colour; `border`/`background`
 become the frame header (§6.2). Lines are truncated to 40 columns and 23 rows.
 
-**⚠ Known model gap — one colour per page.** A Binding-A frame changes colour **mid-line** via
-embedded control codes (§5.4/§A.4); the shape above cannot express that, so pages composed
-through this binding are monochrome. This is a **violation of the §1.8 invariant** in the making
-— Binding B must never be able to express *more* than Binding A, but neither should it express
-meaningfully *less* of what the editor (§8.4) exists to produce. It is recorded here rather than
-silently tolerated.
-
-The intended fix is a **spans** form alongside the flat one, so both remain valid:
+**That text form is the *simple* path, not the only one.** It cannot express per-cell colour,
+reverse video or graphics characters, so it is insufficient for anything captured from Compunet
+(§8.4.2, where capture must be **verbatim**). Two further forms exist, and a Tier-3 client
+**MUST** support them:
 
 ```jsonc
-{ "lines": [ [ {"t":"HELLO ","c":5}, {"t":"WORLD","c":2} ], "PLAIN LINE" ] }
+{ "cells": [ {"g":24,"fg":1,"bg":15,"rv":0}, … ], "border": 4, "background": 15 }
+{ "raw": "AAD0/w4TDx8…" }
 ```
 
-— a line is either a string (whole line takes the page `colour`) or an array of
-`{t, c}` runs. Until a server implements it, clients **MUST** send the flat form, and a
-server that does not understand spans **MUST** reject them with `invalid` rather than
-dropping the colour information.
+- **`cells`** — a full 40×24 grid, the same shape the server sends in a `frame` (§5.1). The
+  server encodes it to §6 bytes, emitting the colour, reverse (`$12`/`$92`) and charset
+  (`$0E`/`$8E`) codes needed to reproduce it exactly. This is how an **edited** page is
+  submitted, and it closes the gap: anything Binding A can display, Binding B can now author.
+- **`raw`** — the exact §6 bytes, base64. Used to re-upload a captured page the user has **not**
+  edited, so it is republished byte-for-byte rather than re-encoded. Opaque to the client: it
+  never parses PETSCII, it just hands back what it was given.
+
+This is what **`raw`** on the `frame` message (§5.2) is for: the bytes the grid was rendered
+from, carried so a client can hand them back unchanged. It is **opaque** — a client that does
+not implement the editor ignores it, and one that does never parses it. Carrying PETSCII here
+is not a breach of this binding's "no PETSCII" principle for exactly that reason: the client
+treats it as a token, not as content.
+
+Precedence when a page carries more than one form: **`raw` wins, then `cells`, then `lines`.**
+
+*(This resolves what was previously recorded here as a §1.8 gap: pages composed through this
+binding were monochrome, so Binding B could express meaningfully less than Binding A of what the
+editor exists to produce.)*
 
 **Upload** (`upload`) carries `title`, `kind` (`"T"`/`"P"`), `price`, `life`, and `frames`.
 Unlike Binding A's multi-step wire dance (`U` → validation → frame DATs → finishing `P`), it is

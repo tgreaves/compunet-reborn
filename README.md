@@ -38,6 +38,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 | **C64 Client (PRG)** | 6400 | LOAD + RUN. For real hardware with SwiftLink. |
 | **Amiga Client** | 6400 | Native Amiga client (LHA download). Needs Workbench/Kickstart 2.1+ and a bsdsocket TCP/IP stack. |
 | **PETSCII Terminal** | 6401 | Server-rendered. Works with SyncTerm, CCGMS, StrikeTerm, UltimateTerm. |
+| **Web / Desktop client** | 6404 | Modern client over the JSON API (Binding B). Runs in a browser or as an Electron desktop app. |
 
 ## Quick Start
 
@@ -83,7 +84,7 @@ docker compose up -d --build
 ```
 
 This starts:
-- **compunet-server** — Protocol server (6400) + PETSCII terminal (6401) + REST API (6403)
+- **compunet-server** — Protocol server (6400) + PETSCII terminal (6401) + REST API (6403) + client API (6404)
 - **compunet-web** — Registration website (6464)
 
 See `.env.example` for required configuration variables.
@@ -138,6 +139,24 @@ The client is split into two parts, matching the original Compunet design:
 
 On first connect, the server sends the terminal via LINKING (~3 seconds). Users can cache it to disk with `CNSAVE` for instant reconnects. The server tracks a version hash — LINKING is skipped if the cached terminal is current.
 
+### One service, two transports
+
+Compunet Reborn is **one application model** reached over **two transport bindings**. The model
+— directories, frames, mail, uploads, the editor, Partyline — is identical across both; only the
+encoding differs, and neither binding can do anything the other cannot express.
+
+| | **Binding A** | **Binding B** |
+|---|---|---|
+| Port | 6400 | 6404 |
+| Encoding | X.25-over-TCP framing + PETSCII | JSON over WebSocket + REST |
+| Clients | C64 (CRT/PRG), Amiga | web, Electron desktop |
+| Status | **frozen** — the ROM cannot be changed | evolving |
+
+Binding B is implemented as a *serializer over the same core*, driving the same authoritative
+command handling and serializing the resulting state, rather than as a parallel implementation.
+Frames arrive as a rendered 40×24 cell grid, so a modern client never parses PETSCII.
+See [docs/spec/api/](docs/spec/api/README.md).
+
 ## Repository Structure
 
 ### Client
@@ -149,10 +168,13 @@ On first connect, the server sends the terminal via LINKING (~3 seconds). Users 
 - **[client/amiga/src/](client/amiga/src/)** — Reconstructed native Amiga client (C, vbcc)
 - **[client/amiga/emulation/](client/amiga/emulation/)** — Amiga build + packaging (`make_hdd.sh`, `make_lha.py`, Directory-HD, LHA)
 - **[client/amiga/vintage/](client/amiga/vintage/)** — Recovered original Amiga binaries + RE tooling
+- **[client/web/](client/web/)** — Reference web client for the JSON API (TypeScript, canvas-rendered 40×24 screen, duckshoot, frame editor)
+- **[client/electron/](client/electron/)** — Electron desktop shell around the web client (Windows/Mac/Linux)
 
 ### Server
 
 - **[server/compunet_server.py](server/compunet_server.py)** — Main server (protocol, LINKING, API, session management)
+- **[server/api_binding.py](server/api_binding.py)** — Client API, Binding B (JSON over WebSocket + REST, port 6404)
 - **[server/terminal.py](server/terminal.py)** — PETSCII terminal mode (port 6401)
 - **[server/partyline.py](server/partyline.py)** — Multi-user partyline chat
 - **[server/cfg/](server/cfg/)** — Configuration (users, terminal.bin, templates)
@@ -169,7 +191,11 @@ On first connect, the server sends the terminal via LINKING (~3 seconds). Users 
 - **[docs/spec/](docs/spec/README.md)** — Compunet Client Specification: a normative,
   platform-agnostic guide to building a client over TCP (transport, session, commands,
   PETSCII display, frame & directory formats, subsystems, and appendices with the font,
-  palette, and directory template). Start here.
+  palette, and the embedded directory/HELP/editor-help/COURIER frames). Start here.
+- **[docs/spec/api/](docs/spec/api/README.md)** — the **Binding B** JSON API, and the design
+  rationale behind adding a second binding rather than a second implementation.
+- **[docs/spec/CONFORMANCE.md](docs/spec/CONFORMANCE.md)** — a self-audit to run against a
+  finished client: does it do what Compunet did, or merely work?
 
 **Platform notes & provenance** (non-normative — the spec is authoritative):
 

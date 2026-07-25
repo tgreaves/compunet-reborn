@@ -24,6 +24,10 @@ export interface FrameMsg {
   rows: number;
   cols: number;
   cells: Cell[];
+  /** base64 of the exact §6 bytes this grid was rendered from. Opaque — the
+   *  client never parses it; it stores it with a captured page so an unedited
+   *  page re-uploads byte-for-byte (§8.4.2). */
+  raw?: string;
 }
 
 export interface Entry {
@@ -107,15 +111,18 @@ export type ClientMsg =
   | { type: 'partyline.leave'; id?: number }
   | { type: 'leave'; id?: number };
 
-/** A page composed in the editor (§8.4). The server encodes it to a §6 frame,
- *  so the client never has to produce PETSCII. */
-export interface EditorPage {
-  lines: string[];
-  /** text colour, palette index 0-15 (default white) */
-  colour?: number;
-  border?: number;
-  background?: number;
-}
+/** A page submitted from the editor (§8.4). The server encodes it to a §6
+ *  frame, so the client never has to produce PETSCII. Three forms (§5.4):
+ *
+ *  - `{raw}`   verbatim bytes — a captured page the user has not edited, sent
+ *              back byte-for-byte (§8.4.2). Nothing is re-encoded.
+ *  - `{cells}` a full 40x24 grid: per-cell colour, reverse video and charset.
+ *  - `{lines}` the simple text form, one colour for the whole page.
+ */
+export type EditorPage =
+  | { raw: string }
+  | { cells: Cell[]; border?: number; background?: number }
+  | { lines: string[]; colour?: number; border?: number; background?: number };
 
 /** Client-side assets, extracted from the spec appendix (gen_assets.py). */
 export interface Assets {
@@ -130,4 +137,6 @@ export interface Assets {
   /** the EDITOR's help frame (§A.9) — a DIFFERENT asset, shown by the editor's
    *  own HELP command (§8.4.1). Not interchangeable with `help`. */
   editorHelp: FrameMsg | null;
+  /** the COURIER frame (§A.10) — the mail screen, shown by SEND and ID (§8.2) */
+  courier: FrameMsg | null;
 }
