@@ -205,6 +205,11 @@ const actions: Record<string, () => void> = {
     else gw.send({ type: 'dir' });
   },
   BACK: () => gw.send({ type: 'back' }),
+  DONE: () => gw.send({ type: 'back' }),          // leaves Courier (§4.8)
+  HELP: () => status('HELP is a client feature — not implemented in this reference client'),
+  SAVE: () => status('SAVE is a client feature — not implemented in this reference client'),
+  EDITR: () => openEditor('upload'),
+  ALL: () => gw.send({ type: 'more' }),           // page to the end
   MORE: () => gw.send({ type: 'more' }),
   FINISH: () => gw.send({ type: 'finish' }),
   GOTO: () => { const t = prompt('GOTO page number or keyword:'); if (t) gw.send({ type: 'goto', target: t }); },
@@ -222,7 +227,7 @@ const actions: Record<string, () => void> = {
     const d = prompt(`Extend life of "${e.title}" by how many days?`);
     if (d) gw.send({ type: 'life', page: e.page, days: parseInt(d, 10) });
   },
-  WHO: () => { const u = prompt('Look up user ID(s), comma-separated:'); if (u) gw.send({ type: 'idlookup', ids: u.split(',').map((x) => x.trim()).filter(Boolean) }); },
+  ID: () => { const u = prompt('Look up user ID(s), comma-separated:'); if (u) gw.send({ type: 'idlookup', ids: u.split(',').map((x) => x.trim()).filter(Boolean) }); },
   UPLD: () => {
     if (mode !== 'directory' || !dir) { status('Navigate to a directory first'); return; }
     if (dir.entries.length >= 11) { status('This directory is full (11 entries max)'); return; }
@@ -243,14 +248,12 @@ type Context = 'idle' | 'welcome' | 'directory' | 'frame' | 'mail' | 'mailFrame'
 
 const CONTEXT_COMMANDS: Record<Context, string[]> = {
   idle:      [],
-  welcome:   ['DIR', 'GOTO', 'ACCNT', 'MAIL', 'UCAT', 'LEAVE'],
-  directory: ['DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'LIFE', 'BUY',
-              'UPLD', 'VOTE', 'WHO', 'COL', 'LEAVE'],
-  frame:     ['MORE', 'FINISH', 'LEAVE'],
-  mail:      ['DIR', 'SEND', 'SHOW', 'WHO', 'COL', 'LEAVE'],   // Courier set (§4.8)
-  mailFrame: ['MORE', 'FINISH', 'SEND', 'LEAVE'],
-  // Partyline has no bar commands: chat is driven by its own input, and you
-  // leave with *quit — exactly as in the original (§8.5).
+  // The welcome screen carries the DIRECTORY row, with HELP centred by default (§4.8).
+  welcome:   ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'SAVE', 'EDITR', 'LEAVE'],
+  directory: ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'SAVE', 'EDITR', 'LEAVE'],
+  frame:     ['MORE', 'ALL', 'FINISH'],   // multi-frame only; single frame shows PRESS ANY KEY
+  mail:      ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
+  mailFrame: ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
   partyline: [],
 };
 
@@ -288,7 +291,9 @@ function updateBar(): void {
   // keep the user on the same command across a context change where possible
   const keep = duck.indexOf(prev);
   duckIx = duck.length ? (keep >= 0 ? keep : 0) : 0;
-  renderer?.renderDuckshoot(duck, duckIx);
+  // A single-frame page has NO duckshoot — just a prompt (§4.8/§4.9).
+  if (ctx === 'frame' && frame && !frame.morePages) { renderer?.renderPrompt('PRESS ANY KEY'); }
+  else renderer?.renderDuckshoot(duck, duckIx);
   $('ctx').textContent = ctx === 'idle' ? '' : `context: ${ctx}`;
 }
 

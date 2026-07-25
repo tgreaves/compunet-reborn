@@ -208,7 +208,8 @@ Concretely, the minimum obligations by tier are:
   FINISH (`P` no-arg), GOTO (`L`), ACCOUNT (`A`), and LEAVE (`E`). Highlighting a directory
   entry (§7.7) and issuing SHOW or DIR on it satisfies the entry-selection requirement.
 - **Tier 2 (Interact):** additionally the commands for the subsystems it implements — e.g.
-  `M` (mail), `C` (UCAT), `I` (who), `V` (vote), `X` (LIFE / extend).
+  `M` (mail), `C` (UCAT), `I` (**ID** lookup — the command is named `ID`, and only in mail;
+  there is no "WHO" command), `V` (vote), `X` (LIFE / extend).
 - **Tier 3 (Full):** additionally `U` (upload) and the editor / Partyline entry points.
 
 A command the client's tier does not implement need not be offered. The command byte and
@@ -338,10 +339,11 @@ This table consolidates the contexts and is the authority for *when* each comman
 
 | Context | Commands to offer | Notes |
 |---|---|---|
-| **Welcome frame** (just logged in, §3.5) | `DIR`, `GOTO`, `ACCNT`, `MAIL`, `UCAT`, `LEAVE` | The entry point. `DIR` is **required** here (§4.7) — without it the user cannot reach the system. Not a "reading" context: do **not** offer `MORE`/`FINISH` |
-| **Directory listing** | `HELP`, `DIR`, `SHOW`, `BACK`, `GOTO`, `UCAT`, `MAIL`, `ACCNT`, `SAVE`, `EDITR`, `LEAVE`, `PRINT`, `LIFE`, `BUY`, `LOAD`, `UPLD`, `VOTE` — **`BUY` is required alongside `SHOW`**, not redundant with it (§8.6.4) | The full working set, **in the original's display order** (see note below). Commands acting on a highlighted entry (`SHOW`, `DIR`, `VOTE`, `LIFE`, `BUY`) require a selection — see below |
-| **Reading a frame** | `MORE`, `FINISH` (+ `ALL` if implemented) | **Only** these. There is no `FINISH` in a directory and no `MORE` in one (§4.7) |
-| **Mail (Courier, §8.2)** — listing and message | `DIR`, `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `DIR`/`DONE` leave mail — **on the wire that is `B` (BACK)**, which is what clears mail mode (`N`/MORE also does when it runs past the last message); `SHOW` reads the highlighted message and `MORE` pages it |
+| **Welcome frame** (just logged in, §3.5) | the **same row as a directory** (below) | The welcome screen is not a "reading" context: it carries the directory row, with **`HELP` — the first command — centred by default**. `DIR` must therefore be reachable here (§4.7); `MORE`/`FINISH` are **not** offered |
+| **Directory listing** | `HELP`, `DIR`, `SHOW`, `BACK`, `GOTO`, `UCAT`, `MAIL`, `ACCNT`, `SAVE`, `EDITR`, `LEAVE` | The row the original presents, **in its display order**, with `HELP` centred by default. The remaining commands of §4.7 (`PRINT`, `LIFE`, `BUY`, `LOAD`, `UPLD`, `VOTE`) exist and are reachable, but sit **beyond the displayed count** — see §4.9.4. Commands acting on a highlighted entry (`SHOW`, `DIR`, `VOTE`, `LIFE`, `BUY`) require a selection |
+| **Reading a single-frame page** | **none — no duckshoot at all** | The row is replaced by the prompt **`PRESS ANY KEY`**. There is nothing to page and nothing to choose, so no commands are offered |
+| **Reading a multi-frame page** | `MORE`, `ALL`, `FINISH` — in that order | **Only** these. There is no `FINISH` in a directory and no `MORE` in one (§4.7) |
+| **Mail (Courier, §8.2)** — listing and message | `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `DONE` leaves mail — **on the wire that is `B` (BACK)**, which is what clears mail mode (`N`/MORE also does when it runs past the last message); `SHOW` reads the highlighted message and `MORE` pages it |
 | **Upload / send** (§8.3.2) | `SEND`, `LOAD`, `GET`, `FINISH` | The original entered an upload sub-context with its own set |
 | **Editor** (§8.4) | `HELP`, `EDIT`, `LAST`, `NEXT`, `NEW`, `COPY`, `ERASE`, `GET`, `PUT`, `STORE`, `PRINT`, `FREE`, `DOS`, `RETURN` | Entirely client-side (no wire commands); `RETURN` leaves the editor |
 | **Partyline** (§8.5) | None of the above — the `*`-commands (`*help`, `*who`, `*enter`, `*dice`, `*call`, `*quit`…) and free text | While in Partyline the client is in a **chat** context. Normal commands resume only after leaving |
@@ -400,21 +402,44 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
 
 - Command words are **white on black**.
 - The **centred (selected)** word is drawn **inverse** — black on white.
-- In the original each word occupies a **6-character cell** (the command-name table is a table of
-  6-byte strings), which is what makes the row scroll in even steps and the centre cell align.
-  A client **SHOULD** use fixed-width cells for the same reason; the exact width is its choice if
-  it is not reproducing the C64 metrics exactly.
+- **⚠ Load-bearing: each word is a 6-character cell, with its own padding.** The command-name
+  table is 6-byte strings that already carry their spacing, and a client **MUST** use these forms
+  rather than padding the bare names itself:
+
+  ```
+  ' HELP '  ' DIR  '  ' SHOW '  ' BACK '  ' GOTO '  ' UCAT '  ' MAIL '  'ACCNT '
+  ' SAVE '  'EDITR '  'LEAVE '  'PRINT '  ' LIFE '  ' BUY  '  ' UPLD '  ' VOTE '
+  ' MORE '  ' ALL  '  ' SEND '  'FINISH'  'ABORT '  ' LOAD '  ' LAST '  ' NEXT '
+  ' GET  '  ' DOS  '  '  ID  '  ' DONE '
+  ```
+
+  This is what makes the row scroll in even steps **and** what separates the words. Note
+  `'FINISH'` fills its cell with no padding of its own — the gap after it comes from the *next*
+  word's leading space. A client that left-pads the bare names instead will run `FINISH` straight
+  into whatever follows it.
 
 ### 4.9.4 Contents — which commands, in what order
 
 - The row contains the **current context's command set** from **§4.8**, and nothing else. The
   original *swaps the row per context*; it does not show one fixed list.
-- Order **MUST** follow §4.8's directory order, which is the original's own display order and is
-  a **priority order**, not alphabetical:
+- Order **MUST** follow the original's display order, which is a **priority order**, not
+  alphabetical. The directory row as the original presents it:
 
   ```
-  HELP  DIR  SHOW  BACK  GOTO  UCAT  MAIL  ACCNT  SAVE  EDITR  LEAVE  PRINT  LIFE  BUY  LOAD  UPLD  VOTE
+  HELP  DIR  SHOW  BACK  GOTO  UCAT  MAIL  ACCNT  SAVE  EDITR  LEAVE
   ```
+
+  and mail (§8.2):
+
+  ```
+  SEND  SHOW  MORE  ID  EDITR  DONE
+  ```
+
+- **The first command is centred by default** when a context is entered — `HELP` for the
+  directory row, and it is what the user sees on the welcome screen.
+- The full §4.7 vocabulary continues past the displayed directory row (`PRINT`, `LIFE`, `BUY`,
+  `LOAD`, `UPLD`, `VOTE`). These are real commands and a client **MUST** keep them reachable; the
+  original simply shows a shorter row by lowering its count.
 
 - **⚠ Load-bearing: truncate from the end.** The original shortens the row by lowering a count,
   which drops commands from the **end** of that order (§4.8). A client with less room **MUST**

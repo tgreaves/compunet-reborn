@@ -7,6 +7,37 @@ var BLUE = 6;
 var WHITE = 1;
 var TEMPLATE_BG = 15;
 var DIVIDER_COL = 30;
+var DUCK_CELL = {
+  HELP: " HELP ",
+  DIR: " DIR  ",
+  SHOW: " SHOW ",
+  BACK: " BACK ",
+  GOTO: " GOTO ",
+  UCAT: " UCAT ",
+  MAIL: " MAIL ",
+  ACCNT: "ACCNT ",
+  SAVE: " SAVE ",
+  EDITR: "EDITR ",
+  LEAVE: "LEAVE ",
+  PRINT: "PRINT ",
+  LIFE: " LIFE ",
+  BUY: " BUY  ",
+  UPLD: " UPLD ",
+  VOTE: " VOTE ",
+  MORE: " MORE ",
+  ALL: " ALL  ",
+  SEND: " SEND ",
+  FINISH: "FINISH",
+  ABORT: "ABORT ",
+  LOAD: " LOAD ",
+  LAST: " LAST ",
+  NEXT: " NEXT ",
+  GET: " GET  ",
+  DOS: " DOS  ",
+  ID: "  ID  ",
+  DONE: " DONE ",
+  COL: " COL  "
+};
 function petsciiToScreencode(b) {
   if (b >= 32 && b <= 63) return b;
   if (b >= 64 && b <= 95) return b & 31;
@@ -112,15 +143,26 @@ var Renderer = class {
   /** Draw the duckshoot on the row below the content grid (§4.9).
    *  The ROW scrolls and the CENTRE cell is the selection — words are laid out
    *  around `centre`, which always lands in the middle of the screen. */
+  /** The single-frame case has no duckshoot at all — just a prompt (§4.8). */
+  renderPrompt(text) {
+    const s = this.scale, row = ROWS;
+    this.ctx.fillStyle = this.assets.palette[0];
+    this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
+    const start = Math.max(0, Math.floor((COLS - text.length) / 2));
+    for (let i = 0; i < text.length && start + i < COLS; i++)
+      this.drawGlyph({ g: asciiGlyph(text[i]), fg: 1, bg: 0, rv: 0 }, start + i, row);
+  }
   renderDuckshoot(words, centre) {
     const s = this.scale, row = ROWS, WORD = 6, VISIBLE = 7, MID = 3;
     this.ctx.fillStyle = this.assets.palette[0];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
     if (!words.length) return;
+    if (words.length === 1 && words[0] === "\0PRESSANYKEY") return;
     const startCol = Math.floor((COLS - VISIBLE * WORD) / 2);
     for (let slot = 0; slot < VISIBLE; slot++) {
       const wi = ((centre + slot - MID) % words.length + words.length) % words.length;
-      const text = words[wi].padEnd(WORD).slice(0, WORD);
+      const name = words[wi];
+      const text = (DUCK_CELL[name] ?? name.padEnd(WORD)).slice(0, WORD);
       const selected = slot === MID;
       for (let i = 0; i < WORD; i++) {
         const col = startCol + slot * WORD + i;
@@ -383,6 +425,13 @@ var actions = {
     else gw.send({ type: "dir" });
   },
   BACK: () => gw.send({ type: "back" }),
+  DONE: () => gw.send({ type: "back" }),
+  // leaves Courier (§4.8)
+  HELP: () => status("HELP is a client feature \u2014 not implemented in this reference client"),
+  SAVE: () => status("SAVE is a client feature \u2014 not implemented in this reference client"),
+  EDITR: () => openEditor("upload"),
+  ALL: () => gw.send({ type: "more" }),
+  // page to the end
   MORE: () => gw.send({ type: "more" }),
   FINISH: () => gw.send({ type: "finish" }),
   GOTO: () => {
@@ -417,7 +466,7 @@ var actions = {
     const d = prompt(`Extend life of "${e.title}" by how many days?`);
     if (d) gw.send({ type: "life", page: e.page, days: parseInt(d, 10) });
   },
-  WHO: () => {
+  ID: () => {
     const u = prompt("Look up user ID(s), comma-separated:");
     if (u) gw.send({ type: "idlookup", ids: u.split(",").map((x) => x.trim()).filter(Boolean) });
   },
@@ -440,29 +489,13 @@ var actions = {
 };
 var CONTEXT_COMMANDS = {
   idle: [],
-  welcome: ["DIR", "GOTO", "ACCNT", "MAIL", "UCAT", "LEAVE"],
-  directory: [
-    "DIR",
-    "SHOW",
-    "BACK",
-    "GOTO",
-    "UCAT",
-    "MAIL",
-    "ACCNT",
-    "LIFE",
-    "BUY",
-    "UPLD",
-    "VOTE",
-    "WHO",
-    "COL",
-    "LEAVE"
-  ],
-  frame: ["MORE", "FINISH", "LEAVE"],
-  mail: ["DIR", "SEND", "SHOW", "WHO", "COL", "LEAVE"],
-  // Courier set (§4.8)
-  mailFrame: ["MORE", "FINISH", "SEND", "LEAVE"],
-  // Partyline has no bar commands: chat is driven by its own input, and you
-  // leave with *quit — exactly as in the original (§8.5).
+  // The welcome screen carries the DIRECTORY row, with HELP centred by default (§4.8).
+  welcome: ["HELP", "DIR", "SHOW", "BACK", "GOTO", "UCAT", "MAIL", "ACCNT", "SAVE", "EDITR", "LEAVE"],
+  directory: ["HELP", "DIR", "SHOW", "BACK", "GOTO", "UCAT", "MAIL", "ACCNT", "SAVE", "EDITR", "LEAVE"],
+  frame: ["MORE", "ALL", "FINISH"],
+  // multi-frame only; single frame shows PRESS ANY KEY
+  mail: ["SEND", "SHOW", "MORE", "ID", "EDITR", "DONE"],
+  mailFrame: ["SEND", "SHOW", "MORE", "ID", "EDITR", "DONE"],
   partyline: []
 };
 var NEEDS_SELECTION = /* @__PURE__ */ new Set(["SHOW", "DIR", "VOTE", "LIFE", "BUY"]);
@@ -488,7 +521,9 @@ function updateBar() {
   });
   const keep = duck.indexOf(prev);
   duckIx = duck.length ? keep >= 0 ? keep : 0 : 0;
-  renderer?.renderDuckshoot(duck, duckIx);
+  if (ctx === "frame" && frame && !frame.morePages) {
+    renderer?.renderPrompt("PRESS ANY KEY");
+  } else renderer?.renderDuckshoot(duck, duckIx);
   $("ctx").textContent = ctx === "idle" ? "" : `context: ${ctx}`;
 }
 function duckScroll(delta) {
