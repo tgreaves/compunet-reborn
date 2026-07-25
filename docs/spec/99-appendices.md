@@ -584,7 +584,8 @@ The directory chrome a client draws when Part 1 of a directory response is empty
 (§7.5), extracted verbatim from the C64 terminal at `$BCE1`–`$BD77` (151 bytes). It is
 an ordinary frame (§6): header `[flags=$00][border=$F4][background=$FF]`, charset `$8E`
 (uppercase), then an RLE/PETSCII body, terminated by `$00`. Rendered (verified), it draws the
-bordered content box with its **vertical column dividers** (near columns 30 and 39) and a
+bordered content box with its **left border at column 0**, the **vertical divider at column 29**
+and the **right border at column 38**, and a
 mid-height separator line carrying the **`<F7)(F8>` column-cycle indicator**. The title, path
 (§7 Part 4), entry list (Part 6) and footer (Part 2) are **overlaid** onto this frame from the
 directory response (§7.7) — they are not part of the template.

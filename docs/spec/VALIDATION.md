@@ -279,6 +279,15 @@ index, the latent-directory creation model). The genuine gaps folded in:
 - The selected column header (`PRICE`) sat one row too high and flush-left: it belongs at
   **row 8** (level with `100 WELCOME`), **indented one column** for centring. Updated §7.7.
 
+> **Correction (later, from the Binding-B web client — a faithful §A.6 template renderer).** The
+> first bullet's **horizontal** shift was wrong: it moved the *absolute* column numbers (to
+> column 2 / type 26) when the clean-room client's real problem was that *its own box* was a
+> column off. Rendered against the actual §A.6 template — left border at **column 0**, divider at
+> **29**, right border at **38** — content belongs at the **interior, column 1** (type at column
+> 25), not column 2. Reverted the horizontal shift: base column 1, type column 25, breadcrumb and
+> right-pane values one column left (§7.3/§7.4/§7.5/§7.7/§4.5/§A.6). The alignment is now defined
+> **relative to the box** to prevent this recurring. (The *vertical* PRICE-row-8 change stands.)
+
 The remaining run-5 findings (F5, F9–F12, F14–F19) were confirmations or UX choices the spec
 deliberately leaves open.
 

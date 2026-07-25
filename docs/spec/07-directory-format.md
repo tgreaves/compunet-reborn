@@ -81,7 +81,7 @@ The **first field** is a fixed 27-character layout:
 | 0–5 (6) | page number, right-justified, space-padded |
 | 6 (1) | space |
 | 7–23 (17) | title, left-justified, space-padded |
-| 24–26 (3) | type indicator (§7.4), left-justified — so the type begins at **screen column 26** |
+| 24–26 (3) | type indicator (§7.4), left-justified — so the type begins at **screen column 25** |
 
 The five column fields (each ≤ 8 characters) carry the data under the Part-5 headers; any
 of them may be empty (just the comma). `VOTE/NUM` is score, `/`, then vote count; `UPLDDATE`
@@ -107,7 +107,7 @@ Amiga parser and leaves the C64 entry count uninitialised.
 
 ## 7.4 Entry types
 
-The type indicator (first-field chars 24–26, from screen column 26) is **compound**, not a
+The type indicator (first-field chars 24–26, from screen column 25) is **compound**, not a
 single symbol. It is a **base type**, optionally followed by a **size** and/or a
 **sub-directory marker**, in this order:
 
@@ -146,7 +146,7 @@ gated on `+`: a user **MAY** issue DIR on an entry whose type is *not* `D` and h
 which the **server** opens a fresh **empty** sub-directory under it. That directory is *latent*
 — it becomes real only once content is uploaded into it (§8.3.2). This is the mechanism by which
 the directory hierarchy is built: the client issues DIR, the server creates the directory. A
-client **MUST** read the type from screen column 26, dispatch
+client **MUST** read the type from screen column 25, dispatch
 SHOW on the base letter, and allow DIR regardless of base or `+`.
 
 ## 7.5 The built-in directory template
@@ -158,7 +158,7 @@ the fixed visual layout the server never sends. This template is what makes a di
 - the bordered content box and title area (`  1 *** COMPUNET ***`);
 - the **path line** at row 7 (Part 4);
 - the **entry list** below it — up to **11 entries** per page (§7.6), each showing the
-  page number, title, type (at column 26), and one selectable column value;
+  page number, title, type (at column 25), and one selectable column value;
 - the **footer** lines at row 22 (Part 2).
 
 The reference clients hold this template as embedded data: the C64 terminal stores it as a
@@ -213,7 +213,7 @@ right-hand column, and the column-cycle indicator; the parts overlay onto it:
 entry columns: the leading **page number is right-justified** in the same left column the entry
 page numbers use, and the title follows. Part 4 already contains the padding spaces
 (`     1 *** COMPUNET ***`, `   100 WELCOME`), so a client renders each Part-4 line from the
-entry list's **base column (screen column 2, above)** and the alignment falls out (the shorter
+entry list's **base column (screen column 1, above)** and the alignment falls out (the shorter
 `1` ends up more indented than `100`), and the breadcrumb page numbers line up with the entry
 page numbers directly below.
 
@@ -228,19 +228,22 @@ Part 1 will render every directory without its header graphic.
 Within the entry rows, each entry occupies **one** row. A client **MUST NOT** render the whole
 comma-separated Part-6 line — it is wider than 40 columns and would overflow.
 
-Each entry's 27-character first field (§7.3) is rendered starting at **screen column 2** — one
-column in from the box edge, **not** flush at column 1. So the page-number sub-field occupies
-screen columns 2–7, the title 9–25, and the type 26–28. This one-column indent applies to the
-**whole row together** — page number, title, and type — and matches the base column the Part-4
-breadcrumb is rendered from (below), so the two align. A client that renders the first field
-flush at column 1 places the entire row one character too far left.
+Each entry's 27-character first field (§7.3) is rendered starting at **screen column 1** — the
+box interior, just inside the left border (the template draws the left border at **column 0**,
+the vertical divider at **column 29**, and the right border at **column 38**; §7.5/§A.6). So the
+page-number sub-field occupies screen columns 1–6, the title 8–24, and the type 25–27. This
+applies to the **whole row together** — page number, title, and type — and matches the base
+column the Part-4 breadcrumb is rendered from (below), so the two align. The columns are
+**relative to the box**: content sits at the interior (column 1), not offset from it; a client
+that starts the row a column further in leaves a blank gap inside the border and pushes every
+column one character too far right.
 
 Each entry row shows:
 
 1. the **page number** — right-justified in the left page-number column — **only for the
    currently-selected entry**. Non-selected entries leave that column blank and show just the
    title. (So as the selection moves, the page number appears on whichever row is selected.)
-2. the **title**, then the **type** (§7.3), with the type at **screen column 26**;
+2. the **title**, then the **type** (§7.3), with the type at **screen column 25**;
 3. in the **right column** (past the vertical divider), the value of the currently-selected
    Part-5 column (§*The selected column header*, below) for that entry.
 
