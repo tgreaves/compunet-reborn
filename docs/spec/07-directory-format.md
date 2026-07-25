@@ -332,6 +332,19 @@ column, `F8` = next), which is why the template draws the **`<F7)(F8>`** indicat
 (§7.5/§A.6) — a client **SHOULD** honour `F7`/`F8`, and the rotation itself is **not** optional.
 A client that pins the pane to a single column (e.g. always `PRICE`) does not conform.
 
+**Clicking an entry (pointer clients).** Selection is client-local (§4.5), so a client with a
+pointer **MAY** let the user **click an entry row to highlight it** — the equivalent of moving
+the highlight with the cursor keys, and no command is sent. **Clicking the already-highlighted
+entry again performs `SHOW`** (§4.7), the default action on an entry. This gives pointer users
+the familiar select-then-open idiom without inventing a command: the first click is *selection*
+(which is not a wire operation at all) and the second is `SHOW`, which already exists.
+
+Two constraints follow from §4.7 and §8.6.4. The second click is **`SHOW`, not `BUY`** — so on a
+**paid** entry it must behave exactly as `SHOW` does and refuse with `PLEASE USE BUY`, never
+silently charging the user; buying stays a deliberate act through the `BUY` command. And a client
+**MUST NOT** attach any other command to a click (no click-to-enter-directory), because that
+would give a pointer user a route the command set does not define.
+
 **Clicking the indicator (pointer clients).** The template draws `<F7)(F8>` in the box precisely
 because those are the controls, so a client with a mouse or other pointer **MAY** make that
 indicator **clickable** — the `F7` half cycling back, the `F8` half forward, with the same effect

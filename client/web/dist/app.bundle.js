@@ -630,11 +630,20 @@ async function boot() {
     const r = canvas.getBoundingClientRect();
     const col = Math.floor((ev.clientX - r.left) / r.width * 40);
     const row = Math.floor((ev.clientY - r.top) / r.height * 25);
-    if (row !== 21 || col < 30 || col > 38) return;
-    const n = dir.columns.length;
-    colIdx = ((colIdx + (col >= 34 ? 1 : -1)) % n + n) % n;
-    render();
-    status("Column: " + dir.columns[colIdx].trim());
+    if (row === 21 && col >= 30 && col <= 38) {
+      const n = dir.columns.length;
+      colIdx = ((colIdx + (col >= 34 ? 1 : -1)) % n + n) % n;
+      render();
+      status("Column: " + dir.columns[colIdx].trim());
+      return;
+    }
+    const i = row - 10;
+    if (i < 0 || i >= dir.entries.length) return;
+    if (i === sel) actions.SHOW();
+    else {
+      sel = i;
+      render();
+    }
   });
   $("edSubmit").onclick = submitEditor;
   $("edCancel").onclick = closeEditor;
