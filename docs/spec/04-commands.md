@@ -281,7 +281,8 @@ table standardises the *names*, not the interface.)
 | `BUY` | Download / activate / **pay for** the highlighted entry — same bytes as `SHOW`, but `BUY` confirms the price and `SHOW` refuses paid pages (**§8.6.4**) | `D` + index (no separate byte) |
 | `UPLD` | Upload into the current directory | `U` (§8.3.2) |
 | `LEAVE` | Log off | `E` |
-| `EDITR`, `HELP`, `PRINT`, `SAVE` | Editor / help / print / save | client-side (no wire command) |
+| `EDITR`, `PRINT`, `SAVE` | Editor / print / save | client-side (no wire command) |
+| `HELP` | Show the help page | client-side (no wire command) — but **not a no-op**: it displays an embedded help **frame** the client must carry (§A.8) |
 
 **While reading a page (frame)** (these apply *only* while a frame is on screen):
 

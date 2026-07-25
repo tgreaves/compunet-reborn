@@ -54,6 +54,7 @@ function onMessage(m: ServerMsg): void {
       break;
     case 'frame':
       mode = 'frame'; frame = m as FrameMsg; isWelcome = false; render();
+      if ((m as { goodbye?: boolean }).goodbye) { status('Goodbye — disconnected.'); gw.close(); return; }
       if (exitingMail && inMail) gw.send({ type: 'back' });
       status('Reading page' + ((m as FrameMsg).morePages ? ' — MORE follows' : ''));
       break;
@@ -212,7 +213,12 @@ const actions: Record<string, () => void> = {
   // level at a time (message -> listing -> page -> out), so keep going until the
   // session is actually out of mail (§4.8).
   DONE: () => { exitingMail = true; gw.send({ type: 'back' }); },
-  HELP: () => status('HELP is a client feature — not implemented in this reference client'),
+  // HELP shows the embedded help frame (§A.8) — a client asset, nothing is sent.
+  HELP: () => {
+    if (!assets.help) { status('No help frame embedded'); return; }
+    mode = 'frame'; frame = assets.help; isWelcome = false; render();
+    status('Help — FINISH returns');
+  },
   SAVE: () => status('SAVE is a client feature — not implemented in this reference client'),
   PRINT: () => status('PRINT is a client feature — not implemented in this reference client'),
   LOAD: () => status('LOAD is a client feature — not implemented in this reference client'),
@@ -242,7 +248,9 @@ const actions: Record<string, () => void> = {
     openEditor('upload');
   },
   SEND: () => openEditor('mail'),
-  LEAVE: () => { gw.send({ type: 'leave' }); gw.close(); },
+  // §3.8: read and render the goodbye frame BEFORE handling the close — do not
+  // close the socket here; the server closes after sending it.
+  LEAVE: () => { gw.send({ type: 'leave' }); status('Leaving…'); },
 };
 
 // --- Command availability by context (spec §4.8) ----------------------------

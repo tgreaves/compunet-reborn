@@ -46,7 +46,12 @@ for l in lines:
             tb += [int(x, 16) for x in m.group(1).split()]
 template = api.frame_to_cells(bytes(tb))
 
-json.dump({'palette': palette, 'font': font, 'template': template},
+# HELP frame (§A.8) — a client asset like the template; the server never sends it
+help_path = os.path.join(ROOT, 'server', 'cfg', 'help.pet')
+help_frame = api.frame_to_cells(open(help_path, 'rb').read()) if os.path.exists(help_path) else None
+
+json.dump({'palette': palette, 'font': font, 'template': template, 'help': help_frame},
           open(OUT, 'w'), separators=(',', ':'))
-print('wrote %s (palette %d, font %d, template %d cells)' %
-      (OUT, len(palette), len(font), len(template['cells'])))
+print('wrote %s (palette %d, font %d, template %d cells, help %s)' %
+      (OUT, len(palette), len(font), len(template['cells']),
+       'yes' if help_frame else 'MISSING'))

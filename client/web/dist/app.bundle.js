@@ -268,6 +268,11 @@ function onMessage(m) {
       frame = m;
       isWelcome = false;
       render();
+      if (m.goodbye) {
+        status("Goodbye \u2014 disconnected.");
+        gw.close();
+        return;
+      }
       if (exitingMail && inMail) gw.send({ type: "back" });
       status("Reading page" + (m.morePages ? " \u2014 MORE follows" : ""));
       break;
@@ -438,7 +443,18 @@ var actions = {
     exitingMail = true;
     gw.send({ type: "back" });
   },
-  HELP: () => status("HELP is a client feature \u2014 not implemented in this reference client"),
+  // HELP shows the embedded help frame (§A.8) — a client asset, nothing is sent.
+  HELP: () => {
+    if (!assets.help) {
+      status("No help frame embedded");
+      return;
+    }
+    mode = "frame";
+    frame = assets.help;
+    isWelcome = false;
+    render();
+    status("Help \u2014 FINISH returns");
+  },
   SAVE: () => status("SAVE is a client feature \u2014 not implemented in this reference client"),
   PRINT: () => status("PRINT is a client feature \u2014 not implemented in this reference client"),
   LOAD: () => status("LOAD is a client feature \u2014 not implemented in this reference client"),
@@ -489,9 +505,11 @@ var actions = {
     openEditor("upload");
   },
   SEND: () => openEditor("mail"),
+  // §3.8: read and render the goodbye frame BEFORE handling the close — do not
+  // close the socket here; the server closes after sending it.
   LEAVE: () => {
     gw.send({ type: "leave" });
-    gw.close();
+    status("Leaving\u2026");
   }
 };
 var CONTEXT_COMMANDS = {

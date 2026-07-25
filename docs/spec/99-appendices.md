@@ -602,6 +602,64 @@ directory response (§7.7) — they are not part of the template.
   $BD71: 29 28 46 38 3E CB 00
 ```
 
+## §A.8 — HELP frame (client asset)
+
+`HELP` (§4.7) is a **client-side** command — it sends nothing — but it is **not a no-op**: it
+displays a help page the client carries itself, exactly as it carries the directory template
+(§A.6). The original C64 client embeds this frame; the server does **not** send it, so a client
+that omits it leaves `HELP` doing nothing.
+
+It is an ordinary **§6 frame** (4-byte header, then PETSCII body with RLE, terminated by `$00`)
+and is rendered by the normal frame path — no special casing. A client **SHOULD** display it in
+the reading context (so `FINISH` returns to where the user was) and **MUST NOT** send a command
+to obtain it.
+
+Reproduced verbatim below (583 bytes) so this specification stays self-contained; it is also kept
+in the repository as `server/cfg/help.pet`.
+
+```
+  0000: 93 0E 1F C1 D4 20 C3 CF CE CE C5 C3 D4 20 20 20
+  0010: 20 20 20 20 20 20 20 20 20 20 20 C1 D4 20 C1 CE
+  0020: D9 20 D4 C9 CD C5 0D 9F 20 20 54 4F 20 41 43 43
+  0030: 45 53 53 20 54 48 45 20 20 20 20 20 20 20 20 20
+  0040: 54 4F 20 41 43 43 45 53 53 20 54 48 45 0D 20 20
+  0050: 4D 41 49 4E 20 1F C4 49 52 45 43 54 4F 52 59 9F
+  0060: 20 20 20 20 20 20 20 20 46 55 4C 4C 20 D5 53 45
+  0070: 52 20 C7 55 49 44 45 0D 0D 20 2A 20 53 45 4C 45
+  0080: 43 54 20 1F C4 C9 D2 9F 20 20 20 20 20 20 20 20
+  0090: 20 20 20 2A 20 53 45 4C 45 43 54 20 1F C7 CF D4
+  00A0: CF 9F 2C 0D 20 20 20 28 55 53 49 4E 47 20 43 55
+  00B0: 52 53 4F 52 20 20 20 20 20 20 20 20 20 20 4B 45
+  00C0: 59 20 1F D2 45 54 55 52 4E 9F 0D 20 20 20 20 20
+  00D0: 3C 3D 3E 20 4B 45 59 29 20 20 20 20 20 20 20 20
+  00E0: 20 2A 20 45 4E 54 45 52 20 31 32 30 2C 0D 20 2A
+  00F0: 20 4B 45 59 20 1F D2 45 54 55 52 4E 9F 20 20 20
+  0100: 20 20 20 20 20 20 20 20 20 20 4B 45 59 20 1F D2
+  0110: 45 54 55 52 4E 9F 0D 0D 0D 0D 20 20 20 20 20 20
+  0120: 20 20 1F C4 C9 D2 C5 C3 D4 CF D2 C9 C5 D3 9F 0D
+  0130: 0D D2 45 41 44 49 4E 47 20 3A 20 4B 45 59 20 1F
+  0140: C6 37 9F 20 4F 52 20 1F C6 38 9F 20 54 4F 20 52
+  0150: 4F 54 41 54 45 20 54 48 45 0D 20 20 57 49 4E 44
+  0160: 4F 57 20 46 4F 52 20 D0 52 49 43 45 2C C1 55 54
+  0170: 48 4F 52 2C 45 54 43 2E 0D 0D D3 45 4C 45 43 54
+  0180: 49 4E 47 20 3A 0D 20 20 C1 29 20 55 53 45 20 43
+  0190: 55 52 53 4F 52 20 55 50 2F 44 4F 57 4E 20 54 4F
+  01A0: 20 48 49 47 48 4C 49 47 48 54 0D 20 20 20 20 20
+  01B0: 49 54 45 4D 0D 20 20 C2 29 20 55 53 45 20 43 55
+  01C0: 52 53 4F 52 20 4C 45 46 54 2F 52 49 47 48 54 20
+  01D0: 3C 3D 3E 20 54 4F 0D 20 20 20 20 20 53 45 4C 45
+  01E0: 43 54 20 43 4F 4D 4D 41 4E 44 20 20 28 45 47 20
+  01F0: 1F C4 C9 D2 9F 3D 47 45 54 0D 20 20 20 20 20 C4
+  0200: 49 52 45 43 54 4F 52 59 20 46 4F 52 20 54 48 45
+  0210: 20 49 54 45 4D 2C 0D 20 20 20 20 20 1F D3 C8 CF
+  0220: D7 9F 3D 44 4F 57 4E 4C 4F 41 44 20 54 48 45 20
+  0230: 49 54 45 4D 29 0D 20 20 C3 29 20 4B 45 59 20 1F
+  0240: D2 45 54 55 52 4E 9F
+```
+
+*(The editor has its own help frame, `server/cfg/editor-help.pet`, used by the Tier-3 editor
+(§8.4). It is the same kind of asset and is carried the same way.)*
+
 ## §A.7 — End-to-end session trace
 
 A minimal native-client session — connect, log in, view the top directory, open a frame,

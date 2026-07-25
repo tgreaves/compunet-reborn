@@ -125,4 +125,6 @@ export interface Assets {
   font: number[][];
   /** the directory-template chrome, pre-rendered to a 40x24 cell grid (§A.6) */
   template: FrameMsg;
+  /** the embedded HELP frame (§A.8) — client asset; the server never sends it */
+  help: FrameMsg | null;
 }

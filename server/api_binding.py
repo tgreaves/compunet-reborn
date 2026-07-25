@@ -812,8 +812,12 @@ def handle_message(session, msg):
         return mail_send(session, msg, mid)
 
     if t == "leave":
-        session.handle_command(b'E')
-        return {"type": "ack", "id": mid, "of": "leave"}
+        # §3.8: LEAVE returns a goodbye frame that the client MUST render before
+        # the connection closes. Serialize it rather than discarding it.
+        raw = session.handle_command(b'E')
+        reply = frame_to_cells(raw, mid)
+        reply["goodbye"] = True
+        return reply
 
     return {"type": "error", "id": mid, "code": "invalid",
             "message": "unknown or not-yet-implemented command: %r" % t}
