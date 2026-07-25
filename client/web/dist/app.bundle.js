@@ -68,6 +68,14 @@ var Renderer = class {
   /** Compose the 40x24 directory screen: template chrome + overlaid entries. */
   renderDirectory(dir2, sel2, colIdx2) {
     const g = this.assets.template.cells.map((x) => ({ ...x }));
+    if (dir2.header) {
+      const h = dir2.header.cells;
+      for (let r = 0; r <= 6; r++)
+        for (let c = 0; c < COLS; c++) {
+          const cell = h[r * COLS + c];
+          if (cell.g !== 32 || cell.rv || cell.bg !== TEMPLATE_BG) g[r * COLS + c] = { ...cell };
+        }
+    }
     if (dir2.breadcrumb[0]) this.put(g, 7, 2, dir2.breadcrumb[0], BLUE, TEMPLATE_BG);
     if (dir2.breadcrumb[1]) this.put(g, 8, 2, dir2.breadcrumb[1], BLUE, TEMPLATE_BG);
     if (dir2.mailWaiting) this.put(g, 8, 22, "MAIL", RED, TEMPLATE_BG);

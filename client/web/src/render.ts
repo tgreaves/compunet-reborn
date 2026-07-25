@@ -77,6 +77,16 @@ export class Renderer {
   /** Compose the 40x24 directory screen: template chrome + overlaid entries. */
   renderDirectory(dir: DirectoryMsg, sel: number, colIdx: number): void {
     const g: Cell[] = this.assets.template.cells.map((x) => ({ ...x }));
+    // Part-1 header (COMPUNET logo) overlays the top rows (§7.7). Copy only inked
+    // cells so blank header cells don't clobber the template box below.
+    if (dir.header) {
+      const h = dir.header.cells;
+      for (let r = 0; r <= 6; r++)
+        for (let c = 0; c < COLS; c++) {
+          const cell = h[r * COLS + c];
+          if (cell.g !== 0x20 || cell.rv || cell.bg !== TEMPLATE_BG) g[r * COLS + c] = { ...cell };
+        }
+    }
     if (dir.breadcrumb[0]) this.put(g, 7, 2, dir.breadcrumb[0], BLUE, TEMPLATE_BG);
     if (dir.breadcrumb[1]) this.put(g, 8, 2, dir.breadcrumb[1], BLUE, TEMPLATE_BG);
     if (dir.mailWaiting) this.put(g, 8, 22, 'MAIL', RED, TEMPLATE_BG);

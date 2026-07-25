@@ -17,6 +17,7 @@ lands in its own pass so the §5 control-code interpretation is done against
 the spec rather than guessed.
 """
 
+import os
 import json
 import time
 import secrets
@@ -116,6 +117,30 @@ def _entry_values(session, child):
     }
 
 
+def _render_header(session):
+    """Render the directory's Part-1 header frame (the COMPUNET logo, §7.2/§7.7)
+    as a cell grid, or None. The header is inherited from the nearest ancestor
+    that defines one (mirrors _make_page_response). Part-1 headers are body-only
+    PETSCII, so we render them with a synthetic 4-byte header (charset $8E)."""
+    anc = session.current_page
+    header_file = None
+    while anc is not None:
+        header_file = getattr(anc, 'header', None)
+        if header_file:
+            break
+        anc = getattr(anc, 'parent', None)
+    if not header_file:
+        return None
+    path = os.path.join(_srv.ROOT_DIR, header_file)
+    if not os.path.exists(path):
+        return None
+    with open(path, 'rb') as f:
+        body = f.read()
+    # [flags=0][border=$F4][bg=$FF][charset=$8E] + body — border/bg are ignored by
+    # the client (it uses the template's), only the header cells are overlaid.
+    return frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x8E]) + body)
+
+
 def directory_to_json(session, msg_id=None):
     """Serialize the session's current directory (spec §7) as Binding-B JSON.
 
@@ -158,7 +183,7 @@ def directory_to_json(session, msg_id=None):
         "breadcrumb": ["1 *** COMPUNET ***", "%d %s" % (page.page_num, page.title or "")],
         "columns": list(_DIR_COLUMNS),
         "advert": advert,
-        "header": None,           # Part-1 header frame -> client built-in template for now
+        "header": _render_header(session),   # Part-1 header frame (COMPUNET logo, §7.7) or null
         "hasMore": len(children) > 11,
         "entries": entries,
     }
