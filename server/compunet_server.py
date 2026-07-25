@@ -114,6 +114,7 @@ WS_PORT = 6502
 TCP_PORT = 6400
 API_PORT = 6403
 TERM_PORT = 6401
+CLIENT_API_PORT = 6404   # Binding B — modern JSON client API (see api_binding.py)
 SERVER_DIR = os.path.dirname(__file__)
 CFG_DIR = os.path.join(SERVER_DIR, 'cfg')
 DATA_DIR = os.path.join(SERVER_DIR, 'data')
@@ -3621,6 +3622,16 @@ async def main():
         site = aiohttp_web.TCPSite(runner, '0.0.0.0', API_PORT)
         await site.start()
         log.info('REST API on port %d', API_PORT)
+
+        # Binding B — modern JSON client API, its own isolated app + port (6404).
+        import sys as _sys
+        import api_binding
+        client_api = api_binding.make_app(_sys.modules[__name__])
+        client_runner = aiohttp_web.AppRunner(client_api)
+        await client_runner.setup()
+        client_site = aiohttp_web.TCPSite(client_runner, '0.0.0.0', CLIENT_API_PORT)
+        await client_site.start()
+        log.info('Client API (Binding B) on port %d', CLIENT_API_PORT)
     else:
         log.warning('aiohttp not installed — REST API disabled')
 

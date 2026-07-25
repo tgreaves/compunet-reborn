@@ -190,9 +190,18 @@ sync.
 
 ## 9. Build plan & open items
 
-- **Phase 1 (Tier 1):** `POST /v1/session`, the gateway, `auth`/`ready`, `enter`/`open`/`more`/
-  `finish`/`back`/`goto`, `directory` + `frame`. Proven against the live content model with the
-  TypeScript/canvas reference client.
+- **Phase 1a — DONE (server):** `POST /v1/session` (token), the WebSocket gateway
+  (`auth`→`ready`→auto `directory`), and directory navigation (`enter`/`back`/`goto`/`more`/
+  `finish`/`dir`) with the `directory` serializer. Implemented in `server/api_binding.py` as a
+  serializer over the existing `CompunetSession`/`CompunetDirectory` core (it drives the
+  authoritative `handle_command` for its side-effects, then serializes model state), on port
+  6404, isolated from the admin API. Validated locally end-to-end (HTTP token + WS round-trip +
+  navigation). `open` currently returns a not-implemented error pending the frame renderer.
+- **Phase 1b (next):** the `frame` cell-grid renderer (`frame_to_cells`) — expand RLE (reuse
+  `terminal.py:expand_frame`) and interpret §5 colour/charset/reverse control codes into
+  per-cell `{g,fg,bg,rv}`. Then `open`/`more` return real frames and the reference client can
+  render pages.
+- **Phase 1 client:** the TypeScript/canvas reference client — login, browse, render a frame.
 - **Phase 2 (Tier 2):** account, mail read/send, download, vote/life, id-lookup.
 - **Phase 3 (Tier 3):** upload (with `kind`/`price`), the editor path, Partyline.
 - **Then hybrid:** add the REST read endpoints (§1), reusing these exact JSON shapes.
