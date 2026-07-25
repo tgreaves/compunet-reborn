@@ -26,7 +26,7 @@ var Renderer = class {
     this.wrap = wrap2;
     this.scale = scale;
     this.canvas.width = COLS * CELL * scale;
-    this.canvas.height = ROWS * CELL * scale;
+    this.canvas.height = (ROWS + 1) * CELL * scale;
     const ctx = canvas2.getContext("2d");
     if (!ctx) throw new Error("no 2d context");
     this.ctx = ctx;
@@ -48,7 +48,7 @@ var Renderer = class {
   }
   renderGrid(cells, background) {
     this.ctx.fillStyle = this.assets.palette[background & 15];
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillRect(0, 0, this.canvas.width, ROWS * CELL * this.scale);
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++) this.drawGlyph(cells[r * COLS + c], c, r);
   }
@@ -108,6 +108,30 @@ var Renderer = class {
     });
     this.renderGrid(g, TEMPLATE_BG);
     this.setBorder(this.assets.template.border);
+  }
+  /** Draw the duckshoot on the row below the content grid (§4.9).
+   *  The ROW scrolls and the CENTRE cell is the selection — words are laid out
+   *  around `centre`, which always lands in the middle of the screen. */
+  renderDuckshoot(words, centre) {
+    const s = this.scale, row = ROWS, WORD = 6, VISIBLE = 7, MID = 3;
+    this.ctx.fillStyle = this.assets.palette[0];
+    this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
+    if (!words.length) return;
+    const startCol = Math.floor((COLS - VISIBLE * WORD) / 2);
+    for (let slot = 0; slot < VISIBLE; slot++) {
+      const wi = ((centre + slot - MID) % words.length + words.length) % words.length;
+      const text = words[wi].padEnd(WORD).slice(0, WORD);
+      const selected = slot === MID;
+      for (let i = 0; i < WORD; i++) {
+        const col = startCol + slot * WORD + i;
+        if (col < 0 || col >= COLS) continue;
+        this.drawGlyph(
+          { g: asciiGlyph(text[i]), fg: selected ? 0 : 1, bg: selected ? 1 : 0, rv: 0 },
+          col,
+          row
+        );
+      }
+    }
   }
 };
 
@@ -452,29 +476,29 @@ function hasSelection() {
   const e = curEntry();
   return !!e && e.title.trim() !== "(EMPTY)" && e.title.trim() !== "(NO MAIL)";
 }
+var duck = [];
+var duckIx = 0;
 function updateBar() {
   const ctx = currentContext();
-  const enabled = new Set(CONTEXT_COMMANDS[ctx]);
-  for (const [name, btn] of barButtons) {
-    const applicable = enabled.has(name) && !(NEEDS_SELECTION.has(name) && ctx === "directory" && !hasSelection());
-    btn.disabled = !applicable;
-    btn.title = applicable ? "" : `Not available while ${ctx === "idle" ? "disconnected" : "in this context"}`;
-  }
+  const prev = duck[duckIx];
+  duck = CONTEXT_COMMANDS[ctx].filter((name) => {
+    if (!actions[name]) return false;
+    if (NEEDS_SELECTION.has(name) && ctx === "directory" && !hasSelection()) return false;
+    return true;
+  });
+  const keep = duck.indexOf(prev);
+  duckIx = duck.length ? keep >= 0 ? keep : 0 : 0;
+  renderer?.renderDuckshoot(duck, duckIx);
   $("ctx").textContent = ctx === "idle" ? "" : `context: ${ctx}`;
 }
-var barButtons = /* @__PURE__ */ new Map();
-function buildBar() {
-  const bar = $("bar");
-  bar.innerHTML = "";
-  barButtons.clear();
-  for (const name of Object.keys(actions)) {
-    const b = document.createElement("button");
-    b.textContent = name;
-    b.onclick = actions[name];
-    bar.appendChild(b);
-    barButtons.set(name, b);
-  }
-  updateBar();
+function duckScroll(delta) {
+  if (!duck.length) return;
+  duckIx = ((duckIx + delta) % duck.length + duck.length) % duck.length;
+  renderer.renderDuckshoot(duck, duckIx);
+}
+function duckCommit() {
+  const name = duck[duckIx];
+  if (name && actions[name]) actions[name]();
 }
 async function connect() {
   const wsBase = $("host").value.trim().replace(/\/$/, "");
@@ -510,26 +534,24 @@ window.addEventListener("keydown", (e) => {
       e.preventDefault();
       return;
     }
-    if (e.key === "Enter") {
-      if (hasSelection()) actions.SHOW();
-      return;
-    }
-    if (e.key === "ArrowRight") {
-      if (hasSelection()) actions.DIR();
-      return;
-    }
   }
-  const allowed = new Set(CONTEXT_COMMANDS[currentContext()]);
-  const fire = (name) => {
-    if (allowed.has(name)) actions[name]();
-  };
-  if (e.key === "ArrowLeft") fire("BACK");
-  else if (e.key.toLowerCase() === "n") fire("MORE");
-  else if (e.key.toLowerCase() === "f") fire("FINISH");
-  else if (e.key.toLowerCase() === "c") fire("COL");
+  if (e.key === "ArrowLeft") {
+    duckScroll(-1);
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "ArrowRight") {
+    duckScroll(1);
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "Enter") {
+    duckCommit();
+    e.preventDefault();
+    return;
+  }
 });
 async function boot() {
-  buildBar();
   assets = await (await fetch("./assets.json")).json();
   renderer = new Renderer(canvas, assets, wrap);
   $("connect").onclick = connect;

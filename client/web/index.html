@@ -17,10 +17,8 @@
   button:disabled { opacity: .4; cursor: default; }
   #screenWrap { padding: 24px; border-radius: 6px; line-height: 0; box-shadow: 0 6px 30px #0008; }
   canvas { image-rendering: pixelated; display: block; }
-  #bar { display: flex; flex-wrap: wrap; gap: 6px; max-width: 720px; justify-content: center; }
   #status { font: 12px ui-monospace, monospace; color: #7a8; min-height: 16px; }
   #ctx { font: 11px ui-monospace, monospace; color: #667; min-height: 14px; }
-  #bar button:disabled { opacity: .28; }
   /* Partyline: blue message area, green input — the C64 chrome (§8.5), modernised */
   #chat { width: 640px; display: flex; flex-direction: column; gap: 6px; }
   #chatLog { height: 220px; overflow-y: auto; background: #000060; border: 2px solid #0000dd;
@@ -48,7 +46,6 @@
     <button id="connect">Connect</button>
   </div>
   <div id="screenWrap"><canvas id="screen" width="640" height="384"></canvas></div>
-  <div id="bar"></div>
   <div id="editor" hidden>
     <div id="editorTitle">Compose</div>
     <div class="row">
@@ -75,7 +72,7 @@
   </div>
   <div id="status">Not connected.</div>
   <div id="ctx"></div>
-  <div class="hint">Keys: ↑/↓ select · Enter = SHOW · → = DIR · ← = BACK · N = MORE · F = FINISH · C = cycle column</div>
+  <div class="hint">↑/↓ highlight an entry · ←/→ scroll the duckshoot (it wraps) · Enter runs the centred command</div>
   <script type="module" src="./dist/app.bundle.js"></script>
 </body>
 </html>

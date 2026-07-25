@@ -33,7 +33,9 @@ export class Renderer {
     private scale = 2,
   ) {
     this.canvas.width = COLS * CELL * scale;
-    this.canvas.height = ROWS * CELL * scale;
+    // One extra row for the duckshoot: it lives OUTSIDE the 40x24 content grid
+    // (§4.9.2) — which is exactly why the content area is 24 rows, not 25.
+    this.canvas.height = (ROWS + 1) * CELL * scale;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('no 2d context');
     this.ctx = ctx;
@@ -56,7 +58,7 @@ export class Renderer {
 
   renderGrid(cells: Cell[], background: number): void {
     this.ctx.fillStyle = this.assets.palette[background & 0x0F];
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillRect(0, 0, this.canvas.width, ROWS * CELL * this.scale);
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++) this.drawGlyph(cells[r * COLS + c], c, r);
   }
@@ -129,5 +131,33 @@ export class Renderer {
 
     this.renderGrid(g, TEMPLATE_BG);
     this.setBorder(this.assets.template.border);
+  }
+
+  /** Draw the duckshoot on the row below the content grid (§4.9).
+   *  The ROW scrolls and the CENTRE cell is the selection — words are laid out
+   *  around `centre`, which always lands in the middle of the screen. */
+  renderDuckshoot(words: string[], centre: number): void {
+    const s = this.scale, row = ROWS, WORD = 6, VISIBLE = 7, MID = 3;
+    // clear the row to black (§4.9.3)
+    this.ctx.fillStyle = this.assets.palette[0];
+    this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
+    if (!words.length) return;
+    // 7 cells of 6 chars = 42 > 40, so the row starts one column left and the
+    // outermost words clip — as on the original.
+    const startCol = Math.floor((COLS - VISIBLE * WORD) / 2);
+    for (let slot = 0; slot < VISIBLE; slot++) {
+      // wrap: the row is a loop, not a strip with ends (§4.9.6)
+      const wi = (((centre + slot - MID) % words.length) + words.length) % words.length;
+      const text = words[wi].padEnd(WORD).slice(0, WORD);
+      const selected = slot === MID;
+      for (let i = 0; i < WORD; i++) {
+        const col = startCol + slot * WORD + i;
+        if (col < 0 || col >= COLS) continue;         // clip at the screen edges
+        this.drawGlyph(
+          { g: asciiGlyph(text[i]), fg: selected ? 0 : 1, bg: selected ? 1 : 0, rv: 0 },
+          col, row,
+        );
+      }
+    }
   }
 }

@@ -270,31 +270,39 @@ function hasSelection(): boolean {
   return !!e && e.title.trim() !== '(EMPTY)' && e.title.trim() !== '(NO MAIL)';
 }
 
+let duck: string[] = [];   // the current context's command row
+let duckIx = 0;            // index of the CENTRED (selected) command
+
+/** Rebuild the row for the current context and redraw it (§4.9.4).
+ *  Inapplicable commands are ABSENT, not disabled — the duckshoot is the
+ *  documented exception to §4.8's disable-rather-than-hide (§4.9.5). */
 function updateBar(): void {
   const ctx = currentContext();
-  const enabled = new Set(CONTEXT_COMMANDS[ctx]);
-  for (const [name, btn] of barButtons) {
-    // Disable rather than hide, so the command row keeps a stable shape (§4.8).
-    const applicable = enabled.has(name) &&
-      !(NEEDS_SELECTION.has(name) && ctx === 'directory' && !hasSelection());
-    btn.disabled = !applicable;
-    btn.title = applicable ? '' : `Not available while ${ctx === 'idle' ? 'disconnected' : 'in this context'}`;
-  }
+  const prev = duck[duckIx];
+  duck = CONTEXT_COMMANDS[ctx].filter((name) => {
+    if (!actions[name]) return false;
+    // selection-dependent commands need a real highlighted entry (§4.9.5)
+    if (NEEDS_SELECTION.has(name) && ctx === 'directory' && !hasSelection()) return false;
+    return true;
+  });
+  // keep the user on the same command across a context change where possible
+  const keep = duck.indexOf(prev);
+  duckIx = duck.length ? (keep >= 0 ? keep : 0) : 0;
+  renderer?.renderDuckshoot(duck, duckIx);
   $('ctx').textContent = ctx === 'idle' ? '' : `context: ${ctx}`;
 }
 
-const barButtons = new Map<string, HTMLButtonElement>();
+/** Scroll the ROW; the selection stays in the centre. Wraps (§4.9.6). */
+function duckScroll(delta: number): void {
+  if (!duck.length) return;
+  duckIx = ((duckIx + delta) % duck.length + duck.length) % duck.length;
+  renderer.renderDuckshoot(duck, duckIx);
+}
 
-function buildBar(): void {
-  const bar = $('bar'); bar.innerHTML = ''; barButtons.clear();
-  for (const name of Object.keys(actions)) {
-    const b = document.createElement('button');
-    b.textContent = name;
-    b.onclick = actions[name];
-    bar.appendChild(b);
-    barButtons.set(name, b);
-  }
-  updateBar();
+/** Commit the centred command — a distinct action from scrolling (§4.9.6). */
+function duckCommit(): void {
+  const name = duck[duckIx];
+  if (name && actions[name]) actions[name]();
 }
 
 async function connect(): Promise<void> {
@@ -314,27 +322,23 @@ async function connect(): Promise<void> {
 }
 
 window.addEventListener('keydown', (e) => {
-  // Don't hijack keys while the user is typing (chat, login fields).
+  // Don't hijack keys while the user is typing (chat, login, editor).
   const el = e.target as HTMLElement | null;
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
   if (inParty) return;
+
+  // Up/Down move the highlighted directory entry; Left/Right scroll the
+  // duckshoot; Enter commits the centred command (§4.9.6).
   if (mode === 'directory' && dir) {
     if (e.key === 'ArrowDown') { sel = Math.min(sel + 1, dir.entries.length - 1); render(); e.preventDefault(); return; }
-    if (e.key === 'ArrowUp') { sel = Math.max(sel - 1, 0); render(); e.preventDefault(); return; }
-    if (e.key === 'Enter') { if (hasSelection()) actions.SHOW(); return; }
-    if (e.key === 'ArrowRight') { if (hasSelection()) actions.DIR(); return; }
+    if (e.key === 'ArrowUp')   { sel = Math.max(sel - 1, 0); render(); e.preventDefault(); return; }
   }
-  // Keyboard is just another invocation path — it obeys §4.8 too.
-  const allowed = new Set(CONTEXT_COMMANDS[currentContext()]);
-  const fire = (name: string) => { if (allowed.has(name)) actions[name](); };
-  if (e.key === 'ArrowLeft') fire('BACK');
-  else if (e.key.toLowerCase() === 'n') fire('MORE');
-  else if (e.key.toLowerCase() === 'f') fire('FINISH');
-  else if (e.key.toLowerCase() === 'c') fire('COL');
+  if (e.key === 'ArrowLeft')  { duckScroll(-1); e.preventDefault(); return; }
+  if (e.key === 'ArrowRight') { duckScroll(1);  e.preventDefault(); return; }
+  if (e.key === 'Enter')      { duckCommit();   e.preventDefault(); return; }
 });
 
 async function boot(): Promise<void> {
-  buildBar();
   assets = await (await fetch('./assets.json')).json();
   renderer = new Renderer(canvas, assets, wrap);
   $<HTMLButtonElement>('connect').onclick = connect;

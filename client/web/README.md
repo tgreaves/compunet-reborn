@@ -40,8 +40,12 @@ python server/run_api_dev.py
 
 Then open <http://localhost:6404/>, enter your credentials, and Connect.
 
-Keys: `↑`/`↓` select · `Enter` = SHOW · `→` = DIR · `←` = BACK · `N` = MORE · `F` = FINISH ·
-`C` = cycle the right-hand column. The same commands are on the button bar.
+Commands are presented as a **duckshoot** (spec §4.9), drawn as a real extra row below the
+40×24 screen: the *row* scrolls and the **centre** word is the selection, white-on-black with the
+centred command inverse.
+
+Keys: `↑`/`↓` highlight a directory entry · `←`/`→` scroll the duckshoot (it wraps) · `Enter`
+runs the centred command. The row's contents change with context (§4.8).
 
 In production the client API (`server/api_binding.py`) runs on its own; this launcher's static
 file serving is a dev convenience only.
