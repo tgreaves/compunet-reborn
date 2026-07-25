@@ -343,7 +343,7 @@ This table consolidates the contexts and is the authority for *when* each comman
 | **Directory listing** | `HELP`, `DIR`, `SHOW`, `BACK`, `GOTO`, `UCAT`, `MAIL`, `ACCNT`, `SAVE`, `EDITR`, `LEAVE` | The row the original presents, **in its display order**, with `HELP` centred by default. The remaining commands of §4.7 (`PRINT`, `LIFE`, `BUY`, `LOAD`, `UPLD`, `VOTE`) exist and are reachable, but sit **beyond the displayed count** — see §4.9.4. Commands acting on a highlighted entry (`SHOW`, `DIR`, `VOTE`, `LIFE`, `BUY`) require a selection |
 | **Reading a single-frame page** | **none — no duckshoot at all** | The row is replaced by the prompt **`PRESS ANY KEY`**. There is nothing to page and nothing to choose, so no commands are offered |
 | **Reading a multi-frame page** | `MORE`, `ALL`, `FINISH` — in that order | **Only** these. There is no `FINISH` in a directory and no `MORE` in one (§4.7) |
-| **Mail (Courier, §8.2)** — listing and message | `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `DONE` leaves mail — **on the wire that is `B` (BACK)**, which is what clears mail mode (`N`/MORE also does when it runs past the last message); `SHOW` reads the highlighted message and `MORE` pages it |
+| **Mail (Courier, §8.2)** — listing and message | `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `SHOW` reads the highlighted message, `MORE` pages it. **`DONE` returns the user to where they were before entering Courier** — see the note below |
 | **Upload / send** (§8.3.2) | `SEND`, `LOAD`, `GET`, `FINISH` | The original entered an upload sub-context with its own set |
 | **Editor** (§8.4) | `HELP`, `EDIT`, `LAST`, `NEXT`, `NEW`, `COPY`, `ERASE`, `GET`, `PUT`, `STORE`, `PRINT`, `FREE`, `DOS`, `RETURN` | Entirely client-side (no wire commands); `RETURN` leaves the editor |
 | **Partyline** (§8.5) | None of the above — the `*`-commands (`*help`, `*who`, `*enter`, `*dice`, `*call`, `*quit`…) and free text | While in Partyline the client is in a **chat** context. Normal commands resume only after leaving |
@@ -358,6 +358,20 @@ from these bytes.)*
 the client rewrites at runtime, dropping commands from the **end** of the directory order above.
 So that order is a **priority order**: a client with less room (or a narrower context) should
 drop from the end — `VOTE`, `UPLD`, `LOAD` first — rather than pick arbitrarily.
+
+**⚠ `DONE` returns you where you were, and `B` gets there in steps (normative).** Entering
+Courier does **not** move the user's place in the content tree, so leaving it returns them to the
+directory they were in — *not* to that directory's parent, and not to the root. On the wire that
+is `B` (BACK), but `B` inside mail is **stepwise**, unwinding one level per command:
+
+1. reading a message → back to the mailbox listing;
+2. on a later mailbox page → back one page;
+3. on the first page of the listing → **leave Courier**, returning the directory the user came
+   from.
+
+So a single `B` is *not* always "leave mail". A client **MUST** make `DONE` actually exit —
+repeating `B` until the session is out of mail mode — rather than issuing one and assuming it
+worked. (`N`/MORE also clears mail mode when it runs past the last message.)
 
 **Selection-dependent commands.** `SHOW`, `DIR`, `VOTE`, `LIFE` and `BUY` act on the
 **highlighted entry** (§4.5). When no entry is highlighted — an empty directory, or a listing

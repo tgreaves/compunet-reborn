@@ -27,6 +27,7 @@ let account: Account | null = null;
 // "reading" context, and mail has its own command set.
 let isWelcome = false;
 let inMail = false;
+let exitingMail = false;   // DONE in progress — keep unwinding until out of mail
 
 function status(s: string): void { statusEl.textContent = s; }
 
@@ -48,10 +49,12 @@ function onMessage(m: ServerMsg): void {
     case 'directory':
       mode = 'directory'; dir = m as DirectoryMsg; sel = 0; colIdx = 0;
       isWelcome = false; inMail = (m as DirectoryMsg).context === 'mail'; render();
+      if (exitingMail) { if (inMail) gw.send({ type: 'back' }); else exitingMail = false; }
       status(`${(m as DirectoryMsg).title} — ${(m as DirectoryMsg).entries.length} entries`);
       break;
     case 'frame':
       mode = 'frame'; frame = m as FrameMsg; isWelcome = false; render();
+      if (exitingMail && inMail) gw.send({ type: 'back' });
       status('Reading page' + ((m as FrameMsg).morePages ? ' — MORE follows' : ''));
       break;
     case 'download': {
@@ -205,7 +208,10 @@ const actions: Record<string, () => void> = {
     else gw.send({ type: 'dir' });
   },
   BACK: () => gw.send({ type: 'back' }),
-  DONE: () => gw.send({ type: 'back' }),          // leaves Courier (§4.8)
+  // DONE returns the user where they were before Courier. `back` unwinds one
+  // level at a time (message -> listing -> page -> out), so keep going until the
+  // session is actually out of mail (§4.8).
+  DONE: () => { exitingMail = true; gw.send({ type: 'back' }); },
   HELP: () => status('HELP is a client feature — not implemented in this reference client'),
   SAVE: () => status('SAVE is a client feature — not implemented in this reference client'),
   EDITR: () => openEditor('upload'),

@@ -225,6 +225,7 @@ var colIdx = 0;
 var account = null;
 var isWelcome = false;
 var inMail = false;
+var exitingMail = false;
 function status(s) {
   statusEl.textContent = s;
 }
@@ -256,6 +257,10 @@ function onMessage(m) {
       isWelcome = false;
       inMail = m.context === "mail";
       render();
+      if (exitingMail) {
+        if (inMail) gw.send({ type: "back" });
+        else exitingMail = false;
+      }
       status(`${m.title} \u2014 ${m.entries.length} entries`);
       break;
     case "frame":
@@ -263,6 +268,7 @@ function onMessage(m) {
       frame = m;
       isWelcome = false;
       render();
+      if (exitingMail && inMail) gw.send({ type: "back" });
       status("Reading page" + (m.morePages ? " \u2014 MORE follows" : ""));
       break;
     case "download": {
@@ -425,8 +431,13 @@ var actions = {
     else gw.send({ type: "dir" });
   },
   BACK: () => gw.send({ type: "back" }),
-  DONE: () => gw.send({ type: "back" }),
-  // leaves Courier (§4.8)
+  // DONE returns the user where they were before Courier. `back` unwinds one
+  // level at a time (message -> listing -> page -> out), so keep going until the
+  // session is actually out of mail (§4.8).
+  DONE: () => {
+    exitingMail = true;
+    gw.send({ type: "back" });
+  },
   HELP: () => status("HELP is a client feature \u2014 not implemented in this reference client"),
   SAVE: () => status("SAVE is a client feature \u2014 not implemented in this reference client"),
   EDITR: () => openEditor("upload"),
