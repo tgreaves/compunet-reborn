@@ -329,9 +329,17 @@ through the whole Part-5 set (for the top directory: `PRICE → AUTHOR → VOTE/
 LIFE → PRICE …`). Both the displayed header **and** every entry's value in that pane change
 together as the user cycles. The reference control is the **`F7` / `F8`** keys (`F7` = previous
 column, `F8` = next), which is why the template draws the **`<F7)(F8>`** indicator in the box
-(§7.5/§A.6) — a client **SHOULD** honour `F7`/`F8` and **MAY** additionally offer other controls
-(a `COL` button, click, a key), but the rotation itself is **not** optional. A client that pins
-the pane to a single column (e.g. always `PRICE`) does not conform. Internally this selects
+(§7.5/§A.6) — a client **SHOULD** honour `F7`/`F8`, and the rotation itself is **not** optional.
+A client that pins the pane to a single column (e.g. always `PRICE`) does not conform.
+
+**Clicking the indicator (pointer clients).** The template draws `<F7)(F8>` in the box precisely
+because those are the controls, so a client with a mouse or other pointer **MAY** make that
+indicator **clickable** — the `F7` half cycling back, the `F8` half forward, with the same effect
+as the keys. This is the recommended way to offer column cycling on a pointer device: it reuses
+the affordance already drawn on screen. Note the rotation is **not** a Compunet command and has
+no entry in the §4.7 vocabulary, so it **MUST NOT** be added to the duckshoot as a word of its
+own (§4.7 — the vocabulary is closed); a client that adds a `COL` or `COLUMN` command has
+invented one. Internally this selects
 among the columns the way the ROM's `$C002` column index does; the client tracks it locally.
 
 A client **MUST** reproduce this canonical C64 layout so that content authored for Compunet —

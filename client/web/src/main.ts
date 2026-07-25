@@ -214,12 +214,14 @@ const actions: Record<string, () => void> = {
   DONE: () => { exitingMail = true; gw.send({ type: 'back' }); },
   HELP: () => status('HELP is a client feature — not implemented in this reference client'),
   SAVE: () => status('SAVE is a client feature — not implemented in this reference client'),
+  PRINT: () => status('PRINT is a client feature — not implemented in this reference client'),
+  LOAD: () => status('LOAD is a client feature — not implemented in this reference client'),
   EDITR: () => openEditor('upload'),
   ALL: () => gw.send({ type: 'more' }),           // page to the end
   MORE: () => gw.send({ type: 'more' }),
   FINISH: () => gw.send({ type: 'finish' }),
   GOTO: () => { const t = prompt('GOTO page number or keyword:'); if (t) gw.send({ type: 'goto', target: t }); },
-  COL: () => { if (dir) { colIdx = (colIdx + 1) % dir.columns.length; render(); status('Column: ' + dir.columns[colIdx].trim()); } },
+  // (column cycling is F7/F8, §7.7 — not a command)
   ACCNT: () => gw.send({ type: 'account' }),
   MAIL: () => gw.send({ type: 'mail.list' }),
   UCAT: () => gw.send({ type: 'ucat' }),
@@ -256,7 +258,8 @@ const CONTEXT_COMMANDS: Record<Context, string[]> = {
   idle:      [],
   // The welcome screen carries the DIRECTORY row, with HELP centred by default (§4.8).
   welcome:   ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'SAVE', 'EDITR', 'LEAVE'],
-  directory: ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'SAVE', 'EDITR', 'LEAVE'],
+  directory: ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'SAVE', 'EDITR',
+              'LEAVE', 'PRINT', 'LIFE', 'BUY', 'LOAD', 'UPLD', 'VOTE'],
   frame:     ['MORE', 'ALL', 'FINISH'],   // multi-frame only; single frame shows PRESS ANY KEY
   mail:      ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
   mailFrame: ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
@@ -344,6 +347,15 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { sel = Math.min(sel + 1, dir.entries.length - 1); render(); e.preventDefault(); return; }
     if (e.key === 'ArrowUp')   { sel = Math.max(sel - 1, 0); render(); e.preventDefault(); return; }
   }
+  // F7 / F8 cycle the right-hand column (§7.7) — the reference control.
+  if (e.key === 'F7' || e.key === 'F8') {
+    if (dir) {
+      const n = dir.columns.length;
+      colIdx = ((colIdx + (e.key === 'F8' ? 1 : -1)) % n + n) % n;
+      render(); status('Column: ' + dir.columns[colIdx].trim());
+    }
+    e.preventDefault(); return;
+  }
   if (e.key === 'ArrowLeft')  { duckScroll(-1); e.preventDefault(); return; }
   if (e.key === 'ArrowRight') { duckScroll(1);  e.preventDefault(); return; }
   if (e.key === 'Enter')      { duckCommit();   e.preventDefault(); return; }
@@ -354,6 +366,18 @@ async function boot(): Promise<void> {
   renderer = new Renderer(canvas, assets, wrap);
   $<HTMLButtonElement>('connect').onclick = connect;
   // Partyline: one Enter sends (the originals used a double RETURN, §8.5).
+  // The template draws <F7)(F8> at row 21, cols ~30-38 — make it clickable for
+  // pointer users, same effect as the keys (§7.7).
+  canvas.addEventListener('click', (ev) => {
+    if (mode !== 'directory' || !dir) return;
+    const r = canvas.getBoundingClientRect();
+    const col = Math.floor(((ev.clientX - r.left) / r.width) * 40);
+    const row = Math.floor(((ev.clientY - r.top) / r.height) * 25);
+    if (row !== 21 || col < 30 || col > 38) return;
+    const n = dir.columns.length;
+    colIdx = ((colIdx + (col >= 34 ? 1 : -1)) % n + n) % n;   // left half = F7, right = F8
+    render(); status('Column: ' + dir.columns[colIdx].trim());
+  });
   $<HTMLButtonElement>('edSubmit').onclick = submitEditor;
   $<HTMLButtonElement>('edCancel').onclick = closeEditor;
   $<HTMLInputElement>('chatInput').addEventListener('keydown', (e) => {

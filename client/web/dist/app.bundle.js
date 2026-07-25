@@ -440,6 +440,8 @@ var actions = {
   },
   HELP: () => status("HELP is a client feature \u2014 not implemented in this reference client"),
   SAVE: () => status("SAVE is a client feature \u2014 not implemented in this reference client"),
+  PRINT: () => status("PRINT is a client feature \u2014 not implemented in this reference client"),
+  LOAD: () => status("LOAD is a client feature \u2014 not implemented in this reference client"),
   EDITR: () => openEditor("upload"),
   ALL: () => gw.send({ type: "more" }),
   // page to the end
@@ -449,13 +451,7 @@ var actions = {
     const t = prompt("GOTO page number or keyword:");
     if (t) gw.send({ type: "goto", target: t });
   },
-  COL: () => {
-    if (dir) {
-      colIdx = (colIdx + 1) % dir.columns.length;
-      render();
-      status("Column: " + dir.columns[colIdx].trim());
-    }
-  },
+  // (column cycling is F7/F8, §7.7 — not a command)
   ACCNT: () => gw.send({ type: "account" }),
   MAIL: () => gw.send({ type: "mail.list" }),
   UCAT: () => gw.send({ type: "ucat" }),
@@ -502,7 +498,25 @@ var CONTEXT_COMMANDS = {
   idle: [],
   // The welcome screen carries the DIRECTORY row, with HELP centred by default (§4.8).
   welcome: ["HELP", "DIR", "SHOW", "BACK", "GOTO", "UCAT", "MAIL", "ACCNT", "SAVE", "EDITR", "LEAVE"],
-  directory: ["HELP", "DIR", "SHOW", "BACK", "GOTO", "UCAT", "MAIL", "ACCNT", "SAVE", "EDITR", "LEAVE"],
+  directory: [
+    "HELP",
+    "DIR",
+    "SHOW",
+    "BACK",
+    "GOTO",
+    "UCAT",
+    "MAIL",
+    "ACCNT",
+    "SAVE",
+    "EDITR",
+    "LEAVE",
+    "PRINT",
+    "LIFE",
+    "BUY",
+    "LOAD",
+    "UPLD",
+    "VOTE"
+  ],
   frame: ["MORE", "ALL", "FINISH"],
   // multi-frame only; single frame shows PRESS ANY KEY
   mail: ["SEND", "SHOW", "MORE", "ID", "EDITR", "DONE"],
@@ -581,6 +595,16 @@ window.addEventListener("keydown", (e) => {
       return;
     }
   }
+  if (e.key === "F7" || e.key === "F8") {
+    if (dir) {
+      const n = dir.columns.length;
+      colIdx = ((colIdx + (e.key === "F8" ? 1 : -1)) % n + n) % n;
+      render();
+      status("Column: " + dir.columns[colIdx].trim());
+    }
+    e.preventDefault();
+    return;
+  }
   if (e.key === "ArrowLeft") {
     duckScroll(-1);
     e.preventDefault();
@@ -601,6 +625,17 @@ async function boot() {
   assets = await (await fetch("./assets.json")).json();
   renderer = new Renderer(canvas, assets, wrap);
   $("connect").onclick = connect;
+  canvas.addEventListener("click", (ev) => {
+    if (mode !== "directory" || !dir) return;
+    const r = canvas.getBoundingClientRect();
+    const col = Math.floor((ev.clientX - r.left) / r.width * 40);
+    const row = Math.floor((ev.clientY - r.top) / r.height * 25);
+    if (row !== 21 || col < 30 || col > 38) return;
+    const n = dir.columns.length;
+    colIdx = ((colIdx + (col >= 34 ? 1 : -1)) % n + n) % n;
+    render();
+    status("Column: " + dir.columns[colIdx].trim());
+  });
   $("edSubmit").onclick = submitEditor;
   $("edCancel").onclick = closeEditor;
   $("chatInput").addEventListener("keydown", (e) => {
