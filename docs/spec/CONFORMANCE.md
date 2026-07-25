@@ -32,6 +32,9 @@ marked **⚠** are the ones known to have been got wrong in practice.
       `LIFE`, `BUY` on an empty listing or an `(EMPTY)`/`(NO MAIL)` placeholder (§4.8).
 - [ ] **Keyboard/shortcut paths obey the same table.** A shortcut must not reach a command the
       context forbids.
+- [ ] **If you implemented a duckshoot, it matches §4.9** — the *row* scrolls and the centre is
+      the selection (not a highlight moving along a fixed row); it sits outside the 40×24 grid;
+      contents are the context's set in the §4.8 priority order, truncated **from the end**.
 
 ## B. Behaviour that shares an encoding
 

@@ -196,14 +196,10 @@ long as the user can reach the applicable commands:
 
 - keyboard shortcuts (e.g. a key per command);
 - an on-screen menu, button bar, or command palette;
-- the original Compunet **"duckshoot"** — a horizontally-scrolling row of command words at
-  the foot of the screen (this is the reference user experience, reproduced by the C64 and
-  Amiga clients; a client **MAY** emulate it but is not required to). A client that *does*
-  reproduce it **SHOULD** follow the original's look and behaviour: the command words are
-  **white text on a black background**; the user scrolls the row **left and right**; the
-  **currently-selected command stays in the centre** of the row; and that centred selection is
-  drawn **inverse** (black text on a white background). The user commits the centred command
-  to invoke it.
+- the original Compunet **"duckshoot"** — a horizontally-scrolling row of command words at the
+  foot of the screen. This is the reference user experience, reproduced by the C64 and Amiga
+  clients. A client **MAY** emulate it but is not required to; one that **does** **MUST** follow
+  **§4.9**, which defines it.
 
 Concretely, the minimum obligations by tier are:
 
@@ -375,3 +371,72 @@ conforming is offering a command that cannot work in the current context.
 
 This is **shared model**, not Binding-A detail: a Binding-B client faces exactly the same
 contexts (its `partyline.*` and editor flows included) and **MUST** apply the same rules.
+
+## 4.9 The duckshoot (optional — but defined if used)
+
+A client is **not** required to present commands as a duckshoot (§4.6 — buttons, a menu or a
+palette are equally conforming). But the duckshoot is the original's interface, and a client that
+offers "a duckshoot" should give users the thing they recognise rather than something merely
+duckshoot-shaped. **If a client implements one, it MUST follow this section.**
+
+### 4.9.1 What it is
+
+A **single row of command words** at the foot of the screen. The user **scrolls the row left and
+right**; the command in the **centre** is the current one; committing it (RETURN on the
+originals) invokes it. The row scrolls — the *selection* does not move.
+
+That inversion is the defining behaviour, and the easiest thing to get wrong: a row where a
+highlight moves along a fixed list is **not** a duckshoot, however similar it looks.
+
+### 4.9.2 Placement
+
+- The duckshoot occupies a row **outside the 40×24 content grid** (§5.1). It is client chrome:
+  the C64 reserves the screen's bottom line for it, which is precisely why the content area is
+  40×24 rather than 40×25.
+- It **MUST NOT** overlay or shrink the content grid. Frames and directories are authored for the
+  full 40×24 and will be clipped or misaligned if the duckshoot eats into them.
+
+### 4.9.3 Appearance
+
+- Command words are **white on black**.
+- The **centred (selected)** word is drawn **inverse** — black on white.
+- In the original each word occupies a **6-character cell** (the command-name table is a table of
+  6-byte strings), which is what makes the row scroll in even steps and the centre cell align.
+  A client **SHOULD** use fixed-width cells for the same reason; the exact width is its choice if
+  it is not reproducing the C64 metrics exactly.
+
+### 4.9.4 Contents — which commands, in what order
+
+- The row contains the **current context's command set** from **§4.8**, and nothing else. The
+  original *swaps the row per context*; it does not show one fixed list.
+- Order **MUST** follow §4.8's directory order, which is the original's own display order and is
+  a **priority order**, not alphabetical:
+
+  ```
+  HELP  DIR  SHOW  BACK  GOTO  UCAT  MAIL  ACCNT  SAVE  EDITR  LEAVE  PRINT  LIFE  BUY  LOAD  UPLD  VOTE
+  ```
+
+- **⚠ Load-bearing: truncate from the end.** The original shortens the row by lowering a count,
+  which drops commands from the **end** of that order (§4.8). A client with less room **MUST**
+  do the same — dropping `VOTE`, `UPLD`, `LOAD` first — rather than choosing its own subset. Drop
+  from the front and you remove `DIR`, and with it the user's way into the system.
+
+### 4.9.5 Availability
+
+- **In a duckshoot, inapplicable commands are absent, not disabled.** §4.8 recommends
+  *disable-rather-than-hide* for interfaces where that reads naturally (a button bar); the
+  duckshoot is the documented exception, because the original changes the row's contents per
+  context and a scrolling row of dead words would be worse than a shorter live one.
+- Commands that act on a highlighted entry (§4.8) still require a selection. With none, a client
+  **SHOULD** either omit them from the row or make committing them a no-op with a brief message —
+  it **MUST NOT** send a command with no valid index.
+
+### 4.9.6 Interaction
+
+- **Left / right** scroll the row by one command. Whether the row **wraps** at the ends is a
+  client choice (this specification does not pin it).
+- **Commit** is a distinct action from scrolling (RETURN on the originals); merely scrolling past
+  a command **MUST NOT** invoke it.
+- The duckshoot is one invocation path among several (§4.6). If a client also offers keys or
+  clicks, those **MUST** obey the same §4.8 availability rules — a shortcut is not a way around
+  the context.
