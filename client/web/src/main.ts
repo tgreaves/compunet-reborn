@@ -96,6 +96,47 @@ function onMessage(m: ServerMsg): void {
 
 function curEntry() { return dir ? dir.entries[sel] : undefined; }
 
+// --- Editor (§8.4 — a client feature; submits via the upload path §8.3.2) ---
+let editorMode: 'upload' | 'mail' | null = null;
+
+function openEditor(kind: 'upload' | 'mail'): void {
+  editorMode = kind;
+  $('editor').hidden = false;
+  $('editorTitle').textContent = kind === 'upload'
+    ? `Upload a page into "${dir?.title ?? 'this directory'}"`
+    : 'Compose mail';
+  $('edContentFields').hidden = kind !== 'upload';
+  $<HTMLInputElement>('edTo').hidden = kind !== 'mail';
+  $('edHint').textContent = kind === 'upload'
+    ? 'Type and price are required (§8.3.2).'
+    : 'Recipients: up to five user IDs, comma-separated.';
+  $<HTMLInputElement>('edTitle').value = '';
+  $<HTMLTextAreaElement>('edBody').value = '';
+  $<HTMLInputElement>('edTitle').focus();
+}
+
+function closeEditor(): void { editorMode = null; $('editor').hidden = true; }
+
+function submitEditor(): void {
+  const title = $<HTMLInputElement>('edTitle').value.trim();
+  const lines = $<HTMLTextAreaElement>('edBody').value.split('\n');
+  if (!title) { status('A title is required'); return; }
+  if (editorMode === 'mail') {
+    const to = $<HTMLInputElement>('edTo').value.split(',').map((x) => x.trim()).filter(Boolean);
+    if (!to.length) { status('At least one recipient is required'); return; }
+    gw.send({ type: 'mail.send', to, subject: title, frames: [{ lines, colour: 1 }] });
+  } else {
+    gw.send({
+      type: 'upload', title,
+      kind: $<HTMLSelectElement>('edKind').value,
+      price: parseFloat($<HTMLInputElement>('edPrice').value) || 0,
+      life: parseInt($<HTMLInputElement>('edLife').value, 10) || 0,
+      frames: [{ lines, colour: 5, border: 6, background: 0 }],
+    });
+  }
+  closeEditor();
+}
+
 // --- Partyline chat panel (§8.5) -------------------------------------------
 let inParty = false;
 
@@ -155,6 +196,12 @@ const actions: Record<string, () => void> = {
     if (d) gw.send({ type: 'life', page: e.page, days: parseInt(d, 10) });
   },
   WHO: () => { const u = prompt('Look up user ID(s), comma-separated:'); if (u) gw.send({ type: 'idlookup', ids: u.split(',').map((x) => x.trim()).filter(Boolean) }); },
+  UPLD: () => {
+    if (mode !== 'directory' || !dir) { status('Navigate to a directory first'); return; }
+    if (dir.entries.length >= 11) { status('This directory is full (11 entries max)'); return; }
+    openEditor('upload');
+  },
+  SEND: () => openEditor('mail'),
   PARTY: () => { if (inParty) gw.send({ type: 'partyline.leave' }); else gw.send({ type: 'partyline.enter' }); },
   LEAVE: () => { gw.send({ type: 'leave' }); gw.close(); },
 };
@@ -208,6 +255,8 @@ async function boot(): Promise<void> {
   renderer = new Renderer(canvas, assets, wrap);
   $<HTMLButtonElement>('connect').onclick = connect;
   // Partyline: one Enter sends (the originals used a double RETURN, §8.5).
+  $<HTMLButtonElement>('edSubmit').onclick = submitEditor;
+  $<HTMLButtonElement>('edCancel').onclick = closeEditor;
   $<HTMLInputElement>('chatInput').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     const input = $<HTMLInputElement>('chatInput');

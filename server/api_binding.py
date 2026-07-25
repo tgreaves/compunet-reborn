@@ -466,6 +466,122 @@ def idlookup_to_json(raw, msg_id=None):
     return {"type": "idlookup", "id": msg_id, "users": users}
 
 
+# --- Upload / editor (§8.3.2, §8.4) -----------------------------------------
+#
+# Binding A uploads in several wire steps (U -> validation -> DAT frames ->
+# finish). Binding B does it in ONE message: the client submits the composed
+# page and the server performs the same commit through the same core routine.
+# The client never encodes PETSCII — it sends text + colours and the server
+# builds the §6 frame, consistent with this binding delivering decoded content.
+
+def _encode_frame(spec):
+    """Build §6 frame bytes from a structured editor page.
+
+    spec: {lines: [str], colour?: 0-15, border?: 0-15, background?: 0-15}
+    Produces [flags][border][bg][charset $8E] + colour control + PETSCII body + $00.
+    """
+    # colour index -> the §5.6 control code that selects it
+    code_for = {v: k for k, v in _COLOUR.items()}
+    border = int(spec.get('border', 6)) & 0x0F
+    background = int(spec.get('background', 0)) & 0x0F
+    colour = int(spec.get('colour', 1)) & 0x0F
+    out = bytearray([0x00, border, background, 0x8E])
+    out.append(code_for.get(colour, 0x05))            # default white
+    for line in (spec.get('lines') or [])[:23]:
+        out.extend(_srv.ascii_to_petscii(str(line)[:40].upper()))
+        out.append(0x0D)
+    out.append(0x00)
+    return bytes(out)
+
+
+def _upload_precheck(session, title):
+    """Apply the checks Binding A performs silently (§8.3.2), as typed errors:
+    permission to write here, and space (a directory holds at most 11 entries).
+    Returns an error dict, or None when the upload may proceed."""
+    if not session._can_upload_here():
+        return {"code": "permission_denied",
+                "message": "you may not upload into this directory"}
+    slug = _srv.CompunetDirectory._make_slug(title)
+    existing = next((c for c in session.current_page.children
+                     if _srv.CompunetDirectory._make_slug(c.title) == slug), None)
+    if existing:
+        if (existing.author != session.user_id
+                and not session.is_admin and not session.is_editor):
+            return {"code": "permission_denied",
+                    "message": 'you may not replace "%s"' % existing.title}
+        return None                                   # replacing: no space needed
+    if len(session.current_page.children) >= 11:
+        return {"code": "directory_full",
+                "message": "this directory is full (11 entries max)"}
+    return None
+
+
+def upload_content(session, msg, msg_id=None):
+    """Content upload (§8.3.2) — commits to the client's *current* directory."""
+    title = str(msg.get("title", "")).strip()[:16]
+    kind = str(msg.get("kind", "")).upper()
+    frames = msg.get("frames") or []
+    if not title:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "title is required"}
+    if kind not in ("T", "P"):
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "kind must be 'T' (text) or 'P' (program)"}
+    if not frames:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "no frames to upload"}
+    try:
+        price = round(float(msg.get("price", 0) or 0), 2)
+    except (TypeError, ValueError):
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "price must be a number"}
+    try:
+        life = int(msg.get("life", 0) or 0)
+    except (TypeError, ValueError):
+        life = 0
+
+    err = _upload_precheck(session, title)
+    if err:
+        return {"type": "error", "id": msg_id, **err}
+
+    if kind == "P":
+        import base64
+        blobs = [base64.b64decode(f) if isinstance(f, str) else bytes(f) for f in frames]
+    else:
+        blobs = [_encode_frame(f) for f in frames]
+
+    send = {'mode': 'upload', 'title': title, 'type': kind,
+            'price': price, 'lifetime': life, 'frames': blobs}
+    session._complete_content_upload(send)
+    session.directory.reload()                        # pick up the new page
+    log.info('API upload: user=%s title="%s" kind=%s price=%.2f life=%d frames=%d',
+             session.user_id, title, kind, price, life, len(blobs))
+    return None                                       # caller returns the refreshed directory
+
+
+def mail_send(session, msg, msg_id=None):
+    """Mail send (§8.3.2) — composed frames delivered to recipients."""
+    to = [str(x).upper().strip() for x in (msg.get("to") or []) if str(x).strip()]
+    subject = str(msg.get("subject", "")).strip()[:16]
+    frames = msg.get("frames") or []
+    if not to:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "at least one recipient is required"}
+    if not frames:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "message body is empty"}
+    users = session._load_users()
+    unknown = [u for u in to if u not in users]
+    if unknown:
+        return {"type": "error", "id": msg_id, "code": "not_found",
+                "message": "no such user: " + ", ".join(unknown)}
+    send = {'mode': 'mail', 'subject': subject, 'to': to,
+            'frames': [_encode_frame(f) for f in frames]}
+    session._complete_mail_send(send)
+    log.info('API mail: %s -> %s (%d frames)', session.user_id, to, len(send['frames']))
+    return {"type": "ack", "id": msg_id, "of": "mail.send"}
+
+
 # --- Partyline bridge (§8.5) ------------------------------------------------
 #
 # Binding A drops out of the framed protocol into a raw, line-based session.
@@ -682,6 +798,16 @@ def handle_message(session, msg):
 
     if t == "download.fetch":
         return _download_fetch(session, mid)
+
+    # --- Tier 3 ---------------------------------------------------------
+    if t == "upload":
+        err = upload_content(session, msg, mid)
+        if err:
+            return err
+        return directory_to_json(session, mid)        # refreshed listing (the finishing `P`)
+
+    if t == "mail.send":
+        return mail_send(session, msg, mid)
 
     if t == "leave":
         session.handle_command(b'E')

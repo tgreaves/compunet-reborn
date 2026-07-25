@@ -183,6 +183,37 @@ the draft fixes the logical shape first.)*
   validated server-side, returning an `error` (`invalid` / `not_found`) rather than a silent
   no-op.
 
+### 5.4 Tier-3 shapes
+
+**Editor pages.** The client never produces PETSCII (that is the point of this binding), so a
+composed page is submitted **structurally** and the server encodes the §6 frame:
+
+```jsonc
+{ "lines": ["HELLO", "", "SECOND LINE"], "colour": 5, "border": 6, "background": 0 }
+```
+
+`colour` is a palette index (§5.5) applied as the frame's text colour; `border`/`background`
+become the frame header (§6.2). Lines are truncated to 40 columns and 23 rows.
+
+**Upload** (`upload`) carries `title`, `kind` (`"T"`/`"P"`), `price`, `life`, and `frames`.
+Unlike Binding A's multi-step wire dance (`U` → validation → frame DATs → finishing `P`), it is
+**one message**: the server performs the same commit through the same core routine and replies
+with the **refreshed directory** (the equivalent of the finishing `P`). For `kind: "P"` the
+frames are base64 program blobs rather than editor pages. The checks Binding A applies silently
+become **typed errors** — `permission_denied` (not your directory / not your page to replace)
+and `directory_full` (11-entry cap, §8.3.2) — so a client learns *why* an upload was refused
+instead of discovering a missing entry afterwards.
+
+**Mail send** (`mail.send`) carries `to` (up to five IDs), `subject`, and `frames`; unknown
+recipients produce a `not_found` error listing them, rather than silently dropping them.
+
+**Partyline** (§8.5) does **not** drop out of the protocol as Binding A must. The socket stays a
+gateway: `partyline.enter` (or selecting an `L` entry) joins and replies `partyline.entered`;
+every chat/system line arrives as a `partyline` push; `partyline.send` / `partyline.command`
+carry input; `partyline.leave` (or `*quit`) replies `partyline.left` and normal commands resume
+immediately. Rooms, `*`-commands, bans, and broadcast are the server's existing partyline
+subsystem — this binding only adapts the transport.
+
 ## 6. Push events (server → client, no `id`)
 
 - `{ "type":"partyline", "line":"…" }` — a raw Partyline chat/system line (§8.5). On entry the
@@ -239,7 +270,11 @@ sync.
   vote + life persisting). **Mail send** is deferred with the editor (Phase 3) since it
   submits composed frames through the same upload path (§8.3.2). The download payload path is
   implemented but not yet exercised against a real program page.
-- **Phase 3 (Tier 3):** upload (with `kind`/`price`), the editor path, Partyline.
+- **Phase 3 (Tier 3) — DONE.** Partyline over the gateway (push events, no raw session);
+  one-message `upload` with the permission / directory-full checks surfaced as typed errors;
+  `mail.send`; and a client-side editor that submits structured pages the server encodes.
+  Verified end-to-end: two-user Partyline chat and commands; a page composed in the browser,
+  uploaded, stored and rendered back; mail delivered and read from the mailbox.
 - **Then hybrid:** add the REST read endpoints (§1), reusing these exact JSON shapes.
 - **Open:** compact frame-grid encoding; token lifetime/refresh; rate limits; retire the legacy
   WS 6502 handler once this lands.

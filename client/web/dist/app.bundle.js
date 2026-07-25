@@ -235,6 +235,48 @@ function onMessage(m) {
 function curEntry() {
   return dir ? dir.entries[sel] : void 0;
 }
+var editorMode = null;
+function openEditor(kind) {
+  editorMode = kind;
+  $("editor").hidden = false;
+  $("editorTitle").textContent = kind === "upload" ? `Upload a page into "${dir?.title ?? "this directory"}"` : "Compose mail";
+  $("edContentFields").hidden = kind !== "upload";
+  $("edTo").hidden = kind !== "mail";
+  $("edHint").textContent = kind === "upload" ? "Type and price are required (\xA78.3.2)." : "Recipients: up to five user IDs, comma-separated.";
+  $("edTitle").value = "";
+  $("edBody").value = "";
+  $("edTitle").focus();
+}
+function closeEditor() {
+  editorMode = null;
+  $("editor").hidden = true;
+}
+function submitEditor() {
+  const title = $("edTitle").value.trim();
+  const lines = $("edBody").value.split("\n");
+  if (!title) {
+    status("A title is required");
+    return;
+  }
+  if (editorMode === "mail") {
+    const to = $("edTo").value.split(",").map((x) => x.trim()).filter(Boolean);
+    if (!to.length) {
+      status("At least one recipient is required");
+      return;
+    }
+    gw.send({ type: "mail.send", to, subject: title, frames: [{ lines, colour: 1 }] });
+  } else {
+    gw.send({
+      type: "upload",
+      title,
+      kind: $("edKind").value,
+      price: parseFloat($("edPrice").value) || 0,
+      life: parseInt($("edLife").value, 10) || 0,
+      frames: [{ lines, colour: 5, border: 6, background: 0 }]
+    });
+  }
+  closeEditor();
+}
 var inParty = false;
 function setChatVisible(on) {
   inParty = on;
@@ -315,6 +357,18 @@ var actions = {
     const u = prompt("Look up user ID(s), comma-separated:");
     if (u) gw.send({ type: "idlookup", ids: u.split(",").map((x) => x.trim()).filter(Boolean) });
   },
+  UPLD: () => {
+    if (mode !== "directory" || !dir) {
+      status("Navigate to a directory first");
+      return;
+    }
+    if (dir.entries.length >= 11) {
+      status("This directory is full (11 entries max)");
+      return;
+    }
+    openEditor("upload");
+  },
+  SEND: () => openEditor("mail"),
   PARTY: () => {
     if (inParty) gw.send({ type: "partyline.leave" });
     else gw.send({ type: "partyline.enter" });
@@ -387,6 +441,8 @@ async function boot() {
   assets = await (await fetch("./assets.json")).json();
   renderer = new Renderer(canvas, assets, wrap);
   $("connect").onclick = connect;
+  $("edSubmit").onclick = submitEditor;
+  $("edCancel").onclick = closeEditor;
   $("chatInput").addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     const input = $("chatInput");

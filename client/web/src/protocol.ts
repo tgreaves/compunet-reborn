@@ -100,11 +100,23 @@ export type ClientMsg =
   | { type: 'life'; page: number; days: number; id?: number }
   | { type: 'download.fetch'; id?: number }
   // Tier 3
+  | { type: 'upload'; title: string; kind: string; price: number; life: number; frames: EditorPage[]; id?: number }
+  | { type: 'mail.send'; to: string[]; subject: string; frames: EditorPage[]; id?: number }
   | { type: 'partyline.enter'; id?: number }
   | { type: 'partyline.send'; text: string; id?: number }
   | { type: 'partyline.command'; text: string; id?: number }
   | { type: 'partyline.leave'; id?: number }
   | { type: 'leave'; id?: number };
+
+/** A page composed in the editor (§8.4). The server encodes it to a §6 frame,
+ *  so the client never has to produce PETSCII. */
+export interface EditorPage {
+  lines: string[];
+  /** text colour, palette index 0-15 (default white) */
+  colour?: number;
+  border?: number;
+  background?: number;
+}
 
 /** Client-side assets, extracted from the spec appendix (gen_assets.py). */
 export interface Assets {
