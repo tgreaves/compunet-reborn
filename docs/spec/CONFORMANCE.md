@@ -34,7 +34,8 @@ marked **⚠** are the ones known to have been got wrong in practice.
       context forbids.
 - [ ] **If you implemented a duckshoot, it matches §4.9** — the *row* scrolls and the centre is
       the selection (not a highlight moving along a fixed row); it sits outside the 40×24 grid;
-      contents are the context's set in the §4.8 priority order, truncated **from the end**.
+      contents are the context's set in the §4.8 priority order, truncated **from the end**; and
+      the row **wraps** at both ends rather than clamping.
 
 ## B. Behaviour that shares an encoding
 

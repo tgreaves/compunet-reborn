@@ -433,8 +433,10 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
 
 ### 4.9.6 Interaction
 
-- **Left / right** scroll the row by one command. Whether the row **wraps** at the ends is a
-  client choice (this specification does not pin it).
+- **Left / right** scroll the row by one command, and **the row wraps** (normative): scrolling
+  past the last command continues to the first, and vice versa. The row is a **loop**, not a
+  strip with ends — so every command is reachable by scrolling in either direction, and the user
+  never hits a dead stop. A client **MUST NOT** clamp at the ends.
 - **Commit** is a distinct action from scrolling (RETURN on the originals); merely scrolling past
   a command **MUST NOT** invoke it.
 - The duckshoot is one invocation path among several (§4.6). If a client also offers keys or
