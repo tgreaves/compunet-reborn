@@ -1,5 +1,7 @@
 # §5 — Display contract (PETSCII)
 
+**Layer — mixed** (§1.8). The abstract 40×24 screen model and the 16-colour palette are shared model; the PETSCII byte encoding (screen-code→glyph mapping, control codes, RLE) is Binding-A wire format.
+
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.
 >

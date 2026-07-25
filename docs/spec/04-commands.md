@@ -1,5 +1,7 @@
 # §4 — Command protocol
 
+**Layer — application model** (shared across bindings, §1.8). The command *semantics* (what each command does, response types, ack conventions) are reused by every binding; the single-letter byte encoding is Binding-A-specific.
+
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.
 >

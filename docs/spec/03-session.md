@@ -1,5 +1,7 @@
 # §3 — Session lifecycle
 
+**Layer — application model** (shared across bindings, §1.8). The lifecycle *semantics* here are reused by every binding; only the packet bytes that carry them are Binding-A-specific (§2).
+
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.
 >

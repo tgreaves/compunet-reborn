@@ -1,5 +1,7 @@
 # §8 — Subsystems
 
+**Layer — application model** (shared across bindings, §1.8). The subsystem *semantics* (mail, downloads, uploads, editor, Partyline, LIFE/VOTE) are reused by every binding; the byte-level exchanges described here are Binding-A's encoding of them.
+
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.
 >
