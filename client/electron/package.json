@@ -1,0 +1,40 @@
+{
+  "name": "compunet-reborn-desktop",
+  "productName": "Compunet Reborn",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Compunet Reborn desktop client (Electron shell around the web client)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "live.compunet.reborn",
+    "productName": "Compunet Reborn",
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web",
+        "to": "app/web",
+        "filter": [
+          "index.html",
+          "assets.json",
+          "dist/app.bundle.js"
+        ]
+      }
+    ],
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg", "category": "public.app-category.social-networking" },
+    "linux": { "target": "AppImage" }
+  }
+}
