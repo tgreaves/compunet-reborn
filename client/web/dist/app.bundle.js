@@ -162,7 +162,7 @@ function onMessage(m) {
         frame = r.welcome;
         render();
       }
-      status(`Logged in as ${account.user} \u2014 credit ${account.credit}`);
+      status(`Welcome, ${account.user} \u2014 press DIR to enter the system`);
       break;
     }
     case "directory":
@@ -200,9 +200,11 @@ var actions = {
     const e = curEntry();
     if (e) gw.send({ type: "open", page: e.page });
   },
+  // In a directory: enter the highlighted entry. On the welcome frame (no directory
+  // context): DIR reaches the root — a bare `dir` (§4.7 / Binding-B schema).
   DIR: () => {
-    const e = curEntry();
-    if (e) gw.send({ type: "enter", page: e.page });
+    if (mode === "directory" && curEntry()) gw.send({ type: "enter", page: curEntry().page });
+    else gw.send({ type: "dir" });
   },
   BACK: () => gw.send({ type: "back" }),
   MORE: () => gw.send({ type: "more" }),

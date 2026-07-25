@@ -49,6 +49,9 @@ Phase 1):
    access logs; browsers can't set WS headers.)
    - Server → `{"type":"ready", "account": {…}, "welcome": <frame>}` (the welcome frame, §6/§5,
      as a cell grid), or `{"type":"error","code":"unauthorized"}` then close.
+3. The client **renders the welcome frame** and waits (spec §3.5). The server does **not**
+   auto-send a directory — that would clobber the welcome page. The user reaches the root by
+   issuing **DIR** (`{"type":"dir"}`), exactly as on the welcome screen in Binding A (§4.7).
 
 ## 3. Message envelope
 

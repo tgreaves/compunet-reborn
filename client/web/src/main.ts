@@ -37,7 +37,7 @@ function onMessage(m: ServerMsg): void {
       const r = m as { account: Account; welcome: FrameMsg | null };
       account = r.account;
       if (r.welcome) { mode = 'frame'; frame = r.welcome; render(); }
-      status(`Logged in as ${account.user} — credit ${account.credit}`);
+      status(`Welcome, ${account.user} — press DIR to enter the system`);
       break;
     }
     case 'directory':
@@ -66,7 +66,12 @@ function curEntry() { return dir ? dir.entries[sel] : undefined; }
 
 const actions: Record<string, () => void> = {
   SHOW: () => { const e = curEntry(); if (e) gw.send({ type: 'open', page: e.page }); },
-  DIR: () => { const e = curEntry(); if (e) gw.send({ type: 'enter', page: e.page }); },
+  // In a directory: enter the highlighted entry. On the welcome frame (no directory
+  // context): DIR reaches the root — a bare `dir` (§4.7 / Binding-B schema).
+  DIR: () => {
+    if (mode === 'directory' && curEntry()) gw.send({ type: 'enter', page: curEntry()!.page });
+    else gw.send({ type: 'dir' });
+  },
   BACK: () => gw.send({ type: 'back' }),
   MORE: () => gw.send({ type: 'more' }),
   FINISH: () => gw.send({ type: 'finish' }),

@@ -432,13 +432,14 @@ async def ws_gateway(request):
             welcome = frame_to_cells(session._make_welcome_frame(user))
         except Exception as e:
             log.warning('welcome frame render failed: %s', e)
+        # The welcome frame is the post-login screen (spec §3.5); the client shows
+        # it and reaches the root directory when the user issues DIR (§4.7). Do NOT
+        # auto-send the directory here — that would clobber the welcome page.
         await ws.send_json({
             "type": "ready",
             "account": {"user": session.user_id, "credit": session.credit},
             "welcome": welcome,
         })
-        # Auto-load the root directory so the client has an initial screen.
-        await ws.send_json(directory_to_json(session))
     except Exception as e:
         log.warning('API gateway auth error: %s', e)
         await ws.close()
