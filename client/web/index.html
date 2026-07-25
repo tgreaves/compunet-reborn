@@ -19,6 +19,13 @@
   canvas { image-rendering: pixelated; display: block; }
   #bar { display: flex; flex-wrap: wrap; gap: 6px; max-width: 720px; justify-content: center; }
   #status { font: 12px ui-monospace, monospace; color: #7a8; min-height: 16px; }
+  /* Partyline: blue message area, green input — the C64 chrome (§8.5), modernised */
+  #chat { width: 640px; display: flex; flex-direction: column; gap: 6px; }
+  #chatLog { height: 220px; overflow-y: auto; background: #000060; border: 2px solid #0000dd;
+             color: #99ff99; font: 13px/1.35 ui-monospace, monospace; padding: 8px;
+             white-space: pre-wrap; word-break: break-word; }
+  #chatInput { background: #001000; border: 2px solid #00dd00; color: #99ff99;
+               font: 13px ui-monospace, monospace; padding: 6px 8px; caret-color: #00dd00; }
   .hint { color: #667; font-size: 12px; }
 </style>
 </head>
@@ -32,6 +39,10 @@
   </div>
   <div id="screenWrap"><canvas id="screen" width="640" height="384"></canvas></div>
   <div id="bar"></div>
+  <div id="chat" hidden>
+    <div id="chatLog"></div>
+    <input id="chatInput" placeholder="Type a message, or *help for commands — Enter to send" autocomplete="off">
+  </div>
   <div id="status">Not connected.</div>
   <div class="hint">Keys: ↑/↓ select · Enter = SHOW · → = DIR · ← = BACK · N = MORE · F = FINISH · C = cycle column</div>
   <script type="module" src="./dist/app.bundle.js"></script>

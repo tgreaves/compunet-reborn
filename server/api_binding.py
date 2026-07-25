@@ -466,6 +466,102 @@ def idlookup_to_json(raw, msg_id=None):
     return {"type": "idlookup", "id": msg_id, "users": users}
 
 
+# --- Partyline bridge (§8.5) ------------------------------------------------
+#
+# Binding A drops out of the framed protocol into a raw, line-based session.
+# Binding B does not need to: the gateway is already message-oriented, so
+# Partyline is just `partyline` push events + `partyline.*` commands. We reuse
+# the server's partyline module wholesale (rooms, commands, broadcast, bans) by
+# adapting its writer interface — no chat logic is duplicated.
+
+class _WsPartylineWriter:
+    """Adapter making an aiohttp WebSocket look like a StreamWriter to
+    partyline.send_line(). Lines are decoded back from PETSCII and pushed as
+    `partyline` messages. write() buffers; drain() flushes (send_line always
+    calls write-then-drain, and broadcast_room drives it from other tasks)."""
+
+    def __init__(self, ws, partyline):
+        self._ws = ws
+        self._pl = partyline
+        self._buf = []
+
+    def write(self, data):
+        self._buf.append(data)
+
+    async def drain(self):
+        buf, self._buf = self._buf, []
+        for raw in buf:
+            text = self._pl.petscii_to_ascii(raw.rstrip(b'\x0d'))
+            if text.strip().lower() in ('*ping',):     # keepalive is transport noise
+                continue
+            try:
+                await self._ws.send_json({"type": "partyline", "line": text})
+            except Exception:
+                pass
+
+
+async def partyline_enter(session, ws, msg_id=None):
+    """Join Partyline: register with the shared module and stream its output."""
+    import partyline as pl
+    if getattr(session, '_pl_writer', None) is not None:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "already in partyline"}
+    if pl._is_banned(session.user_id):
+        return {"type": "error", "id": msg_id, "code": "permission_denied",
+                "message": "You are banned from partyline."}
+
+    writer = _WsPartylineWriter(ws, pl)
+    session._pl_writer = writer
+    pl._users[session.user_id] = {"writer": writer, "alias": None, "room": "Lobby"}
+    pl.partyline_log('join', user=session.user_id)
+    log.info('PARTYLINE(api): %s entering', session.user_id)
+
+    await ws.send_json({"type": "partyline.entered", "id": msg_id, "room": "Lobby"})
+    # Same entry sequence as a Binding-A session (§8.5): announce, then who-listing.
+    await pl.send_line(writer, "%s has entered partyline" % session.user_id)
+    await pl.send_line(writer, "")
+    await pl.broadcast_room("Lobby", "%s has entered partyline" % session.user_id,
+                            exclude=session.user_id)
+    await pl.broadcast_room("Lobby", "", exclude=session.user_id)
+    await pl._cmd_who(writer, session.user_id)
+    return None
+
+
+async def partyline_input(session, line, msg_id=None):
+    """Feed one line to the shared partyline handler (chat or *command)."""
+    import partyline as pl
+    writer = getattr(session, '_pl_writer', None)
+    if writer is None:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "not in partyline"}
+    result = await pl.process_input(session.user_id, line, writer)
+    if result == 'save':
+        return {"type": "ack", "id": msg_id, "of": "partyline.save"}
+    if result or session.user_id not in pl._users:     # quit, or kicked/banned
+        await partyline_leave(session)
+        return {"type": "partyline.left", "id": msg_id}
+    return None
+
+
+async def partyline_leave(session, msg_id=None):
+    """Leave Partyline and resume normal gateway commands."""
+    import partyline as pl
+    if getattr(session, '_pl_writer', None) is None:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "not in partyline"}
+    uid = session.user_id
+    if uid in pl._users:
+        room = pl._users[uid]["room"]
+        del pl._users[uid]
+        name = pl.display_name(uid)
+        await pl.broadcast_room(room, "%s has left partyline" % name)
+        await pl.broadcast_room(room, "")
+    pl.partyline_log('leave', user=uid)
+    session._pl_writer = None
+    log.info('PARTYLINE(api): %s left', uid)
+    return {"type": "partyline.left", "id": msg_id}
+
+
 def _find_index(session, page_num):
     """Map a page number to its index within the current visible window (content
     directory, or the mailbox when in mail mode)."""
@@ -486,6 +582,11 @@ def _find_index(session, page_num):
 
 def _serialize_state(session, raw, msg_id=None):
     """After driving a command, decide frame vs directory vs download from state."""
+    if getattr(session, '_enter_partyline', False):
+        # An `L` entry was selected; the gateway completes the join (§8.5). The
+        # link-header/program bytes Binding A sends here are transport-specific
+        # and are not carried into Binding B.
+        return {"type": "partyline.entering", "id": msg_id}
     if getattr(session, '_program_download_pending', False):
         return _download_json(session, msg_id)
     if getattr(session, 'mail_mode', False):
@@ -669,11 +770,43 @@ async def ws_gateway(request):
             except Exception:
                 await ws.send_json({"type": "error", "code": "invalid", "message": "bad JSON"})
                 continue
+
+            t, mid = msg.get("type"), msg.get("id")
+
+            # Partyline is async (it pushes) so it is handled here, not in the
+            # sync dispatcher.
+            if t in ("partyline.send", "partyline.command"):
+                reply = await partyline_input(session, str(msg.get("text", "")), mid)
+                if reply:
+                    await ws.send_json(reply)
+                continue
+            if t == "partyline.leave":
+                await ws.send_json(await partyline_leave(session, mid))
+                continue
+            if t == "partyline.enter":
+                reply = await partyline_enter(session, ws, mid)
+                if reply:
+                    await ws.send_json(reply)
+                continue
+
             reply = handle_message(session, msg)
             await ws.send_json(reply)
+
+            # Selecting an `L` (link) entry activates Partyline (§7.4/§8.5).
+            if getattr(session, '_enter_partyline', False):
+                session._enter_partyline = False
+                err = await partyline_enter(session, ws)
+                if err:
+                    await ws.send_json(err)
     except Exception as e:
         log.info('API gateway loop ended for %s: %s', session.user_id, e)
     finally:
+        # Never leave a ghost in the partyline roster (§8.5).
+        if session is not None and getattr(session, '_pl_writer', None) is not None:
+            try:
+                await partyline_leave(session)
+            except Exception:
+                pass
         log.info('API gateway: %s disconnected', session.user_id if session else '?')
     return ws
 

@@ -69,13 +69,15 @@ export interface DownloadDataMsg {
 export interface ErrorMsg { type: 'error'; id?: number | string; code: string; message?: string; }
 export interface AckMsg { type: 'ack'; id?: number | string; of?: string; }
 export interface PartylineMsg { type: 'partyline'; line: string; }
+export interface PartylineEnteredMsg { type: 'partyline.entered'; id?: number | string; room: string; }
+export interface PartylineLeftMsg { type: 'partyline.left'; id?: number | string; }
 export interface NoticeMsg { type: 'notice'; kind: string; [k: string]: unknown; }
 
 /** Any message the server may send over the gateway. */
 export type ServerMsg =
   | ReadyMsg | DirectoryMsg | FrameMsg | AccountMsg | IdLookupMsg
   | DownloadMsg | DownloadDataMsg
-  | ErrorMsg | AckMsg | PartylineMsg | NoticeMsg
+  | ErrorMsg | AckMsg | PartylineMsg | PartylineEnteredMsg | PartylineLeftMsg | NoticeMsg
   | { type: string;[k: string]: unknown };
 
 /** Commands the client sends (spec §4 of the binding). */
@@ -97,6 +99,11 @@ export type ClientMsg =
   | { type: 'vote'; page: number; score: number; id?: number }
   | { type: 'life'; page: number; days: number; id?: number }
   | { type: 'download.fetch'; id?: number }
+  // Tier 3
+  | { type: 'partyline.enter'; id?: number }
+  | { type: 'partyline.send'; text: string; id?: number }
+  | { type: 'partyline.command'; text: string; id?: number }
+  | { type: 'partyline.leave'; id?: number }
   | { type: 'leave'; id?: number };
 
 /** Client-side assets, extracted from the spec appendix (gen_assets.py). */

@@ -210,6 +210,21 @@ function onMessage(m) {
     case "ack":
       status(`${m.of ?? "command"} accepted`);
       break;
+    case "partyline.entering":
+      status("Joining Partyline\u2026");
+      break;
+    case "partyline.entered":
+      setChatVisible(true);
+      chatLog("*** Partyline \u2014 room " + m.room + " ***");
+      status("In Partyline. *help for commands, *quit to leave.");
+      break;
+    case "partyline":
+      chatLog(m.line);
+      break;
+    case "partyline.left":
+      setChatVisible(false);
+      status("Left Partyline.");
+      break;
     case "error":
       status("\u26A0 " + m.code + (m.message ? ": " + m.message : ""));
       break;
@@ -219,6 +234,22 @@ function onMessage(m) {
 }
 function curEntry() {
   return dir ? dir.entries[sel] : void 0;
+}
+var inParty = false;
+function setChatVisible(on) {
+  inParty = on;
+  $("chat").hidden = !on;
+  if (on) {
+    $("chatInput").value = "";
+    $("chatInput").focus();
+  } else {
+    $("chatLog").textContent = "";
+  }
+}
+function chatLog(line) {
+  const log = $("chatLog");
+  log.textContent += (log.textContent ? "\n" : "") + line;
+  log.scrollTop = log.scrollHeight;
 }
 function saveBase64(b64, filename) {
   const bin = atob(b64);
@@ -284,6 +315,10 @@ var actions = {
     const u = prompt("Look up user ID(s), comma-separated:");
     if (u) gw.send({ type: "idlookup", ids: u.split(",").map((x) => x.trim()).filter(Boolean) });
   },
+  PARTY: () => {
+    if (inParty) gw.send({ type: "partyline.leave" });
+    else gw.send({ type: "partyline.enter" });
+  },
   LEAVE: () => {
     gw.send({ type: "leave" });
     gw.close();
@@ -317,6 +352,9 @@ async function connect() {
   }
 }
 window.addEventListener("keydown", (e) => {
+  const el = e.target;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+  if (inParty) return;
   if (mode === "directory" && dir) {
     if (e.key === "ArrowDown") {
       sel = Math.min(sel + 1, dir.entries.length - 1);
@@ -349,6 +387,14 @@ async function boot() {
   assets = await (await fetch("./assets.json")).json();
   renderer = new Renderer(canvas, assets, wrap);
   $("connect").onclick = connect;
+  $("chatInput").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const input = $("chatInput");
+    const text = input.value.trim();
+    if (!text) return;
+    gw.send({ type: text.startsWith("*") ? "partyline.command" : "partyline.send", text });
+    input.value = "";
+  });
   status("Ready. Enter credentials and Connect.");
 }
 void boot();

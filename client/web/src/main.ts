@@ -71,6 +71,21 @@ function onMessage(m: ServerMsg): void {
     case 'ack':
       status(`${(m as { of?: string }).of ?? 'command'} accepted`);
       break;
+    case 'partyline.entering':
+      status('Joining Partyline…');
+      break;
+    case 'partyline.entered':
+      setChatVisible(true);
+      chatLog('*** Partyline — room ' + (m as { room: string }).room + ' ***');
+      status('In Partyline. *help for commands, *quit to leave.');
+      break;
+    case 'partyline':
+      chatLog((m as { line: string }).line);
+      break;
+    case 'partyline.left':
+      setChatVisible(false);
+      status('Left Partyline.');
+      break;
     case 'error':
       status('⚠ ' + (m as { code: string }).code + ((m as { message?: string }).message ? ': ' + (m as { message?: string }).message : ''));
       break;
@@ -80,6 +95,22 @@ function onMessage(m: ServerMsg): void {
 }
 
 function curEntry() { return dir ? dir.entries[sel] : undefined; }
+
+// --- Partyline chat panel (§8.5) -------------------------------------------
+let inParty = false;
+
+function setChatVisible(on: boolean): void {
+  inParty = on;
+  $('chat').hidden = !on;
+  if (on) { $<HTMLInputElement>('chatInput').value = ''; $<HTMLInputElement>('chatInput').focus(); }
+  else { $('chatLog').textContent = ''; }
+}
+
+function chatLog(line: string): void {
+  const log = $('chatLog');
+  log.textContent += (log.textContent ? '\n' : '') + line;
+  log.scrollTop = log.scrollHeight;
+}
 
 /** Trigger a browser save of base64 payload (program download, §8.3.1). */
 function saveBase64(b64: string, filename: string): void {
@@ -124,6 +155,7 @@ const actions: Record<string, () => void> = {
     if (d) gw.send({ type: 'life', page: e.page, days: parseInt(d, 10) });
   },
   WHO: () => { const u = prompt('Look up user ID(s), comma-separated:'); if (u) gw.send({ type: 'idlookup', ids: u.split(',').map((x) => x.trim()).filter(Boolean) }); },
+  PARTY: () => { if (inParty) gw.send({ type: 'partyline.leave' }); else gw.send({ type: 'partyline.enter' }); },
   LEAVE: () => { gw.send({ type: 'leave' }); gw.close(); },
 };
 
@@ -154,6 +186,10 @@ async function connect(): Promise<void> {
 }
 
 window.addEventListener('keydown', (e) => {
+  // Don't hijack keys while the user is typing (chat, login fields).
+  const el = e.target as HTMLElement | null;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+  if (inParty) return;
   if (mode === 'directory' && dir) {
     if (e.key === 'ArrowDown') { sel = Math.min(sel + 1, dir.entries.length - 1); render(); e.preventDefault(); return; }
     if (e.key === 'ArrowUp') { sel = Math.max(sel - 1, 0); render(); e.preventDefault(); return; }
@@ -171,6 +207,15 @@ async function boot(): Promise<void> {
   assets = await (await fetch('./assets.json')).json();
   renderer = new Renderer(canvas, assets, wrap);
   $<HTMLButtonElement>('connect').onclick = connect;
+  // Partyline: one Enter sends (the originals used a double RETURN, §8.5).
+  $<HTMLInputElement>('chatInput').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const input = $<HTMLInputElement>('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+    gw.send({ type: text.startsWith('*') ? 'partyline.command' : 'partyline.send', text });
+    input.value = '';
+  });
   status('Ready. Enter credentials and Connect.');
 }
 
