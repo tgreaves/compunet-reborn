@@ -164,13 +164,157 @@ def directory_to_json(session, msg_id=None):
     }
 
 
-def frame_to_cells(session, msg_id=None):
-    """STUB — the 40x24 cell-grid renderer (spec §5/§6) lands in its own pass,
-    so the colour/charset/reverse control-code interpretation is done against
-    the spec, not guessed. Until then, reading a page reports not-implemented."""
+# --- Frame cell-grid renderer (spec §5/§6) ---------------------------------
+
+# Colour control code -> palette index (spec §5.6).
+_COLOUR = {
+    0x05: 1, 0x1C: 2, 0x1E: 5, 0x1F: 6, 0x81: 8, 0x90: 0, 0x9C: 4, 0x9E: 7,
+    0x9F: 3, 0x95: 9, 0x96: 10, 0x97: 11, 0x98: 12, 0x99: 13, 0x9A: 14, 0x9B: 15,
+}
+
+
+def _petscii_to_screencode(b):
+    """PETSCII byte -> C64 screen code (spec §5.3)."""
+    if 0x20 <= b <= 0x3F:
+        return b
+    if 0x40 <= b <= 0x5F:
+        return b & 0x1F
+    if 0x60 <= b <= 0x7F:
+        return (b & 0x1F) | 0x40
+    if 0xA0 <= b <= 0xBF:
+        return (b & 0x1F) | 0x60
+    if 0xC0 <= b <= 0xDE:
+        return b & 0x7F
+    if b == 0xFF:
+        return 0x5E
+    if 0xE0 <= b <= 0xFE:
+        return b & 0x7F
+    return b & 0x7F
+
+
+def _is_control(b):
+    return b <= 0x1F or 0x80 <= b <= 0x9F
+
+
+def frame_to_cells(raw, msg_id=None):
+    """Render frame bytes [4-byte header][body][$00] into a 40x24 cell grid
+    (spec §6.3 processing loop + §5 control codes). Each cell is {g,fg,bg,rv}:
+    g = glyph index 0-255 (0-127 uppercase/graphics set, 128-255 lowercase set),
+    fg/bg = palette index 0-15, rv = reverse-video flag."""
+    COLS, ROWS = 40, 24
+    flags = raw[0] if len(raw) > 0 else 0
+    border = (raw[1] & 0x0F) if len(raw) > 1 else 0
+    background = (raw[2] & 0x0F) if len(raw) > 2 else 0
+    charset_byte = raw[3] if len(raw) > 3 else 0x8E
+    body = raw[4:]
+
+    lower = (charset_byte == 0x0E)        # else uppercase/graphics (§6.2)
+    colour = 1                            # initial text colour undefined (§6.3) — white
+    reverse = 0
+    row = col = 0
+    just_wrapped = False
+
+    # grid initialised to spaces (screencode 0x20) in the header background
+    space_g = 0x20
+    grid = [{"g": space_g, "fg": colour, "bg": background, "rv": 0}
+            for _ in range(ROWS * COLS)]
+
+    def place(b):
+        nonlocal row, col, just_wrapped
+        sc = _petscii_to_screencode(b)
+        g = sc + (128 if lower else 0)
+        grid[row * COLS + col] = {"g": g, "fg": colour, "bg": background, "rv": reverse}
+        col += 1
+        if col >= COLS:
+            col = 0
+            if row < ROWS - 1:
+                row += 1
+            just_wrapped = True
+        else:
+            just_wrapped = False
+
+    def control(b):
+        nonlocal row, col, colour, reverse, lower, just_wrapped
+        if b in _COLOUR:
+            colour = _COLOUR[b]
+            return
+        if b in (0x0D, 0x8D):            # CR (§5.6.1 auto-wrap guard)
+            col = 0
+            reverse = 0
+            if not just_wrapped and row < ROWS - 1:
+                row += 1
+            just_wrapped = False
+        elif b == 0x11:                  # cursor down
+            row = min(row + 1, ROWS - 1); just_wrapped = False
+        elif b == 0x91:                  # cursor up
+            row = max(row - 1, 0); just_wrapped = False
+        elif b == 0x1D:                  # cursor right (wraps)
+            col += 1
+            if col >= COLS:
+                col = 0; row = min(row + 1, ROWS - 1)
+            just_wrapped = False
+        elif b == 0x9D:                  # cursor left (wraps)
+            col -= 1
+            if col < 0:
+                col = COLS - 1; row = max(row - 1, 0)
+            just_wrapped = False
+        elif b == 0x13:                  # home
+            row = col = 0; just_wrapped = False
+        elif b == 0x93:                  # clear + home
+            for i in range(ROWS * COLS):
+                grid[i] = {"g": space_g, "fg": colour, "bg": background, "rv": 0}
+            row = col = 0; just_wrapped = False
+        elif b == 0x12:
+            reverse = 1
+        elif b == 0x92:
+            reverse = 0
+        elif b == 0x0E:
+            lower = True
+        elif b == 0x8E:
+            lower = False
+        # $14/$94 (delete/insert) and unlisted codes: no-op (§5.6)
+
+    def process(b):
+        if _is_control(b):
+            control(b)
+        else:
+            place(b)
+
+    i, n = 0, len(body)
+    while i < n:
+        b = body[i]; i += 1
+        if b == 0x00:                    # terminator (§6.3)
+            break
+        if b == 0x06:                    # space run (§6.4): 1+N spaces
+            N = body[i] if i < n else 0; i += 1
+            for _ in range(1 + N):
+                place(0x20)
+        elif b == 0x07:                  # char/control run (§6.4): c, 1+N times
+            c = body[i] if i < n else 0
+            N = body[i + 1] if i + 1 < n else 0
+            i += 2
+            for _ in range(1 + N):
+                process(c)
+        else:
+            process(b)
+
     return {
-        "type": "error", "id": msg_id, "code": "invalid",
-        "message": "frame rendering not yet implemented (Phase 1a: directory browse only)",
+        "type": "frame", "id": msg_id,
+        "border": border, "background": background,
+        "morePages": bool(flags & 0x80),
+        "rows": ROWS, "cols": COLS,
+        "cells": grid,
+    }
+
+
+def _download_json(session, msg_id=None):
+    """Program/telesoftware entry — Tier 2 transfer; Phase 1 returns a descriptor."""
+    session._program_download_pending = False
+    return {
+        "type": "download", "id": msg_id,
+        "page": getattr(session, '_download_page_num', None),
+        "title": getattr(session, '_download_title', None),
+        "note": "download transfer is Tier 2 (not yet implemented)",
     }
 
 
@@ -184,17 +328,19 @@ def _find_index(session, page_num):
     return None
 
 
-def _serialize_state(session, msg_id=None):
-    """After driving a command, decide frame vs directory from session state."""
+def _serialize_state(session, raw, msg_id=None):
+    """After driving a command, decide frame vs directory vs download from state."""
+    if getattr(session, '_program_download_pending', False):
+        return _download_json(session, msg_id)
     if getattr(session, 'show_page', None):
-        return frame_to_cells(session, msg_id)
+        return frame_to_cells(raw, msg_id)           # raw = frame bytes from handle_command
     return directory_to_json(session, msg_id)
 
 
 def _drive(session, cmd_bytes, msg_id=None):
     """Run authoritative navigation for its side-effects, then serialize."""
-    session.handle_command(cmd_bytes)
-    return _serialize_state(session, msg_id)
+    raw = session.handle_command(cmd_bytes)
+    return _serialize_state(session, raw, msg_id)
 
 
 # ---------------------------------------------------------------------------
@@ -279,9 +425,17 @@ async def ws_gateway(request):
             await ws.close()
             return ws
         log.info('API gateway: %s connected from %s', user_id, peer)
+        # Render the welcome frame (spec §3.5/§6) as a cell grid for the client.
+        welcome = None
+        try:
+            user = session._users.get(session.user_id) or {}
+            welcome = frame_to_cells(session._make_welcome_frame(user))
+        except Exception as e:
+            log.warning('welcome frame render failed: %s', e)
         await ws.send_json({
             "type": "ready",
             "account": {"user": session.user_id, "credit": session.credit},
+            "welcome": welcome,
         })
         # Auto-load the root directory so the client has an initial screen.
         await ws.send_json(directory_to_json(session))

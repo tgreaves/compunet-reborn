@@ -144,7 +144,7 @@ paints each cell (glyph from the appendix font, `fg`/`bg` from the palette).
   "rows": 24, "cols": 40,
   "cells": [ /* row-major, rows*cols entries */
     { "g": 0, "fg": 6, "bg": 15, "rv": 0 }
-    // g   = glyph index 0–511 (0–255 = uppercase/graphics charset, 256–511 = lowercase); §5.2/§5.4
+    // g   = glyph index 0–255 (0–127 = uppercase/graphics set, 128–255 = lowercase set; 128 glyphs each, §5.2/§5.4)
     // fg,bg = palette index 0–15 (§5.5)
     // rv  = reverse-video flag 0|1 (§5.7)
   ]
@@ -197,11 +197,13 @@ sync.
   authoritative `handle_command` for its side-effects, then serializes model state), on port
   6404, isolated from the admin API. Validated locally end-to-end (HTTP token + WS round-trip +
   navigation). `open` currently returns a not-implemented error pending the frame renderer.
-- **Phase 1b (next):** the `frame` cell-grid renderer (`frame_to_cells`) — expand RLE (reuse
-  `terminal.py:expand_frame`) and interpret §5 colour/charset/reverse control codes into
-  per-cell `{g,fg,bg,rv}`. Then `open`/`more` return real frames and the reference client can
-  render pages.
-- **Phase 1 client:** the TypeScript/canvas reference client — login, browse, render a frame.
+- **Phase 1b — DONE (server):** the `frame` cell-grid renderer (`frame_to_cells`) implements the
+  §6.3 processing loop with §5 control codes (colour, charset `$0E`/`$8E`, reverse, cursor,
+  the §5.6.1 auto-wrap guard) and §6.4 RLE, producing a 40×24 grid of `{g,fg,bg,rv}`. `ready`
+  now carries the welcome frame; `open`/`more` return real frames. Verified by rendering the
+  welcome frame and a page to text.
+- **Phase 1 client (next):** the TypeScript/canvas reference client — login, browse, render a
+  frame (needs the appendix font + palette).
 - **Phase 2 (Tier 2):** account, mail read/send, download, vote/life, id-lookup.
 - **Phase 3 (Tier 3):** upload (with `kind`/`price`), the editor path, Partyline.
 - **Then hybrid:** add the REST read endpoints (§1), reusing these exact JSON shapes.
