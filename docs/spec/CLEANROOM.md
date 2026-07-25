@@ -1,5 +1,11 @@
 # Clean-room validation brief
 
+> **Scope: this is the procedure for validating [Binding A](README.md)** (X.25-over-TCP), and it
+> has been run five times — see [VALIDATION.md](VALIDATION.md). The same method applies to
+> **[Binding B](api/README.md)** (the JSON API), which has **not** yet been clean-room validated;
+> doing so is an outstanding item on issue #91. To validate Binding B, follow this document but
+> isolate `docs/spec/api/README.md` plus the shared model sections and appendix instead.
+
 This document defines how to validate that the [Compunet Client Specification](README.md)
 is **sufficient to build a working client from the spec alone**. It exists because the spec
 author cannot validate their own spec: they carry the codebase and its assumptions in their

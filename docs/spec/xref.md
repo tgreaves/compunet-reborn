@@ -7,6 +7,12 @@
 >
 > Paths are relative to the repo root. Line numbers drift as code changes — treat the
 > function/symbol name as authoritative and the line as a hint.
+>
+> This maps **Binding A** (this spec). **Binding B** — the JSON API — lives entirely in
+> `server/api_binding.py`, which is a *serializer over the same core*
+> (`CompunetSession` / `CompunetDirectory`) rather than a second implementation: it drives the
+> very handlers listed below and serializes the resulting state. So every row here is the
+> authority for both bindings, and a behaviour change made in one is inherited by the other.
 
 ## §2 — Transport
 

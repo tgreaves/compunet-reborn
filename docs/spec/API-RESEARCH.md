@@ -1,14 +1,19 @@
-# Client API — research & options (planning only)
+# Client API — design rationale (decision record)
 
-> **Status: research / planning. Nothing here is built or normative.** This document scopes a
-> *modern client API* for Compunet Reborn — a clean binding that lets web, mobile, and desktop
-> clients talk to the service **without** reimplementing the X.25 framing or PETSCII decoding
-> that exist today only to satisfy the original ROM. It is written to be decided on, not
-> followed: it lays out options, trade-offs, and a recommendation, and ends with the open
-> questions that need your call before any build.
+> **Status: historical — the decisions recorded here have been made and built.** This was the
+> options study for a *modern client API*; it is kept as the **rationale** for why Binding B is
+> shaped the way it is (why WebSocket, why JSON, why the server decodes PETSCII, why the C64
+> stays on the old protocol). It is **not** the specification.
 >
-> It is a companion to the [Compunet Client Specification](README.md), which specifies the
-> **existing** protocol (X.25-over-TCP + PETSCII). This is the plan for a *second* way in.
+> - **To build a client**, read the binding spec: **[api/README.md](api/README.md)**.
+> - **To understand the wire protocol** the ROM clients use, read the
+>   [Compunet Client Specification](README.md) (Binding A).
+> - **To know why the API looks like this**, read on.
+>
+> The options rejected below are recorded deliberately: knowing what was *not* chosen, and why,
+> is what stops a future change from quietly undoing the reasoning. Where this document says
+> "recommended" or "open question", read it as the state *before* the build — §8 records how each
+> question was actually settled.
 
 ## 0. Constraints fixed up front
 
@@ -305,25 +310,30 @@ without forking.
    the JSON shapes against the live content model with a tiny reference client. Then layer Tier 2
    (mail/download/VOTE/LIFE) and Tier 3 (upload/editor/Partyline), then add REST reads.
 
-## 8. Open questions for you
+## 8. How the open questions were settled
 
-*Transport is now settled (see §7): schema-first JSON, a **WebSocket gateway** built first,
-growing into a **hybrid gateway + REST**, with a raw-TCP envelope held in reserve for a future
-bespoke native client. gRPC/protobuf is ruled out unless browser support is ever dropped. The
-questions below are the decisions still genuinely open.*
+Every question this study raised has been decided and implemented. The outcomes are recorded
+here so the *reasoning* stays attached to the result; the binding spec
+([api/README.md](api/README.md)) is the authority on the shapes themselves.
 
-1. **Build order:** gateway-only for Phase 1 and add REST reads later (recommended), or stand up
-   the REST read path alongside the gateway from the start?
-2. **Frame encoding:** ship the **cell grid** (pixel-faithful), **styled text runs**
-   (HTML-friendly), or **both**? Is pixel-exact fidelity a Phase-1 requirement or a later mode?
-   (Is an image/B2 mode ever wanted — e.g. a share-a-screenshot feature?)
-3. **Spec structure:** full **layered refactor** now, or a **sibling API document** first?
-4. **Auth:** simple bearer token issued from the existing user store? Any need for
-   OAuth/third-party, or is username/password → token sufficient?
-5. **Namespace/port:** dedicated **client-API port**, or namespaced routes alongside (but
-   separate from) the website's aiohttp app? (Admin `/api/*` stays untouched regardless.)
-6. **Fidelity vs. modernisation:** should the API preserve the exact Compunet look (40×24,
-   PETSCII, palette) as the contract, or also permit "modern" clients that reflow/restyle
-   content? This decides how much of §5's display contract is normative for the API binding.
-7. **Reference client:** what should the first API client be (a small web browse client? a CLI?)
-   so the API is validated the way the clean-room runs validated the spec?
+| # | Question | Decision |
+|---|---|---|
+| 1 | Build order | **Gateway first**, REST reads added after — both now shipped, so the hybrid is complete |
+| 2 | Frame encoding | **Cell grid only** (pixel-faithful 40×24 `{g,fg,bg,rv}`). Styled text runs and the image mode were *not* built — the goal is the authentic look, not reflowable text |
+| 3 | Spec structure | **Sibling document** (`api/README.md`), with the main spec reframed as Binding A and its sections tagged model-vs-wire (§1.8). No renumbering, so the clean-room-validated cross-references stayed stable |
+| 4 | Auth | **Token-first**: `POST /v1/session` → opaque bearer token, then first-message auth on the socket. No OAuth; the existing user store is enough |
+| 5 | Namespace / port | **Dedicated port 6404**, its own aiohttp app. The website's admin API (6403) is untouched |
+| 6 | Fidelity vs. modernisation | **Fidelity.** The 40×24 PETSCII display contract is normative for this binding too — the server decodes, but the client still renders the real thing with the appendix font and palette |
+| 7 | Reference client | **TypeScript → `<canvas>`** (`client/web`), which doubles as the Electron desktop app (`client/electron`) |
+
+Two things surfaced only once a *faithful* client existed, and are worth remembering:
+
+- **CORS is not optional.** The API is consumed cross-origin by definition (a web client on its
+  own host; the Electron shell serving from an ephemeral port). Serving client and API from one
+  origin in development hid this until the desktop build failed with a bare "failed to fetch".
+- **Building a real renderer found genuine errors in Binding A's spec** — directory geometry that
+  five clean-room runs had not caught, because those clients compensated with their own offsets.
+  Recorded in [VALIDATION.md](VALIDATION.md).
+
+**Still open:** deploying port 6404 to the live service, and a clean-room validation of Binding B
+of the kind Binding A had (#111). Tracking: **#91**.

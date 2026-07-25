@@ -16,10 +16,10 @@ the original phone line could not, while the X.25-derived framing (§2) supplies
 boundaries and sequencing the protocol expects.
 
 This document is **Binding A** — the X.25-over-TCP wire protocol — one of two ways to carry
-the same underlying service. A second, modern **JSON API binding (Binding B)** is planned for
-capable clients; the constrained C64/Amiga ROM clients stay on Binding A permanently. §1.8
-explains the model-and-bindings architecture and which sections here are shared model versus
-Binding-A wire format.
+the same underlying service. The modern **JSON API (Binding B)** is specified in
+[`api/README.md`](api/README.md), for capable clients; the constrained C64/Amiga ROM clients
+stay on Binding A permanently. §1.8 explains the model-and-bindings architecture and which
+sections here are shared model versus Binding-A wire format.
 
 ## 1.2 Authority and provenance
 
@@ -123,10 +123,10 @@ model is *what* the service is; a binding is *how* it is carried on the wire.
   framing), **§6** (frame bytes: header, RLE, control codes), **§7** (the six-part directory
   stream), and the PETSCII byte encoding within **§5**.
 
-**This document is Binding A — X.25-over-TCP.** A planned **Binding B — a modern JSON API** (web
-/ desktop / mobile) will reuse the model sections above verbatim and replace only the wire-format
-sections with structured JSON; it is scoped in `API-RESEARCH.md` and, when specified, becomes a
-sibling document, not a change to this one.
+**This document is Binding A — X.25-over-TCP.** **Binding B — the modern JSON API** (web /
+desktop / mobile) reuses the model sections above verbatim and replaces only the wire-format
+sections with structured JSON. It is a **sibling document**, [`api/README.md`](api/README.md),
+not a change to this one; [`API-RESEARCH.md`](API-RESEARCH.md) records why it is shaped as it is.
 
 Bindings exist because clients differ in capability. The **C64 and Amiga ROM clients** cannot
 afford JSON or a WebSocket, so they remain on Binding A **permanently** — it is frozen, not

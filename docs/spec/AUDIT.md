@@ -1,9 +1,11 @@
 # Documentation Audit & Coverage Matrix
 
-> **Status:** Phase 1 deliverable for the Compunet Client Specification (issue #111).
-> This is a working document — it maps what the spec must cover to where that content
-> lives today, and flags gaps, contradictions, and staleness to resolve while writing.
-> It is retired/folded into the spec once §-by-§ writing is complete.
+> **Status: RETIRED — historical, kept for provenance.** This was the Phase 1 deliverable for
+> the Compunet Client Specification (issue #111): it mapped what the spec had to cover to where
+> that content lived at the time, and flagged the gaps and contradictions to resolve while
+> writing. That writing is complete and its findings are folded into the spec, so **nothing here
+> is current guidance** — do not use it to judge what the spec covers today. For that, read
+> [README.md](README.md) (Binding A) and [api/README.md](api/README.md) (Binding B).
 
 ## Purpose
 

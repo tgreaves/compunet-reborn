@@ -1,10 +1,12 @@
 # Compunet Client Specification
 
 > **Status:** Written and validated. All section files (§§1–8 + appendices) are complete,
-> and the spec has been independently verified by a source-isolated clean-room build (see
-> [VALIDATION.md](VALIDATION.md)). Tracking: issue #111. This document is **Binding A** (the
-> X.25-over-TCP wire protocol); a modern **JSON API binding (Binding B)** is planned and
-> scoped in [API-RESEARCH.md](API-RESEARCH.md) — not yet specified.
+> and the spec has been independently verified by **five** source-isolated clean-room builds
+> (see [VALIDATION.md](VALIDATION.md)). Tracking: issue #111.
+>
+> This document is **Binding A** — the X.25-over-TCP wire protocol, and the binding the C64 and
+> Amiga clients use. The modern **JSON API (Binding B)** is specified separately in
+> [api/README.md](api/README.md) (draft; tracking issue #91).
 
 This is the normative, platform-agnostic specification for building a **Compunet Reborn**
 client that connects to the modern server over **TCP/IP**. It is the single source of
@@ -24,21 +26,22 @@ Compunet Reborn separates **what** the service does from **how** it is carried o
   frames), the command and navigation semantics, and the subsystems (mail, downloads,
   uploads, editor, Partyline, LIFE/VOTE). This is the *meaning* of the service, identical
   for every client.
-- **Transport bindings** (how the model is carried): concrete wire formats. This document
-  specifies **Binding A — X.25-over-TCP with PETSCII**, the original application protocol
-  preserved on the wire. A second **Binding B — a modern JSON API** is planned for capable
-  clients (web / desktop / mobile); it projects the *same* application model into structured
-  JSON and is scoped in [API-RESEARCH.md](API-RESEARCH.md).
+- **Transport bindings** (how the model is carried): concrete wire formats.
+
+  | Binding | Wire format | Port | Clients | Spec |
+  |---|---|---|---|---|
+  | **A** | X.25-over-TCP + PETSCII | 6400 | C64, Amiga (ROM) | **this document** |
+  | **B** | JSON over WebSocket / HTTP | 6404 | web, Electron desktop, mobile | [api/README.md](api/README.md) |
 
 Bindings exist because clients differ in capability. The **C64 and Amiga ROM clients** lack
 the memory and compute for JSON or a WebSocket, so they stay on **Binding A permanently** —
-it is frozen, not deprecated. Capable clients use Binding B when it lands. Because both
-bindings project one model, a C64 and a browser see the same Compunet.
+it is frozen, not deprecated. Because both bindings project one model, a C64 and a browser see
+the same Compunet, and Binding B must never expose behaviour Binding A cannot.
 
 **This document is Binding A.** Its *wire-format* sections (§2 framing, §6 frame bytes, §7
 directory stream, and the PETSCII encoding within §5) are specific to this binding; its
 *semantic* sections (§3 session, §4 commands, §8 subsystems, and the abstract screen model in
-§5) are the shared application model that Binding B will reuse. Each section is tagged in the
+§5) are the shared application model that Binding B reuses. Each section is tagged in the
 index below; §1.8 gives the full map.
 
 ## Scope

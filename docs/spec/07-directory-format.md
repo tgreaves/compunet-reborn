@@ -188,7 +188,17 @@ frame — this is how special pages get custom graphics above the list.)*
 ## 7.6 Paging
 
 A directory shows at most **11 entries** at a time. If more entries exist, the client pages
-through them:
+through them.
+
+> **Two different limits both happen to be 11 — do not conflate them.**
+> - **Here, 11 is a *page size*.** A listing may contain **any number** of entries and is served
+>   11 at a time; mail (§8.2) and UCAT (§8.6) routinely exceed one page. A client **MUST**
+>   implement paging and **MUST NOT** assume a listing fits in one response.
+> - **In §8.3.2, 11 is a *capacity limit* on user uploads*** — the server refuses to add a
+>   **12th** child to a directory via upload. That is a write-side rule; it does not mean a
+>   directory can never *contain* more than 11 (system-authored and generated listings do).
+
+The paging mechanics:
 
 - Entry indices in `D` are **0-based relative to the current response** (not absolute across
   pages). To page forward, a client sends `D` + the index **one past the last visible entry**

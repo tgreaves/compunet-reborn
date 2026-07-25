@@ -270,23 +270,26 @@ index, the latent-directory creation model). The genuine gaps folded in:
   "home"; it reaches the root only right after login (current dir = root). To ascend, use `B`
   (BACK). The §A.7 trace comment was clarified accordingly.
 
-**Layout corrections (maintainer screenshots).** Two off-by-one placement errors, corrected in
-§7 (this is the run-5 answer to the open geometry finding **F13**):
+**Layout corrections (maintainer screenshots).** Directory placement errors, the run-5 answer to
+the open geometry finding **F13**. §7.3/§7.7/§A.6 carry the authoritative numbers; this entry
+records only *why* they were wrong and how they were settled.
 
-- Entry rows sat one column too far left: the whole row (page number, title, type) renders from
-  **screen column 2**, so the type lands at **screen column 26** (was 25), and entry page
-  numbers line up with the Part-4 breadcrumb above. Updated §7.3, §7.4, §7.5, §7.7, §4.5.
-- The selected column header (`PRICE`) sat one row too high and flush-left: it belongs at
-  **row 8** (level with `100 WELCOME`), **indented one column** for centring. Updated §7.7.
+- **Vertical:** the selected column header (`PRICE`) sat one row too high — it belongs at
+  **row 8**, level with breadcrumb line 2 (`100 WELCOME`).
+- **Horizontal:** the entry rows and the right-hand pane were misplaced. This took two passes to
+  get right, and the reason is instructive: the first pass shifted the spec's *absolute* column
+  numbers to match a clean-room client, when that client's real fault was that **its own box**
+  was drawn a column off. Correcting the spec to the client compounded the error rather than
+  fixing it.
 
-> **Correction (later, from the Binding-B web client — a faithful §A.6 template renderer).** The
-> first bullet's **horizontal** shift was wrong: it moved the *absolute* column numbers (to
-> column 2 / type 26) when the clean-room client's real problem was that *its own box* was a
-> column off. Rendered against the actual §A.6 template — left border at **column 0**, divider at
-> **29**, right border at **38** — content belongs at the **interior, column 1** (type at column
-> 25), not column 2. Reverted the horizontal shift: base column 1, type column 25, breadcrumb and
-> right-pane values one column left (§7.3/§7.4/§7.5/§7.7/§4.5/§A.6). The alignment is now defined
-> **relative to the box** to prevent this recurring. (The *vertical* PRICE-row-8 change stands.)
+  It was settled by **rendering the §A.6 template and reading the actual column indices** — the
+  box occupies `[0, 30, 39]` (left border, divider, right border). Content therefore sits at the
+  **box interior**: entry rows from **column 1**, type at **column 25**, right-pane header and
+  values from **column 31**.
+
+  **Lesson (now baked into §7.7):** the layout is defined **relative to the box**, not as
+  free-floating column numbers, so a client with a mispositioned box can no longer drag the spec
+  out of alignment. Verified by a per-column ink census on the rendered screen rather than by eye.
 
 The remaining run-5 findings (F5, F9–F12, F14–F19) were confirmations or UX choices the spec
 deliberately leaves open.

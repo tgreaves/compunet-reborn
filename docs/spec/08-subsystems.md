@@ -157,7 +157,9 @@ most 11 entries) — otherwise the server silently discards the page. "The Jungl
 conventional directory tree for user uploads, not a special upload target.
 
 **A full directory silently discards the upload — so the client MUST check for room first
-(normative).** The server gives **no error** when a directory is full (11 entries): the finish
+(normative).** This 11-entry limit is a **capacity rule for uploads**, not the 11-per-page
+*display* limit of §7.6 — the two are independent and only coincidentally the same number. The
+server gives **no error** when a directory is full (11 entries): the finish
 `P` just returns the directory unchanged, with the new page missing. The client therefore
 **MUST NOT** offer or begin an upload into a directory that already holds **11 entries** — it
 **MUST** check the target's entry count (which it already has from the listing it is showing)

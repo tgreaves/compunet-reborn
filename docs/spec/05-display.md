@@ -20,6 +20,15 @@ that carries this content (headers, RLE, terminator) is defined in [§6](06-fram
 At **Tier 1** a client **MUST** implement this display contract: without it, frames and
 directories cannot be shown.
 
+> **What this means per binding (§1.8).** The *screen model* — the 40×24 grid, the glyphs
+> (§5.4), the 16-colour palette (§5.5), and reverse video (§5.7) — is **shared**: every client
+> renders the same thing, and Binding B is no exception (its clients draw from the same appendix
+> font and palette). What differs is who does the **decoding**: a **Binding A** client parses the
+> PETSCII byte stream itself — the screen-code conversion (§5.3), control codes (§5.6) and RLE
+> (§6.4); a **Binding B** client does **not**, because the server has already expanded all of
+> that into a per-cell grid. So a Binding-B implementer needs §5.1/§5.4/§5.5/§5.7 and can treat
+> §5.3/§5.6 as background.
+
 ## 5.1 The screen model
 
 The Compunet content window is a character grid of **40 columns × 24 rows**.

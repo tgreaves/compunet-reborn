@@ -9,8 +9,8 @@
 
 ## Locked decisions
 
-- **Transport:** WebSocket **gateway** first (interactive session + server push), growing into a
-  **hybrid** (gateway + REST reads) later. The Discord/Slack model.
+- **Transport:** a **hybrid** — a WebSocket **gateway** for the interactive session and server
+  push, plus **REST reads** for cacheable fetches. The Discord/Slack model. Both are built.
 - **Encoding:** structured JSON. **Directories** are entry lists (the client composes the 40×24
   layout locally, so selection and column-cycling need no round-trip). **Frames** are a
   server-rendered **40×24 cell grid** (the client blits it with the appendix font/palette).
@@ -25,8 +25,8 @@ Everything below reuses the server's existing content/session core
 
 ## 1. Endpoints
 
-Dedicated listener on **6404**. Two surfaces (REST arrives with the hybrid phase; the gateway is
-Phase 1):
+Dedicated listener on **6404**, with two surfaces — the gateway for the interactive session,
+REST for cacheable reads:
 
 | Method | Path | Purpose | Phase |
 |---|---|---|---|
@@ -96,6 +96,7 @@ acts on rather than a highlighted index (spec §4.5).
 | `type` | Fields | Model | Meaning |
 |---|---|---|---|
 | `auth` | `token` | §3.5 | first message; authenticate the socket |
+| `dir` | — | §4.7 DIR (bare `P`) | show the **current** directory — this is how the welcome screen reaches the root (§2 step 3). Also the "refresh" after an action |
 | `enter` | `page` | §4.7 DIR (`P`+idx) | enter the entry as a directory (opens a latent one if none) |
 | `open` | `page` | §4.7 SHOW (`D`+idx) | read the entry's frame(s); or download/activate a program/link |
 | `more` | — | §4.7 MORE | next frame of a multi-frame item |
@@ -103,16 +104,19 @@ acts on rather than a highlighted index (spec §4.5).
 | `back` | — | §4.4 BACK | parent directory |
 | `goto` | `target` (page # or keyword) | §4.4 GOTO | jump; reply is always a directory (§4.4) |
 | `account` | — | §4.4 ACCOUNT | credit balance |
+| `ucat` | — | §8.6 | the user's own uploads (a directory listing) |
 | `vote` | `page`, `score` (1–9) | §8.6 | vote on the entry |
 | `life` | `page`, `days` | §8.6 | extend the entry's life |
 | `idlookup` | `ids` (array of 8-char) | §4.4 | user-ID → real-name lookup |
 | `mail.list` | — | §8.2 | mailbox as a directory |
-| `mail.read` | `id` | §8.2 | read a message |
-| `mail.send` | `to` (array), `subject`, `frames` (array of cell grids / editor pages) | §8.3.2 | send mail |
+| `mail.read` | `index` (row in the current listing) | §8.2 | read a message |
+| `mail.send` | `to` (array), `subject`, `frames` (editor pages, §5.4) | §8.3.2 | send mail |
 | `upload` | `title`, `kind` (`"T"`\|`"P"`), `price`, `life`, `frames` | §8.3.2 | content upload; **`kind` and `price` are required** (§8.3.2) |
+| `download.fetch` | — | §8.3.1 | after a `download` descriptor, pull the payload (the ROM's `$40` proceed) |
+| `partyline.enter` | — | §8.5 | join Partyline explicitly (selecting an `L` entry with `open` does it too) |
 | `partyline.send` | `text` | §8.5 | send a chat line |
 | `partyline.command` | `text` (e.g. `*who`) | §8.5 | a Partyline `*`-command |
-| `partyline.leave` | — | §8.5 | leave Partyline (`*quit`) → framed session resumes |
+| `partyline.leave` | — | §8.5 | leave Partyline (`*quit`) → normal commands resume |
 | `leave` | — | §4.4 LEAVE | log off |
 
 Note there is **no** column-cycle command: directory JSON carries every Part-5 column value per
@@ -223,7 +227,10 @@ instead of discovering a missing entry afterwards.
 recipients produce a `not_found` error listing them, rather than silently dropping them.
 
 **Partyline** (§8.5) does **not** drop out of the protocol as Binding A must. The socket stays a
-gateway: `partyline.enter` (or selecting an `L` entry) joins and replies `partyline.entered`;
+gateway: `partyline.enter` joins and replies `partyline.entered`. Selecting an `L` entry with
+`open` also joins, but replies **`partyline.entering`** first (that reply answers the `open`;
+`partyline.entered` follows once the join completes) — a client should treat both as "entering
+Partyline" and wait for `partyline.entered` before showing the chat UI. Then:
 every chat/system line arrives as a `partyline` push; `partyline.send` / `partyline.command`
 carry input; `partyline.leave` (or `*quit`) replies `partyline.left` and normal commands resume
 immediately. Rooms, `*`-commands, bans, and broadcast are the server's existing partyline
