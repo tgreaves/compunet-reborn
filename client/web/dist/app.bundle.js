@@ -95,7 +95,7 @@ var Renderer = class {
       this.put(g, row, 8, e.title, fg, bg);
       const type = e.type + (e.size ? String(e.size) : "") + (e.hasSubdir ? "+" : "");
       this.put(g, row, 25, type, fg, bg);
-      const val = e.values?.[dir2.columns[colIdx2]] || "";
+      const val = e.values?.[colIdx2] || "";
       if (val) this.put(g, row, 30, val, fg, bg);
     });
     (dir2.advert || []).slice(0, 2).forEach((line, i) => {
@@ -225,7 +225,7 @@ var actions = {
     if (dir) {
       colIdx = (colIdx + 1) % dir.columns.length;
       render();
-      status("Column: " + dir.columns[colIdx]);
+      status("Column: " + dir.columns[colIdx].trim());
     }
   },
   LEAVE: () => {

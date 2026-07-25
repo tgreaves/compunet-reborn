@@ -99,22 +99,44 @@ def _credentials_ok(user_id, password):
 # Serializers (model state -> JSON)
 # ---------------------------------------------------------------------------
 
-# The top directory's Part-5 column set (spec §7.2). Other responses (e.g.
-# mail) carry a different set; Phase 1a only serializes content directories.
-_DIR_COLUMNS = ["PRICE", "AUTHOR", "VOTE/NUM", "UPLDDATE", "LIFE"]
+# The top directory's Part-5 column set (§7.2). The leading spaces are the C64
+# server's positioning (§7.3): they indent the header within the right pane.
+# Other responses (e.g. mail) carry a different set; Phase 1 serializes content dirs.
+_DIR_COLUMNS = [" PRICE", " AUTHOR", "VOTE/NUM", "UPLDDATE", " LIFE"]
 
 
 def _entry_values(session, child):
-    """Per-entry Part-5 column values (strings), mirroring §7.3 semantics."""
+    """Per-entry column values, in column order, with the exact per-column
+    justification the C64 server applies (§7.3 / _make_page_response Part 6), so
+    the client renders them verbatim in the right pane. Empty string = blank."""
     price = 0.0 if child.page_num in session.purchased else child.price
     vote = getattr(child, 'vote', 0) or 0
-    return {
-        "PRICE": ("%.2f" % price) if price > 0 else "",
-        "AUTHOR": child.author or "",
-        "VOTE/NUM": (str(vote) if vote else "-"),
-        "UPLDDATE": (child.uploaded or "")[:11],
-        "LIFE": (str(child.life) if child.life else ""),
-    }
+    # PRICE: leading space + price right-justified in 6
+    price_s = (' ' + ('%.2f' % price).rjust(6)) if price > 0 else ''
+    # AUTHOR: plain, truncated to 8
+    author_s = (child.author or '')[:8]
+    # VOTE/NUM: score right-justified(4) + '/' + count, else '    -'
+    if vote > 0:
+        try:
+            count = session._get_vote_count(child.page_num)
+        except Exception:
+            count = 0
+        vote_s = (str(vote).rjust(4) + '/' + str(count))[:8]
+    else:
+        vote_s = '    -'
+    # UPLDDATE: 'D-MMM' right-justified in 7
+    date_s = ''
+    up = getattr(child, 'uploaded', None)
+    if up:
+        try:
+            import datetime
+            dt = datetime.datetime.fromisoformat(up)
+            date_s = ('%d-%s' % (dt.day, dt.strftime('%b').upper())).rjust(7)
+        except Exception:
+            date_s = ''
+    # LIFE: 2-space indent + life right-justified in 3
+    life_s = ('  ' + str(child.life).rjust(3)) if child.life > 0 else ''
+    return [price_s, author_s, vote_s, date_s, life_s]
 
 
 def _render_header(session):

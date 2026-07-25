@@ -76,7 +76,7 @@ const actions: Record<string, () => void> = {
   MORE: () => gw.send({ type: 'more' }),
   FINISH: () => gw.send({ type: 'finish' }),
   GOTO: () => { const t = prompt('GOTO page number or keyword:'); if (t) gw.send({ type: 'goto', target: t }); },
-  COL: () => { if (dir) { colIdx = (colIdx + 1) % dir.columns.length; render(); status('Column: ' + dir.columns[colIdx]); } },
+  COL: () => { if (dir) { colIdx = (colIdx + 1) % dir.columns.length; render(); status('Column: ' + dir.columns[colIdx].trim()); } },
   LEAVE: () => { gw.send({ type: 'leave' }); gw.close(); },
 };
 

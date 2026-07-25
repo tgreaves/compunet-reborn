@@ -34,7 +34,8 @@ export interface Entry {
   type: string;
   size: number | null;
   hasSubdir: boolean;
-  values: Record<string, string>;
+  /** right-pane column values, parallel to DirectoryMsg.columns, already justified server-side */
+  values: string[];
 }
 
 export interface DirectoryMsg {

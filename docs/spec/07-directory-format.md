@@ -84,8 +84,21 @@ The **first field** is a fixed 27-character layout:
 | 24–26 (3) | type indicator (§7.4), left-justified — so the type begins at **screen column 25** |
 
 The five column fields (each ≤ 8 characters) carry the data under the Part-5 headers; any
-of them may be empty (just the comma). `VOTE/NUM` is score, `/`, then vote count; `UPLDDATE`
-is `D-MMM`; `LIFE` is the remaining life in days.
+of them may be empty (just the comma). Each is **justified by the server** so it lands correctly
+in the 8-character right-hand pane — a client renders the field **verbatim** from the pane's base
+column, it does **not** re-justify. The exact formatting (from the server's Part-6 builder):
+
+| Column | Header (Part 5) | Value formatting |
+|---|---|---|
+| PRICE | `" PRICE"` (leading space) | `" " + price.rjust(6)` (e.g. `"   5.00"`); empty if free/purchased |
+| AUTHOR | `" AUTHOR"` (leading space) | the author, plain, truncated to 8 |
+| VOTE/NUM | `"VOTE/NUM"` | `score.rjust(4) + "/" + count`, truncated to 8; **`"    -"`** when unvoted |
+| UPLDDATE | `"UPLDDATE"` | `"D-MMM".rjust(7)` (e.g. `"  5-JAN"`); empty if none |
+| LIFE | `" LIFE"` (leading space) | `"  " + life.rjust(3)` (e.g. `"   99"`); empty if none |
+
+The leading spaces on the `PRICE`/`AUTHOR`/`LIFE` **headers**, and the right-justification of the
+**values**, are the positioning — they are what place the content one column in from the pane
+edge and align the digits. A client that strips them or re-justifies will mis-place the column.
 
 > **Dual parsing constraint (normative — a real cross-client requirement).** The two
 > reference clients parse Part 6 differently, and an entry **MUST** satisfy both:
@@ -284,10 +297,13 @@ authored Compunet look.
 
 The header of the currently-selected column (the Part-5 name — `PRICE`, `AUTHOR`, …) **MUST**
 be displayed so the user can see which column the right-hand values belong to. It sits in the
-**right-hand column, at row 8** (level with breadcrumb line 2, `100 WELCOME`), **indented one
-column** from the divider so it reads as roughly centred in its column rather than flush-left,
-and is drawn in blue. A client that shows the column *values* but omits this header leaves them
-unlabelled.
+**right-hand pane at row 8** (level with breadcrumb line 2, `100 WELCOME`), drawn in blue. Both
+the header and every entry's value are rendered **from the pane's base column — screen column 30
+(one past the divider at column 29)** — **verbatim**: the server has already justified them
+(§7.3), including the leading space on the `PRICE`/`AUTHOR`/`LIFE` headers that indents the text
+one column into the pane. So the client does **not** re-indent or re-justify; it draws the
+Part-5 header string and the per-entry value string as-is at column 30. A client that shows the
+column *values* but omits this header leaves them unlabelled.
 
 **Cycling the right-hand column is a required capability (normative).** The right-hand pane
 shows only **one** Part-5 column at a time, and the user **MUST** be able to **rotate** it

@@ -109,7 +109,9 @@ export class Renderer {
       this.put(g, row, 8, e.title, fg, bg);
       const type = e.type + (e.size ? String(e.size) : '') + (e.hasSubdir ? '+' : '');
       this.put(g, row, 25, type, fg, bg);
-      const val = e.values?.[dir.columns[colIdx]] || '';
+      // right pane rendered verbatim from col 30 (one past the divider at 29); the
+      // server already applied the per-column justification (§7.3), so no client layout.
+      const val = e.values?.[colIdx] || '';
       if (val) this.put(g, row, 30, val, fg, bg);
     });
 

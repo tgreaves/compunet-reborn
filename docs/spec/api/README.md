@@ -118,21 +118,26 @@ contract the client applies.
   "type": "directory", "id"?: …,
   "page": 100, "title": "WELCOME",
   "breadcrumb": ["     1 *** COMPUNET ***", "   100 WELCOME"],  // Part 4 lines, verbatim text
-  "columns": ["PRICE","AUTHOR","VOTE/NUM","UPLDDATE","LIFE"],   // Part 5, response-specific
+  "columns": [" PRICE"," AUTHOR","VOTE/NUM","UPLDDATE"," LIFE"], // Part 5, verbatim (leading spaces are positioning, §7.3)
   "advert": ["V1.00: OUR FIRST OFFICIAL RELEASE!", "THANKS FOR MAKING THIS POSSIBLE"], // Part 2
   "mailWaiting": true,          // the red MAIL marker (§7.2)
   "header": <frame|null>,       // Part 1 header frame (COMPUNET logo) as a cell grid, or null → built-in template
   "hasMore": false,             // paging (>11 entries, §7.6)
   "entries": [
     { "index": 0, "page": 101, "title": "NEWS", "type": "T", "size": null, "hasSubdir": true,
-      "values": { "PRICE": "", "AUTHOR": "SYSTEM", "VOTE/NUM": "-", "UPLDDATE": "", "LIFE": "" } }
+      "values": ["", "ADMIN", "    -", "", "   99"] }   // parallel to columns; already justified (§7.3)
     // … up to 11 …
   ]
 }
 ```
 
 `type` is the base entry type (`T`/`D`/`P`/`PP`/`S`/`L`, spec §7.4); `size` is the K/page count
-or null; `hasSubdir` is the `+` marker. The client dispatches SHOW vs DIR from these.
+or null; `hasSubdir` is the `+` marker. The client dispatches SHOW vs DIR from these. `columns`
+and each entry's `values` are **parallel arrays** carrying the strings **verbatim**, with the
+server's per-column justification already applied (§7.3) — the leading spaces on `" PRICE"` /
+`" AUTHOR"` / `" LIFE"` and the right-justified values are the positioning. The client draws
+`columns[i]` (header) and `values[i]` (value) as-is from the pane's base column (screen col 30);
+it does **not** re-justify. It renders one column at a time and cycles locally (§7.7).
 
 ### 5.2 `frame`
 
