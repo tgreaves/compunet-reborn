@@ -282,13 +282,54 @@ index, the latent-directory creation model). The genuine gaps folded in:
 The remaining run-5 findings (F5, F9–F12, F14–F19) were confirmations or UX choices the spec
 deliberately leaves open.
 
+## Sixth clean-room run (Tier 3, full) — the corrections landed
+
+A sixth isolated agent built the full Tier-3 client against the live server and reported the
+spec **buildable end-to-end**: every Tier 1–3 wire flow worked (login, navigation, frame/RLE,
+mail read/send, download, VOTE/LIFE/UCAT/ID-lookup, content upload, directory creation,
+Partyline). The run-5 fixes held — the byte boundaries, ACK timing, and bare-`P` semantics were
+all confirmed correct (findings P5–P10), and the folded-in full-directory behaviour (P2) and
+`@`-prefix (P6) matched. What remained were a protocol clarification and — from the maintainer's
+review of the screenshots — several **client-obligation / command-surfacing** gaps the spec had
+left too loose:
+
+- **§4.4 (P1)** — GOTO wording refined: for a **leaf** target it returns the *containing*
+  directory; for a **directory-typed** target it returns that directory **opened** (its own
+  children). Either way, parse the reply as a §7 directory and take breadcrumb/selection from
+  it — do not compute the parent locally.
+- **§8.3.2 (P2 / maintainer)** — a **full** directory (11 entries) silently discards the upload
+  with **no** error; the client **MUST** check the target has room *before* offering/attempting
+  the upload and refuse if full, rather than run a throw-away exchange.
+- **§8.3.2 (maintainer)** — the upload UI **MUST** prompt for the entry **type** (`T` text /
+  `P` program) **and price** (and title, lifetime); the run's client collected neither, so it
+  could not upload software or set a price.
+- **§7.7 (maintainer)** — cycling the right-hand column through the Part-5 set is now
+  **normative** (reference keys **`F7`/`F8`**); a client that pins the pane to one column
+  (e.g. always `PRICE`) does not conform.
+- **§4.7 (maintainer)** — the **welcome frame** is an entry point: the client **MUST** surface
+  **`DIR`** there (it goes on the wire as a bare `P` and returns the root), not only
+  `MORE`/`FINISH`. Confirmed against `docs/PROTOCOL.md` (bare `P` is sent "by DIR duckshoot and
+  on terminal entry"; the online **Directory Duckshoot** includes `DIR`).
+- **§4.6 (maintainer)** — prefer **one** primary command surface; two competing full command
+  bars (a duckshoot *and* a duplicate button row) are confusing. Show the context-appropriate
+  set.
+- **§7.7 (maintainer)** — the selection **highlight** was botched again via per-cell
+  reverse-video (a broken striped row, not a solid bar). Added an explicit "don't fake it with
+  reverse-video — fill the whole row's background, draw white glyphs over it" note. This is an
+  **implementation** error each time (the spec was already unambiguous), now guarded against.
+
+The under-specified decode points the agent flagged (P3 frame-vs-directory discriminator, P4
+bare-ACK-by-timeout) are inherent to a protocol with no in-band type/length markers; the agent's
+structural + short-timeout heuristics worked, and the spec already prescribes them (§4.5/§4.2).
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across
 transport, session, commands, display, frames, directories, and subsystems, with the
-contradictions above resolved in the server's favour. **Four independent clean-room readers**
-built working clients from this document alone — Tier 1 twice, Tier 2 once, and now a full
-**Tier 3** build — the visual stages confirming the display down to the canonical directory
-layout (with the run-5 column shift the last placement fix). Protocol findings have shrunk to
-fine detail and the transport/session core has been clean across every run; what the fifth run
-surfaced were byte-boundary and ACK-timing clarifications, not structural gaps.
+contradictions above resolved in the server's favour. **Five independent clean-room readers**
+built working clients from this document alone — Tier 1 twice, Tier 2 once, and Tier 3 twice —
+the visual stages confirming the display down to the canonical directory layout. By the sixth
+run the protocol core was clean end-to-end; the remaining fixes were **client-obligation**
+tightenings (surface `DIR` on the welcome screen, prompt for upload type/price, make column
+cycling and the full-directory check mandatory) and one recurring **implementation** pitfall
+(the reverse-video selection bar) now explicitly guarded — not gaps in the wire protocol.

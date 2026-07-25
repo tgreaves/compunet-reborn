@@ -1,3 +1,36 @@
+# 1.2.0 (2026-07-25)
+
+Adds a complete **Compunet Client Specification** (#111) — a normative, platform-agnostic
+single source of truth for building a Compunet client over TCP/IP, in `docs/spec/`. It pins
+down the wire protocol and the display contract in enough detail, with the font, palette, and
+directory template extracted as concrete data, that a client can be built from the spec alone.
+It has been validated by repeated source-isolated clean-room builds against the live server.
+
+* Client Specification (new, `docs/spec/`) (#111):
+	* Eight normative sections: transport (X.25-over-TCP framing, byte-stuffing, CRC-CCITT,
+	  sequencing, ACK pacing), session lifecycle (handshake, identification, login, LINKING,
+	  command loop), command protocol, display contract (40×24 PETSCII grid, charsets,
+	  16-colour palette), frame format (4-byte header, RLE), the six-part directory stream,
+	  and subsystems (mail, download, upload, editor, Partyline, UCAT/VOTE/LIFE).
+	* Self-contained appendix: the C64 character-ROM font (8×8 and 8×16), the palette RGB, and
+	  the built-in directory template — extracted as concrete data so a client can render an
+	  authentic screen with no access to the original binaries.
+	* Conformance tiers (Browse / Interact / Full) and a standard command vocabulary mapped to
+	  the wire commands, plus companion docs: an implementation cross-reference (spec → server
+	  source), a documentation audit, and a validation log.
+* Validation:
+	* Source-isolated clean-room process (`docs/spec/CLEANROOM.md`): a fresh agent builds a
+	  client from the spec alone — no server or client source — against the live server, logging
+	  every gap. Five independent builds (Tier 1 through full Tier 3) all produced working
+	  clients from the document alone.
+	* Corrections folded in from the runs: the DIR/SHOW/FINISH/MORE command model and
+	  server-side directory creation; the canonical directory layout (entry columns, PRICE
+	  header row, red-first/blue-rest entry colours, client-drawn selection bar); byte-boundary
+	  and ACK-timing details (Part 2 carries no terminator of its own; the Partyline link header
+	  and per-frame upload accepts must be ACKed); handshake-drain and bare-`P` FINISH semantics;
+	  and client obligations (surface `DIR` on the welcome screen, prompt for upload type and
+	  price, mandatory right-hand column cycling and full-directory checks).
+
 # 1.1.0 (2026-07-24)
 
 Adds a native **Amiga client** (#109). It speaks the same protocol and offers the same

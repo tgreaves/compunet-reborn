@@ -267,6 +267,14 @@ not wire content. A client **MUST** draw the highlight this way (not a single fi
 and the red-first / blue-rest entry colouring is **required** either way — it is part of the
 authored Compunet look.
 
+> **Do not fake the bar with per-cell reverse-video.** Reverse-video swaps each cell's
+> foreground and background independently, so the "bar" only appears in the cells that happen to
+> be blank and the glyph cells stay their own colour — you get a broken row of coloured stripes,
+> not a solid bar with white text. Draw it as a genuine two-layer highlight: fill the **entire**
+> row's background (all 40 columns of that row, both panes) with the positional colour, then
+> render the glyphs in **white** over it. The bar's colour is the *background* of every cell in
+> the row, independent of each glyph's own colour.
+
 ### The selected column header
 
 The header of the currently-selected column (the Part-5 name — `PRICE`, `AUTHOR`, …) **MUST**
@@ -275,6 +283,17 @@ be displayed so the user can see which column the right-hand values belong to. I
 column** from the divider so it reads as roughly centred in its column rather than flush-left,
 and is drawn in blue. A client that shows the column *values* but omits this header leaves them
 unlabelled.
+
+**Cycling the right-hand column is a required capability (normative).** The right-hand pane
+shows only **one** Part-5 column at a time, and the user **MUST** be able to **rotate** it
+through the whole Part-5 set (for the top directory: `PRICE → AUTHOR → VOTE/NUM → UPLDDATE →
+LIFE → PRICE …`). Both the displayed header **and** every entry's value in that pane change
+together as the user cycles. The reference control is the **`F7` / `F8`** keys (`F7` = previous
+column, `F8` = next), which is why the template draws the **`<F7)(F8>`** indicator in the box
+(§7.5/§A.6) — a client **SHOULD** honour `F7`/`F8` and **MAY** additionally offer other controls
+(a `COL` button, click, a key), but the rotation itself is **not** optional. A client that pins
+the pane to a single column (e.g. always `PRICE`) does not conform. Internally this selects
+among the columns the way the ROM's `$C002` column index does; the client tracks it locally.
 
 A client **MUST** reproduce this canonical C64 layout so that content authored for Compunet —
 which assumes this geometry — lands correctly.
