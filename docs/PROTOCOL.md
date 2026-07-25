@@ -585,9 +585,21 @@ HELP  EDIT  LAST  NEXT  NEW  COPY  ERASE  GET  PUT  STORE  PRINT  FREE  DOS  RET
 
 #### Directory Duckshoot (online)
 
+Decoded from the client: the command-name strings are a table of 6-byte entries at `L_A176`
+(`$A176`), and `L_A21E` holds the duckshoot configuration — a **count byte** followed by string
+offsets, **in display order**:
+
 ```
-DIR  EDITR  SAVE  LEAVE  BUY  SHOW  ACCNT  BACK  GOTO  HELP  LIFE  MAIL  PRINT  UCAT  UPLD  VOTE
+HELP  DIR  SHOW  BACK  GOTO  UCAT  MAIL  ACCNT  SAVE  EDITR  LEAVE  PRINT  LIFE  BUY  LOAD  UPLD  VOTE
 ```
+
+`L_A21E` = `$11` (count = 17) then `$00 $06 $0C $12 $18 $1E $24 $2A $7E $30 $36 $3C $42 $48 $78
+$4E $54`.
+
+**The count byte is rewritten at runtime to shorten the list** — the client stores a smaller
+count (e.g. `$0F` = 15, `$0B` = 11) in `L_A21E` in some contexts, which drops commands from the
+**end** of the order above. So the list is a priority order, not an arbitrary one, and the set
+offered varies with context and with the selected entry.
 
 | Command | Function |
 |---------|----------|
@@ -616,8 +628,11 @@ MORE  FINISH  ALL
 
 #### Courier (Mail) Duckshoot
 
+Decoded from the mail menu's own offset table at `L_AE15`
+(`$06 $66 $0C $5A $9C $30 $A2`), against the `L_A176` string table:
+
 ```
-SEND  FINISH  NEXT  LAST  GET
+DIR  SEND  SHOW  MORE  ID  EDITR  DONE
 ```
 
 ### Directory Entry Types
@@ -1408,12 +1423,16 @@ the dispatch table at L_AE15, indexing into L_A176) are:
 | Index | String Offset | Command | Handler |
 |-------|---------------|---------|---------|
 | 0     | $06           | DIR     | $AE36   |
-| 1     | $66           | GET     | $B00B   |
+| 1     | $66           | SEND    | $B00B   |
 | 2     | $0C           | SHOW    | $B039   |
-| 3     | $5A           | LAST    | $B040   |
-| 4     | $9C           | DONE    | $A270   |
-| 5     | $30           | LIFE    | (cont.) |
-| 6     | $A2           | ID      | (cont.) |
+| 3     | $5A           | MORE    | $B040   |
+| 4     | $9C           | ID      | $A270   |
+| 5     | $30           | EDITR   | (cont.) |
+| 6     | $A2           | DONE    | (cont.) |
+
+*(Command names decoded from the 6-byte string table at `L_A176`: `$06`=DIR, `$0C`=SHOW,
+`$30`=EDITR, `$5A`=MORE, `$66`=SEND, `$9C`=ID, `$A2`=DONE. An earlier revision of this document
+mis-decoded five of these seven.)*
 
 The initial $8033 value is set to 1 on mail entry. L_AE1C dispatches based
 on $8033 using the handler address table at $AE2A.
