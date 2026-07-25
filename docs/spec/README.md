@@ -86,11 +86,12 @@ binding), this binding's **wire** format (X.25-over-TCP / PETSCII), or **mixed**
 
 ## Companion documents (kept beside the spec)
 
-- [API-RESEARCH.md](API-RESEARCH.md) — scoping & options for **Binding B** (the modern JSON
-  API): a schema-first design carried WebSocket-first, growing into a hybrid gateway + REST.
-  Planning only — not yet a normative binding.
-- [api/README.md](api/README.md) — **Binding B draft**: the JSON message schema (auth, commands,
-  directory/frame shapes, push events). Draft/non-normative until built and clean-room-validated.
+- **[api/](api/README.md)** — **Binding B**, the modern JSON API for web / desktop / mobile
+  clients, as its own document set:
+  - [api/README.md](api/README.md) — the binding spec: endpoints, auth, message schema,
+    directory/frame shapes, push events. Draft until clean-room-validated.
+  - [api/RATIONALE.md](api/RATIONALE.md) — why it is shaped that way, what was rejected, and the
+    invariants it must keep (e.g. never expose behaviour Binding A cannot reach).
 - [xref.md](xref.md) — implementation cross-reference: spec § → server location, so the
   spec and server can't silently drift apart.
 - [VALIDATION.md](VALIDATION.md) — validation record: the cross-checks against both

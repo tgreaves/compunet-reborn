@@ -39,7 +39,7 @@ normative** — they record how a fact was established, not the requirement itse
 **In scope.** The Reborn protocol over TCP — **Binding A**: transport framing (§2), session
 lifecycle (§3), the command protocol (§4), the PETSCII display contract (§5), the frame (§6)
 and directory (§7) formats, and the application subsystems (§8). The **JSON API binding
-(Binding B)** is a separate document (scoped in `API-RESEARCH.md`), not specified here; it
+(Binding B)** is a separate document ([`api/README.md`](api/README.md)), not specified here; it
 reuses this spec's model sections (§1.8) and replaces only the wire-format ones.
 
 **Out of scope.** These belong to platform notes, not this specification, and a client
@@ -126,7 +126,7 @@ model is *what* the service is; a binding is *how* it is carried on the wire.
 **This document is Binding A — X.25-over-TCP.** **Binding B — the modern JSON API** (web /
 desktop / mobile) reuses the model sections above verbatim and replaces only the wire-format
 sections with structured JSON. It is a **sibling document**, [`api/README.md`](api/README.md),
-not a change to this one; [`API-RESEARCH.md`](API-RESEARCH.md) records why it is shaped as it is.
+not a change to this one; [`api/RATIONALE.md`](api/RATIONALE.md) records why it is shaped as it is.
 
 Bindings exist because clients differ in capability. The **C64 and Amiga ROM clients** cannot
 afford JSON or a WebSocket, so they remain on Binding A **permanently** — it is frozen, not

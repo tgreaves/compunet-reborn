@@ -4,7 +4,8 @@
 > (Binding B) introduced by the [Compunet Client Specification](../README.md) §1.8. It carries
 > the **same application model** (§3 session, §4 commands, §8 subsystems, and §5's screen model)
 > as the legacy X.25 binding (Binding A), in structured JSON instead of the ROM wire format.
-> Scoped in [../API-RESEARCH.md](../API-RESEARCH.md). It becomes normative once built and
+> Design rationale — why it is shaped this way, and what was rejected — is in
+> [RATIONALE.md](RATIONALE.md). It becomes normative once built and
 > validated the way Binding A was (a clean-room build). Until then, shapes may change.
 
 ## Locked decisions

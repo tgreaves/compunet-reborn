@@ -1,6 +1,6 @@
 # §7 — Directory format
 
-**Layer — Binding-A wire format** (§1.8). The six-part directory stream; a modern binding delivers the same listing as a JSON entry list instead (see `API-RESEARCH.md`).
+**Layer — Binding-A wire format** (§1.8). The six-part directory stream; a modern binding delivers the same listing as a JSON entry list instead (see [`api/README.md`](api/README.md)).
 
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.

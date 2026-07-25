@@ -1,6 +1,6 @@
 # §6 — Frame (SEQ) format
 
-**Layer — Binding-A wire format** (§1.8). The on-the-wire encoding of a page; a modern binding delivers the same frame content as structured JSON instead (see `API-RESEARCH.md`).
+**Layer — Binding-A wire format** (§1.8). The on-the-wire encoding of a page; a modern binding delivers the same frame content as structured JSON instead (see [`api/README.md`](api/README.md)).
 
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.
