@@ -220,6 +220,24 @@ composed page is submitted **structurally** and the server encodes the §6 frame
 `colour` is a palette index (§5.5) applied as the frame's text colour; `border`/`background`
 become the frame header (§6.2). Lines are truncated to 40 columns and 23 rows.
 
+**⚠ Known model gap — one colour per page.** A Binding-A frame changes colour **mid-line** via
+embedded control codes (§5.4/§A.4); the shape above cannot express that, so pages composed
+through this binding are monochrome. This is a **violation of the §1.8 invariant** in the making
+— Binding B must never be able to express *more* than Binding A, but neither should it express
+meaningfully *less* of what the editor (§8.4) exists to produce. It is recorded here rather than
+silently tolerated.
+
+The intended fix is a **spans** form alongside the flat one, so both remain valid:
+
+```jsonc
+{ "lines": [ [ {"t":"HELLO ","c":5}, {"t":"WORLD","c":2} ], "PLAIN LINE" ] }
+```
+
+— a line is either a string (whole line takes the page `colour`) or an array of
+`{t, c}` runs. Until a server implements it, clients **MUST** send the flat form, and a
+server that does not understand spans **MUST** reject them with `invalid` rather than
+dropping the colour information.
+
 **Upload** (`upload`) carries `title`, `kind` (`"T"`/`"P"`), `price`, `life`, and `frames`.
 Unlike Binding A's multi-step wire dance (`U` → validation → frame DATs → finishing `P`), it is
 **one message**: the server performs the same commit through the same core routine and replies

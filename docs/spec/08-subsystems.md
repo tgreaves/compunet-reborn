@@ -218,6 +218,80 @@ A client **MAY** implement editing in any way its environment allows; the only w
 requirement is that what it submits is a valid frame (§6) delivered via §8.3.2. The editor
 is therefore Tier 3 by virtue of depending on uploads, but imposes no protocol of its own.
 
+**⚠ The editor works OFFLINE, and this is not optional.** It is a **local** application that
+happens to be bundled with the terminal: on the original, `EDITOR` is one of the BASIC commands
+the ROM installs (alongside `CONNECT`, `CNLOAD`, `CNSAVE` — see the parser table at `$8249`), so
+a user could compose pages with the modem hung up and connect later only to upload them. That
+was the point: composing online burned call charges.
+
+A client therefore **MUST** make the editor reachable **without a session** — before login,
+after logout, and while disconnected — and **MUST NOT** require connectivity for any of
+`EDIT`, `LAST`, `NEXT`, `NEW`, `COPY`, `ERASE`, `GET`, `PUT`, `STORE`, `PRINT`, `FREE` or
+`HELP` (§8.4.1). None of them touch the wire. Only the **submission** of the finished buffer —
+`UPLD` (§8.3.2) or `SEND` (§8.2) — needs a session, and those are commands of the *directory*
+and *mail* contexts, not of the editor.
+
+This has two consequences a client is likely to get wrong:
+
+- **The buffer outlives the connection.** Composing, disconnecting, reconnecting and then
+  uploading is a normal sequence, not an edge case; the buffer **MUST NOT** be cleared on
+  disconnect. `RETURN` from an offline editor returns to the host environment (the original's
+  BASIC prompt), not to a connection attempt.
+- **`GET`/`PUT`/`STORE` are what make offline work useful.** They are local storage, so they
+  **MUST** function with no session. A client that implements them as server-side storage has
+  misread §8.4.1 and has broken offline use.
+
+### 8.4.1 The editor command set (normative where the editor is offered)
+
+Freedom over the *editing surface* is not freedom over the *command set*. A client that
+presents an editor **MUST** offer the commands below, under these names, in this order —
+they are §4.8's editor context, and §4.7's closed-vocabulary rule applies to them exactly as
+it does everywhere else. What a client may choose is **how** they are invoked and what
+"a page" looks like while being edited.
+
+**⚠ Load-bearing: the order ends `FREE`, `RETURN`, `DOS`.** Verified from the C64 client's
+string table at `$83AA` and its **offset table** at `$83FE` — the offsets are
+`$00 $06 $0C $12 $18 $1E $24 $2A $30 $36 $3C $42 $4E $48`, and the last two are
+**non-monotonic**: `$4E` (`RETURN`) precedes `$48` (`DOS`). That inversion is the proof this
+table is a *display order* and not merely the order the strings happen to be stored in. Reading
+the strings in storage order yields `… FREE DOS RETURN`, which is **wrong** — and is the error
+this specification and `docs/PROTOCOL.md` both previously carried.
+
+| # | Command | Function |
+|---|---|---|
+| 1 | `HELP` | Display the editor's help frame — a **client asset**, §A.9 (*not* the §A.8 frame) |
+| 2 | `EDIT` | Enter edit mode on the current page |
+| 3 | `LAST` | Go to the previous page in the editor buffer |
+| 4 | `NEXT` | Go to the next page in the editor buffer |
+| 5 | `NEW` | Create a fresh blank page |
+| 6 | `COPY` | Duplicate the current page |
+| 7 | `ERASE` | Delete the current page |
+| 8 | `GET` | Load editor frames from local storage |
+| 9 | `PUT` | Save the **current page** to local storage |
+| 10 | `STORE` | Save the **entire buffer** to local storage |
+| 11 | `PRINT` | Print the current frame |
+| 12 | `FREE` | Report remaining editor space |
+| 13 | `RETURN` | Leave the editor (to Compunet if online, to the host environment if not) |
+| 14 | `DOS` | Local storage / filesystem commands |
+
+**⚠ `PUT` and `STORE` are not synonyms** — one page versus the whole buffer. They are the
+editor's instance of the §4.7 shared-encoding rule, and collapsing them ("both save") loses
+behaviour the user can see. Likewise `NEW` (blank page) is not `COPY` (duplicate), and `ERASE`
+removes a page rather than clearing one.
+
+**The editor holds a multi-page buffer, not one page.** `LAST`/`NEXT`/`NEW`/`COPY`/`ERASE` only
+mean anything against a buffer of pages with a current position, and `STORE` versus `PUT` only
+differ because that buffer exists. A client offering a single text box has not implemented
+this context — it has implemented an upload form (see §4.8, and the conformance item in
+[CONFORMANCE.md](CONFORMANCE.md) §A).
+
+**Adaptation is expected, substitution is not.** `DOS`, `PRINT`, `GET`, `PUT` and `STORE` name
+*local* facilities that differ per platform; a client **SHOULD** map them onto its own
+equivalents (a file picker, the system print dialogue, browser download/upload) and **MAY**
+disable any it genuinely cannot provide — a sandboxed web client has no `DOS`. What it
+**MUST NOT** do is rename them, merge them, or invent replacements: a disabled `DOS` is
+conforming, a `SAVE AS…` that replaces `PUT` and `STORE` is not.
+
 ## 8.5 Partyline
 
 **Partyline** is multi-user chat, reached through a directory **link** entry (base type `L`,

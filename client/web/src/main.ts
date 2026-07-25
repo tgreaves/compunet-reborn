@@ -4,6 +4,7 @@
 import type { Account, Assets, DirectoryMsg, FrameMsg, ServerMsg } from './protocol';
 import { Renderer } from './render';
 import { Gateway } from './gateway';
+import { EditorBuffer } from './editor';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -32,7 +33,8 @@ let exitingMail = false;   // DONE in progress — keep unwinding until out of m
 function status(s: string): void { statusEl.textContent = s; }
 
 function render(): void {
-  if (mode === 'directory' && dir) renderer.renderDirectory(dir, sel, colIdx);
+  if (inEditor) renderEditor();
+  else if (mode === 'directory' && dir) renderer.renderDirectory(dir, sel, colIdx);
   else if (mode === 'frame' && frame) renderer.renderFrame(frame);
   updateBar();
 }
@@ -115,46 +117,137 @@ function curPrice(): string {
   return (e.values?.[0] ?? '').trim();
 }
 
-// --- Editor (§8.4 — a client feature; submits via the upload path §8.3.2) ---
-let editorMode: 'upload' | 'mail' | null = null;
+// --- Editor (§8.4 / §8.4.1 — a client feature; submits via the upload path §8.3.2) ---
+//
+// The editor is its OWN context with its own command row. It is not the upload
+// form: the form below only collects the metadata (title/kind/price/life, or
+// recipients) that accompanies whatever the editor buffer already holds.
 
-function openEditor(kind: 'upload' | 'mail'): void {
-  editorMode = kind;
+const buf = new EditorBuffer();
+let inEditor = false;
+let editorReturn: (() => void) | null = null;   // how RETURN gets back
+let submitMode: 'upload' | 'mail' | null = null;
+
+function enterEditor(): void {
+  inEditor = true;
+  buf.editing = false;
+  status('Editor — EDIT types on the page, RETURN leaves. Page ' + (buf.cur + 1) + ' of ' + buf.pages.length);
+  render();
+}
+
+function leaveEditor(): void {
+  inEditor = false;
+  buf.editing = false;
+  // ⚠ The buffer is NOT cleared — composing offline, connecting, then uploading
+  // is a normal sequence (§8.4). It survives leaving the editor and disconnects.
+  if (editorReturn) { const f = editorReturn; editorReturn = null; f(); }
+  else render();
+  status(mode === 'idle'
+    ? 'Left the editor. Connect, then UPLD or SEND submits the buffer.'
+    : 'Left the editor. UPLD or SEND submits the buffer.');
+}
+
+function renderEditor(): void {
+  const p = buf.page();
+  renderer.renderEditorPage(
+    p.lines, p.colour, p.background, p.border,
+    buf.cur, buf.pages.length, buf.row, buf.col, buf.editing,
+  );
+}
+
+/** Open the metadata form. The BODY comes from the editor buffer (§8.4.1) —
+ *  there is no text box here, because composing is the editor's job. */
+function openSubmit(kind: 'upload' | 'mail'): void {
+  if (buf.isEmpty()) {
+    status('Nothing composed yet — use EDITR to write a page first');
+    return;
+  }
+  submitMode = kind;
   $('editor').hidden = false;
   $('editorTitle').textContent = kind === 'upload'
-    ? `Upload a page into "${dir?.title ?? 'this directory'}"`
-    : 'Compose mail';
+    ? `Upload ${buf.pages.length} page(s) into "${dir?.title ?? 'this directory'}"`
+    : `Send ${buf.pages.length} page(s) as mail`;
   $('edContentFields').hidden = kind !== 'upload';
   $<HTMLInputElement>('edTo').hidden = kind !== 'mail';
   $('edHint').textContent = kind === 'upload'
-    ? 'Type and price are required (§8.3.2).'
+    ? 'Type and price are required (§8.3.2). Body comes from the editor buffer.'
     : 'Recipients: up to five user IDs, comma-separated.';
   $<HTMLInputElement>('edTitle').value = '';
-  $<HTMLTextAreaElement>('edBody').value = '';
   $<HTMLInputElement>('edTitle').focus();
 }
 
-function closeEditor(): void { editorMode = null; $('editor').hidden = true; }
+function closeSubmit(): void { submitMode = null; $('editor').hidden = true; }
 
-function submitEditor(): void {
+function doSubmit(): void {
   const title = $<HTMLInputElement>('edTitle').value.trim();
-  const lines = $<HTMLTextAreaElement>('edBody').value.split('\n');
   if (!title) { status('A title is required'); return; }
-  if (editorMode === 'mail') {
+  const frames = buf.toFrames();
+  if (submitMode === 'mail') {
     const to = $<HTMLInputElement>('edTo').value.split(',').map((x) => x.trim()).filter(Boolean);
     if (!to.length) { status('At least one recipient is required'); return; }
-    gw.send({ type: 'mail.send', to, subject: title, frames: [{ lines, colour: 1 }] });
+    gw.send({ type: 'mail.send', to, subject: title, frames });
   } else {
     gw.send({
       type: 'upload', title,
       kind: $<HTMLSelectElement>('edKind').value,
       price: parseFloat($<HTMLInputElement>('edPrice').value) || 0,
       life: parseInt($<HTMLInputElement>('edLife').value, 10) || 0,
-      frames: [{ lines, colour: 5, border: 6, background: 0 }],
+      frames,
     });
   }
-  closeEditor();
+  closeSubmit();
 }
+
+/** Save text as a file — the web equivalent of PUT / STORE to disk (§8.4.1). */
+function saveText(text: string, filename: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** GET — the web equivalent of loading frames from disk (§8.4.1). */
+function loadFile(): void {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = () => {
+    const f = inp.files?.[0]; if (!f) return;
+    f.text().then((t) => {
+      try { const n = buf.load(t); status(`GET — loaded ${n} page(s)`); render(); }
+      catch (e) { status('GET failed: ' + (e as Error).message); }
+    });
+  };
+  inp.click();
+}
+
+/** The editor's own command actions (§8.4.1). Names and order are NOT a UI
+ *  choice — §4.7's closed vocabulary applies here too. */
+const editorActions: Record<string, () => void> = {
+  // ⚠ The EDITOR's help frame (§A.9) — a different asset from §A.8's.
+  HELP: () => {
+    if (!assets.editorHelp) { status('No editor help frame embedded'); return; }
+    renderer.renderFrame(assets.editorHelp);
+    renderer.renderDuckshoot(duck, duckIx);
+    status('Editor help — any editor command returns');
+  },
+  EDIT: () => { buf.editing = !buf.editing; status(buf.editing ? 'EDIT — typing on the page; ESC stops' : 'Edit stopped'); render(); },
+  LAST: () => { status(buf.last() ? `Page ${buf.cur + 1} of ${buf.pages.length}` : 'Already at the first page'); render(); },
+  NEXT: () => { status(buf.next() ? `Page ${buf.cur + 1} of ${buf.pages.length}` : 'Already at the last page'); render(); },
+  // ⚠ NEW is a BLANK page; COPY duplicates. Not the same command (§8.4.1).
+  NEW: () => { buf.newPage(); status(`New blank page — ${buf.cur + 1} of ${buf.pages.length}`); render(); },
+  COPY: () => { buf.copyPage(); status(`Copied — page ${buf.cur + 1} of ${buf.pages.length}`); render(); },
+  ERASE: () => { buf.erasePage(); status(`Erased — page ${buf.cur + 1} of ${buf.pages.length}`); render(); },
+  GET: () => loadFile(),
+  // ⚠ PUT is ONE page, STORE is the WHOLE buffer — the editor's SHOW/BUY (§8.4.1).
+  PUT: () => { saveText(buf.toJSON([buf.page()]), `page-${buf.cur + 1}.json`); status('PUT — current page saved'); },
+  STORE: () => { saveText(buf.toJSON(), 'editor-buffer.json'); status(`STORE — all ${buf.pages.length} page(s) saved`); },
+  PRINT: () => { window.print(); },
+  FREE: () => status(`${buf.free()} CHARS FREE — ${buf.pages.length} page(s) in the buffer`),
+  RETURN: () => leaveEditor(),
+  // DOS names a local filesystem facility this environment does not have. §8.4.1
+  // permits disabling it; it does NOT permit renaming or removing it.
+  DOS: () => status('DOS is not available in a sandboxed browser client'),
+};
 
 // --- Partyline chat panel (§8.5) -------------------------------------------
 let inParty = false;
@@ -222,7 +315,8 @@ const actions: Record<string, () => void> = {
   SAVE: () => status('SAVE is a client feature — not implemented in this reference client'),
   PRINT: () => status('PRINT is a client feature — not implemented in this reference client'),
   LOAD: () => status('LOAD is a client feature — not implemented in this reference client'),
-  EDITR: () => openEditor('upload'),
+  // EDITR enters the EDITOR context (§8.4.1) — it does not open an upload form.
+  EDITR: () => { editorReturn = () => render(); enterEditor(); },
   ALL: () => gw.send({ type: 'more' }),           // page to the end
   MORE: () => gw.send({ type: 'more' }),
   FINISH: () => gw.send({ type: 'finish' }),
@@ -245,9 +339,9 @@ const actions: Record<string, () => void> = {
   UPLD: () => {
     if (mode !== 'directory' || !dir) { status('Navigate to a directory first'); return; }
     if (dir.entries.length >= 11) { status('This directory is full (11 entries max)'); return; }
-    openEditor('upload');
+    openSubmit('upload');
   },
-  SEND: () => openEditor('mail'),
+  SEND: () => openSubmit('mail'),
   // §3.8: read and render the goodbye frame BEFORE handling the close — do not
   // close the socket here; the server closes after sending it.
   LEAVE: () => { gw.send({ type: 'leave' }); status('Leaving…'); },
@@ -260,10 +354,12 @@ const actions: Record<string, () => void> = {
 // directory order below is the original's priority order (§4.8), so a client
 // short of room drops from the end.
 
-type Context = 'idle' | 'welcome' | 'directory' | 'frame' | 'mail' | 'mailFrame' | 'partyline';
+type Context = 'idle' | 'welcome' | 'directory' | 'frame' | 'mail' | 'mailFrame' | 'editor' | 'partyline';
 
 const CONTEXT_COMMANDS: Record<Context, string[]> = {
-  idle:      [],
+  // ⚠ Not empty: the EDITOR works offline (§8.4), so it is reachable before any
+  // login and after a disconnect. Nothing else is available with no session.
+  idle:      ['EDITR'],
   // The welcome screen carries the DIRECTORY row, with HELP centred by default (§4.8).
   welcome:   ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'SAVE', 'EDITR', 'LEAVE'],
   directory: ['HELP', 'DIR', 'SHOW', 'BACK', 'GOTO', 'UCAT', 'MAIL', 'ACCNT', 'SAVE', 'EDITR',
@@ -271,6 +367,10 @@ const CONTEXT_COMMANDS: Record<Context, string[]> = {
   frame:     ['MORE', 'ALL', 'FINISH'],   // multi-frame only; single frame shows PRESS ANY KEY
   mail:      ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
   mailFrame: ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
+  // ⚠ §8.4.1 order — it ends FREE, RETURN, DOS. Storage order (…FREE DOS RETURN)
+  // is NOT display order: the C64 offset table is non-monotonic at the tail.
+  editor:    ['HELP', 'EDIT', 'LAST', 'NEXT', 'NEW', 'COPY', 'ERASE', 'GET', 'PUT',
+              'STORE', 'PRINT', 'FREE', 'RETURN', 'DOS'],
   partyline: [],
 };
 
@@ -279,6 +379,7 @@ const NEEDS_SELECTION = new Set(['SHOW', 'DIR', 'VOTE', 'LIFE', 'BUY']);
 
 function currentContext(): Context {
   if (inParty) return 'partyline';
+  if (inEditor) return 'editor';
   if (mode === 'idle') return 'idle';
   if (mode === 'frame') return isWelcome ? 'welcome' : (inMail ? 'mailFrame' : 'frame');
   return inMail ? 'mail' : 'directory';
@@ -299,8 +400,9 @@ let duckIx = 0;            // index of the CENTRED (selected) command
 function updateBar(): void {
   const ctx = currentContext();
   const prev = duck[duckIx];
+  const table = ctx === 'editor' ? editorActions : actions;
   duck = CONTEXT_COMMANDS[ctx].filter((name) => {
-    if (!actions[name]) return false;
+    if (!table[name]) return false;
     // selection-dependent commands need a real highlighted entry (§4.9.5)
     if (NEEDS_SELECTION.has(name) && ctx === 'directory' && !hasSelection()) return false;
     return true;
@@ -309,7 +411,7 @@ function updateBar(): void {
   const keep = duck.indexOf(prev);
   duckIx = duck.length ? (keep >= 0 ? keep : 0) : 0;
   // A single-frame page has NO duckshoot — just a prompt (§4.8/§4.9).
-  if (ctx === 'frame' && frame && !frame.morePages) { renderer?.renderPrompt('PRESS ANY KEY'); }
+  if (ctx === 'frame' && frame && !frame.morePages && !inEditor) { renderer?.renderPrompt('PRESS ANY KEY'); }
   else renderer?.renderDuckshoot(duck, duckIx);
   $('ctx').textContent = ctx === 'idle' ? '' : `context: ${ctx}`;
 }
@@ -324,7 +426,8 @@ function duckScroll(delta: number): void {
 /** Commit the centred command — a distinct action from scrolling (§4.9.6). */
 function duckCommit(): void {
   const name = duck[duckIx];
-  if (name && actions[name]) actions[name]();
+  const table = currentContext() === 'editor' ? editorActions : actions;
+  if (name && table[name]) table[name]();
 }
 
 async function connect(): Promise<void> {
@@ -348,6 +451,33 @@ window.addEventListener('keydown', (e) => {
   const el = e.target as HTMLElement | null;
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
   if (inParty) return;
+
+  // --- Editor (§8.4.1) ---------------------------------------------------
+  // While EDIT is active the keyboard belongs to the page, not the duckshoot;
+  // ESC stops editing (the original's f1/f3 "STOP EDIT", §A.9).
+  if (inEditor && buf.editing) {
+    if (e.key === 'Escape')     { buf.editing = false; status('Edit stopped'); render(); e.preventDefault(); return; }
+    if (e.key === 'ArrowUp')    { buf.moveRow(-1); render(); e.preventDefault(); return; }
+    if (e.key === 'ArrowDown')  { buf.moveRow(1);  render(); e.preventDefault(); return; }
+    if (e.key === 'ArrowLeft')  { buf.moveCol(-1); render(); e.preventDefault(); return; }
+    if (e.key === 'ArrowRight') { buf.moveCol(1);  render(); e.preventDefault(); return; }
+    if (e.key === 'Enter')      { buf.newline();   render(); e.preventDefault(); return; }
+    if (e.key === 'Backspace')  { buf.backspace(); render(); e.preventDefault(); return; }
+    // f3/f4 — insert / delete a line above the cursor (§A.9)
+    if (e.key === 'F3')         { buf.insertLine(); render(); e.preventDefault(); return; }
+    if (e.key === 'F4')         { buf.deleteLine(); render(); e.preventDefault(); return; }
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      buf.typeChar(e.key); render(); e.preventDefault(); return;
+    }
+    return;
+  }
+  if (inEditor) {
+    // Not editing: the duckshoot has the keyboard, as in any other context.
+    if (e.key === 'ArrowLeft')  { duckScroll(-1); e.preventDefault(); return; }
+    if (e.key === 'ArrowRight') { duckScroll(1);  e.preventDefault(); return; }
+    if (e.key === 'Enter')      { duckCommit();   e.preventDefault(); return; }
+    return;
+  }
 
   // Up/Down move the highlighted directory entry; Left/Right scroll the
   // duckshoot; Enter commits the centred command (§4.9.6).
@@ -407,8 +537,8 @@ async function boot(): Promise<void> {
     sel = i; render();
     actions.DIR();
   });
-  $<HTMLButtonElement>('edSubmit').onclick = submitEditor;
-  $<HTMLButtonElement>('edCancel').onclick = closeEditor;
+  $<HTMLButtonElement>('edSubmit').onclick = doSubmit;
+  $<HTMLButtonElement>('edCancel').onclick = closeSubmit;
   $<HTMLInputElement>('chatInput').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     const input = $<HTMLInputElement>('chatInput');
@@ -417,7 +547,10 @@ async function boot(): Promise<void> {
     gw.send({ type: text.startsWith('*') ? 'partyline.command' : 'partyline.send', text });
     input.value = '';
   });
-  status('Ready. Enter credentials and Connect.');
+  // Draw the idle row straight away: the editor is offline-capable (§8.4), so
+  // EDITR must be reachable before the user connects at all.
+  updateBar();
+  status('Ready. Connect — or use EDITR now: the editor works offline.');
 }
 
 void boot();

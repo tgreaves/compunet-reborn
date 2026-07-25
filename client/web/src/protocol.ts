@@ -127,4 +127,7 @@ export interface Assets {
   template: FrameMsg;
   /** the embedded HELP frame (§A.8) — client asset; the server never sends it */
   help: FrameMsg | null;
+  /** the EDITOR's help frame (§A.9) — a DIFFERENT asset, shown by the editor's
+   *  own HELP command (§8.4.1). Not interchangeable with `help`. */
+  editorHelp: FrameMsg | null;
 }

@@ -602,6 +602,61 @@ directory response (§7.7) — they are not part of the template.
   $BD71: 29 28 46 38 3E CB 00
 ```
 
+## §A.7 — End-to-end session trace
+
+A minimal native-client session — connect, log in, view the top directory, open a frame,
+and leave. `→` is client-to-server, `←` is server-to-client. Framed packets are shown as
+`$01 … $02`; raw (un-framed) bytes are shown without markers. This is the worked example an
+implementer follows; every step is specified in the section cited.
+
+```
+   TCP connect to server:6400
+
+←  20 20 20 20 20 20 20 20 20 20 20 20        handshake: 12 × $20            (§3.2)
+
+→  43 20 43 4E 45 54 0D                        "C CNET\r"                     (§3.3)
+→  43 20 43 4E 45 54 0D                        "C CNET\r"  (doubled)          native ident
+→  30 30 30 30 30 30 30 30 30 30 30 30 30 30 0D  "00000000000000\r"          → server: native
+
+←  (optional MOTD lines, raw, CR-terminated)                                 (§3.4)
+←  2A 43 4F 4E 0D                              "*CON\r" connection signal     (§3.4)
+
+→  $01 <len> 43 <seq> 5A <user×8> <pass×6> <sysinfo…> <crc16> $02
+                                                COM login: 'Z' + creds        (§3.5)
+←  $01 <len> 22 21 <welcome-frame bytes…> <crc> $02   DAT (welcome, §6)      (§2, §3.5)
+→  $01 06 20 20 21 <crc> $02                   ACK seq $21                    (§2.9)
+←  … more DAT packets …                        (each ACKed)
+←  $01 05 22 <seq> <crc> $02                   zero-length DAT = EOS          (§2.9)
+                                                (not ACKed — welcome complete)
+
+→  $01 <len> 43 <seq> 50 <crc> $02             COM 'P' (FINISH) — leave welcome frame → current dir (= root here)  (§4, §7)
+←  $01 <len> 22 <seq> 8E 0D 0D … <crc> $02     DAT: 6-part directory (§7)
+→  $01 06 20 20 <seq> <crc> $02                ACK
+←  $01 05 22 <seq> <crc> $02                   EOS (directory complete)
+   client draws the built-in template (§A.6) + the entries
+
+→  $01 <len> 43 <seq> 44 30 30 <crc> $02       COM 'D' "00" — select entry 0  (§4.4, §7.3)
+←  $01 <len> 22 <seq> 00 06 0F 8E … 00 <crc> $02   DAT: frame (§6)
+→  … ACK …
+←  $01 05 22 <seq> <crc> $02                   EOS (frame complete; render §5)
+
+→  $01 <len> 43 <seq> 45 <crc> $02             COM 'E' — LEAVE                (§4.4, §3.8)
+←  $01 <len> 22 <seq> <goodbye-frame> <crc> $02   DAT (goodbye)
+←  $01 05 22 <seq> <crc> $02                   EOS
+   server closes the TCP connection (§3.8)
+```
+
+Notes:
+
+- Sequence numbers advance in `$20`–`$5F` and wrap (§2.8); the server's first DAT uses `$21`.
+- Every non-empty DAT is ACKed; the zero-length EOS DAT is not (§2.9).
+- A ROM/C64 client differs only in the identification (hash-gated, §3.3) and in receiving a
+  LINKING stream after the welcome frame (§3.6); the command loop is identical.
+- Bare `P` here reaches the root because it is **FINISH** returning the *current* directory,
+  and immediately after login the current directory **is** the root. Bare `P` is **not** a
+  "go home" command: issued from inside a sub-directory it returns *that* directory, not the
+  root. To ascend, use `B` (BACK) — repeated `B` walks up to the root (§4.4).
+
 ## §A.8 — HELP frame (client asset)
 
 `HELP` (§4.7) is a **client-side** command — it sends nothing — but it is **not a no-op**: it
@@ -669,60 +724,84 @@ in the repository as `server/cfg/help.pet`.
   0240: D2 45 54 55 52 4E 9F
 ```
 
-*(The editor has its own help frame, `server/cfg/editor-help.pet`, used by the Tier-3 editor
-(§8.4). It is the same kind of asset and is carried the same way.)*
+## §A.9 — Editor help frame (client asset)
 
-## §A.7 — End-to-end session trace
+The editor (§8.4) carries its **own** help frame, shown by the `HELP` command of the editor
+command row (§4.8). Like §A.8 it is a **client asset**: the server never sends it, and `HELP`
+inside the editor sends nothing.
 
-A minimal native-client session — connect, log in, view the top directory, open a frame,
-and leave. `→` is client-to-server, `←` is server-to-client. Framed packets are shown as
-`$01 … $02`; raw (un-framed) bytes are shown without markers. This is the worked example an
-implementer follows; every step is specified in the section cited.
+Unlike §A.8 this page is a **key reference**, not prose — it documents the editing keys
+(`f1`/`f3`, `f5`, `f6`, `f7`/`f8`, `SHIFT`-`C=`, `RUN/STOP`) rather than any wire behaviour. A
+client whose editor does not use the C64 key assignments (§8.4 permits any editing UX) **SHOULD**
+substitute its own key reference rather than display this one verbatim — showing a user `f1/f3 =
+STOP EDIT` when their editor has no `f1` is worse than showing nothing.
+
+**⚠ Load-bearing: the stored bytes are BODY-ONLY — the client supplies the 4-byte header.**
+Exactly as in §A.8, and it is the **same trap**: the file below begins `93 0E 0D 1F …` — *clear
+screen*, *select the lowercase/mixed charset*, *carriage return*, *colour change* — i.e. body
+content, **not** a §6 header. A client **MUST** prepend its own
+`[flags][border][background][charset]` (§6.2) before rendering.
+
+Feed it to a frame parser *raw* and the first four bytes are eaten as a header: the opening
+clear/charset codes are lost and the charset is taken from a text byte, so the page renders in
+**uppercase/graphics**. This matters here for the same reason it matters in §A.8 — the page is
+genuinely **mixed case** (`Edit Keys`, `Stop Key`, `Screen/Border`), so the `$0E` is what makes it
+legible rather than a wall of graphic glyphs.
+
+Two of the four header bytes are determined by the content: **flags `$00`** (a single frame — no
+more pages) and **charset `$0E`** (lowercase/mixed, which the body's own leading `$0E` selects
+anyway). The **border and background are *not* recoverable from this file** — it stores no such
+codes. Pending verification against a running original client, use the §A.8 values `$F4`/`$FF`
+(purple border, light-grey background), giving a full header of `[$00][$F4][$FF][$0E]`. *This is
+the one unverified value in this appendix and is marked as such deliberately;* it affects only
+the surround, not the legibility of the text.
+
+Reproduced verbatim below (314 bytes) so this specification stays self-contained; it is also kept
+in the repository as `server/cfg/editor-help.pet`.
 
 ```
-   TCP connect to server:6400
-
-←  20 20 20 20 20 20 20 20 20 20 20 20        handshake: 12 × $20            (§3.2)
-
-→  43 20 43 4E 45 54 0D                        "C CNET\r"                     (§3.3)
-→  43 20 43 4E 45 54 0D                        "C CNET\r"  (doubled)          native ident
-→  30 30 30 30 30 30 30 30 30 30 30 30 30 30 0D  "00000000000000\r"          → server: native
-
-←  (optional MOTD lines, raw, CR-terminated)                                 (§3.4)
-←  2A 43 4F 4E 0D                              "*CON\r" connection signal     (§3.4)
-
-→  $01 <len> 43 <seq> 5A <user×8> <pass×6> <sysinfo…> <crc16> $02
-                                                COM login: 'Z' + creds        (§3.5)
-←  $01 <len> 22 21 <welcome-frame bytes…> <crc> $02   DAT (welcome, §6)      (§2, §3.5)
-→  $01 06 20 20 21 <crc> $02                   ACK seq $21                    (§2.9)
-←  … more DAT packets …                        (each ACKed)
-←  $01 05 22 <seq> <crc> $02                   zero-length DAT = EOS          (§2.9)
-                                                (not ACKed — welcome complete)
-
-→  $01 <len> 43 <seq> 50 <crc> $02             COM 'P' (FINISH) — leave welcome frame → current dir (= root here)  (§4, §7)
-←  $01 <len> 22 <seq> 8E 0D 0D … <crc> $02     DAT: 6-part directory (§7)
-→  $01 06 20 20 <seq> <crc> $02                ACK
-←  $01 05 22 <seq> <crc> $02                   EOS (directory complete)
-   client draws the built-in template (§A.6) + the entries
-
-→  $01 <len> 43 <seq> 44 30 30 <crc> $02       COM 'D' "00" — select entry 0  (§4.4, §7.3)
-←  $01 <len> 22 <seq> 00 06 0F 8E … 00 <crc> $02   DAT: frame (§6)
-→  … ACK …
-←  $01 05 22 <seq> <crc> $02                   EOS (frame complete; render §5)
-
-→  $01 <len> 43 <seq> 45 <crc> $02             COM 'E' — LEAVE                (§4.4, §3.8)
-←  $01 <len> 22 <seq> <goodbye-frame> <crc> $02   DAT (goodbye)
-←  $01 05 22 <seq> <crc> $02                   EOS
-   server closes the TCP connection (§3.8)
+  0000: 93 0E 0D 1F C5 44 49 54 20 CB 45 59 53 0D 0D 1F
+  0010: D3 D4 CF D0 20 CB C5 D9 20 20 20 20 20 20 20 20
+  0020: C6 33 2F 34 0D 95 20 20 53 54 4F 50 20 45 44 49
+  0030: 54 2C 20 20 20 20 C4 45 4C 45 54 45 2F C9 4E 53
+  0040: 45 52 54 0D 20 20 53 54 4F 52 45 20 46 52 41 4D
+  0050: 45 20 20 20 4C 49 4E 45 20 41 42 4F 56 45 20 43
+  0060: 55 52 53 4F 52 0D 0D 1F D2 D5 CE 20 CB C5 D9 20
+  0070: 20 20 20 20 20 20 20 20 C6 35 0D 95 20 20 52 45
+  0080: 53 54 4F 52 45 20 20 20 20 20 20 20 CF 4E 2F CF
+  0090: 46 46 20 41 55 54 4F 2D 52 45 50 45 41 54 0D 20
+  00A0: 20 4F 52 49 47 49 4E 41 4C 0D 0D 1F D3 C8 C9 C6
+  00B0: D4 2D C3 3D 20 20 20 20 20 20 20 20 C6 36 0D 95
+  00C0: 20 20 43 48 41 4E 47 45 20 43 41 53 45 20 20 20
+  00D0: CF 4E 2F CF 46 46 20 43 4F 4C 4F 55 52 0D 20 20
+  00E0: 4F 56 45 52 57 52 49 54 45 0D 0D 1F D3 43 52 45
+  00F0: 45 4E 2F C2 4F 52 44 45 52 20 20 20 C6 37 2F 38
+  0100: 0D 95 20 20 43 4F 4C 4F 55 52 20 43 48 41 4E 47
+  0110: 45 0D 0D 0D 1F D3 45 45 20 C8 CF D7 20 D4 CF 20
+  0120: C5 C4 C9 D4 0D 95 20 20 46 4F 52 20 46 55 4C 4C
+  0130: 45 52 20 44 45 54 41 49 4C 53
 ```
 
-Notes:
+Rendered with that header, it reads (row numbers are the 0-based grid rows, and the case shown
+is the **actual** case — this is the mixed-case evidence that the `$0E` took effect):
 
-- Sequence numbers advance in `$20`–`$5F` and wrap (§2.8); the server's first DAT uses `$21`.
-- Every non-empty DAT is ACKed; the zero-length EOS DAT is not (§2.9).
-- A ROM/C64 client differs only in the identification (hash-gated, §3.3) and in receiving a
-  LINKING stream after the welcome frame (§3.6); the command loop is identical.
-- Bare `P` here reaches the root because it is **FINISH** returning the *current* directory,
-  and immediately after login the current directory **is** the root. Bare `P` is **not** a
-  "go home" command: issued from inside a sub-directory it returns *that* directory, not the
-  root. To ascend, use `B` (BACK) — repeated `B` walks up to the root (§4.4).
+```
+   1 | Edit Keys
+   3 | STOP KEY        F3/4
+   4 |   stop edit,    Delete/Insert
+   5 |   store frame   line above cursor
+   7 | RUN KEY         F5
+   8 |   restore       On/Off auto-repeat
+   9 |   original
+  11 | SHIFT-C=        F6
+  12 |   change case   On/Off colour
+  13 |   overwrite
+  15 | Screen/Border   F7/8
+  16 |   colour change
+  19 | See HOW TO EDIT
+  20 |   for fuller details
+```
+
+Each block is a **key** (uppercase heading) with its two actions indented beneath — the left
+action belongs to the heading key, the right to the function key beside it. If your render comes
+out entirely in capitals with graphic glyphs, the header was not supplied; see the ⚠ above.

@@ -563,8 +563,19 @@ Different contexts show different duckshoot commands:
 #### Editor Duckshoot (from $83AA)
 
 ```
-HELP  EDIT  LAST  NEXT  NEW  COPY  ERASE  GET  PUT  STORE  PRINT  FREE  DOS  RETURN
+HELP  EDIT  LAST  NEXT  NEW  COPY  ERASE  GET  PUT  STORE  PRINT  FREE  RETURN  DOS
 ```
+
+The 6-byte name strings start at `$83AA` (note the **leading space** byte — the base is `$83AA`,
+not `$83AB`), followed at `$83FE` by a 14-entry **offset table in display order**:
+
+```
+$00 $06 $0C $12 $18 $1E $24 $2A $30 $36 $3C $42 $4E $48
+```
+
+The last two offsets are **non-monotonic** — `$4E` (`RETURN`) precedes `$48` (`DOS`) — so the
+display order ends `FREE RETURN DOS`. Reading the strings in storage order gives
+`… FREE DOS RETURN`, which is wrong; this document previously carried that error.
 
 | Command | Function |
 |---------|----------|

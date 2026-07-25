@@ -6,6 +6,12 @@
       "runtimeExecutable": "website/venv/Scripts/python.exe",
       "runtimeArgs": ["website/app.py"],
       "port": 6464
+    },
+    {
+      "name": "client-api-dev",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server/run_api_dev.py"],
+      "port": 6404
     }
   ]
 }

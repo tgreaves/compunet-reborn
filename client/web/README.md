@@ -47,5 +47,18 @@ centred command inverse.
 Keys: `↑`/`↓` highlight a directory entry · `←`/`→` scroll the duckshoot (it wraps) · `Enter`
 runs the centred command. The row's contents change with context (§4.8).
 
+## Editor
+
+The frame editor (spec §8.4/§8.4.1) is a real context with its own fourteen-command row and a
+**multi-page buffer** — `LAST`/`NEXT` move between pages, `NEW` adds a blank one, `COPY`
+duplicates, `ERASE` removes. `EDIT` starts typing on the page (`ESC` stops, `F3`/`F4`
+insert/delete a line). `PUT` saves the current page, `STORE` the whole buffer, `GET` reloads
+one — all as local JSON files. `DOS` is present but disabled: a sandboxed browser has no
+local filesystem, and §8.4.1 permits disabling a command it cannot provide but not removing it.
+
+**It works offline.** `EDITR` is available before you connect at all, and the buffer survives
+disconnection — compose now, connect later, then `UPLD` (into a directory) or `SEND` (in mail)
+submits the buffer. Those two are the only parts that need a session.
+
 In production the client API (`server/api_binding.py`) runs on its own; this launcher's static
 file serving is a dev convenience only.

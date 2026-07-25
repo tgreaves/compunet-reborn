@@ -154,10 +154,21 @@ the listing. It **MUST NOT** fall back to entering the sub-directory, because th
 `SHOW` and `DIR` the same command on exactly the entries where the spec is at pains to keep them
 apart (§4.7). Entering is `DIR`, and only `DIR`.
 
-> **Known server deviation.** The Reborn server currently *does* fall back to entering the
-> sub-directory when a selected entry has no frames (`_cmd_dir`, the `has_subdir()` branch), so
-> `SHOW` on a `D+` entry navigates instead of doing nothing. The behaviour above is correct and
-> the server should be corrected to match; until then a client may observe the fallback.
+**How a server expresses "inert" on the wire.** There is no "do nothing" response — the client
+has sent a command and is waiting. The server **SHOULD** answer with the **current directory
+listing, unchanged**: same page, same highlighted entry. The user sees no change, which is the
+required outcome, and the sequence stays in step. Answering `D` with a directory response is
+already part of the protocol — it is what `MORE` returns once the last frame of an item has been
+shown (§4.7) — so this needs no new client behaviour.
+
+A server **SHOULD NOT** answer with an error frame (`NO CONTENT` or similar). The C64 client
+dispatches on the response byte as *linking* (`$4C`), *ACK* (`$41`), or **anything else = data
+follows**, so an error response is rendered like any other page: it paints over the screen. That
+is a visible change, and therefore not inert.
+
+*(Resolved: the Reborn server previously fell back to entering the sub-directory here, and
+returned `NO CONTENT` when there was no sub-directory either. Both are corrected — `_cmd_dir`
+now returns the unchanged listing.)*
 
 The table above is the **SHOW** action (`D`+index, §4.7) — reading an entry. **Entering** an
 entry *as a directory* is a separate command, **DIR** (`P`+index): DIR works on **any** entry,

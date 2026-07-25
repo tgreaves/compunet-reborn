@@ -44,6 +44,17 @@ marked **⚠** are the ones known to have been got wrong in practice.
 - [ ] **`DIR` vs `SHOW`** — `DIR` enters an entry as a directory, `SHOW` only reads frames;
       on a `T+` entry the two do different things (§4.7).
 - [ ] **`FINISH` returns the current directory**, not "home"; `BACK` ascends (§4.7).
+- [ ] **⚠ `PUT` saves one page, `STORE` saves the buffer** (§8.4.1) — the editor's instance of
+      the same trap; a single "save" is a merge.
+- [ ] **⚠ The editor is a real context, not an upload form.** Is there a multi-page buffer with
+      a current position, reachable via `LAST`/`NEXT`/`NEW`/`COPY`/`ERASE` (§8.4.1)? A title
+      field and one text box is the known failure here.
+- [ ] **Editor `HELP` shows §A.9**, not the §A.8 frame — they are different assets.
+- [ ] **Editor row order ends `FREE`, `RETURN`, `DOS`** (§8.4.1) — storage order is not display
+      order.
+- [ ] **⚠ The editor opens with no session.** Close the connection (or don't make one) and reach
+      it: compose, `PUT`, `STORE`, `GET`, `FREE`, `HELP` must all work offline (§8.4). Then
+      reconnect — **is the buffer still there?** Clearing it on disconnect is the known failure.
 
 ## C. Display fidelity
 

@@ -55,8 +55,14 @@ help_path = os.path.join(ROOT, 'server', 'cfg', 'help.pet')
 help_frame = (api.frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x0E]) + open(help_path, 'rb').read())
               if os.path.exists(help_path) else None)
 
-json.dump({'palette': palette, 'font': font, 'template': template, 'help': help_frame},
-          open(OUT, 'w'), separators=(',', ':'))
-print('wrote %s (palette %d, font %d, template %d cells, help %s)' %
+# Editor help frame (§A.9) — a DIFFERENT asset from §A.8, shown by the editor's
+# own HELP command (§8.4.1). Body-only in exactly the same way; same header.
+ehelp_path = os.path.join(ROOT, 'server', 'cfg', 'editor-help.pet')
+editor_help = (api.frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x0E]) + open(ehelp_path, 'rb').read())
+               if os.path.exists(ehelp_path) else None)
+
+json.dump({'palette': palette, 'font': font, 'template': template, 'help': help_frame,
+           'editorHelp': editor_help}, open(OUT, 'w'), separators=(',', ':'))
+print('wrote %s (palette %d, font %d, template %d cells, help %s, editorHelp %s)' %
       (OUT, len(palette), len(font), len(template['cells']),
-       'yes' if help_frame else 'MISSING'))
+       'yes' if help_frame else 'MISSING', 'yes' if editor_help else 'MISSING'))

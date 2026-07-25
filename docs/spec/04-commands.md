@@ -250,6 +250,12 @@ table standardises the *names*, not the interface.)
 >
 > If a command looks redundant or missing, the spec is more likely to be under-explained than
 > wrong — check §8 for its behaviour before concluding it is either.
+>
+> **This includes the editor's vocabulary.** The editor (§8.4) has no wire commands at all, which
+> makes it tempting to treat its command set as a free choice of UI. It is not: its fourteen
+> names are listed in §4.8 and defined in **§8.4.1**, and every rule above applies to them —
+> `PUT` and `STORE` are the editor's `SHOW`/`BUY` (§8.4.1). A client **MAY** map them onto its
+> platform's facilities or disable ones it cannot provide; it **MUST NOT** rename or merge them.
 
 > ### ⚠ Where two commands share a wire encoding (normative)
 >
@@ -346,7 +352,7 @@ This table consolidates the contexts and is the authority for *when* each comman
 | **Reading a multi-frame page** | `MORE`, `ALL`, `FINISH` — in that order | **Only** these. There is no `FINISH` in a directory and no `MORE` in one (§4.7) |
 | **Mail (Courier, §8.2)** — listing and message | `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `SHOW` reads the highlighted message, `MORE` pages it. **`DONE` returns the user to where they were before entering Courier** — see the note below |
 | **Upload / send** (§8.3.2) | `SEND`, `LOAD`, `GET`, `FINISH` | The original entered an upload sub-context with its own set |
-| **Editor** (§8.4) | `HELP`, `EDIT`, `LAST`, `NEXT`, `NEW`, `COPY`, `ERASE`, `GET`, `PUT`, `STORE`, `PRINT`, `FREE`, `DOS`, `RETURN` | Entirely client-side (no wire commands); `RETURN` leaves the editor |
+| **Editor** (§8.4) | `HELP`, `EDIT`, `LAST`, `NEXT`, `NEW`, `COPY`, `ERASE`, `GET`, `PUT`, `STORE`, `PRINT`, `FREE`, `RETURN`, `DOS` | Entirely client-side (no wire commands); `RETURN` leaves the editor. **Each command's function is defined in §8.4.1** — and note the order ends `FREE`, `RETURN`, `DOS` (⚠ §8.4.1). `HELP` here shows the *editor's* help frame (§A.9), not §A.8's. **⚠ This is the one context that is also available OFFLINE** (§8.4) — it is reachable with no session at all, so it is the only row that can appear before login |
 | **Partyline** (§8.5) | None of the above — the `*`-commands (`*help`, `*who`, `*enter`, `*dice`, `*call`, `*quit`…) and free text | While in Partyline the client is in a **chat** context. Normal commands resume only after leaving |
 
 *(Provenance: decoded from the C64 client source — the 6-byte command-name table at `L_A176`,
@@ -428,10 +434,18 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
   ' GET  '  ' DOS  '  '  ID  '  ' DONE '
   ```
 
+  and the editor's own cells (§8.4.1), from the C64 table at `$83AA`:
+
+  ```
+  ' HELP '  ' EDIT '  ' LAST '  ' NEXT '  ' NEW  '  ' COPY '  'ERASE '  ' GET  '
+  ' PUT  '  'STORE '  'PRINT '  ' FREE '  'RETURN'  ' DOS  '
+  ```
+
   This is what makes the row scroll in even steps **and** what separates the words. Note
   `'FINISH'` fills its cell with no padding of its own — the gap after it comes from the *next*
   word's leading space. A client that left-pads the bare names instead will run `FINISH` straight
-  into whatever follows it.
+  into whatever follows it. `'RETURN'` and `'ERASE '`, `'STORE '`, `'PRINT '` behave the same way
+  in the editor row.
 
 ### 4.9.4 Contents — which commands, in what order
 
@@ -448,6 +462,12 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
 
   ```
   SEND  SHOW  MORE  ID  EDITR  DONE
+  ```
+
+  and the editor (§8.4.1) — note the tail, which is **not** in storage order:
+
+  ```
+  HELP  EDIT  LAST  NEXT  NEW  COPY  ERASE  GET  PUT  STORE  PRINT  FREE  RETURN  DOS
   ```
 
 - **The first command is centred by default** when a context is entered — `HELP` for the

@@ -57,8 +57,6 @@
       </span>
       <input id="edTo" placeholder="to: ID,ID" hidden>
     </div>
-    <textarea id="edBody" rows="10" spellcheck="false"
-              placeholder="Page text — 40 columns wide, up to 23 lines."></textarea>
     <div class="row">
       <button id="edSubmit">Submit</button>
       <button id="edCancel">Cancel</button>
@@ -73,6 +71,7 @@
   <div id="status">Not connected.</div>
   <div id="ctx"></div>
   <div class="hint">↑/↓ highlight an entry · ←/→ scroll the duckshoot (it wraps) · Enter runs the centred command · F7/F8 cycle the right-hand column</div>
+  <div class="hint">In the editor: EDIT starts typing (ESC stops) · F3/F4 insert/delete a line · LAST/NEXT move between pages · RETURN leaves</div>
   <script type="module" src="./dist/app.bundle.js"></script>
 </body>
 </html>

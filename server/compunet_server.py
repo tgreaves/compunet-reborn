@@ -745,16 +745,19 @@ class CompunetSession:
                 audit_log('read', user=self.user_id, page=child.page_num,
                           title=child.title, type=child.page_type)
                 return self._send_current_frame()
-            # Dynamic directory: populate children on each view
-            if getattr(child, 'dynamic', None) == 'new':
-                _populate_whats_new(child, self.directory)
-            if child.has_subdir():
-                self.current_page = child
-                self.selected_entry = 0
-                self.dir_page_offset = 0
-                return self._make_dir_response()
-            else:
-                return self._make_error(ascii_to_petscii('NO CONTENT'))
+            # No frames: SHOW is INERT (spec §7.4). It must NOT fall back to
+            # entering the sub-directory — that is DIR ('P'+index, _cmd_show),
+            # and collapsing them would make SHOW and DIR the same command on
+            # exactly the entries where they are meant to differ (§4.7). A 'D'
+            # entry normally has no frames, so this is its ordinary outcome.
+            #
+            # Inert means the screen does not change, so re-send the CURRENT
+            # listing: same page, same highlight (_make_dir_response preserves
+            # both). Answering 'D' with a directory response is an established
+            # path the client already handles — MORE past the last frame does
+            # exactly this a few lines above. An error frame would instead paint
+            # 'NO CONTENT' over the screen, which is a visible change.
+            return self._make_dir_response()
         else:
             self.dir_page_offset = offset + 11
             self.selected_entry = 0
