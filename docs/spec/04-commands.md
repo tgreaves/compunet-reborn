@@ -225,11 +225,10 @@ than two competing full command bars (e.g. a duckshoot *and* a separate button r
 list the same commands) — two parallel menus of commands are confusing and make it unclear which
 is authoritative. Pick one primary surface (a duckshoot, or a button/menu bar) and, if a second
 affordance is offered, keep it clearly secondary (e.g. keyboard shortcuts, or click-to-select on
-entry rows) rather than a duplicate command menu. Whichever surface is used **SHOULD** show the
-commands **appropriate to the current context** — the directory command set while a directory is
-displayed, the reading set (`MORE`/`FINISH`) while a frame is displayed, and the directory set
-(including `DIR`) on the welcome frame (§4.7) — not a fixed list that offers inapplicable
-commands or omits reachable ones.
+entry rows) rather than a duplicate command menu. Whichever surface is used **MUST** show the
+commands **appropriate to the current context** — never a fixed list that offers inapplicable
+commands or omits reachable ones. **§4.8 is the authoritative table of which commands belong to
+which context.**
 
 ## 4.7 Standard command vocabulary
 
@@ -300,3 +299,43 @@ yet, `DIR` on the welcome frame carries **no index** and goes on the wire as a *
 which the server answers with the current directory — the root (this is the "terminal entry"
 `P` that also serves FINISH; the two coincide here). Once inside a directory, `DIR` reverts to
 its normal `P`+index meaning (enter the highlighted entry).
+
+## 4.8 Command availability by context (normative)
+
+The command set a client offers **MUST** change with what is on screen. The original client did
+not present one fixed list: it swapped the duckshoot per context, so the user only ever saw
+commands that made sense. A client that shows every command everywhere will offer `MORE` on a
+directory and `VOTE` in a chat window, both meaningless.
+
+This table consolidates the contexts and is the authority for *when* each command is offered;
+§4.7 remains the authority for their names and wire mapping.
+
+| Context | Commands to offer | Notes |
+|---|---|---|
+| **Welcome frame** (just logged in, §3.5) | `DIR`, `GOTO`, `ACCNT`, `MAIL`, `UCAT`, `LEAVE` | The entry point. `DIR` is **required** here (§4.7) — without it the user cannot reach the system. Not a "reading" context: do **not** offer `MORE`/`FINISH` |
+| **Directory listing** | `SHOW`, `DIR`, `BACK`, `GOTO`, `ACCNT`, `MAIL`, `UCAT`, `VOTE`, `LIFE`, `BUY`, `UPLD`, `LEAVE` (+ client-side `EDITR`, `HELP`, `PRINT`, `SAVE`) | The full working set. Commands acting on a highlighted entry (`SHOW`, `DIR`, `VOTE`, `LIFE`, `BUY`) require a selection — see below |
+| **Reading a frame** | `MORE`, `FINISH` (+ `ALL` if implemented) | **Only** these. There is no `FINISH` in a directory and no `MORE` in one (§4.7) |
+| **Mailbox listing** (Courier, §8.2) | `SHOW`/`GET` (read the highlighted message), `SEND`, `NEXT`, `LAST`, `DIR`/`DONE` (leave mail), `LIFE`, `ID` | A **distinct** set — content commands such as `VOTE`, `UPLD` and `BUY` do **not** apply to mail |
+| **Reading a mail message** | `MORE`/`NEXT`, `LAST`, `FINISH`/`DONE`, `SEND` (reply) | As for a frame, plus the mail-specific moves |
+| **Upload / send** (§8.3.2) | `SEND`, `LOAD`, `GET`, `FINISH` | The original entered an upload sub-context with its own set |
+| **Editor** (§8.4) | `HELP`, `EDIT`, `LAST`, `NEXT`, `NEW`, `COPY`, `ERASE`, `GET`, `PUT`, `STORE`, `PRINT`, `FREE`, `DOS`, `RETURN` | Entirely client-side (no wire commands); `RETURN` leaves the editor |
+| **Partyline** (§8.5) | None of the above — the `*`-commands (`*help`, `*who`, `*enter`, `*dice`, `*call`, `*quit`…) and free text | While in Partyline the client is in a **chat** context. Normal commands resume only after leaving |
+
+*(Provenance: the original client's per-context duckshoots — Directory, Show, Courier/Mail,
+Editor and the upload sub-menu — are recorded in `docs/PROTOCOL.md`. Where its manual and its
+dispatch table differ slightly on mail, the dispatch table is authoritative.)*
+
+**Selection-dependent commands.** `SHOW`, `DIR`, `VOTE`, `LIFE` and `BUY` act on the
+**highlighted entry** (§4.5). When no entry is highlighted — an empty directory, or a listing
+whose only row is the `(EMPTY)` placeholder (§7.3) — a client **SHOULD** disable them rather than
+send a command with no valid index. `DIR` on the welcome frame is the documented exception: it
+carries no index by design.
+
+**Disable rather than hide (recommended).** Where the interface allows it, a client **SHOULD**
+show inapplicable commands as *unavailable* rather than removing them, so the command set does
+not appear to change shape as the user moves around — the original's duckshoot kept a stable row
+of words and simply offered a different set per context. Either is conforming; what is **not**
+conforming is offering a command that cannot work in the current context.
+
+This is **shared model**, not Binding-A detail: a Binding-B client faces exactly the same
+contexts (its `partyline.*` and editor flows included) and **MUST** apply the same rules.

@@ -77,7 +77,7 @@ binding), this binding's **wire** format (X.25-over-TCP / PETSCII), or **mixed**
 | 1 | [01-overview.md](01-overview.md) | model | Purpose, architecture & bindings, scope, conformance tiers, conventions |
 | 2 | [02-transport.md](02-transport.md) | **wire** | X.25-over-TCP framing — delimiters, byte-stuffing, tokens, CRC, sequencing, flow control |
 | 3 | [03-session.md](03-session.md) | model | Session lifecycle — connect → identification / machine-type detection → login → online → disconnect |
-| 4 | [04-commands.md](04-commands.md) | model | Command protocol — command semantics, request/response shapes, ack conventions (`@`/`A`/`B`) |
+| 4 | [04-commands.md](04-commands.md) | model | Command protocol — command semantics, request/response shapes, ack conventions, and **which commands are available in which context** (§4.8) |
 | 5 | [05-display.md](05-display.md) | mixed | Display contract — screen model & palette (model); PETSCII screen-code→glyph mapping, control codes, RLE (wire) |
 | 6 | [06-frame-format.md](06-frame-format.md) | **wire** | Frame (SEQ) format — on-the-wire encoding of a page |
 | 7 | [07-directory-format.md](07-directory-format.md) | **wire** | Directory listing wire format, entry types, paging |

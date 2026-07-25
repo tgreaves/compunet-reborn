@@ -124,6 +124,12 @@ Note there is **no** column-cycle command: directory JSON carries every Part-5 c
 entry (§5 below), so the client cycles the visible column locally (the `F7`/`F8` behaviour of
 spec §7.7) with no round-trip.
 
+**Which commands to offer when.** Command *availability* is shared model, not binding detail:
+see **spec §4.8**. A Binding-B client faces the same contexts (welcome frame, directory, frame,
+mailbox, mail message, upload, editor, Partyline) and **MUST** offer only the commands that
+apply to the current one — e.g. `more`/`finish` only while a frame is displayed, `vote`/`life`
+only with an entry highlighted, and while in Partyline only the `partyline.*` commands.
+
 ## 5. Responses (server → client)
 
 ### 5.1 `directory`
