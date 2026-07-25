@@ -1,0 +1,289 @@
+// src/render.ts
+var COLS = 40;
+var ROWS = 24;
+var CELL = 8;
+var RED = 2;
+var BLUE = 6;
+var WHITE = 1;
+var TEMPLATE_BG = 15;
+function petsciiToScreencode(b) {
+  if (b >= 32 && b <= 63) return b;
+  if (b >= 64 && b <= 95) return b & 31;
+  if (b >= 96 && b <= 127) return b & 31 | 64;
+  if (b >= 160 && b <= 191) return b & 31 | 96;
+  if (b >= 192 && b <= 222) return b & 127;
+  if (b === 255) return 94;
+  return b & 127;
+}
+function asciiGlyph(ch) {
+  return petsciiToScreencode(ch.charCodeAt(0) & 255);
+}
+var Renderer = class {
+  constructor(canvas2, assets2, wrap2, scale = 2) {
+    this.canvas = canvas2;
+    this.assets = assets2;
+    this.wrap = wrap2;
+    this.scale = scale;
+    this.canvas.width = COLS * CELL * scale;
+    this.canvas.height = ROWS * CELL * scale;
+    const ctx = canvas2.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    this.ctx = ctx;
+  }
+  drawGlyph(cell, col, row) {
+    const bmp = this.assets.font[cell.g] || this.assets.font[32];
+    const s = this.scale, px = col * CELL * s, py = row * CELL * s;
+    this.ctx.fillStyle = this.assets.palette[cell.bg];
+    this.ctx.fillRect(px, py, CELL * s, CELL * s);
+    this.ctx.fillStyle = this.assets.palette[cell.fg];
+    for (let y = 0; y < 8; y++) {
+      const byte = bmp[y];
+      for (let x = 0; x < 8; x++) {
+        let on = byte >> 7 - x & 1;
+        if (cell.rv) on ^= 1;
+        if (on) this.ctx.fillRect(px + x * s, py + y * s, s, s);
+      }
+    }
+  }
+  renderGrid(cells, background) {
+    this.ctx.fillStyle = this.assets.palette[background & 15];
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) this.drawGlyph(cells[r * COLS + c], c, r);
+  }
+  setBorder(idx) {
+    this.wrap.style.background = this.assets.palette[idx & 15];
+  }
+  renderFrame(frame2) {
+    this.renderGrid(frame2.cells, frame2.background);
+    this.setBorder(frame2.border);
+  }
+  put(grid, row, col, text, fg, bg) {
+    const t = (text || "").toUpperCase();
+    for (let i = 0; i < t.length && col + i < COLS; i++) {
+      if (col + i < 0) continue;
+      grid[row * COLS + (col + i)] = { g: asciiGlyph(t[i]), fg, bg, rv: 0 };
+    }
+  }
+  /** Compose the 40x24 directory screen: template chrome + overlaid entries. */
+  renderDirectory(dir2, sel2, colIdx2) {
+    const g = this.assets.template.cells.map((x) => ({ ...x }));
+    if (dir2.breadcrumb[0]) this.put(g, 7, 2, dir2.breadcrumb[0], BLUE, TEMPLATE_BG);
+    if (dir2.breadcrumb[1]) this.put(g, 8, 2, dir2.breadcrumb[1], BLUE, TEMPLATE_BG);
+    if (dir2.mailWaiting) this.put(g, 8, 22, "MAIL", RED, TEMPLATE_BG);
+    this.put(g, 8, 31, dir2.columns[colIdx2] || "", BLUE, TEMPLATE_BG);
+    dir2.entries.forEach((e, i) => {
+      const row = 10 + i;
+      const colour = i === 0 ? RED : BLUE;
+      const selected = i === sel2;
+      const fg = selected ? WHITE : colour;
+      const bg = selected ? colour : TEMPLATE_BG;
+      if (selected)
+        for (let c = 1; c <= 38; c++) g[row * COLS + c] = { g: 32, fg: WHITE, bg: colour, rv: 0 };
+      if (selected) {
+        const ps = String(e.page);
+        this.put(g, row, 8 - ps.length, ps, fg, bg);
+      }
+      this.put(g, row, 9, e.title, fg, bg);
+      const type = e.type + (e.size ? String(e.size) : "") + (e.hasSubdir ? "+" : "");
+      this.put(g, row, 26, type, fg, bg);
+      const val = e.values?.[dir2.columns[colIdx2]] || "";
+      if (val) this.put(g, row, 31, val, fg, bg);
+    });
+    (dir2.advert || []).slice(0, 2).forEach((line, i) => {
+      const col = Math.max(0, Math.floor((COLS - line.length) / 2));
+      this.put(g, 22 + i, col, line, BLUE, TEMPLATE_BG);
+    });
+    this.renderGrid(g, TEMPLATE_BG);
+    this.setBorder(this.assets.template.border);
+  }
+};
+
+// src/gateway.ts
+var Gateway = class {
+  constructor() {
+    this.ws = null;
+  }
+  /** Exchange credentials for a bearer token (spec §2). */
+  async login(httpBase, user, pass) {
+    const r = await fetch(httpBase + "/v1/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user, pass })
+    });
+    if (!r.ok) throw new Error("login failed (" + r.status + ")");
+    return r.json();
+  }
+  /** Open the gateway and authenticate the socket with the token. */
+  connect(wsBase, token, onMessage2, onClose, onError) {
+    const ws = new WebSocket(wsBase + "/v1/gateway");
+    this.ws = ws;
+    ws.onopen = () => this.send({ type: "auth", token });
+    ws.onmessage = (ev) => onMessage2(JSON.parse(ev.data));
+    ws.onclose = onClose;
+    ws.onerror = onError;
+  }
+  send(msg) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+  }
+  close() {
+    this.ws?.close();
+  }
+};
+
+// src/main.ts
+var $ = (id) => document.getElementById(id);
+var canvas = $("screen");
+var wrap = $("screenWrap");
+var statusEl = $("status");
+var assets;
+var renderer;
+var gw = new Gateway();
+var mode = "idle";
+var dir = null;
+var frame = null;
+var sel = 0;
+var colIdx = 0;
+var account = null;
+function status(s) {
+  statusEl.textContent = s;
+}
+function render() {
+  if (mode === "directory" && dir) renderer.renderDirectory(dir, sel, colIdx);
+  else if (mode === "frame" && frame) renderer.renderFrame(frame);
+}
+function onMessage(m) {
+  switch (m.type) {
+    case "ready": {
+      const r = m;
+      account = r.account;
+      if (r.welcome) {
+        mode = "frame";
+        frame = r.welcome;
+        render();
+      }
+      status(`Logged in as ${account.user} \u2014 credit ${account.credit}`);
+      break;
+    }
+    case "directory":
+      mode = "directory";
+      dir = m;
+      sel = 0;
+      colIdx = 0;
+      render();
+      status(`${m.title} \u2014 ${m.entries.length} entries`);
+      break;
+    case "frame":
+      mode = "frame";
+      frame = m;
+      render();
+      status("Reading page" + (m.morePages ? " \u2014 MORE follows" : ""));
+      break;
+    case "download":
+      status(`Download: ${m.title} (${m.note || ""})`);
+      break;
+    case "account":
+      status(`You are ${m.creditText} in credit`);
+      break;
+    case "error":
+      status("\u26A0 " + m.code + (m.message ? ": " + m.message : ""));
+      break;
+    default:
+      status("\xB7 " + m.type);
+  }
+}
+function curEntry() {
+  return dir ? dir.entries[sel] : void 0;
+}
+var actions = {
+  SHOW: () => {
+    const e = curEntry();
+    if (e) gw.send({ type: "open", page: e.page });
+  },
+  DIR: () => {
+    const e = curEntry();
+    if (e) gw.send({ type: "enter", page: e.page });
+  },
+  BACK: () => gw.send({ type: "back" }),
+  MORE: () => gw.send({ type: "more" }),
+  FINISH: () => gw.send({ type: "finish" }),
+  GOTO: () => {
+    const t = prompt("GOTO page number or keyword:");
+    if (t) gw.send({ type: "goto", target: t });
+  },
+  COL: () => {
+    if (dir) {
+      colIdx = (colIdx + 1) % dir.columns.length;
+      render();
+      status("Column: " + dir.columns[colIdx]);
+    }
+  },
+  LEAVE: () => {
+    gw.send({ type: "leave" });
+    gw.close();
+  }
+};
+function buildBar() {
+  const bar = $("bar");
+  bar.innerHTML = "";
+  for (const name of Object.keys(actions)) {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.onclick = actions[name];
+    bar.appendChild(b);
+  }
+}
+async function connect() {
+  const wsBase = $("host").value.trim().replace(/\/$/, "");
+  const httpBase = wsBase.replace(/^ws/, "http");
+  try {
+    const { token } = await gw.login(httpBase, $("user").value, $("pass").value);
+    gw.connect(
+      wsBase,
+      token,
+      onMessage,
+      () => status("Disconnected."),
+      () => status("WebSocket error.")
+    );
+    $("connect").disabled = true;
+  } catch (e) {
+    status("Connect error: " + e.message);
+  }
+}
+window.addEventListener("keydown", (e) => {
+  if (mode === "directory" && dir) {
+    if (e.key === "ArrowDown") {
+      sel = Math.min(sel + 1, dir.entries.length - 1);
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      sel = Math.max(sel - 1, 0);
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Enter") {
+      actions.SHOW();
+      return;
+    }
+    if (e.key === "ArrowRight") {
+      actions.DIR();
+      return;
+    }
+  }
+  if (e.key === "ArrowLeft") actions.BACK();
+  else if (e.key.toLowerCase() === "n") actions.MORE();
+  else if (e.key.toLowerCase() === "f") actions.FINISH();
+  else if (e.key.toLowerCase() === "c") actions.COL();
+});
+async function boot() {
+  buildBar();
+  assets = await (await fetch("./assets.json")).json();
+  renderer = new Renderer(canvas, assets, wrap);
+  $("connect").onclick = connect;
+  status("Ready. Enter credentials and Connect.");
+}
+void boot();
+//# sourceMappingURL=app.bundle.js.map
