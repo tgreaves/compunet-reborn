@@ -418,8 +418,8 @@ was reached except the items it listed as unverifiable (below). All findings are
   an upload lands and appears in the refreshed listing; the twelfth entry is refused with
   `directory_full`; and `DIR` on a `+`-less entry opens a new empty directory, which is §7.4's
   hierarchy-building mechanism.
-- Paging needed a listing longer than 11. With one: 11 entries and `hasMore`, then `dir.more`
-  returns the rest.
+- Paging needed a listing longer than 11 — but see the ninth entry below: the premise was wrong,
+  and authored directories do not paginate at all.
 - The price gate was a **misreading, not missing data**. The paid page existed and cost £2.50 —
   it showed blank because the test account had **already bought it**, and a purchased page
   correctly has no price. Only the free half of the table was ever reachable. With an unbought
@@ -466,7 +466,8 @@ the honest lesson of this run:
   the original: page when the **selection moves past the last entry**, mirroring the gesture
   Binding A uses on its synthetic pagination row — no word added to a closed vocabulary. Adopted,
   and §4.8 now says so. They also spotted that paging had **no reverse**, which cost *n* round
-  trips to go back one page; `dir.back` added.
+  trips to go back one page; `dir.back` added. **Both commands were later removed** — see below:
+  the model has no paging, so both were invented vocabulary.
 
 **Other faults, all measured:**
 
@@ -492,6 +493,45 @@ frame-level, with an editor obligation not to offer per-cell background painting
 measured against the server it is pushed once. Recorded as probably client-side rather than
 "fixed", since changing working code to chase an unreproducible symptom is how faults get
 introduced.
+
+## Root-cause correction: directories do not paginate
+
+Three findings across both Binding-B runs (F15, F26, F35) concerned directory paging, and the
+corrections made in response made things worse — culminating in `dir.more`/`dir.back`, two
+commands with no Binding-A counterpart. The premise underneath all of it was wrong, and was
+corrected by the project owner from knowledge of the original service.
+
+**An authored directory shows 11 entries and does not paginate.** Overflow is *authored*: the
+owner adds an ordinary `D` entry, conventionally titled `MORE`, whose sub-directory holds the
+next batch, and the user enters it with DIR like any other. Three independent confirmations:
+
+1. **The C64 client has no paging state.** No page offset, no scroll counter — nothing. A client
+   that cannot remember which page it is on cannot page.
+2. **§8.3.2's 11-entry upload cap only makes sense this way.** If the server paginated, refusing
+   a twelfth upload would be pointless — it would spill onto page 2. The cap *is* the display
+   limit, and the `MORE` entry is the user's answer to it.
+3. **The manual quote was misread.** "A dummy page; cannot be shown. Use DIR to access the
+   directory beneath" describes the **`D` entry type** — precisely the authored MORE entry. It
+   was cited in `docs/PROTOCOL.md` as evidence for automatic pagination, which is the opposite
+   of what it says. That section also claimed "12 entries per page" where the server uses 11 —
+   the usual signature of an assumed passage rather than a verified one.
+
+**Generated listings are the exception**, and the distinction is principled: the mailbox and UCAT
+are assembled by the server, so their owner *cannot* author a MORE entry into them. Those, and
+only those, carry a synthetic MORE row — which the client selects like any other entry, sending
+an index one past the real ones. No paging command, and no client-side page state, in either
+binding.
+
+**What this cost.** §7.6 described a server-side pager that never existed; two clean-room builders
+read it, found the server did not behave that way, and reported the discrepancy accurately. The
+corrections then built machinery on the false premise — including inventing vocabulary inside a
+specification whose §4.7 forbids exactly that. The clean rooms did their job; the spec was wrong
+at the root, and no amount of building against it would have revealed that. It took someone who
+knew the original service.
+
+The lesson for §1.5.1's list: a **plausible edit** can also be made by the specification's own
+author, in prose, years before anyone builds against it — and it will then be faithfully
+reproduced by every reader.
 
 ## Conclusion
 

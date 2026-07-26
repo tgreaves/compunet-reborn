@@ -147,8 +147,6 @@ acts on rather than a highlighted index (spec §4.5).
 | `enter` | `page` | §4.7 DIR (`P`+idx) | enter the entry as a directory (opens a latent one if none) |
 | `open` | `page` | §4.7 SHOW (`D`+idx) | read the entry's frame(s); or download/activate a program/link |
 | `more` | — | §4.7 MORE | next frame of a multi-frame item. **Only while a frame is displayed** — in a directory it starts reading the selected entry's frames |
-| `dir.more` | — | §7.6 | page a **listing** forward when `hasMore` is true. Binding-B-only — see the paging note in §5.1. **Clamped**: past the last page it returns the current page unchanged |
-| `dir.back` | — | §7.6 | page a listing backward. Clamped at the first page |
 | `finish` | — | §4.7 FINISH | leave the frame → its directory |
 | `back` | — | §4.4 BACK | parent directory |
 | `goto` | `target` (page # or keyword) | §4.4 GOTO | jump; reply is always a directory (§4.4) |
@@ -197,7 +195,7 @@ contract the client applies.
   "context": "mail"|"ucat",     // present only for those listings; absent for content directories
   "selected": 2,                // GOTO only: which entry was the target (§4.4) — the client MUST NOT compute this itself
   "header": <frame|null>,       // Part 1 header frame (COMPUNET logo) as a cell grid, or null → built-in template. Overlay ROWS 0–5 ONLY (§7.7) — it is a full 24-row grid and blitting all of it erases the template's box and divider
-  "hasMore": false,             // more entries follow — page with `dir.more` (§7.6)
+  "hasMore": false,             // GENERATED listings only (mailbox, UCAT): more entries follow, and a MORE row is present (§7.6). Always false on an authored directory
   // ⚠ `entries` is NEVER empty: an empty listing carries one placeholder row
   // (§7.3 MUST) whose `page` is 0. Because `page` is listing-scoped, a
   // zero-entry listing would make every open/enter/vote fail with a plausible
@@ -211,24 +209,19 @@ contract the client applies.
 }
 ```
 
-**Paging a long listing.** Binding A truncates the page and makes its **last row a synthetic
-pagination entry** (§7.6), so 10 real entries plus a MORE row fill the 11 rows. Binding B sends up
-to **11 real entries** plus `hasMore`, so that row cannot be reconstructed without dropping an
-entry. A Binding-B client therefore **SHOULD NOT** draw the synthetic row: show all 11 entries and
-page with **`dir.more`** / **`dir.back`**.
+**Overflow, not paging.** An authored directory shows 11 entries and **does not paginate**
+(§7.6): overflow is a user-created `D` entry, conventionally titled `MORE`, which the user enters
+like any other. `hasMore` is therefore `false` on every authored listing.
 
-> **⚠ Paging is a SELECTION gesture, not a command.** Reach `dir.more` by the user moving the
-> highlight **past the last entry** (and `dir.back` past the first) — the same gesture Binding A
-> uses when the user selects its synthetic MORE row (§7.6). Do **not** add a `MORE` word to the
-> directory command row: §4.8's directory context has no `MORE` ("there is no `FINISH` in a
-> directory and no `MORE` in one"), §4.7 declares the vocabulary closed, and §4.6 makes §4.8
-> authoritative. An earlier version of this paragraph told clients to do exactly that, which put
-> this document in direct conflict with the model it is supposed to project. (VALIDATION.md,
-> F15/F26/F35 — the resolution is the clean-room builder's, and is better than the original.)
->
-> **Both directions.** `dir.more` alone would make going back cost *n* round trips. Both are
-> **clamped**: paging past either end returns the current page unchanged rather than an empty
-> listing — see the placeholder rule in §5.1.
+Only **generated** listings — the mailbox and UCAT — can overflow, because their owner cannot
+author a `MORE` entry into them. Those carry the synthetic row as an **ordinary entry** with
+`page: -1`; `enter`/`open` on it returns the next page. There is deliberately **no paging
+command**: adding one would put a word in Binding B that Binding A has no counterpart for, which
+§1.8 forbids.
+
+> *(An earlier revision of this document described server-side paging and introduced
+> `dir.more`/`dir.back` to drive it. Both were wrong: the model has no such thing, and the
+> commands were invented vocabulary. VALIDATION.md, F15/F26/F35.)*
 
 `page` is an **integer in every listing**, including the mailbox, where it is the message id.
 (`mail.read` addresses messages by `index`, not `page`, so the id is never sent back.)

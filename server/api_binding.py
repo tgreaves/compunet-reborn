@@ -215,6 +215,10 @@ def ucat_to_json(session, msg_id=None):
         entries.append({"index": 0, "page": 0, "title": "(EMPTY)", "type": "T",
                         "size": None, "hasSubdir": False,
                         "values": ["" for _ in _DIR_COLUMNS]})
+    elif len(pages) > offset + 11:
+        # UCAT is GENERATED, so a user cannot author a MORE entry into it —
+        # the server supplies one, as Binding A does (§7.6).
+        entries.append(_more_row(len(entries)))
 
     return {
         "type": "directory", "id": msg_id, "context": "ucat",
@@ -557,6 +561,11 @@ def mail_to_json(session, msg_id=None):
     if not entries:
         entries.append({"index": 0, "page": 0, "title": "(NO MAIL)", "type": "T",
                         "size": None, "hasSubdir": False, "values": ["", "", ""]})
+    elif len(msgs) > offset + 11:
+        # A mailbox is generated too, so it also carries the MORE row (§7.6).
+        entries.append({"index": len(entries), "page": MORE_PAGE,
+                        "title": "MORE        >>>>", "type": "D",
+                        "size": None, "hasSubdir": True, "values": ["", "", ""]})
     return {
         "type": "directory", "id": msg_id, "context": "mail",
         "page": 0, "title": "COURIER",
@@ -958,14 +967,30 @@ def _serialize_state(session, raw, msg_id=None):
     return directory_to_json(session, msg_id)
 
 
-def _clamp_page(offset, step, total):
-    """Next page offset, never past the last page and never below zero."""
-    nxt = offset + step
-    if nxt < 0:
-        return 0
-    if nxt >= total:                 # would leave nothing to show
-        return offset
-    return nxt
+#: Sentinel `page` for the MORE row of a generated listing. Selecting that row
+#: pages forward — the Binding-A gesture (§7.6), with no command added.
+MORE_PAGE = -1
+
+
+def _more_row(index):
+    """The MORE row a generated listing carries when it overflows (§7.6)."""
+    return {"index": index, "page": MORE_PAGE, "title": "MORE        >>>>",
+            "type": "D", "size": None, "hasSubdir": True,
+            "values": ["" for _ in _DIR_COLUMNS]}
+
+
+def _page_generated_listing(session, msg_id=None):
+    """Advance a generated listing (UCAT / mailbox) by one page (§7.6)."""
+    if getattr(session, 'mail_mode', False):
+        total = len(_mail_messages(session))
+        cur = getattr(session, 'mail_page_offset', 0)
+        session.mail_page_offset = cur + 11 if cur + 11 < total else cur
+        return mail_to_json(session, msg_id)
+    cur = getattr(session, '_ucat_offset', 0)
+    total = len([p for p in session.directory.pages.values()
+                 if p.author == session.user_id])
+    session._ucat_offset = cur + 11 if cur + 11 < total else cur
+    return ucat_to_json(session, msg_id)
 
 
 def _goto_offset(session, target):
@@ -1015,41 +1040,26 @@ def handle_message(session, msg):
         if getattr(session, 'mail_mode', False) and getattr(session, 'mail_show_msg', None) is not None:
             return _drive(session, b'B', mid)
         return _drive(session, b'P', mid)
-    if t == "enter":
+    if t in ("enter", "open"):
+        # Selecting the MORE row of a generated listing pages it forward — the
+        # same gesture Binding A uses (§7.6). No paging command exists.
+        if msg.get("page") == MORE_PAGE:
+            return _page_generated_listing(session, mid)
         i = _find_index(session, msg.get("page"))
         if i is None:
             return {"type": "error", "id": mid, "code": "not_found", "message": "no such entry"}
-        return _drive(session, b'P' + str(i).encode('ascii'), mid)
-    if t == "open":
-        i = _find_index(session, msg.get("page"))
-        if i is None:
-            return {"type": "error", "id": mid, "code": "not_found", "message": "no such entry"}
-        return _drive(session, b'D' + str(i).encode('ascii'), mid)
+        cmd = b'P' if t == "enter" else b'D'
+        return _drive(session, cmd + str(i).encode('ascii'), mid)
     if t == "more":
         return _drive(session, b'D', mid)
 
-    if t in ("dir.more", "dir.back"):
-        # Page a listing. Binding A pages by selecting the synthetic MORE row
-        # (§7.6); Binding B has `hasMore` and these commands (VALIDATION.md,
-        # F15/F26/F35).
-        #
-        # ⚠ CLAMPED at both ends. Unclamped, paging past the last page produced
-        # a listing with ZERO entries which then became the session's current
-        # listing — and because `page` is scoped to the current listing, every
-        # subsequent open/enter/vote failed with a plausible-looking `not_found`
-        # until the user happened to `goto` somewhere. Stranding the session is
-        # far worse than a no-op (F7).
-        step = 11 if t == "dir.more" else -11
-        if getattr(session, 'mail_mode', False):
-            total = len(_mail_messages(session))
-            cur = getattr(session, 'mail_page_offset', 0)
-            session.mail_page_offset = _clamp_page(cur, step, total)
-            return mail_to_json(session, mid)
-        total = len(session.current_page.children)
-        cur = getattr(session, 'dir_page_offset', 0)
-        session.dir_page_offset = _clamp_page(cur, step, total)
-        session.selected_entry = 0
-        return directory_to_json(session, mid)
+    # ⚠ There is deliberately NO paging command. Authored directories do not
+    # paginate at all (§7.6): they hold at most 11 entries, and overflow is a
+    # user-created `D` entry titled MORE that you enter like any other. Only
+    # GENERATED listings (UCAT, the mailbox) can overflow, and they carry a MORE
+    # row you select — `enter`/`open` on it, exactly as in Binding A. Adding
+    # `dir.more`/`dir.back` here invented vocabulary with no Binding-A
+    # counterpart, which §1.8 forbids (VALIDATION.md, F15/F26/F35).
     if t == "back":
         return _drive(session, b'B', mid)
     if t == "goto":

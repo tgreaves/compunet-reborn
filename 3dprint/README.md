@@ -98,6 +98,16 @@ individually. (`parts/` holds the **flush** variant; for raised, run
 > ⚠ Extruders are assigned per **colour**, not per part. The flush variant has two grey parts,
 > and numbering them separately asks for a four-filament print of a three-colour model.
 
+## The website copy
+
+`compunet-logo.3mf` and `compunet-logo.stl` are also served from the site's Extras page, as
+copies in `website/static/`. **They are copies, not links** — after regenerating here, re-copy
+them or the download will drift from the generator:
+
+```bash
+cp 3dprint/compunet-logo.3mf 3dprint/compunet-logo.stl website/static/
+```
+
 ## Regenerating
 
 ```bash

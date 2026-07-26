@@ -174,6 +174,11 @@ def guide():
     return render_template('guide.html')
 
 
+@app.route('/extras')
+def extras():
+    return render_template('extras.html')
+
+
 @app.route('/contact', methods=['GET', 'POST'])
 def contact():
     if request.method == 'GET':

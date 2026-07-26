@@ -1135,16 +1135,33 @@ When receiving page content (SHOW, DIR responses), the client:
 5. `$07` followed by 2 bytes = repeat character (RLE: char, count)
 6. All other bytes = literal character data (PETSCII)
 
-### Directory Paging
+### Directory Overflow
 
-Directories with more than 12 entries are paginated using a `***MORE***` entry:
+An authored directory shows **11 entries and does not paginate.** There is no page two and no
+paging command — and the C64 client keeps no page state at all (no offset, no scroll counter),
+which is the simplest proof: a client that cannot remember which page it is on cannot page.
 
-- Server sends max 12 entries per page
-- If more entries exist, a `***MORE***` entry (type D+) is appended as the last item
-- User highlights `***MORE***` and selects DIR to load the next page
-- This matches the manual: "A dummy page; cannot be shown. Use DIR to access the directory beneath"
-- BACK resets to the first page of the parent directory
-- F7/F8 only toggles the extra column display (Price/Life/Author/Vote)
+Overflow is **authored, not automatic**. When a directory fills, its owner adds an ordinary
+`D` entry — conventionally titled `MORE` — whose sub-directory holds the next batch, and the
+user enters it with DIR like any other. This is what the manual means by "A dummy page; cannot
+be shown. Use DIR to access the directory beneath": it is describing the **`D` entry type**, not
+a pagination mechanism.
+
+This is also why uploads are capped at 11 per directory: the cap is the display limit, and the
+`MORE` entry is the user's answer to it.
+
+**Generated listings are the exception.** UCAT and the mailbox are assembled by the server, so
+their owner cannot author a `MORE` entry into them. Those, and only those, carry a synthetic
+`MORE        >>>>` row; selecting it sends an index one past the real entries, which the server
+reads as "next page". The client still keeps no page state — it just sends an index.
+
+BACK resets to the first page of the parent directory. F7/F8 only toggles the extra column
+display (Price/Life/Author/Vote).
+
+*(An earlier revision of this section described automatic server-side pagination with a
+`***MORE***` row appended to every listing. That was never true, it cited the manual's `D`-type
+description as evidence for it, and it said "12 entries" where the server uses 11. Two
+clean-room builds reported downstream symptoms of it before the root claim was checked.)*
 
 Directory entries are sent as structured data from the server, NOT as pre-formatted
 PETSCII. The client parses, stores in RAM, and renders locally.

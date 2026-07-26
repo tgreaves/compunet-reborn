@@ -458,3 +458,20 @@ pre {
         padding: 32px 16px;
     }
 }
+
+/* Extras — printed-model photographs */
+.print-shots {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+    margin: 20px 0 28px;
+}
+
+.print-shots img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border: 1px solid var(--c64-surface-light);
+    border-radius: var(--radius);
+    background-color: var(--c64-surface);
+}

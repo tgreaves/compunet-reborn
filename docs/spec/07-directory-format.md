@@ -213,34 +213,41 @@ from this specification alone.
 *(Non-normative: a directory MAY override the template by supplying its own Part-1 header
 frame — this is how special pages get custom graphics above the list.)*
 
-## 7.6 Paging
+## 7.6 Overflow: how a directory holds more than 11 entries
 
-A directory shows at most **11 entries** at a time. If more entries exist, the client pages
-through them.
+A directory shows **11 entries**, and that is the whole of it — **an authored directory does not
+paginate.** There is no page two, no paging command, and no client-side page state (the C64
+client has none: no offset, no scroll counter, nothing).
+
+**Overflow is authored, not automatic.** When a directory fills up, its owner adds an ordinary
+**`D` entry** — conventionally titled `MORE` — whose sub-directory holds the next batch. The user
+enters it with `DIR` like any other directory. That is what the original manual is describing when
+it calls a `D` entry "a dummy page; cannot be shown; use DIR to access the directory beneath".
+
+> **⚠ This is why §8.3.2 caps uploads at 11.** The cap looks arbitrary until you see that a
+> directory *displays* 11 and there is no second page — the limit is the display, and the
+> `MORE` entry is the user's answer to it. A specification that describes automatic paging makes
+> that cap inexplicable. (Earlier revisions of this section described a server-side pager with a
+> synthetic MORE row; it was wrong, and both Binding-B clean-room runs reported downstream
+> symptoms of it — VALIDATION.md, F15/F26/F35.)
+
+**Generated listings are the exception.** UCAT (§8.6) and the mailbox (§8.2) are *assembled by the
+server*, so their owner cannot author a `MORE` entry into them. Those, and only those, may
+overflow, and the server supplies the row itself:
+
+- The last row of a truncated generated listing is a **synthetic pagination entry**: no page
+  number, the title `MORE        >>>>`, and an **empty type** field. It is not real content and
+  does not fit the §7.4 type grammar.
+- **Selecting it pages forward.** The client sends the entry's index like any other selection —
+  which, being one past the real entries, the server reads as "next page". No paging command
+  exists, and none is needed: the client keeps no page state, it just sends an index.
+- A client **SHOULD** render the row as an ordinary entry and **MUST NOT** treat it as content.
 
 > **Two different limits both happen to be 11 — do not conflate them.**
-> - **Here, 11 is a *page size*.** A listing may contain **any number** of entries and is served
->   11 at a time; mail (§8.2) and UCAT (§8.6) routinely exceed one page. A client **MUST**
->   implement paging and **MUST NOT** assume a listing fits in one response.
-> - **In §8.3.2, 11 is a *capacity limit* on user uploads*** — the server refuses to add a
->   **12th** child to a directory via upload. That is a write-side rule; it does not mean a
->   directory can never *contain* more than 11 (system-authored and generated listings do).
-
-The paging mechanics:
-
-- Entry indices in `D` are **0-based relative to the current response** (not absolute across
-  pages). To page forward, a client sends `D` + the index **one past the last visible entry**
-  — i.e. the count of entries in the current listing (if 11 are shown, send `D 11`). The
-  server advances its offset by 11 and returns the next page.
-- If there is no next page, the server returns a directory whose only entry is the `(EMPTY)`
-  placeholder (§7.3), which a client can treat as "no more entries".
-- **A page that has more pages after it signals so with a trailing `MORE` entry.** When a
-  listing is truncated to 11 because more entries follow, its **last row is a synthetic
-  pagination entry**: an empty page number, the title `MORE        >>>>`, and an **empty type**
-  field. This row is *not* real content and does **not** fit the §7.4 type grammar. A client
-  **SHOULD** treat it as a "there is more" indicator; selecting it (or sending `D` + the entry
-  count) pages forward — both reach the next page.
-- A client **MUST** support paging and **MUST NOT** assume a directory fits in one response.
+> - **A page shows 11 entries.** That is a *display* limit, and for authored directories it is
+>   also the effective total.
+> - **§8.3.2's 11 is a *capacity* limit on uploads** — the server refuses a 12th child. Same
+>   number, different rule: one governs what is drawn, the other what may be written.
 
 *(Non-normative: the modern server reloads its content tree on each directory request, so
 listings reflect live content changes without a reconnect.)*
