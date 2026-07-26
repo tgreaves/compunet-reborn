@@ -259,6 +259,13 @@ table standardises the *names*, not the interface.)
 > If a command looks redundant or missing, the spec is more likely to be under-explained than
 > wrong — check §8 for its behaviour before concluding it is either.
 >
+> **⚠ "Closed" obliges this section to define every command it closes over.** A vocabulary that
+> forbids invention while leaving names undefined forces exactly the invention it prohibits: the
+> implementer meets the name in §4.8 or §4.9.3, finds nothing here, and has to guess. `ALL`,
+> `LOAD` and `ABORT` were in that state — they had duckshoot cells and context rows but no
+> definition — and a clean-room build duly invented all three (VALIDATION.md, F29). If you add a
+> command anywhere in this document, it belongs in the tables **here** first.
+>
 > **This includes the editor's vocabulary.** The editor (§8.4) has no wire commands at all, which
 > makes it tempting to treat its command set as a free choice of UI. It is not: its fourteen
 > names are listed in §4.8 and defined in **§8.4.1**, and every rule above applies to them —
@@ -295,7 +302,10 @@ table standardises the *names*, not the interface.)
 | `BUY` | Download / activate / **pay for** the highlighted entry — same bytes as `SHOW`, but `BUY` confirms the price and `SHOW` refuses paid pages (**§8.6.4**) | `D` + index (no separate byte) |
 | `UPLD` | Upload into the current directory | `U` (§8.3.2) |
 | `LEAVE` | Log off | `E` |
-| `EDITR`, `PRINT`, `SAVE` | Editor / print / save | client-side (no wire command) |
+| `EDITR` | Enter the frame editor (§8.4) | client-side (no wire command) |
+| `PRINT` | Print the page on screen | client-side (no wire command) |
+| `SAVE` | Write the **page on screen** to local storage | client-side (no wire command) — distinct from the editor's `PUT` (one *editor* page) and `STORE` (the whole buffer), §8.4.1 |
+| `LOAD` | Read a page **back** from local storage into view — `SAVE`'s inverse | client-side (no wire command) |
 | `HELP` | Show the help page | client-side (no wire command) — but **not a no-op**: it displays an embedded help **frame** the client must carry (§A.8) |
 
 **While reading a page (frame)** (these apply *only* while a frame is on screen):
@@ -303,6 +313,8 @@ table standardises the *names*, not the interface.)
 | Name | User action | Wire command |
 |---|---|---|
 | `MORE` | Show the next page of a multi-frame item | `D` (no arg) / `N` |
+| `ALL` | Read the **rest** of a multi-frame item without pressing `MORE` for each — repeat the paging command until the reply stops being a frame | repeated `D` (no arg) |
+| `ABORT` | Abandon an exchange in progress (an upload, §8.3.2) and return without sending | context-dependent; see §8.3.2 |
 | `FINISH` | Return to the directory | `P` (no arg) |
 
 > **`D` and `P`, with or without an index — four distinct actions.** The presence of the
@@ -356,7 +368,7 @@ This table consolidates the contexts and is the authority for *when* each comman
 |---|---|---|
 | **Welcome frame** (just logged in, §3.5) | the **same row as a directory** (below) | The welcome screen is not a "reading" context: it carries the directory row, with **`HELP` — the first command — centred by default**. `DIR` must therefore be reachable here (§4.7); `MORE`/`FINISH` are **not** offered |
 | **Directory listing** | `HELP`, `DIR`, `SHOW`, `BACK`, `GOTO`, `UCAT`, `MAIL`, `ACCNT`, `SAVE`, `EDITR`, `LEAVE` | The row the original presents, **in its display order**, with `HELP` centred by default. The remaining commands of §4.7 (`PRINT`, `LIFE`, `BUY`, `LOAD`, `UPLD`, `VOTE`) exist and are reachable, but sit **beyond the displayed count** — see §4.9.4. Commands acting on a highlighted entry (`SHOW`, `DIR`, `VOTE`, `LIFE`, `BUY`) require a selection |
-| **Reading a single-frame page** | **none — no duckshoot at all** | The row is replaced by the prompt **`PRESS ANY KEY`**. There is nothing to page and nothing to choose, so no commands are offered |
+| **Reading a single-frame page** | **none — no duckshoot at all** | The row is replaced by the prompt **`PRESS ANY KEY`**. There is nothing to page and nothing to choose, so no commands are offered. Any key returns to whatever was on screen before — which is how `HELP` (§A.8) gets back, since `FINISH` is not offered here |
 | **Reading a multi-frame page** | `MORE`, `ALL`, `FINISH` — in that order | **Only** these. There is no `FINISH` in a directory and no `MORE` in one (§4.7) |
 | **Mail (Courier, §8.2)** — listing and message | `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `SHOW` reads the highlighted message, `MORE` pages it. **`DONE` returns the user to where they were before entering Courier** — see the note below |
 | **Mail composition** (§8.2.2) | `SEND`, `FINISH`, `LAST`, `NEXT`, `EDITR` | Reached once `SEND`'s subject and recipients are accepted. `SEND` adds **one** editor frame to the message, `FINISH` completes and delivers it — two commands, two jobs. `LAST`/`NEXT` page the editor's frames |
@@ -392,6 +404,14 @@ is `B` (BACK), but `B` inside mail is **stepwise**, unwinding one level per comm
 So a single `B` is *not* always "leave mail". A client **MUST** make `DONE` actually exit —
 repeating `B` until the session is out of mail mode — rather than issuing one and assuming it
 worked. (`N`/MORE also clears mail mode when it runs past the last message.)
+
+**⚠ Choosing between the two reading rows uses the more-pages flag — and that is allowed.**
+§4.5/§6.5 forbid trusting bit 7 to *drive paging*: a client **MUST** decide whether another frame
+exists from the actual response. Choosing which **command row** to display is a different
+question, asked at the moment the frame appears, when the flag is the only signal available. Use
+it for the row; use the response for the paging. If the flag was optimistic the user presses
+`MORE` and lands back in the directory — which is exactly what the original does (§6.5).
+(VALIDATION.md, F28.)
 
 **Selection-dependent commands.** `SHOW`, `DIR`, `VOTE`, `LIFE` and `BUY` act on the
 **highlighted entry** (§4.5). When no entry is highlighted — an empty directory, or a listing
@@ -431,6 +451,13 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
   40×24 rather than 40×25.
 - It **MUST NOT** overlay or shrink the content grid. Frames and directories are authored for the
   full 40×24 and will be clipped or misaligned if the duckshoot eats into them.
+- **⚠ The row shows seven cells, and seven 6-character cells do not fit 40 columns.** 7 × 6 = 42,
+  so the row is **two characters wider than the grid** and the outermost cells **clip** — start it
+  one column left of the content grid (at column −1) and let the first and last cells run off each
+  edge. That is what the original does, and it is why the centre cell lands dead centre: with an
+  odd number of cells there is a true middle, which a 6-cell row would not have. Do not "fix" the
+  arithmetic by dropping to six cells; §4.9.4's worked example is seven wide and is correct.
+  (VALIDATION.md, F4/F5 — a clean-room build hit this contradiction and had to guess.)
 
 ### 4.9.3 Appearance
 
@@ -515,6 +542,11 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
 - The full §4.7 vocabulary continues past the displayed directory row (`PRINT`, `LIFE`, `BUY`,
   `LOAD`, `UPLD`, `VOTE`). These are real commands and a client **MUST** keep them reachable; the
   original simply shows a shorter row by lowering its count.
+- **⚠ The loop is the whole set, not the displayed count.** The directory context's row is
+  **seventeen** commands long — the eleven above followed by those six — and scrolling walks all
+  seventeen. The count byte the original rewrites limits how many cells are *painted*, not how far
+  the user can scroll; if the loop were eleven long, `VOTE` would be unreachable by scrolling,
+  which the rule above forbids. (VALIDATION.md, F27.)
 
 - **⚠ Load-bearing: truncate from the end.** The original shortens the row by lowering a count,
   which drops commands from the **end** of that order (§4.8). A client with less room **MUST**

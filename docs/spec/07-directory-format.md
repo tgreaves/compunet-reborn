@@ -62,6 +62,11 @@ however: the server may embed **inline PETSCII control codes** — notably a `$1
 control in **Part 4** to draw the red `MAIL` unread-mail marker (§8.2), e.g.
 `…600 JUNGLE           \x1cMAIL`. A client **MUST** preserve and act on such control bytes
 (here, switch to red for the trailing `MAIL`) rather than assuming the field is letters only.
+The marker sits on breadcrumb **line 2** and, in the original's stream, begins at **column 25** —
+the same column the entry rows put their type indicator in, so it lines up with a column that
+already exists and stays clear of the divider at 30. A binding that carries the marker as a flag
+rather than as inline text (Binding B's `mailWaiting`) **MUST** draw it at that position.
+(VALIDATION.md, F37.)
 (Part 1, the header *frame*, is fully frame content, §6 — decoded with all its control codes
 and RLE.)
 
@@ -329,10 +334,15 @@ authored Compunet look.
 > **Do not fake the bar with per-cell reverse-video.** Reverse-video swaps each cell's
 > foreground and background independently, so the "bar" only appears in the cells that happen to
 > be blank and the glyph cells stay their own colour — you get a broken row of coloured stripes,
-> not a solid bar with white text. Draw it as a genuine two-layer highlight: fill the **entire**
-> row's background (all 40 columns of that row, both panes) with the positional colour, then
-> render the glyphs in **white** over it. The bar's colour is the *background* of every cell in
-> the row, independent of each glyph's own colour.
+> not a solid bar with white text. Draw it as a genuine two-layer highlight: fill the row's
+> background **across both panes** with the positional colour, then render the glyphs in
+> **white** over it. The bar's colour is the *background* of every cell it covers, independent
+> of each glyph's own colour.
+>
+> *(This is about the **technique** — a background fill, not per-cell reverse video. The
+> **extent** is columns 1–29 and 31–38, as the box above requires: the divider at column 30 and
+> the borders at 0 and 39 are not part of the bar. An earlier wording here said "all 40 columns",
+> which contradicted that; VALIDATION.md, F25.)*
 
 ### The selected column header
 

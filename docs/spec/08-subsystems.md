@@ -141,6 +141,11 @@ makes `SEND` a blind command — the user is choosing frames they cannot see.
 message. Collapsing them into one "send" button loses the ability to build a multi-frame message,
 which is the normal case for anything longer than a screen.
 
+*(This is a **user-facing** requirement, not a wire one. Binding A transmits frame by frame, so
+the two map onto the wire directly. Binding B's `mail.send` carries all the frames in one message,
+so `SEND` appends to a pending list and `FINISH` emits the single call — the behaviour above is
+preserved and only the transport differs, which is what a binding is for. VALIDATION.md, F32.)*
+
 **There is always a frame to show.** The editor buffer holds **at least one page** — a blank one
 when nothing has been composed or captured (§8.4) — so this context is reachable with an empty
 editor and the user simply writes into the blank frame. A client **MUST NOT** require that
@@ -523,6 +528,10 @@ it with `D`+index (§7.4).
   The server pushes lines as events occur (messages, joins, command replies); the client
   sends a completed input line when the user commits it (the original clients transmit on a
   double-RETURN). Only printable ASCII (`$20`–`$7E`) is exchanged.
+  **⚠ Draw the chat surface in the lowercase/mixed set (`$0E`).** That range includes lower case,
+  and the server uses it — `Users in partyline:-`, `Alias set to TESTER`. The uppercase/graphics
+  set has no lower case at all, so rendering chat in it flattens everything to capitals and the
+  who-listing reads as shouting. (VALIDATION.md, F33.)
 - **C64 activation.** Selecting the link downloads a small chat program (the C64 loads it
   via the type-`L` `MODEM_INIT_DOWNLOAD` stream, §7.4) which then runs the raw session. Exit:
   the client sends `*quit<CR>`; the server broadcasts the leave and replies `*EXIT<CR>`; the

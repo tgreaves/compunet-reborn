@@ -1,12 +1,26 @@
-# Binding B — Client API (DRAFT)
+# Binding B — Client API
 
-> **Status: DRAFT — non-normative, not yet validated.** This is the modern **JSON API binding**
-> (Binding B) introduced by the [Compunet Client Specification](../README.md) §1.8. It carries
-> the **same application model** (§3 session, §4 commands, §8 subsystems, and §5's screen model)
-> as the legacy X.25 binding (Binding A), in structured JSON instead of the ROM wire format.
-> Design rationale — why it is shaped this way, and what was rejected — is in
-> [RATIONALE.md](RATIONALE.md). It becomes normative once built and
-> validated the way Binding A was (a clean-room build). Until then, shapes may change.
+> **Status: normative.** This is the modern **JSON API binding** (Binding B) introduced by the
+> [Compunet Client Specification](../README.md) §1.8. It carries the **same application model**
+> (§3 session, §4 commands, §8 subsystems, and §5's screen model) as the legacy X.25 binding
+> (Binding A), in structured JSON instead of the ROM wire format. Design rationale — why it is
+> shaped this way, and what was rejected — is in [RATIONALE.md](RATIONALE.md).
+>
+> Clean-room validated: an isolated builder produced a full Tier-3 Electron client from this
+> document plus the model sections alone, against a live server, logging 41 findings — all folded
+> in. See [VALIDATION.md](../VALIDATION.md).
+
+**Conformance tiers.** §1.4's tier table lists the Binding-A sections a tier requires; the
+equivalents here are:
+
+| Tier | Binding B means |
+|---|---|
+| **1 — Browse** | `POST /v1/session` → gateway → `dir`/`enter`/`open`/`back`/`more`/`finish`/`goto`, blitting `frame` cell grids and composing directories per §7.5–§7.7 |
+| **2 — Interact** | + `account`, `mail.list`/`mail.read`, `idlookup`, `vote`, `life`, `download.fetch`, `ucat` |
+| **3 — Full** | + `upload`, `mail.send`, the editor (§8.4), `partyline.*` |
+
+A Binding-B client needs **§5.3, §5.6, §6.3 and §6.4** at every tier, for its own embedded
+assets — see §7.
 
 ## Locked decisions
 
@@ -74,6 +88,14 @@ reach `/v1/session` never gets a token to open the socket with.)
    auto-send a directory — that would clobber the welcome page. The user reaches the root by
    issuing **DIR** (`{"type":"dir"}`), exactly as on the welcome screen in Binding A (§4.7).
 
+`account` is `{"user": "TEST", "credit": 97.5, "name": "MR TEST PERSON"}` — the same object on
+both the `POST` reply and `ready`. `name` is the user's real name, which §8.2.1 needs for the
+`SEND` envelope (§A.11); without it a client has to look itself up through `idlookup`.
+
+That three-step exchange is the **whole** of login in this binding. §3's handshake,
+identification and LINKING are Binding-A transport concerns with no counterpart here — a
+Binding-B client can ignore every reference to them.
+
 ## 3. Message envelope
 
 Every WebSocket message is a JSON object with a `type`. Client requests **MAY** carry an `id`
@@ -99,13 +121,33 @@ Every WebSocket message is a JSON object with a `type`. Client requests **MAY** 
 Named by **intent**, not by ROM byte. Selection is client-local, so a command names the page it
 acts on rather than a highlighted index (spec §4.5).
 
+> **⚠ `page` is scoped to the CURRENT LISTING, not a global address (normative).** It names an
+> entry *of the listing the session is on*, and is resolved against that listing's entries — it
+> is the ROM's entry index under a friendlier name, not a page number you may jump to. `open`,
+> `enter`, `vote` and `life` all work this way.
+>
+> Consequences a client **MUST** respect:
+> - Never send `open`/`enter` for a page you are not currently displaying. From the mailbox,
+>   `open` on a root page returns `not_found`, and after `goto 612` — which *opens* 612 as a
+>   listing — `enter {page: 612}` is also `not_found`, because 612 is no longer an entry *within*
+>   the listing, it **is** the listing.
+> - Keep your idea of the current listing in lock-step with the server's. Every reply that changes
+>   the listing changes what `page` means.
+>
+> To move to an arbitrary page, use **`goto`** — that is what takes a global target.
+>
+> *(A clean-room build called this "the single most consequential thing the API spec does not
+> say", noting it fails as a plausible-looking `not_found` rather than obviously — VALIDATION.md,
+> F7.)*
+
 | `type` | Fields | Model | Meaning |
 |---|---|---|---|
 | `auth` | `token` | §3.5 | first message; authenticate the socket |
 | `dir` | — | §4.7 DIR (bare `P`) | show the **current** directory — this is how the welcome screen reaches the root (§2 step 3). Also the "refresh" after an action |
 | `enter` | `page` | §4.7 DIR (`P`+idx) | enter the entry as a directory (opens a latent one if none) |
 | `open` | `page` | §4.7 SHOW (`D`+idx) | read the entry's frame(s); or download/activate a program/link |
-| `more` | — | §4.7 MORE | next frame of a multi-frame item |
+| `more` | — | §4.7 MORE | next frame of a multi-frame item. **Only while a frame is displayed** — in a directory it starts reading the selected entry's frames |
+| `dir.more` | — | §7.6 | page a **listing** forward when `hasMore` is true. Binding-B-only: §7.6's synthetic MORE row cannot be built from this binding's JSON (see below), so paging is an explicit command |
 | `finish` | — | §4.7 FINISH | leave the frame → its directory |
 | `back` | — | §4.4 BACK | parent directory |
 | `goto` | `target` (page # or keyword) | §4.4 GOTO | jump; reply is always a directory (§4.4) |
@@ -122,7 +164,7 @@ acts on rather than a highlighted index (spec §4.5).
 | `partyline.send` | `text` | §8.5 | send a chat line |
 | `partyline.command` | `text` (e.g. `*who`) | §8.5 | a Partyline `*`-command |
 | `partyline.leave` | — | §8.5 | leave Partyline (`*quit`) → normal commands resume |
-| `leave` | — | §4.4 LEAVE | log off |
+| `leave` | — | §4.4 LEAVE | log off. Replies with the goodbye **frame** carrying `"goodbye": true`; the server closes the socket after it |
 
 Note there is **no** column-cycle command: directory JSON carries every Part-5 column value per
 entry (§5 below), so the client cycles the visible column locally (the `F7`/`F8` behaviour of
@@ -149,10 +191,12 @@ contract the client applies.
   "page": 100, "title": "WELCOME",
   "breadcrumb": ["     1 *** COMPUNET ***", "   100 WELCOME"],  // Part 4 lines, verbatim text
   "columns": [" PRICE"," AUTHOR","VOTE/NUM","UPLDDATE"," LIFE"], // Part 5, verbatim (leading spaces are positioning, §7.3)
-  "advert": ["V1.00: OUR FIRST OFFICIAL RELEASE!", "THANKS FOR MAKING THIS POSSIBLE"], // Part 2
-  "mailWaiting": true,          // the red MAIL marker (§7.2)
-  "header": <frame|null>,       // Part 1 header frame (COMPUNET logo) as a cell grid, or null → built-in template
-  "hasMore": false,             // paging (>11 entries, §7.6)
+  "advert": ["V1.00: OUR FIRST OFFICIAL RELEASE!", "THANKS FOR MAKING THIS POSSIBLE"], // Part 2 — ALWAYS exactly 2 strings, empty when there is no advert (§7.2)
+  "mailWaiting": true,          // the red MAIL marker (§7.2). ALWAYS present; true when the mailbox holds unread mail, whether or not the client has opened mail
+  "context": "mail"|"ucat",     // present only for those listings; absent for content directories
+  "selected": 2,                // GOTO only: which entry was the target (§4.4) — the client MUST NOT compute this itself
+  "header": <frame|null>,       // Part 1 header frame (COMPUNET logo) as a cell grid, or null → built-in template. Overlay ROWS 0–5 ONLY (§7.7) — it is a full 24-row grid and blitting all of it erases the template's box and divider
+  "hasMore": false,             // more entries follow — page with `dir.more` (§7.6)
   "entries": [
     { "index": 0, "page": 101, "title": "NEWS", "type": "T", "size": null, "hasSubdir": true,
       "values": ["", "ADMIN", "    -", "", "   99"] }   // parallel to columns; already justified (§7.3)
@@ -160,6 +204,16 @@ contract the client applies.
   ]
 }
 ```
+
+**Paging a long listing.** Binding A truncates the page and makes its **last row a synthetic
+pagination entry** (§7.6), so 10 real entries plus a MORE row fill the 11 rows. Binding B sends up
+to **11 real entries** plus `hasMore`, so that row cannot be reconstructed without dropping an
+entry. A Binding-B client therefore **SHOULD NOT** draw the synthetic row: show all 11 entries and
+offer paging through the `MORE` command, which sends **`dir.more`**. The user-visible capability is
+the same; the mechanism differs, which is what a binding is for. (VALIDATION.md, F15/F26.)
+
+`page` is an **integer in every listing**, including the mailbox, where it is the message id.
+(`mail.read` addresses messages by `index`, not `page`, so the id is never sent back.)
 
 `type` is the base entry type (`T`/`D`/`P`/`PP`/`S`/`L`, spec §7.4); `size` is the K/page count
 or null; `hasSubdir` is the `+` marker. The client dispatches SHOW vs DIR from these. `columns`
@@ -292,11 +346,30 @@ server then streams `partyline` events and accepts `partyline.*` commands until 
 
 ## 7. Rendering split (client responsibilities)
 
-- **Frames:** blit the `cells` grid — glyph `g` from the appendix font (§A.5), colours from the
-  palette (§A.3), invert on `rv`. No PETSCII/RLE logic in the client; the server did it.
+- **Frames from the server:** blit the `cells` grid — glyph `g` from the appendix font (§A.5),
+  colours from the palette (§A.3), invert on `rv`. No PETSCII/RLE logic needed; the server did it.
 - **Directories:** compose locally from the built-in template (§A.6) + the display rules
   (§7.5–§7.7) — this is the only real client-side layout work, and it is what keeps selection,
   scrolling, and column-cycling instant (no server round-trip).
+
+> **⚠ A Binding-B client still needs a full §6 frame decoder.** "The server did it" is true of
+> *server content* and false of the client's **own assets**, which are raw PETSCII frames the
+> server never sends and a conforming client cannot do without:
+>
+> | Asset | Required by |
+> |---|---|
+> | §A.6 directory template | §7.5 — every directory screen is drawn on it |
+> | §A.8 HELP frame | §4.7 — "a client that omits it leaves `HELP` doing nothing" |
+> | §A.9 editor help | §8.4.1 |
+> | §A.10 COURIER, §A.11 COURIER SEND | §8.2.1 |
+>
+> So implement §5.3 (screen codes), §5.6 (control codes), §6.3 (the processing loop) and §6.4
+> (RLE) regardless. The upside: §A.9, §A.10 and §A.11 each print their expected render in the
+> specification, so a decoder can be **verified against the document before it ever touches the
+> server** — including §A.8/§A.9's body-only header trap and §A.10's colon at column 12.
+>
+> *(A clean-room build called this "the single biggest thing this document gets wrong about its
+> own client's obligations" — VALIDATION.md, F24.)*
 
 ## 8. Mapping to Binding A / the shared model
 

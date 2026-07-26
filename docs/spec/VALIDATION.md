@@ -334,6 +334,85 @@ The under-specified decode points the agent flagged (P3 frame-vs-directory discr
 bare-ACK-by-timeout) are inherent to a protocol with no in-band type/length markers; the agent's
 structural + short-timeout heuristics worked, and the spec already prescribes them (§4.5/§4.2).
 
+## Seventh clean-room run — **Binding B** (Tier 3, Electron)
+
+The first clean-room validation of the **JSON API**. Isolated set: `api/README.md` plus the
+shared model sections and the appendix (§§1, 4–8, 99) — `02-transport` and `03-session` withheld
+as Binding-A wire detail. Server: an API-only listener with **no static file serving**, so the
+builder could not fetch the reference client (`run_api_only.py`; `run_api_dev.py` serves
+`client/web` on the same origin and would have voided the run). Account `TEST`, a normal GOLD
+account, not an administrator — so the permission rules were actually exercised.
+
+Result: a full Tier-3 Electron client, 22 screenshots, **41 findings**. Everything in Tiers 1–3
+was reached except the items it listed as unverifiable (below). All findings are folded in.
+
+**Server faults it found — all measured, not inferred:**
+
+- **The `cells` encoder silently dropped screen code `$5F`.** Found by submitting a real frame's
+  `cells` back through `mail.send` and **diffing the grids**: 14 of 960 cells differed, every one
+  glyph 95 → 32 (space), with colour, background and reverse all intact. `$5F` sits between the
+  `$40`–`$5D` graphics run and the `$60`–`$7F` one, and `$5E` (pi) had its own case, so it fell
+  through to a default. Exactly one screen code of 128 was wrong — and it falsified §5.4's claim
+  that "anything Binding A can display, Binding B can now author", breaking §1.8 in the direction
+  the documents do *not* worry about. The inverse is now total, and checked as such.
+- **`UCAT` returned the session's current listing** — the mailbox, if you had just opened mail.
+  Binding A was never affected: `_render_ucat` builds the listing as *bytes* and never sets
+  `current_page`, because a user catalogue is not a page in the content tree. Binding B discarded
+  those bytes and serialized model state. UCAT is a **synthetic** listing and now has its own
+  serializer. The general lesson is recorded in the code: any command whose reply is not "the
+  session's current page" needs one.
+- **An unknown `goto` target returned the current listing with no error** — the silent no-op this
+  binding explicitly rejects for `vote`/`life`. Now `not_found`.
+- **`mailWaiting` was never emitted**, so the unread-mail marker could only be derived by opening
+  the mailbox — defeating a marker that exists to tell you about mail you have *not* opened. Now
+  answered from the mailbox file with no session side-effects.
+- Smaller: `mail.read` with an out-of-range index returned a directory instead of an error;
+  mail entry `page` was a string where every other listing sends an integer; `advert` could be a
+  zero-length array where §7.2 requires exactly two lines.
+
+**Specification faults it found:**
+
+- **§4.7 declared the vocabulary "closed and exhaustive" while leaving `ALL`, `LOAD` and `ABORT`
+  undefined.** They had duckshoot cells and §4.8 context rows but no entry in §4.7's tables, so
+  the builder had to invent all three — the precise failure §4.7 exists to prevent. Now defined,
+  with a ⚠ that closing a vocabulary obliges the section to define everything it closes over.
+- **The api document was wrong about its own client's obligations.** §7 said "no PETSCII/RLE
+  logic in the client; the server did it" — true of server content, false of the **five** required
+  client assets (§A.6, §A.8–§A.11), which are raw §6 frames. The builder implemented the full §6.3
+  loop and verified it against the renders printed in §A.9/§A.10/§A.11 *before* touching the
+  server. Called "the single biggest thing this document gets wrong".
+- **`page` is scoped to the current listing, not a global address** — unstated, and it fails as a
+  plausible `not_found`. Called "the single most consequential thing the API spec does not say".
+- **§7.7 contradicted itself on the selection bar**: "columns 1–29 and 31–38" in one normative box
+  and "all 40 columns" in the next. The first is correct; the second was describing the
+  *technique* and has been reworded.
+- **The duckshoot's geometry never added up**: seven 6-character cells is 42 columns against a
+  40-column grid, and the visible cell count was only implied by a worked example. Both now
+  stated — the row starts one column left and the outer cells clip, which is also why the centre
+  cell lands dead centre.
+- **The duckshoot loop length was ambiguous** (eleven displayed vs seventeen reachable); an
+  eleven-long loop would make `VOTE` unreachable, which §4.9.4 forbids. Now stated as seventeen.
+- Also folded in: the more-pages flag *may* choose the command row even though it must not drive
+  paging (§4.5/§6.5 apply to paging, not to row selection); `SEND`/`FINISH` are a user-facing
+  requirement that Binding B satisfies client-side; Partyline renders in the lowercase set;
+  the `MAIL` marker's column; `HELP` returns by "press any key" rather than `FINISH`; and the
+  `account`, `goodbye`, `context` and `selected` fields the binding was carrying undocumented.
+
+**What it could not verify, and why** — recorded rather than glossed:
+
+| Obligation | Why |
+|---|---|
+| A content upload succeeding | `permission_denied` on every directory tried; only the refusal path is proven |
+| The `directory_full` error | The full directory also answered `permission_denied`, so the two are indistinguishable from outside |
+| Latent-directory creation by `DIR` | `enter` on a `+`-less entry returned the listing unchanged |
+| Directory paging | No listing on the test server exceeds 11 entries, so `hasMore` was never true |
+| The paid half of the `BUY`/`SHOW` gate | No content on the server carries a price |
+| Program **upload** | Behind the same `permission_denied`; program *download* works |
+
+The first three are one question — whether a normal account can write anywhere on this server —
+and want a fixture directory the test account owns. The next two need test content. None is a
+protocol gap.
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across
@@ -345,3 +424,9 @@ run the protocol core was clean end-to-end; the remaining fixes were **client-ob
 tightenings (surface `DIR` on the welcome screen, prompt for upload type/price, make column
 cycling and the full-directory check mandatory) and one recurring **implementation** pitfall
 (the reverse-video selection bar) now explicitly guarded — not gaps in the wire protocol.
+
+**Binding B has now been clean-room validated too.** The seventh run built a full Tier-3 Electron
+client from `api/README.md` and the model sections alone, and found four server faults and six
+specification faults — including one, the `$5F` encoder hole, that no amount of reading would have
+caught and that falsified a claim the specification made about itself. Both bindings have now been
+built from the document by someone who had only the document.

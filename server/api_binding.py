@@ -87,6 +87,17 @@ def _adopt_user(session, user_id):
     return True
 
 
+def _account_json(session):
+    """The `account` object carried by POST /v1/session and `ready`.
+
+    Includes the user's real NAME: §8.2.1 needs it for the SEND envelope
+    (§A.11), and without it a client has to look itself up via `idlookup`
+    (VALIDATION.md, F6).
+    """
+    return {"user": session.user_id, "credit": session.credit,
+            "name": _real_name(session)}
+
+
 def _credentials_ok(user_id, password):
     """Validate credentials via the authoritative handle_login path."""
     session = _new_session()
@@ -172,6 +183,52 @@ def _render_courier_header():
         return frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x8E]) + f.read())
 
 
+def ucat_to_json(session, msg_id=None):
+    """Serialize UCAT — the user's own uploads (§8.6) — as a directory.
+
+    ⚠ UCAT needs its own serializer because it is a SYNTHETIC listing: the core
+    (`_render_ucat`) builds its six parts as bytes and never sets
+    `session.current_page`, since the result is not a page in the content tree.
+    Binding A renders those bytes and is fine. Binding B discards them and
+    serializes model state, so driving `C` through the normal path returned
+    whatever listing the session happened to be on — the mailbox, after
+    `mail.list`. Found by clean-room measurement (VALIDATION.md, F9).
+
+    The lesson generalises: every command whose reply is not simply
+    "the session's current page" needs an explicit serializer here.
+    """
+    pages = [p for p in session.directory.pages.values() if p.author == session.user_id]
+    offset = getattr(session, '_ucat_offset', 0)
+    visible = pages[offset:offset + 11]
+
+    entries = [{
+        "index": i,
+        "page": p.page_num,
+        "title": p.title,
+        "type": p.page_type,
+        "size": (getattr(p, 'size', 0) or 0) or None,
+        "hasSubdir": p.has_subdir(),
+        "values": _entry_values(session, p),
+    } for i, p in enumerate(visible)]
+
+    if not entries:
+        entries.append({"index": 0, "page": 0, "title": "(EMPTY)", "type": "T",
+                        "size": None, "hasSubdir": False,
+                        "values": ["" for _ in _DIR_COLUMNS]})
+
+    return {
+        "type": "directory", "id": msg_id, "context": "ucat",
+        "page": 0, "title": "USER CATALOGUE",
+        "breadcrumb": ["%6d %s" % (1, "*** COMPUNET ***"),
+                       "%6s %s" % ("", "USER CATALOGUE : %s" % session.user_id)],
+        "columns": list(_DIR_COLUMNS),
+        "advert": [],
+        "header": _render_header(session),
+        "hasMore": len(pages) > offset + 11,
+        "entries": entries,
+    }
+
+
 def directory_to_json(session, msg_id=None):
     """Serialize the session's current directory (spec §7) as Binding-B JSON.
 
@@ -204,6 +261,9 @@ def directory_to_json(session, msg_id=None):
             advert = [ln[:40] for ln in picked.split('\n')[:2]]
     except Exception:
         pass
+    # §7.2: Part 2 is ALWAYS two lines — two empty ones when there is no advert.
+    # It used to arrive as [] and leave the client to guess (F11).
+    advert = (advert + ['', ''])[:2]
 
     session.dir_displayed = True  # a directory is now on screen (enables DIR)
     return {
@@ -219,6 +279,7 @@ def directory_to_json(session, msg_id=None):
                        "%6d %s" % (page.page_num, page.title or "")],
         "columns": list(_DIR_COLUMNS),
         "advert": advert,
+        "mailWaiting": _mail_waiting(session),   # §7.2 Part 4's red MAIL marker
         "header": _render_header(session),   # Part-1 header frame (COMPUNET logo, §7.7) or null
         "hasMore": len(children) > 11,
         "entries": entries,
@@ -431,6 +492,32 @@ def _petscii_to_ascii(b):
 _MAIL_COLUMNS = [" SENDER", " DATE", " STATUS"]
 
 
+def _mail_messages(session):
+    """The user's mailbox contents.
+
+    ⚠ Uses `_load_mail()`, which reads the mailbox file and has NO session
+    side-effects. `session.mail_messages` is only populated once `M` has been
+    issued, and issuing `M` here to fill it would put the session into mail
+    mode in the middle of serializing a content directory.
+    """
+    try:
+        return session._load_mail() or []
+    except Exception:
+        return []
+
+
+def _mail_waiting(session):
+    """True when the mailbox holds unread mail (§7.2 Part 4's red MAIL marker).
+
+    ⚠ Must be answerable WITHOUT the client having opened mail: the marker
+    exists precisely to tell a user about mail they have *not* looked at, so
+    deriving it from a mailbox listing the client already fetched defeats the
+    purpose — a client that never opens mail would never show it
+    (VALIDATION.md, F10).
+    """
+    return any(not m.get('read', False) for m in _mail_messages(session))
+
+
 def mail_to_json(session, msg_id=None):
     """Serialize the mailbox as a directory-shaped listing (§8.2). Entries come
     from session.mail_messages, not the content tree, and use the mail columns."""
@@ -447,7 +534,9 @@ def mail_to_json(session, msg_id=None):
         nframes = len(m.get('frames', []) or [])
         entries.append({
             "index": i,
-            "page": m.get('id', offset + i + 1),
+            # int, like every other listing's page — the message id used to come
+            # back as a string here and nowhere else (F14).
+            "page": int(m.get('id', offset + i + 1) or 0),
             "title": (m.get('subject', '') or '')[:16],
             "type": "T",
             "size": nframes or None,
@@ -509,7 +598,15 @@ def idlookup_to_json(raw, msg_id=None):
 # builds the §6 frame, consistent with this binding delivering decoded content.
 
 def _screencode_to_petscii(sc):
-    """Inverse of _petscii_to_screencode over the printable range (§5.3)."""
+    """Inverse of _petscii_to_screencode over the printable range (§5.3).
+
+    ⚠ Must be a TOTAL inverse. Any screen code with no case here silently falls
+    through to a space, and a client re-authoring a page loses that glyph while
+    every colour around it survives — so the page looks almost right. Screen
+    code $5F was exactly that hole: it sits between the $40-$5D graphics run and
+    the $60-$7F one, and $5E (pi) has its own case, so it fell off the end.
+    Found by clean-room measurement, not by reading (see VALIDATION.md, F34).
+    """
     if 0x00 <= sc <= 0x1F:
         return sc + 0x40           # @, A-Z, [ \ ] etc
     if 0x20 <= sc <= 0x3F:
@@ -517,7 +614,9 @@ def _screencode_to_petscii(sc):
     if 0x40 <= sc <= 0x5D:
         return sc + 0x80           # graphics
     if 0x5E == sc:
-        return 0xFF               # pi
+        return 0xFF                # pi
+    if 0x5F == sc:
+        return 0xDF                # graphics (also reachable as $7F)
     if 0x60 <= sc <= 0x7F:
         return sc + 0x40           # further graphics
     return 0x20
@@ -833,6 +932,18 @@ def _serialize_state(session, raw, msg_id=None):
     return directory_to_json(session, msg_id)
 
 
+def _goto_target_index(session, reply, target):
+    """Which entry of a GOTO reply was the target, or None (§4.4)."""
+    t = str(target).strip().upper()
+    for e in reply.get("entries", []):
+        if str(e.get("page")) == t or str(e.get("title", "")).strip().upper() == t:
+            return e.get("index")
+    # The target may be the listing itself (a directory keyword or page number).
+    if str(reply.get("page")) == t or str(reply.get("title", "")).strip().upper() == t:
+        return 0
+    return None
+
+
 def _drive(session, cmd_bytes, msg_id=None):
     """Run authoritative navigation for its side-effects, then serialize."""
     raw = session.handle_command(cmd_bytes)
@@ -862,11 +973,41 @@ def handle_message(session, msg):
         return _drive(session, b'D' + str(i).encode('ascii'), mid)
     if t == "more":
         return _drive(session, b'D', mid)
+
+    if t == "dir.more":
+        # Page a listing forward. Binding A does this by sending `D` + the index
+        # one past the last visible entry (§7.6), which needs the synthetic MORE
+        # row; Binding B has `hasMore`, so it gets an explicit command instead —
+        # previously `hasMore` was a flag with no way to act on it, and `more`
+        # in a directory started reading the selected entry's frames (F15/F26).
+        if getattr(session, 'mail_mode', False):
+            session.mail_page_offset = getattr(session, 'mail_page_offset', 0) + 11
+            return mail_to_json(session, mid)
+        session.dir_page_offset = getattr(session, 'dir_page_offset', 0) + 11
+        session.selected_entry = 0
+        return directory_to_json(session, mid)
     if t == "back":
         return _drive(session, b'B', mid)
     if t == "goto":
-        target = str(msg.get("target", "")).encode('ascii', 'ignore')
-        return _drive(session, b'L' + target, mid)
+        # ⚠ GOTO must not fail silently. The core answers an unknown target with
+        # the CURRENT listing, so without this check the client gets a plausible
+        # directory and no way to tell the jump failed — the silent no-op this
+        # binding explicitly rejects for vote/life (§5.3). Found by clean-room
+        # measurement (VALIDATION.md, F30).
+        target = str(msg.get("target", "")).strip()
+        before = getattr(session.current_page, 'page_num', None)
+        reply = _drive(session, b'L' + target.encode('ascii', 'ignore'), mid)
+        if reply.get("type") == "directory":
+            hit = _goto_target_index(session, reply, target)
+            if hit is None and reply.get("page") == before:
+                return {"type": "error", "id": mid, "code": "not_found",
+                        "message": "no such page or keyword: %s" % target}
+            # ⚠ §4.4: the client MUST NOT compute "the parent" or the target row
+            # itself. For a leaf target the reply is the CONTAINING listing, so
+            # say which entry was meant (VALIDATION.md, F13).
+            if hit is not None:
+                reply["selected"] = hit
+        return reply
 
     # --- Tier 2 ---------------------------------------------------------
     if t == "account":
@@ -874,7 +1015,10 @@ def handle_message(session, msg):
         return account_to_json(session, raw, mid)
 
     if t == "ucat":
-        return _drive(session, b'C', mid)
+        # Drive `C` for its side-effects (it resets the UCAT offset), then use
+        # the dedicated serializer — UCAT is synthetic, see ucat_to_json.
+        session.handle_command(b'C')
+        return ucat_to_json(session, mid)
 
     if t == "mail.list":
         session.handle_command(b'M')
@@ -887,6 +1031,12 @@ def handle_message(session, msg):
         if i is None:
             return {"type": "error", "id": mid, "code": "not_found",
                     "message": "no such message"}
+        # An out-of-range index used to fall through and return the mailbox
+        # listing, which reads as "your message is a directory" (F36).
+        msgs = _mail_messages(session)
+        if not (0 <= int(i) < len(msgs)):
+            return {"type": "error", "id": mid, "code": "not_found",
+                    "message": "no message at index %s" % i}
         return _drive(session, b'D' + ('%02d' % int(i)).encode('ascii'), mid)
 
     if t == "idlookup":
@@ -958,7 +1108,7 @@ async def http_session(request):
     return web.json_response({
         "token": token,
         "expiresInSec": _TOKEN_TTL,
-        "account": {"user": session.user_id, "credit": session.credit},
+        "account": _account_json(session),
     })
 
 
@@ -1063,7 +1213,7 @@ async def ws_gateway(request):
         # auto-send the directory here — that would clobber the welcome page.
         await ws.send_json({
             "type": "ready",
-            "account": {"user": session.user_id, "credit": session.credit},
+            "account": _account_json(session),
             "welcome": welcome,
         })
     except Exception as e:

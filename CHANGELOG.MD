@@ -39,11 +39,45 @@ a **JSON API** and a **web/desktop client** on top of it (#91).
 	  carried the storage order, and its mail and directory rows were also wrong.
 	* `BUY` is a distinct command from `SHOW` despite sharing wire bytes (`SHOW` refuses a paid
 	  page, `BUY` confirms the charge), and had been dropped as redundant.
+* Clean-room validation of Binding B (#91) — an isolated builder produced a full Tier-3 Electron
+  client from the API spec and the model sections alone, against a live server with no static
+  files to peek at, and logged 41 findings. All folded in; details in `docs/spec/VALIDATION.md`.
+  The faults it found by measurement rather than reading:
+	* The `cells` encoder silently dropped screen code `$5F` — one of 128 — turning that glyph
+	  into a space while every colour around it survived. Found by submitting a real frame's
+	  cells back and diffing the grids. It falsified the spec's own claim that "anything Binding A
+	  can display, Binding B can now author".
+	* `UCAT` returned whatever listing the session was on — the mailbox, if you had just read
+	  mail. Binding A was never affected: UCAT builds its listing as bytes and never sets
+	  `current_page`, because a user catalogue is not a page in the tree. It is a synthetic
+	  listing and now has its own serializer.
+	* An unknown `GOTO` target returned the current listing with no error — the silent no-op this
+	  binding explicitly rejects elsewhere. Now `not_found`, and a successful `goto` says which
+	  entry was the target.
+	* The unread-mail marker was never sent, so it could only be derived by opening the mailbox —
+	  defeating a marker whose purpose is to report mail you have *not* opened.
+	* §4.7 called the command vocabulary "closed and exhaustive" while leaving `ALL`, `LOAD` and
+	  `ABORT` undefined, so the builder had to invent all three — the exact failure that rule
+	  exists to prevent. Now defined.
+	* The API document was wrong about its own client's obligations: it claimed no PETSCII
+	  decoding was needed, which is true of server content and false of the five embedded client
+	  assets. It also never said that `page` is scoped to the current listing rather than being a
+	  global address — described by the builder as the most consequential omission in it.
+	* §7.7 contradicted itself on the selection bar's width, and the duckshoot's geometry never
+	  added up (seven 6-character cells against a 40-column grid).
 * Server:
 	* `SHOW` on an entry with no frames is now inert, as the original: it no longer falls back to
 	  entering the sub-directory, which had collapsed `SHOW` and `DIR` into one command on exactly
 	  the entries where they differ.
 	* Mail directory is created on demand, fixing a send failure on a fresh deployment.
+	* `run_api_only.py` (new): the client API with no static file serving, for clean-room runs —
+	  the dev launcher serves the reference client on the same origin and would void the test.
+* 3D printing (new, `3dprint/`):
+	* A printable Compunet logo for multi-colour FDM printers, generated **from the specification**
+	  rather than from artwork — there is no source image, only the PETSCII header frame, which
+	  `logo3d.py` renders through the appendix font and palette and extrudes.
+	* Both variants in one 3MF as separate models: colours inlaid flush with the plate, or
+	  standing proud of it. Three filaments, 15 mm thick so it stands on its edge.
 
 # 1.1.0 (2026-07-24)
 
