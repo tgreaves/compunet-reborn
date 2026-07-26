@@ -674,6 +674,14 @@ A client **MUST** implement both commands with this gate. Offering only `SHOW` m
 unreachable; offering only `BUY`, or letting `SHOW` open paid pages, charges the user without the
 confirmation the original always gave them.
 
+> **⚠ The server will charge without asking — the gate is the client's job and nothing else's.**
+> Measured: opening a £1.50 page took the credit from 97.50 to 96.00 with no prompt and no error,
+> and re-reading it was then free. There is **no server-side confirmation step to fall back on**,
+> and nothing in a directory response marks an entry as paid except an ordinary string in the
+> PRICE column — which a client must locate **by name** in `columns`, not by a fixed index, since
+> the column set differs per listing (§7.2). This is the most consequential client-side rule in
+> the specification, and the one a binding cannot help you with. (VALIDATION.md, F12.)
+
 These are Tier 2. Each is a single command with a simple ACK reply and adds no new wire
 mechanics beyond §4.
 

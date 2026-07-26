@@ -254,6 +254,15 @@ def directory_to_json(session, msg_id=None):
             "values": _entry_values(session, child),
         })
 
+    # §7.3 (MUST): a directory with no entries is still represented by ONE
+    # placeholder row. Returning [] strands a Binding-B session, because `page`
+    # is scoped to the current listing and an empty listing makes every
+    # open/enter/vote fail with a plausible `not_found` (F7/F8).
+    if not entries:
+        entries.append({"index": 0, "page": 0, "title": "(EMPTY)", "type": "T",
+                        "size": None, "hasSubdir": False,
+                        "values": ["" for _ in _DIR_COLUMNS]})
+
     advert = []
     try:
         picked = session._pick_advert()
@@ -744,15 +753,26 @@ def upload_content(session, msg, msg_id=None):
     if not frames:
         return {"type": "error", "id": msg_id, "code": "invalid",
                 "message": "no frames to upload"}
+    # ⚠ price and life are REQUIRED, as api §4 and §8.3.2 both say. They were
+    # accepted when absent, so a client built by probing the server rather than
+    # reading the spec would omit them — and price is what Binding A keys
+    # mail-vs-content detection on (F21).
+    if msg.get("price") is None:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "price is required (0 for a free page)"}
+    if msg.get("life") is None:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "life is required (days)"}
     try:
-        price = round(float(msg.get("price", 0) or 0), 2)
+        price = round(float(msg.get("price")), 2)
     except (TypeError, ValueError):
         return {"type": "error", "id": msg_id, "code": "invalid",
                 "message": "price must be a number"}
     try:
-        life = int(msg.get("life", 0) or 0)
+        life = int(msg.get("life"))
     except (TypeError, ValueError):
-        life = 0
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "life must be a number"}
 
     err = _upload_precheck(session, title)
     if err:
@@ -781,6 +801,12 @@ def mail_send(session, msg, msg_id=None):
     if not to:
         return {"type": "error", "id": msg_id, "code": "invalid",
                 "message": "at least one recipient is required"}
+    # §A.10/§A.11: the Courier frame has exactly five recipient slots and a
+    # client MUST NOT offer a sixth. Enforce it here too — a cap only the client
+    # honours is not a cap (F20).
+    if len(to) > 5:
+        return {"type": "error", "id": msg_id, "code": "invalid",
+                "message": "at most five recipients (%d given)" % len(to)}
     if not frames:
         return {"type": "error", "id": msg_id, "code": "invalid",
                 "message": "message body is empty"}
@@ -932,6 +958,27 @@ def _serialize_state(session, raw, msg_id=None):
     return directory_to_json(session, msg_id)
 
 
+def _clamp_page(offset, step, total):
+    """Next page offset, never past the last page and never below zero."""
+    nxt = offset + step
+    if nxt < 0:
+        return 0
+    if nxt >= total:                 # would leave nothing to show
+        return offset
+    return nxt
+
+
+def _goto_offset(session, target):
+    """Page offset that brings a GOTO target into view, or None if not in this
+    listing at all. Matches by page number or by title, across ALL children —
+    not just the ones currently displayed."""
+    t = str(target).strip().upper()
+    for i, child in enumerate(session.current_page.children):
+        if str(child.page_num) == t or str(child.title or '').strip().upper() == t:
+            return (i // 11) * 11
+    return None
+
+
 def _goto_target_index(session, reply, target):
     """Which entry of a GOTO reply was the target, or None (§4.4)."""
     t = str(target).strip().upper()
@@ -960,6 +1007,13 @@ def handle_message(session, msg):
     mid = msg.get("id")
 
     if t == "dir" or t == "finish":
+        # ⚠ Leaving an open mail message must clear the message state first.
+        # Without this, `P` returned the *frame* the session was still showing
+        # and both `dir` and `finish` were wedged there — `dir` is documented to
+        # always reply `directory` (F9). §4.8's stepwise model routes mail exits
+        # through `back`, which is why only `back` recovered.
+        if getattr(session, 'mail_mode', False) and getattr(session, 'mail_show_msg', None) is not None:
+            return _drive(session, b'B', mid)
         return _drive(session, b'P', mid)
     if t == "enter":
         i = _find_index(session, msg.get("page"))
@@ -974,16 +1028,26 @@ def handle_message(session, msg):
     if t == "more":
         return _drive(session, b'D', mid)
 
-    if t == "dir.more":
-        # Page a listing forward. Binding A does this by sending `D` + the index
-        # one past the last visible entry (§7.6), which needs the synthetic MORE
-        # row; Binding B has `hasMore`, so it gets an explicit command instead —
-        # previously `hasMore` was a flag with no way to act on it, and `more`
-        # in a directory started reading the selected entry's frames (F15/F26).
+    if t in ("dir.more", "dir.back"):
+        # Page a listing. Binding A pages by selecting the synthetic MORE row
+        # (§7.6); Binding B has `hasMore` and these commands (VALIDATION.md,
+        # F15/F26/F35).
+        #
+        # ⚠ CLAMPED at both ends. Unclamped, paging past the last page produced
+        # a listing with ZERO entries which then became the session's current
+        # listing — and because `page` is scoped to the current listing, every
+        # subsequent open/enter/vote failed with a plausible-looking `not_found`
+        # until the user happened to `goto` somewhere. Stranding the session is
+        # far worse than a no-op (F7).
+        step = 11 if t == "dir.more" else -11
         if getattr(session, 'mail_mode', False):
-            session.mail_page_offset = getattr(session, 'mail_page_offset', 0) + 11
+            total = len(_mail_messages(session))
+            cur = getattr(session, 'mail_page_offset', 0)
+            session.mail_page_offset = _clamp_page(cur, step, total)
             return mail_to_json(session, mid)
-        session.dir_page_offset = getattr(session, 'dir_page_offset', 0) + 11
+        total = len(session.current_page.children)
+        cur = getattr(session, 'dir_page_offset', 0)
+        session.dir_page_offset = _clamp_page(cur, step, total)
         session.selected_entry = 0
         return directory_to_json(session, mid)
     if t == "back":
@@ -998,13 +1062,23 @@ def handle_message(session, msg):
         before = getattr(session.current_page, 'page_num', None)
         reply = _drive(session, b'L' + target.encode('ascii', 'ignore'), mid)
         if reply.get("type") == "directory":
+            # ⚠ Search the WHOLE listing, not the visible page. Searching only
+            # the 11 entries on screen made `goto` answer "no such page" for any
+            # entry on page 2 or later — a page that demonstrably exists, and
+            # which REST could fetch perfectly well (F11/F24). If the target is
+            # on a later page, page the listing to it first so the reply both
+            # contains it and can be acted on (`page` is listing-scoped, §4).
+            off = _goto_offset(session, target)
+            if off is not None and off != getattr(session, 'dir_page_offset', 0):
+                session.dir_page_offset = off
+                session.selected_entry = 0
+                reply = directory_to_json(session, mid)
             hit = _goto_target_index(session, reply, target)
-            if hit is None and reply.get("page") == before:
+            if hit is None and off is None and reply.get("page") == before:
                 return {"type": "error", "id": mid, "code": "not_found",
                         "message": "no such page or keyword: %s" % target}
-            # ⚠ §4.4: the client MUST NOT compute "the parent" or the target row
-            # itself. For a leaf target the reply is the CONTAINING listing, so
-            # say which entry was meant (VALIDATION.md, F13).
+            # §4.4: the client MUST NOT compute the target row itself. For a
+            # leaf target the reply is the CONTAINING listing, so name the entry.
             if hit is not None:
                 reply["selected"] = hit
         return reply
@@ -1057,10 +1131,27 @@ def handle_message(session, msg):
         return {"type": "ack", "id": mid, "of": "vote"}
 
     if t == "life":
+        # ⚠ Validate, like `vote`. This used to ack anything: `days` omitted, or
+        # negative on a page you do not own — §8.6 restricts a negative amount
+        # (which SHORTENS a page's life) to the owner, an admin or an editor,
+        # and an unvalidated ack made it look as if it had worked (F13).
         i = _find_index(session, msg.get("page"))
-        days = int(msg.get("days", 0) or 0)
         if i is None:
             return {"type": "error", "id": mid, "code": "not_found", "message": "no such entry"}
+        if msg.get("days") is None:
+            return {"type": "error", "id": mid, "code": "invalid", "message": "days is required"}
+        try:
+            days = int(msg.get("days"))
+        except (TypeError, ValueError):
+            return {"type": "error", "id": mid, "code": "invalid", "message": "days must be a number"}
+        if days == 0 or abs(days) > 9999:
+            return {"type": "error", "id": mid, "code": "invalid",
+                    "message": "days must be non-zero and at most 4 digits"}
+        if days < 0:
+            entry = session.current_page.children[getattr(session, 'dir_page_offset', 0) + i]
+            if not (session.is_admin or session.is_editor or entry.author == session.user_id):
+                return {"type": "error", "id": mid, "code": "permission_denied",
+                        "message": "only the owner, an editor or an admin may reduce a page's life"}
         session.handle_command(b'X' + ('%02d%d' % (i, days)).encode('ascii'))
         return {"type": "ack", "id": mid, "of": "life"}
 
@@ -1247,6 +1338,16 @@ async def ws_gateway(request):
 
             reply = handle_message(session, msg)
             await ws.send_json(reply)
+
+            # ⚠ LEAVE means leave: send the goodbye frame, then actually close.
+            # The documented contract is "the server closes the socket after
+            # it", and it did not — the session stayed fully usable, so a client
+            # that waits for the close event to finish logging off hangs for
+            # ever (F19).
+            if reply.get("goodbye"):
+                log.info('API: %s left', session.user_id)
+                await ws.close()
+                return ws
 
             # Selecting an `L` (link) entry activates Partyline (§7.4/§8.5).
             if getattr(session, '_enter_partyline', False):

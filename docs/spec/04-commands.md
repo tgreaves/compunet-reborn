@@ -405,6 +405,14 @@ So a single `B` is *not* always "leave mail". A client **MUST** make `DONE` actu
 repeating `B` until the session is out of mail mode — rather than issuing one and assuming it
 worked. (`N`/MORE also clears mail mode when it runs past the last message.)
 
+**⚠ Paging a listing is not a command, in either binding.** There is deliberately no `MORE` in
+the directory row. Binding A pages when the user selects the **synthetic pagination row** §7.6
+puts at the bottom of a truncated page; a binding without that row (Binding B) reaches the same
+place when the **selection moves past the last entry**. Either way it is a *selection* gesture,
+so nothing is added to the closed vocabulary of §4.7 and this table stays authoritative.
+(VALIDATION.md, F35 — the API document briefly instructed clients to add a `MORE` command here,
+which contradicted this row.)
+
 **⚠ Choosing between the two reading rows uses the more-pages flag — and that is allowed.**
 §4.5/§6.5 forbid trusting bit 7 to *drive paging*: a client **MUST** decide whether another frame
 exists from the actual response. Choosing which **command row** to display is a different

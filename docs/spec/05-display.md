@@ -157,8 +157,8 @@ byte-for-byte against the original.
 | `$9D` | cursor left (wraps at column 0 back to column 39 of the previous row) |
 | `$13` | home — cursor to row 0, column 0 |
 | `$93` | clear — clear the 40×24 grid and home the cursor |
-| `$14` | delete |
-| `$94` | insert |
+| `$14` | delete — see below |
+| `$94` | insert — see below |
 | `$12` | reverse video on |
 | `$92` | reverse video off |
 | `$0E` | select lowercase/mixed character set |
@@ -167,6 +167,14 @@ byte-for-byte against the original.
 Cursor motion is bounded by the 40×24 grid: column wraps at 40, rows clamp at 0 and 23. A
 client **MUST** reproduce these bounds so that content laid out by cursor positioning
 lands in the same cells as on the reference clients.
+
+**`$14` delete and `$94` insert** are line-editing codes from the C64's screen editor: `$14`
+deletes the character to the *left* of the cursor and shifts the rest of the line left; `$94`
+inserts a space at the cursor and shifts the rest of the line right, discarding whatever falls
+off column 39. They exist because frames are authored on a C64, but **no frame in this system
+uses them** — a client **MAY** treat both as no-ops, and the reference renderers do. They are
+listed for completeness, not as an obligation. (VALIDATION.md, F34: previously listed by name
+with no behaviour at all, which reads as an unimplemented requirement.)
 
 ### 5.6.1 The auto-wrap guard (important)
 

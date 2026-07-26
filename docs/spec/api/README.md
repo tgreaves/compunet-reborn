@@ -147,7 +147,8 @@ acts on rather than a highlighted index (spec §4.5).
 | `enter` | `page` | §4.7 DIR (`P`+idx) | enter the entry as a directory (opens a latent one if none) |
 | `open` | `page` | §4.7 SHOW (`D`+idx) | read the entry's frame(s); or download/activate a program/link |
 | `more` | — | §4.7 MORE | next frame of a multi-frame item. **Only while a frame is displayed** — in a directory it starts reading the selected entry's frames |
-| `dir.more` | — | §7.6 | page a **listing** forward when `hasMore` is true. Binding-B-only: §7.6's synthetic MORE row cannot be built from this binding's JSON (see below), so paging is an explicit command |
+| `dir.more` | — | §7.6 | page a **listing** forward when `hasMore` is true. Binding-B-only — see the paging note in §5.1. **Clamped**: past the last page it returns the current page unchanged |
+| `dir.back` | — | §7.6 | page a listing backward. Clamped at the first page |
 | `finish` | — | §4.7 FINISH | leave the frame → its directory |
 | `back` | — | §4.4 BACK | parent directory |
 | `goto` | `target` (page # or keyword) | §4.4 GOTO | jump; reply is always a directory (§4.4) |
@@ -197,6 +198,11 @@ contract the client applies.
   "selected": 2,                // GOTO only: which entry was the target (§4.4) — the client MUST NOT compute this itself
   "header": <frame|null>,       // Part 1 header frame (COMPUNET logo) as a cell grid, or null → built-in template. Overlay ROWS 0–5 ONLY (§7.7) — it is a full 24-row grid and blitting all of it erases the template's box and divider
   "hasMore": false,             // more entries follow — page with `dir.more` (§7.6)
+  // ⚠ `entries` is NEVER empty: an empty listing carries one placeholder row
+  // (§7.3 MUST) whose `page` is 0. Because `page` is listing-scoped, a
+  // zero-entry listing would make every open/enter/vote fail with a plausible
+  // `not_found` until the user escaped with `goto`. Treat a `page: 0` entry as
+  // "nothing selectable" and disable the selection-dependent commands (§4.8).
   "entries": [
     { "index": 0, "page": 101, "title": "NEWS", "type": "T", "size": null, "hasSubdir": true,
       "values": ["", "ADMIN", "    -", "", "   99"] }   // parallel to columns; already justified (§7.3)
@@ -209,8 +215,20 @@ contract the client applies.
 pagination entry** (§7.6), so 10 real entries plus a MORE row fill the 11 rows. Binding B sends up
 to **11 real entries** plus `hasMore`, so that row cannot be reconstructed without dropping an
 entry. A Binding-B client therefore **SHOULD NOT** draw the synthetic row: show all 11 entries and
-offer paging through the `MORE` command, which sends **`dir.more`**. The user-visible capability is
-the same; the mechanism differs, which is what a binding is for. (VALIDATION.md, F15/F26.)
+page with **`dir.more`** / **`dir.back`**.
+
+> **⚠ Paging is a SELECTION gesture, not a command.** Reach `dir.more` by the user moving the
+> highlight **past the last entry** (and `dir.back` past the first) — the same gesture Binding A
+> uses when the user selects its synthetic MORE row (§7.6). Do **not** add a `MORE` word to the
+> directory command row: §4.8's directory context has no `MORE` ("there is no `FINISH` in a
+> directory and no `MORE` in one"), §4.7 declares the vocabulary closed, and §4.6 makes §4.8
+> authoritative. An earlier version of this paragraph told clients to do exactly that, which put
+> this document in direct conflict with the model it is supposed to project. (VALIDATION.md,
+> F15/F26/F35 — the resolution is the clean-room builder's, and is better than the original.)
+>
+> **Both directions.** `dir.more` alone would make going back cost *n* round trips. Both are
+> **clamped**: paging past either end returns the current page unchanged rather than an empty
+> listing — see the placeholder rule in §5.1.
 
 `page` is an **integer in every listing**, including the mailbox, where it is the message id.
 (`mail.read` addresses messages by `index`, not `page`, so the id is never sent back.)
@@ -235,7 +253,7 @@ paints each cell (glyph from the appendix font, `fg`/`bg` from the palette).
   "morePages": true,               // flags bit 7 — another frame follows (§6.5)
   "rows": 24, "cols": 40,
   "cells": [ /* row-major, rows*cols entries */
-    { "g": 0, "fg": 6, "bg": 15, "rv": 0 }
+    { "g": 0, "fg": 6, "bg": 15, "rv": 0 }   // bg is READ-ONLY — see the note under §5.4
     // g   = glyph index 0–255 (0–127 = uppercase/graphics set, 128–255 = lowercase set; 128 glyphs each, §5.2/§5.4)
     // fg,bg = palette index 0–15 (§5.5)
     // rv  = reverse-video flag 0|1 (§5.7)
@@ -292,8 +310,23 @@ reverse video or graphics characters, so it is insufficient for anything capture
 
 - **`cells`** — a full 40×24 grid, the same shape the server sends in a `frame` (§5.1). The
   server encodes it to §6 bytes, emitting the colour, reverse (`$12`/`$92`) and charset
-  (`$0E`/`$8E`) codes needed to reproduce it exactly. This is how an **edited** page is
-  submitted, and it closes the gap: anything Binding A can display, Binding B can now author.
+  (`$0E`/`$8E`) codes needed to reproduce it. This is how an **edited** page is submitted.
+
+  > **⚠ `bg` is a FRAME-level property, not a per-cell one.** On submission every cell's `bg` is
+  > ignored and the frame's `background` is used. The C64 has a single screen background colour,
+  > so §6 has nowhere to put a per-cell value and **Binding A cannot express one either** — the
+  > §1.8 invariant is intact; it is this *schema* that promises more than the model has, by
+  > carrying a writable-looking `bg` on all 960 cells.
+  >
+  > An editor **MUST** therefore treat background as a property of the page (which is what
+  > §8.4.3's `f7`/`f8` "screen and border colour" already implies) and **MUST NOT** offer
+  > per-cell background painting: it would appear to work and then vanish on upload — the
+  > §8.3.2 silent-failure pattern, in the editor. When writing `cells`, stamp every cell's `bg`
+  > with the frame background.
+  >
+  > Everything else round-trips exactly. Measured over a grid exercising **all 256 glyph codes
+  > in both character sets, again with reverse video, and all 16 foreground colours**: 0
+  > mismatches in 960 cells. (VALIDATION.md, F25.)
 - **`raw`** — the exact §6 bytes, base64. Used to re-upload a captured page the user has **not**
   edited, so it is republished byte-for-byte rather than re-encoded. Opaque to the client: it
   never parses PETSCII, it just hands back what it was given.
@@ -379,45 +412,23 @@ subsystems ↔ §8. The **model sections (§3, §4, §8, §5-screen-model) are a
 binding must never expose behaviour Binding A cannot (spec §1.8), so a C64 and a browser stay in
 sync.
 
-## 9. Build plan & open items
+## 9. Status and open items
 
-- **Phase 1a — DONE (server):** `POST /v1/session` (token), the WebSocket gateway
-  (`auth`→`ready`→auto `directory`), and directory navigation (`enter`/`back`/`goto`/`more`/
-  `finish`/`dir`) with the `directory` serializer. Implemented in `server/api_binding.py` as a
-  serializer over the existing `CompunetSession`/`CompunetDirectory` core (it drives the
-  authoritative `handle_command` for its side-effects, then serializes model state), on port
-  6404, isolated from the admin API. Validated locally end-to-end (HTTP token + WS round-trip +
-  navigation). `open` currently returns a not-implemented error pending the frame renderer.
-- **Phase 1b — DONE (server):** the `frame` cell-grid renderer (`frame_to_cells`) implements the
-  §6.3 processing loop with §5 control codes (colour, charset `$0E`/`$8E`, reverse, cursor,
-  the §5.6.1 auto-wrap guard) and §6.4 RLE, producing a 40×24 grid of `{g,fg,bg,rv}`. `ready`
-  now carries the welcome frame; `open`/`more` return real frames. Verified by rendering the
-  welcome frame and a page to text.
-- **Phase 1 client — DONE:** the canvas reference client (`client/web/`) — login, WS gateway,
-  faithful directory composition (template chrome + red-first / blue-selection bar + column
-  cycling) and frame rendering (font + palette from the appendix). Verified end-to-end in a
-  browser against the dev server (`server/run_api_dev.py`): token, gateway, welcome, directory,
-  arrow-select, DIR into a sub-directory, BACK, and SHOW a page. Written as runnable ES-module
-  JS (ports to TypeScript); assets extracted from the appendix by `client/web/gen_assets.py`.
-  **This completes Phase 1 (Tier 1) end-to-end.**
-- **Next:** Tier 2 (account, mail, download, vote/life) and Tier 3 (upload, editor, Partyline),
-  then the REST read path (hybrid).
-- **Phase 2 (Tier 2) — server + client DONE except mail *send*:** `account`, `mail.list` /
-  `mail.read`, `idlookup`, `vote`, `life`, `ucat`, and the two-step `download` /
-  `download.fetch`. Verified in-browser (credit, mailbox with its own columns, ID lookup,
-  vote + life persisting). **Mail send** is deferred with the editor (Phase 3) since it
-  submits composed frames through the same upload path (§8.3.2). The download payload path is
-  implemented but not yet exercised against a real program page.
-- **Phase 3 (Tier 3) — DONE.** Partyline over the gateway (push events, no raw session);
-  one-message `upload` with the permission / directory-full checks surfaced as typed errors;
-  `mail.send`; and a client-side editor that submits structured pages the server encodes.
-  Verified end-to-end: two-user Partyline chat and commands; a page composed in the browser,
-  uploaded, stored and rendered back; mail delivered and read from the mailbox.
-- **Phase 4 — hybrid + packaging.** REST reads (`GET /v1/dir/{page}`, `GET /v1/frame/{page}`)
-  are live, bearer-authenticated and stateless, carrying the same JSON shapes as the gateway —
-  the hybrid target architecture is complete. The legacy raw-bytes WebSocket (port 6502) is
-  retired and the `websockets` dependency dropped. An Electron shell (`client/electron/`) wraps
-  the same web client for desktop. **Outstanding:** deploying port 6404 to the live server, and
-  a clean-room validation of this binding (as Binding A had, #111).
-- **Open:** compact frame-grid encoding; token lifetime/refresh; rate limits; retire the legacy
-  WS 6502 handler once this lands.
+Tiers 1–3 are implemented (`server/api_binding.py`) and clean-room validated — an isolated
+builder produced a full Tier-3 Electron client from this document plus the model sections, twice,
+and both runs' findings are folded in. See [VALIDATION.md](../VALIDATION.md).
+
+Verified by measurement rather than assertion: the `frame` cell grid against an independent §6
+decoder (14,400 of 14,400 cells), the `cells` submission form over all 256 glyph codes in both
+character sets with and without reverse video, `raw` round-tripping byte-identically, `lines`
+truncation at 23 rows × 40 columns, and the documented error codes.
+
+**Open:**
+
+- Deploying port 6404 to the live server.
+- A compact frame-grid encoding (the 960-cell array is verbose on the wire).
+- Token lifetime / refresh, and rate limits.
+
+*(This section was a phase-by-phase build log. It is deliberately short now: a stale log in a
+normative document eventually contradicts it — this one still claimed the gateway auto-sends a
+directory after `ready`, which §2 forbids and the server has never done. VALIDATION.md, F4.)*

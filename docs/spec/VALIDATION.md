@@ -435,6 +435,64 @@ directory by an inherited `false`. That needed three changes, one of them latent
 tree-save path wrote the flag back only when truthy, so saving a directory would have **dropped a
 child's opt-out and silently reopened it**.
 
+## Eighth clean-room run — Binding B again, on the corrected spec
+
+A second isolated Tier-3 Electron build, on the spec as corrected by the seventh run, with the
+fixture tree in place so nothing was out of reach. **44 findings.** The brief added one
+instruction — *measure rather than infer* — and it changed the character of the results: this run
+diffed grids, swept colour spaces and counted cells rather than reasoning about them.
+
+**It cleared the previous run's headline fault, independently.** A grid exercising all 256 glyph
+codes in **both** character sets, again with reverse video, plus a 16×16 foreground/background
+sweep, uploaded and diffed over 960 cells: **glyphs 0 mismatches, reverse video 0, foreground 0**.
+The `$5F` hole is gone. Their §6 decoder also agreed with the server on **14,400 of 14,400** cells,
+and `raw` round-tripped byte-identically.
+
+**Three of the four worst findings were regressions from the seventh run's own fixes** — which is
+the honest lesson of this run:
+
+- **`dir.more` stranded the session.** Added to give `hasMore` something to act on; paging past
+  the last page returned a listing with **zero entries**, which then *became* the session's
+  current listing. Because `page` is listing-scoped, every subsequent `open`/`enter`/`vote` then
+  failed with a plausible `not_found` until the user escaped with `goto`. It also broke §7.3's
+  **MUST** that an empty directory still carries one placeholder row. Both fixed: paging is
+  clamped at both ends, and a listing is never serialized empty.
+- **`goto` reported "no such page" for pages that exist.** The seventh run's fix for silent
+  GOTO failure searched only the **visible** eleven entries, so any entry on page 2 or later
+  looked missing — while REST fetched it perfectly well, so the two lookups disagreed. Now the
+  whole listing is searched and the reply pages to the target.
+- **The API document told clients to page with a `MORE` command**, in a context where §4.8 says
+  there is no `MORE` and §4.7 declares the vocabulary closed. The builder resolved it better than
+  the original: page when the **selection moves past the last entry**, mirroring the gesture
+  Binding A uses on its synthetic pagination row — no word added to a closed vocabulary. Adopted,
+  and §4.8 now says so. They also spotted that paging had **no reverse**, which cost *n* round
+  trips to go back one page; `dir.back` added.
+
+**Other faults, all measured:**
+
+- `finish` and `dir` returned a **frame** after `mail.read`, wedging the session — only `back`
+  recovered. `dir` is documented to always reply `directory`.
+- `leave` never closed the socket: the session stayed fully usable, so a client waiting for the
+  close to complete logout hangs. It cost the builder a two-minute timeout to notice.
+- `life` validated nothing — no `days`, or a negative `days` on a page the user does not own,
+  both returned `ack`, though §8.6 restricts shortening a page's life to its owner.
+- The five-recipient cap and `upload`'s "required" `price`/`life` were client-side only.
+- A stale build log in the API document still described an auto-directory after `ready` that §2
+  forbids and the server has never sent.
+
+**The one finding that was not a bug, and is the more interesting result.** Per-cell `bg` does not
+survive a `cells` round-trip — 240 mismatches in the colour sweep. The builder's diagnosis is
+right and better than the obvious one: the C64 has a single screen background, so §6 has nowhere
+to put a per-cell value and **Binding A cannot express one either**. §1.8 is intact; what is wrong
+is the *schema*, which carries a writable-looking `bg` on all 960 cells and silently discards it —
+the §8.3.2 silent-failure pattern living in a data shape rather than in code. Now documented as
+frame-level, with an editor obligation not to offer per-cell background painting.
+
+**One report did not reproduce.** The Partyline who-listing was said to arrive twice on entry;
+measured against the server it is pushed once. Recorded as probably client-side rather than
+"fixed", since changing working code to chase an unreproducible symptom is how faults get
+introduced.
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across
@@ -452,3 +510,9 @@ client from `api/README.md` and the model sections alone, and found four server 
 specification faults — including one, the `$5F` encoder hole, that no amount of reading would have
 caught and that falsified a claim the specification made about itself. Both bindings have now been
 built from the document by someone who had only the document.
+
+The eighth run's lesson is narrower and sharper than the seventh's: **the corrections were the
+most dangerous code in the project.** Three of its four worst findings were introduced by the
+previous round of fixes — each one plausible, reviewed, and shipped without a test that would
+have caught it. The protocol core, by contrast, has now been measured cell-by-cell and
+byte-by-byte by an independent implementation and holds up exactly as written.
