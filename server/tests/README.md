@@ -1,12 +1,23 @@
 # Server tests
 
 ```bash
-python server/tests/test_api_binding.py       # add -v for per-test output
+python server/tests/test_api_binding.py           # the binding — add -v for per-test output
+python server/tests/test_client_conformance.py    # the reference client vs the spec
 ```
 
-No dependencies — stdlib `unittest`, no sockets, no Electron. It drives
-`api_binding.handle_message()` directly against the tracked fixture tree
+No dependencies — stdlib `unittest`, no sockets, no Electron. `test_api_binding`
+drives `api_binding.handle_message()` directly against the tracked fixture tree
 (`server/data/content.test`), so a full run takes about four seconds.
+
+`test_client_conformance` is CONFORMANCE.md §E made mechanical: it parses §4.7's
+vocabulary and §4.8's context table out of `docs/spec/` and diffs them against
+`client/web/src/main.ts`, in **both** directions — a command the client offers
+that the spec does not define fails just as loudly as one the spec requires and
+the client lacks. It reads both files as text and imports nothing.
+
+⚠ It proves the client offers the right *commands in the right contexts*, and
+nothing about whether they behave correctly. CONFORMANCE.md §A–§D are answerable
+"by looking, not by reasoning about the code"; no test here replaces that pass.
 
 ## Why these exist
 

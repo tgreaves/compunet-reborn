@@ -358,5 +358,56 @@ class EmbeddedAssets(unittest.TestCase):
             self.assertEqual((frame['border'], frame['background']), (4, 1), name)
 
 
+class PersistenceRoundTrip(unittest.TestCase):
+    """⚠ The save path is a lossy re-serialisation of the loaded tree, so any
+    field it forgets to write is DELETED on the next save — silently, and by an
+    unrelated action. These tests run against a temporary COPY of the fixture
+    tree (patching srv.ROOT_DIR, which both the loader and saver read at call
+    time), so the suite stays read-only against the tracked fixtures."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix='compunet-save-')
+        shutil.copytree(os.path.join(_SERVER, 'data', 'content.test', 'root'),
+                        os.path.join(self._tmp, 'root'))
+        self._saved_root = srv.ROOT_DIR
+        srv.ROOT_DIR = os.path.join(self._tmp, 'root')
+
+    def tearDown(self):
+        import shutil
+        srv.ROOT_DIR = self._saved_root
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _jungle_entry(self, page_num):
+        import json
+        with open(os.path.join(srv.ROOT_DIR, 'jungle', 'directory.json')) as f:
+            data = json.load(f)
+        return next(p for p in data['pages'] if p['page_num'] == page_num)
+
+    def test_an_empty_sub_directory_survives_a_save(self):
+        """GRAPHICS (601) has a directory.json holding no pages. Saving used to
+        write its parent entry back WITHOUT the `directory` key — the sub-tree
+        became unreachable while its files sat on disk. §7.3 lists an empty
+        directory with the (EMPTY) placeholder; empty is not absent."""
+        before = self._jungle_entry(GRAPHICS)
+        self.assertIn('directory', before, 'fixture precondition')
+
+        s = session()
+        self.assertEqual(s.directory.pages[GRAPHICS].children, [],
+                         'fixture precondition: GRAPHICS is empty')
+        s._save_directory()
+
+        self.assertIn('directory', self._jungle_entry(GRAPHICS),
+                      'saving deleted an empty sub-directory')
+
+    def test_a_populated_sub_directory_survives_a_save(self):
+        """The control: the same field on a directory that does have children."""
+        s = session()
+        self.assertTrue(s.directory.pages[MORE_DIR].children, 'fixture precondition')
+        s._save_directory()
+        self.assertIn('directory', self._jungle_entry(MORE_DIR))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -1,18 +1,33 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600&display=swap');
 
 :root {
-    --c64-blue: #4040e0;
-    --c64-dark-blue: #2020a0;
-    --c64-light-blue: #7070ff;
-    --c64-purple: #6020b0;
-    --c64-bg: #1a1a2e;
-    --c64-surface: #16213e;
-    --c64-surface-light: #1e2d4a;
-    --c64-white: #f0f0f0;
-    --c64-grey: #a0a0b0;
-    --c64-green: #50d050;
-    --c64-red: #e04040;
-    --c64-cyan: #70d0d0;
+    /* The authentic Compunet palette. These are the C64 values from §A.3 of the
+       client specification — the same numbers the server sends down the wire and
+       the same ones the 3D-printed plaque is made from. The site used a generic
+       dark blue/purple that came from nowhere in particular; this comes from the
+       service itself. */
+    --cnet-red: #DD0000;        /* the lettering */
+    --cnet-blue: #0000DD;       /* the rules above and below it */
+    --cnet-grey: #CCCCCC;       /* the plate */
+
+    /* Paper, not screen. A light ground keeps the saturated red and blue
+       readable; on a dark ground both have to be lightened until they are no
+       longer the Compunet colours — which is how the old palette drifted. */
+    --c64-bg: #f4f4ef;
+    --c64-surface: #ffffff;
+    --c64-surface-light: #dcdcd4;
+
+    --c64-ink: #16161a;         /* body text */
+    --c64-ink-soft: #5c5c66;    /* secondary text */
+
+    --c64-blue: var(--cnet-blue);
+    --c64-dark-blue: #0000a8;
+    --c64-light-blue: #0000DD;  /* links */
+    --c64-purple: var(--cnet-red);
+    --c64-green: #007a1f;
+    --c64-red: var(--cnet-red);
+    --c64-cyan: #006e6e;
+
     --font-pixel: 'Press Start 2P', monospace;
     --font-body: 'Inter', -apple-system, sans-serif;
     --radius: 8px;
@@ -27,7 +42,7 @@
 
 body {
     background-color: var(--c64-bg);
-    color: var(--c64-white);
+    color: var(--c64-ink);
     font-family: var(--font-body);
     font-size: 15px;
     line-height: 1.7;
@@ -39,7 +54,7 @@ body {
 /* Navigation */
 .nav {
     background-color: var(--c64-surface);
-    border-bottom: 3px solid var(--c64-blue);
+    border-bottom: 2px solid var(--cnet-blue);
     padding: 16px 0;
     position: sticky;
     top: 0;
@@ -58,7 +73,7 @@ body {
 }
 
 .nav-brand {
-    color: var(--c64-light-blue);
+    color: var(--cnet-red);
     text-decoration: none;
     font-family: var(--font-pixel);
     font-size: 12px;
@@ -66,7 +81,7 @@ body {
 }
 
 .nav-brand:hover {
-    color: var(--c64-white);
+    color: var(--c64-ink);
 }
 
 .nav-links {
@@ -77,7 +92,7 @@ body {
 }
 
 .nav-links a {
-    color: var(--c64-grey);
+    color: var(--c64-ink-soft);
     text-decoration: none;
     font-size: 13px;
     font-weight: 500;
@@ -85,7 +100,7 @@ body {
 }
 
 .nav-links a:hover {
-    color: var(--c64-white);
+    color: var(--c64-ink);
 }
 
 /* Main content */
@@ -100,7 +115,7 @@ body {
 /* Typography */
 h1 {
     font-family: var(--font-pixel);
-    color: var(--c64-light-blue);
+    color: var(--cnet-red);
     font-size: 20px;
     margin-bottom: 32px;
     text-transform: uppercase;
@@ -109,10 +124,15 @@ h1 {
 
 h2 {
     font-family: var(--font-pixel);
-    color: var(--c64-cyan);
+    color: var(--cnet-red);
     font-size: 11px;
-    margin-bottom: 16px;
-    margin-top: 40px;
+    /* The logo's signature is red lettering between two blue rules. Section
+       headings borrow the lower rule, which ties the whole site to the mark
+       without repeating the logo everywhere. */
+    border-bottom: 2px solid var(--cnet-blue);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    margin-top: 44px;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -127,7 +147,7 @@ h3 {
 
 p {
     margin-bottom: 16px;
-    color: var(--c64-grey);
+    color: var(--c64-ink-soft);
 }
 
 a {
@@ -147,7 +167,7 @@ ul, ol {
 
 ul li, ol li {
     margin-bottom: 10px;
-    color: var(--c64-grey);
+    color: var(--c64-ink-soft);
 }
 
 /* Flash messages */
@@ -162,19 +182,19 @@ ul li, ol li {
 .flash-error {
     border-color: var(--c64-red);
     color: var(--c64-red);
-    background: rgba(224, 64, 64, 0.1);
+    background: color-mix(in srgb, var(--cnet-red) 8%, transparent);
 }
 
 .flash-success {
     border-color: var(--c64-green);
     color: var(--c64-green);
-    background: rgba(80, 208, 80, 0.1);
+    background: color-mix(in srgb, var(--c64-green) 10%, transparent);
 }
 
 .flash-info {
     border-color: var(--c64-blue);
     color: var(--c64-light-blue);
-    background: rgba(64, 64, 224, 0.1);
+    background: color-mix(in srgb, var(--cnet-blue) 8%, transparent);
 }
 
 /* Forms */
@@ -184,7 +204,7 @@ ul li, ol li {
 
 label {
     display: block;
-    color: var(--c64-grey);
+    color: var(--c64-ink-soft);
     font-size: 12px;
     margin-bottom: 8px;
     text-transform: uppercase;
@@ -201,7 +221,7 @@ input[type="email"] {
     background-color: var(--c64-surface);
     border: 2px solid var(--c64-surface-light);
     border-radius: var(--radius);
-    color: var(--c64-white);
+    color: var(--c64-ink);
     font-family: var(--font-body);
     font-size: 15px;
     text-transform: uppercase;
@@ -222,7 +242,7 @@ input.mixed-case {
 
 .hint {
     font-size: 12px;
-    color: var(--c64-grey);
+    color: var(--c64-ink-soft);
     margin-top: 6px;
     opacity: 0.7;
 }
@@ -231,8 +251,8 @@ input.mixed-case {
 button, .btn {
     display: inline-block;
     padding: 12px 28px;
-    background-color: var(--c64-blue);
-    color: var(--c64-white);
+    background-color: var(--cnet-blue);
+    color: #ffffff;
     font-family: var(--font-body);
     font-size: 14px;
     font-weight: 600;
@@ -246,7 +266,7 @@ button, .btn {
 }
 
 button:hover, .btn:hover {
-    background-color: var(--c64-light-blue);
+    background-color: var(--c64-dark-blue);
     transform: translateY(-1px);
 }
 
@@ -275,7 +295,7 @@ pre {
     text-align: center;
     font-family: var(--font-pixel);
     font-size: 8px;
-    color: var(--c64-grey);
+    color: var(--c64-ink-soft);
     letter-spacing: 1px;
 }
 
@@ -294,27 +314,31 @@ pre {
 /* Hero section */
 .hero {
     text-align: center;
-    padding: 24px 32px;
-    border: 2px solid var(--c64-surface-light);
+    padding: 28px 32px;
     border-radius: var(--radius);
     margin-bottom: 40px;
-    background: linear-gradient(135deg, var(--c64-surface) 0%, var(--c64-surface-light) 100%);
+    /* The plaque: red on a grey plate between two blue rules. */
+    background-color: var(--cnet-grey);
+    border-top: 6px solid var(--cnet-blue);
+    border-bottom: 6px solid var(--cnet-blue);
 }
 
 .hero h1 {
     font-size: 22px;
-    margin-bottom: 8px;
-    color: var(--c64-light-blue);
+    margin-bottom: 10px;
+    color: var(--cnet-red);
+    border-bottom: none;
+    padding-bottom: 0;
 }
 
 .hero p {
     font-size: 14px;
-    color: var(--c64-grey);
+    color: var(--c64-ink-soft);
 }
 
 .hero-slogan {
     font-size: 20px !important;
-    color: var(--c64-yellow) !important;
+    color: var(--c64-ink) !important;
     letter-spacing: 3px;
     font-weight: bold;
     text-transform: uppercase;
@@ -349,7 +373,7 @@ pre {
     padding: 14px 20px;
     background-color: var(--c64-surface);
     border: 1px solid var(--c64-surface-light);
-    color: var(--c64-grey);
+    color: var(--c64-ink-soft);
 }
 
 .download-table td:first-child {
@@ -404,7 +428,7 @@ pre {
 
 .admin-table th {
     background-color: var(--c64-surface);
-    color: var(--c64-grey);
+    color: var(--c64-ink-soft);
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;

@@ -1,83 +1,39 @@
-# 1.2.0 (2026-07-25)
+# 1.2.0 (2026-07-26)
 
-Adds a complete **Compunet Client Specification** (#111) in `docs/spec/` — a normative,
-platform-agnostic single source of truth for building a client over TCP/IP, detailed enough
-(with the font, palette and template extracted as data) to build from the document alone. Adds
-a **JSON API** and a **web/desktop client** on top of it (#91).
+Opens Compunet Reborn to modern clients, and pins down how to build one.
 
-* Client Specification (new, `docs/spec/`) (#111):
-	* Eight normative sections: transport, session lifecycle, commands, the 40x24 PETSCII display
-	  contract, frame format, the six-part directory stream, and subsystems.
-	* Self-contained appendix: C64 character-ROM font, palette RGB, and the embedded directory,
-	  HELP, editor-help and COURIER frames, reproduced verbatim.
-	* `CONFORMANCE.md` — a self-audit for divergences that normal testing cannot catch.
-	* Validated by five source-isolated clean-room builds (`CLEANROOM.md`): a fresh agent builds
-	  from the spec alone, against the live server, logging every gap. Corrections folded back in.
-* Client API - **Binding B** (new, `server/api_binding.py`, port 6404) (#91):
-	* Why: reaching Compunet on a modern platform meant reimplementing X.25 framing, CRC,
-	  sequencing, PETSCII rendering and the directory stream in every client — weeks of work
-	  each, and every one drifting differently. That work now happens once, in the server.
-	* JSON over WebSocket + REST, added as a *second transport binding over the same application
-	  model* — a serializer driving the same authoritative command handling, not a parallel
-	  implementation. Binding A (port 6400) is frozen and byte-for-byte unchanged for the C64 and
-	  Amiga clients.
-	* Frames are delivered as a rendered 40x24 cell grid, so a client never parses PETSCII, plus
-	  the source bytes so a captured page can be republished unchanged.
-	* Token auth, CORS, and typed errors for the checks Binding A applies silently. The old
-	  WebSocket handler is removed; the website's admin API (6403) is untouched.
-* Reference client - web and desktop (new, `client/web/`, `client/electron/`) (#91):
-	* TypeScript + esbuild, rendering the authentic screen on a canvas; an Electron shell serves
-	  the same build as a desktop app.
-	* Duckshoot, per-context command sets, and a two-pane workspace — the Compunet surface and the
-	  editor side by side, each owning its own command row, with focus deciding which the keyboard
-	  drives.
-	* A full frame editor: multi-page cell-grid buffer, local load/save, works offline, and
-	  captures every page viewed on Compunet verbatim (colour, reverse video, graphics, charset).
-* Corrections, verified against the disassembly:
-	* The editor command row ends `FREE RETURN DOS`, not `FREE DOS RETURN` — the offset table at
-	  `$83FE` is non-monotonic, which is what proves it is a display order. `docs/PROTOCOL.md`
-	  carried the storage order, and its mail and directory rows were also wrong.
-	* `BUY` is a distinct command from `SHOW` despite sharing wire bytes (`SHOW` refuses a paid
-	  page, `BUY` confirms the charge), and had been dropped as redundant.
-* Clean-room validation of Binding B (#91) — an isolated builder produced a full Tier-3 Electron
-  client from the API spec and the model sections alone, against a live server with no static
-  files to peek at, and logged 41 findings. All folded in; details in `docs/spec/VALIDATION.md`.
-  The faults it found by measurement rather than reading:
-	* The `cells` encoder silently dropped screen code `$5F` — one of 128 — turning that glyph
-	  into a space while every colour around it survived. Found by submitting a real frame's
-	  cells back and diffing the grids. It falsified the spec's own claim that "anything Binding A
-	  can display, Binding B can now author".
-	* `UCAT` returned whatever listing the session was on — the mailbox, if you had just read
-	  mail. Binding A was never affected: UCAT builds its listing as bytes and never sets
-	  `current_page`, because a user catalogue is not a page in the tree. It is a synthetic
-	  listing and now has its own serializer.
-	* An unknown `GOTO` target returned the current listing with no error — the silent no-op this
-	  binding explicitly rejects elsewhere. Now `not_found`, and a successful `goto` says which
-	  entry was the target.
-	* The unread-mail marker was never sent, so it could only be derived by opening the mailbox —
-	  defeating a marker whose purpose is to report mail you have *not* opened.
-	* §4.7 called the command vocabulary "closed and exhaustive" while leaving `ALL`, `LOAD` and
-	  `ABORT` undefined, so the builder had to invent all three — the exact failure that rule
-	  exists to prevent. Now defined.
-	* The API document was wrong about its own client's obligations: it claimed no PETSCII
-	  decoding was needed, which is true of server content and false of the five embedded client
-	  assets. It also never said that `page` is scoped to the current listing rather than being a
-	  global address — described by the builder as the most consequential omission in it.
-	* §7.7 contradicted itself on the selection bar's width, and the duckshoot's geometry never
-	  added up (seven 6-character cells against a 40-column grid).
+* **Client Specification** (new, `docs/spec/`) (#111) — a normative,
+  platform-agnostic guide to building a Compunet client: transport, session,
+  commands, the 40x24 PETSCII display contract, frame and directory formats, and
+  the subsystems. It carries the C64 font, the palette and the embedded frames as
+  data, so a client can be built from the document alone — validated by nine
+  independent clean-room builds that did exactly that.
+* **JSON API** (new, port 6404) (#91) — reaching Compunet from a modern platform
+  used to mean reimplementing X.25 framing, CRC, sequencing and PETSCII in every
+  client. That work now happens once, in the server: directories arrive as entry
+  lists and frames as a rendered cell grid, over WebSocket + REST. It is a second
+  binding over the same core, so the C64 and Amiga wire protocol is untouched.
+* **Web and desktop client** (new, `client/web/`, `client/electron/`) (#91) —
+  the authentic 40x24 screen in a browser or as an Electron app, from one
+  codebase. Duckshoot, mail, Partyline, and a full frame editor: a multi-page
+  buffer that works offline and captures every page you view, verbatim. Uploading
+  is the original's sub-context — SEND a page at a time, then FINISH — so a page
+  can hold more than one frame.
+* **3D-printed logo** (new, `3dprint/`) — a desk plaque of the Compunet logo for
+  multi-colour printers, in flush and raised variants. There is no source
+  artwork: it is generated from the PETSCII header frame the server sends.
+* **Website** — new Extras page carrying the printable logo, and a refreshed look
+  built on the authentic Compunet red, blue and grey.
 * Server:
-	* `SHOW` on an entry with no frames is now inert, as the original: it no longer falls back to
-	  entering the sub-directory, which had collapsed `SHOW` and `DIR` into one command on exactly
-	  the entries where they differ.
-	* Mail directory is created on demand, fixing a send failure on a fresh deployment.
-	* `run_api_only.py` (new): the client API with no static file serving, for clean-room runs —
-	  the dev launcher serves the reference client on the same origin and would void the test.
-* 3D printing (new, `3dprint/`):
-	* A printable Compunet logo for multi-colour FDM printers, generated **from the specification**
-	  rather than from artwork — there is no source image, only the PETSCII header frame, which
-	  `logo3d.py` renders through the appendix font and palette and extrudes.
-	* Both variants in one 3MF as separate models: colours inlaid flush with the plate, or
-	  standing proud of it. Three filaments, 15 mm thick so it stands on its edge.
+	* `SHOW` on an entry with no frames is now inert, as the original. It used to
+	  fall back to entering the sub-directory, collapsing `SHOW` and `DIR` into
+	  one command on exactly the entries where they differ.
+	* Uploads: The Jungle is open for uploads, inherited by its sub-directories,
+	  and a directory can opt out. The mail directory is created on demand,
+	  fixing a send failure on a fresh deployment.
+	* An empty sub-directory is no longer deleted when the tree is saved. Any
+	  upload rewrote the whole tree, and a directory with nothing in it yet lost
+	  its link — leaving its content on disk but unreachable.
 
 # 1.1.0 (2026-07-24)
 

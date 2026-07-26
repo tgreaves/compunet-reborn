@@ -253,8 +253,13 @@ function renderEditor(): void {
 
 /** Open the metadata form. The BODY comes from the editor buffer (§8.4.1) —
  *  there is no text box here, because composing is the editor's job. */
-/** Upload metadata, held if the user addresses a page before writing it. */
+/** ⚠ Upload is a two-part flow, exactly as mail send is (§8.3.2 steps 1-3): the
+ *  metadata is validated first, and only then does the client transmit frames.
+ *  `pendingUpload` holds the accepted metadata across that boundary, and its
+ *  presence IS the upload sub-context (§4.8) — see netContext(). */
 let pendingUpload: { title: string; kind: string; price: number; life: number } | null = null;
+/** Frames the user has SENT into the upload, awaiting FINISH (§8.3.2 step 2). */
+let outgoingUpload: ReturnType<EditorBuffer['toFrames']> = [];
 
 function openSubmit(kind: 'upload' | 'mail'): void {
   // ⚠ An empty buffer does NOT block this (see sendMail) — the metadata can be
@@ -296,17 +301,18 @@ function doSubmit(): void {
       price: parseFloat($<HTMLInputElement>('edPrice').value) || 0,
       life: parseInt($<HTMLInputElement>('edLife').value, 10) || 0,
     };
-    // Nothing written yet: keep the metadata and give them the editor.
-    if (buf.isEmpty()) {
-      pendingUpload = meta;
-      closeSubmit();
-      if (!inEditor) { editorReturn = () => render(); enterEditor(); }
-      setFocus('editor');
-      status(`"${title}" ready to upload — compose the page, then UPLD again`);
-      return;
-    }
-    gw.send({ type: 'upload', ...meta, frames });
-    pendingUpload = null;
+    // ⚠ Accepting the metadata does NOT transmit anything. It enters the upload
+    // sub-context (§4.8), where SEND adds frames and FINISH commits — the same
+    // shape as mail composition, and for the same reason: on the wire these are
+    // three separate steps (U, then the frames, then the finishing P).
+    pendingUpload = meta;
+    outgoingUpload = [];
+    closeSubmit();
+    if (!inEditor) { editorReturn = () => render(); enterEditor(); }
+    setFocus('net');
+    render();
+    status('SEND each page of the upload, then FINISH. EDITR to compose.');
+    return;
   }
   // Focus returns to Compunet when the result lands (see `submitting`), not now:
   // the editor stays in view until the server has actually taken the pages.
@@ -592,6 +598,34 @@ const courierActions: Record<string, () => void> = {
   },
 };
 
+/** The upload sub-context (§4.8, §8.3.2) — `SEND`, `LOAD`, `GET`, `FINISH`.
+ *
+ *  ⚠ These are §4.7's commands with §4.7's meanings, not upload-specific
+ *  inventions: `GET` loads editor frames from local storage (§8.4.1) and `LOAD`
+ *  reads a saved page back into view (`SAVE`'s inverse). They are offered here
+ *  because an upload is where a user reaches for stored material. */
+const uploadActions: Record<string, () => void> = {
+  // One page per SEND, as the original streams one frame at a time. Not a
+  // "send everything" button — the buffer may hold pages this upload is not for.
+  SEND: () => {
+    outgoingUpload.push(buf.toFrames()[buf.cur]);
+    status(`Page ${buf.cur + 1} added — ${outgoingUpload.length} page(s) in the upload. FINISH to commit.`);
+  },
+  FINISH: () => {
+    if (!pendingUpload) return;
+    if (!outgoingUpload.length) { status('Nothing sent yet — SEND at least one page first', true); return; }
+    gw.send({ type: 'upload', ...pendingUpload, frames: outgoingUpload });
+    submitMode = 'upload'; submitting = true;
+    // ⚠ "The exchange completed" is not proof of success: a full directory
+    // swallows the page silently (§8.3.2). The refreshed listing is the proof,
+    // which is why the result of an upload is the directory, not an ack.
+    status(`Uploading ${outgoingUpload.length} page(s) as "${pendingUpload.title}" — check the listing`);
+    pendingUpload = null; outgoingUpload = [];
+  },
+  GET: () => loadFile(),
+  LOAD: () => status('LOAD is a client feature — not implemented in this reference client'),
+};
+
 async function sendMail(): Promise<void> {
   // ⚠ An empty buffer must NOT block the attempt. Addressing a message before
   // writing it is a normal order of work — the user can compose once focus
@@ -723,13 +757,6 @@ const actions: Record<string, () => void> = {
   UPLD: () => {
     if (mode !== 'directory' || !dir) { status('Navigate to a directory first'); return; }
     if (dir.entries.length >= 11) { status('This directory is full (11 entries max)'); return; }
-    // Metadata already given and the page now written: go straight to sending.
-    if (pendingUpload && !buf.isEmpty()) {
-      gw.send({ type: 'upload', ...pendingUpload, frames: buf.toFrames() });
-      pendingUpload = null; submitMode = 'upload'; submitting = true;
-      setFocus('editor'); status('Uploading…');
-      return;
-    }
     openSubmit('upload');
   },
   SEND: () => { void sendMail(); },
@@ -746,7 +773,7 @@ const actions: Record<string, () => void> = {
 // short of room drops from the end.
 
 type Context = 'idle' | 'welcome' | 'directory' | 'frame' | 'mail' | 'mailFrame'
-  | 'courierSend' | 'editor' | 'partyline';
+  | 'courierSend' | 'upload' | 'editor' | 'partyline';
 
 const CONTEXT_COMMANDS: Record<Context, string[]> = {
   // ⚠ Empty, and NOT because the editor is unavailable offline. With no session
@@ -765,6 +792,9 @@ const CONTEXT_COMMANDS: Record<Context, string[]> = {
   // Message composition (§8.2.1), reached once subject and recipients are
   // accepted. SEND adds a frame, FINISH transmits — distinct commands.
   courierSend: ['SEND', 'FINISH', 'LAST', 'NEXT', 'EDITR'],
+  // The upload sub-context (§8.3.2), entered once the title/type/price/life are
+  // accepted. Same shape as composition: SEND adds a page, FINISH commits.
+  upload:      ['SEND', 'LOAD', 'GET', 'FINISH'],
   // ⚠ §8.4.1 order — it ends FREE, RETURN, DOS. Storage order (…FREE DOS RETURN)
   // is NOT display order: the C64 offset table is non-monotonic at the tail.
   editor:    ['HELP', 'EDIT', 'LAST', 'NEXT', 'NEW', 'COPY', 'ERASE', 'GET', 'PUT',
@@ -781,6 +811,7 @@ const NEEDS_SELECTION = new Set(['SHOW', 'DIR', 'VOTE', 'LIFE', 'BUY']);
 function netContext(): Context {
   if (inParty) return 'partyline';
   if (courier?.kind === 'send' && pendingMail) return 'courierSend';
+  if (pendingUpload) return 'upload';
   if (mode === 'idle') return 'idle';
   if (mode === 'frame') return isWelcome ? 'welcome' : (inMail ? 'mailFrame' : 'frame');
   return inMail ? 'mail' : 'directory';
@@ -815,6 +846,7 @@ function rememberRow(pane: Pane): void {
 function tableFor(ctx: Context): Record<string, () => void> {
   if (ctx === 'editor') return editorActions;
   if (ctx === 'courierSend') return courierActions;
+  if (ctx === 'upload') return uploadActions;
   return actions;
 }
 
@@ -910,6 +942,16 @@ window.addEventListener('keydown', (e) => {
   // A PRESS ANY KEY screen (ID results, §8.2.1): any key returns to the mailbox.
   if (awaitingKey) {
     awaitingKey = false; courier = null; render();
+    e.preventDefault(); return;
+  }
+
+  // ABORT — abandon an upload in progress and return without sending (§4.7).
+  // ⚠ Deliberately NOT a word in the upload row: §4.8 fixes that row at four
+  // commands. Abandoning is a host-environment affordance here, the same
+  // reasoning §8.4.2 applies to entering the editor offline.
+  if (e.key === 'Escape' && pendingUpload && focusPane === 'net') {
+    pendingUpload = null; outgoingUpload = [];
+    render(); status('ABORT — upload abandoned, nothing was sent');
     e.preventDefault(); return;
   }
 

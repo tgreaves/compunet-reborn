@@ -680,6 +680,7 @@ function renderEditor() {
   $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}` + (buf.editing ? ` \xB7 EDIT ${buf.row + 1},${buf.col + 1}` : "") + (p.raw ? " \xB7 captured" : "");
 }
 var pendingUpload = null;
+var outgoingUpload = [];
 function openSubmit(kind) {
   submitMode = kind;
   if (!inEditor) {
@@ -720,19 +721,17 @@ function doSubmit() {
       price: parseFloat($("edPrice").value) || 0,
       life: parseInt($("edLife").value, 10) || 0
     };
-    if (buf.isEmpty()) {
-      pendingUpload = meta;
-      closeSubmit();
-      if (!inEditor) {
-        editorReturn = () => render();
-        enterEditor();
-      }
-      setFocus("editor");
-      status(`"${title}" ready to upload \u2014 compose the page, then UPLD again`);
-      return;
+    pendingUpload = meta;
+    outgoingUpload = [];
+    closeSubmit();
+    if (!inEditor) {
+      editorReturn = () => render();
+      enterEditor();
     }
-    gw.send({ type: "upload", ...meta, frames });
-    pendingUpload = null;
+    setFocus("net");
+    render();
+    status("SEND each page of the upload, then FINISH. EDITR to compose.");
+    return;
   }
   submitting = true;
   status(`Sending ${frames.length} page(s)\u2026`);
@@ -1009,6 +1008,29 @@ var courierActions = {
     setFocus("editor");
   }
 };
+var uploadActions = {
+  // One page per SEND, as the original streams one frame at a time. Not a
+  // "send everything" button — the buffer may hold pages this upload is not for.
+  SEND: () => {
+    outgoingUpload.push(buf.toFrames()[buf.cur]);
+    status(`Page ${buf.cur + 1} added \u2014 ${outgoingUpload.length} page(s) in the upload. FINISH to commit.`);
+  },
+  FINISH: () => {
+    if (!pendingUpload) return;
+    if (!outgoingUpload.length) {
+      status("Nothing sent yet \u2014 SEND at least one page first", true);
+      return;
+    }
+    gw.send({ type: "upload", ...pendingUpload, frames: outgoingUpload });
+    submitMode = "upload";
+    submitting = true;
+    status(`Uploading ${outgoingUpload.length} page(s) as "${pendingUpload.title}" \u2014 check the listing`);
+    pendingUpload = null;
+    outgoingUpload = [];
+  },
+  GET: () => loadFile(),
+  LOAD: () => status("LOAD is a client feature \u2014 not implemented in this reference client")
+};
 async function sendMail() {
   courier = { kind: "send", subject: "", to: [] };
   render();
@@ -1197,15 +1219,6 @@ var actions = {
       status("This directory is full (11 entries max)");
       return;
     }
-    if (pendingUpload && !buf.isEmpty()) {
-      gw.send({ type: "upload", ...pendingUpload, frames: buf.toFrames() });
-      pendingUpload = null;
-      submitMode = "upload";
-      submitting = true;
-      setFocus("editor");
-      status("Uploading\u2026");
-      return;
-    }
     openSubmit("upload");
   },
   SEND: () => {
@@ -1253,6 +1266,9 @@ var CONTEXT_COMMANDS = {
   // Message composition (§8.2.1), reached once subject and recipients are
   // accepted. SEND adds a frame, FINISH transmits — distinct commands.
   courierSend: ["SEND", "FINISH", "LAST", "NEXT", "EDITR"],
+  // The upload sub-context (§8.3.2), entered once the title/type/price/life are
+  // accepted. Same shape as composition: SEND adds a page, FINISH commits.
+  upload: ["SEND", "LOAD", "GET", "FINISH"],
   // ⚠ §8.4.1 order — it ends FREE, RETURN, DOS. Storage order (…FREE DOS RETURN)
   // is NOT display order: the C64 offset table is non-monotonic at the tail.
   editor: [
@@ -1277,6 +1293,7 @@ var NEEDS_SELECTION = /* @__PURE__ */ new Set(["SHOW", "DIR", "VOTE", "LIFE", "B
 function netContext() {
   if (inParty) return "partyline";
   if (courier?.kind === "send" && pendingMail) return "courierSend";
+  if (pendingUpload) return "upload";
   if (mode === "idle") return "idle";
   if (mode === "frame") return isWelcome ? "welcome" : inMail ? "mailFrame" : "frame";
   return inMail ? "mail" : "directory";
@@ -1295,6 +1312,7 @@ function rememberRow(pane) {
 function tableFor(ctx) {
   if (ctx === "editor") return editorActions;
   if (ctx === "courierSend") return courierActions;
+  if (ctx === "upload") return uploadActions;
   return actions;
 }
 function buildRow(ctx) {
@@ -1365,6 +1383,14 @@ window.addEventListener("keydown", (e) => {
     awaitingKey = false;
     courier = null;
     render();
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "Escape" && pendingUpload && focusPane === "net") {
+    pendingUpload = null;
+    outgoingUpload = [];
+    render();
+    status("ABORT \u2014 upload abandoned, nothing was sent");
     e.preventDefault();
     return;
   }

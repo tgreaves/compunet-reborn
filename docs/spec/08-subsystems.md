@@ -224,6 +224,31 @@ the wire format and to what gets stored, and the price is the field the server k
 mail-vs-content detection on (`.` in `rest[:8]`, above). Collect all four, then build the
 payload.
 
+**⚠ Collecting the four fields does not start the upload — it opens the upload sub-context
+(normative).** Accepting them sends **nothing**; it puts the client in the **upload sub-context**
+(§4.8), whose row is `SEND`, `LOAD`, `GET`, `FINISH`. `U` goes on the wire when the user issues
+`SEND`, and **it carries the metadata every time** — steps 1 and 2 below run once *per frame*, not
+once per upload. (Verified by live testing, 2026-05-14; recorded in `docs/PROTOCOL.md`, "Content
+UPLOAD Flow". This is a difference from mail send, where the recipients are validated once.)
+
+The four commands are §4.7's, with §4.7's meanings; what this section fixes is their *function
+here*, so that a client meeting the row does not have to guess (the §4.7 closed-vocabulary rule
+again):
+
+| Command | Function in the upload sub-context |
+|---|---|
+| `SEND` | Send **one** frame: `U` + metadata, the validation reply, then the frame (steps 1–2), repeated per frame |
+| `LOAD` | Read a page back from local storage into view (§4.7), for uploading material saved earlier |
+| `GET` | Load editor frames from local storage (§8.4.1) — the same local facility the editor offers |
+| `FINISH` | Complete the upload — step 3's `P`, which commits the page and returns the directory |
+
+**⚠ `SEND` and `FINISH` are two commands doing two jobs**, exactly as in mail composition
+(§8.2.2): one adds a frame, the other ends the exchange. A client that collapses them into a
+single "upload" button has implemented a form, not this context — and has no way to send a
+second frame. There is no command in the row to *abandon* the exchange: `ABORT` (§4.7) exists
+for that, but the row is these four, so a client **SHOULD** offer abandonment through its host
+environment (the reference client binds `Esc`) rather than adding a fifth word.
+
 **Validation stream (step 1 → server reply).** The server replies with a validation stream
 and remembers a pending-send state:
 

@@ -148,6 +148,9 @@ These are cheap to script and catch drift that reading cannot:
       send against §4.7/§4.8 (and, for Binding B, against the server's dispatch). *Zero* drift
       either way — implemented-but-undocumented is as much a defect as the reverse.
 - [ ] **Context table vs UI state.** For each context, assert the enabled set equals §4.8's row.
+      *(The reference client's implementation of both of the above is
+      `server/tests/test_client_conformance.py` — it parses the two sections out of this
+      specification, so the spec stays the authority rather than being copied into a test.)*
 - [ ] **Geometry by pixel census, not by eye.** Sample the rendered screen per column to confirm
       borders, divider and content columns (§7.7) — the layout errors in this project's history
       were all invisible to casual inspection and obvious to a census.

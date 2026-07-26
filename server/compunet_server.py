@@ -1915,10 +1915,19 @@ class CompunetSession:
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files
-                if child.children and not getattr(child, 'dynamic', None):
-                    child_slug = _page_slug(child.title)
-                    child_dir = getattr(child, '_dir_path', '')
-                    dir_json_path = os.path.join(child_dir, 'directory.json')
+                child_slug = _page_slug(child.title)
+                child_dir = getattr(child, '_dir_path', '')
+                dir_json_path = os.path.join(child_dir, 'directory.json')
+                # ⚠ Keep the sub-directory whenever one EXISTS, not only while it
+                # currently holds children. An authored-but-empty directory is
+                # real — §7.3 lists it with the (EMPTY) placeholder — and the
+                # narrower `if child.children` test DELETED it: the next save
+                # wrote the entry back without its `directory` key, so the
+                # sub-tree became unreachable while its files sat on disk. Found
+                # in the fixture tree after clean-room run 9, where JUNGLE's
+                # GRAPHICS entry lost its directory to an unrelated upload.
+                if not getattr(child, 'dynamic', None) and (
+                        child.children or os.path.exists(dir_json_path)):
                     node['directory'] = os.path.relpath(dir_json_path, ROOT_DIR)
                     _save_dir_json(child, dir_json_path)
                 pages_list.append(node)

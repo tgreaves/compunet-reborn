@@ -178,7 +178,15 @@ See [docs/spec/api/](docs/spec/api/README.md).
 - **[server/terminal.py](server/terminal.py)** — PETSCII terminal mode (port 6401)
 - **[server/partyline.py](server/partyline.py)** — Multi-user partyline chat
 - **[server/cfg/](server/cfg/)** — Configuration (users, terminal.bin, templates)
-- **[server/data/](server/data/)** — Runtime content (not tracked in git)
+- **[server/data/](server/data/)** — Runtime content (not tracked in git; `content.test/` is,
+  as the fixture tree the tests run against)
+- **[server/tests/](server/tests/README.md)** — Regression tests: Binding B against the fixture
+  tree, and the reference client's command set against the specification. Stdlib `unittest`,
+  no dependencies
+
+```bash
+python server/tests/test_api_binding.py && python server/tests/test_client_conformance.py
+```
 
 ### Website
 
