@@ -35,8 +35,13 @@ REST for cacheable reads:
 | `GET`  | `/v1/gateway` (WebSocket upgrade) | the interactive session | 1 |
 | `GET`  | `/v1/dir/{page}` | a directory as JSON (cacheable, bearer auth) | done |
 | `GET`  | `/v1/frame/{page}[?index=N]` | a frame as a cell grid (bearer auth) | done |
+| `GET`  | `/v1/health` | `{"ok": true}` — liveness, **no auth** | done |
 
 `/v1/` is the version prefix so the binding can evolve without a ROM-style hash gate.
+
+`/v1/health` is the one endpoint that takes no credentials: it exists so a client can check the
+server is reachable *before* asking the user to log in, and so deployments have something to
+probe. It reveals nothing about the service beyond that it is running.
 
 **CORS is required (normative).** This binding exists to be called by clients served from a
 **different origin** — a web client on its own host, and the Electron shell, which serves its
