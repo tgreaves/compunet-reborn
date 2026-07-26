@@ -21,9 +21,10 @@ of in real data.
 |---|---|---|
 | `"open_upload": true` | The Jungle (600) | Uploads succeeding, `directory_full`, latent-directory creation (§8.3.2, §7.4) — **all three fail identically without it** |
 | `"open_upload": false` | THE ZOO (699) | That a child can **stop** the inheritance, and that its owner is still not locked out |
-| **14 entries** | The Jungle | Paging (§7.6) — `hasMore` is never true in a listing of 11 or fewer, so the paging path never runs |
-| `PAY TO VIEW`, £1.50 | The Jungle, page 2 | The **paid** half of the `SHOW`/`BUY` gate (§8.6.4) |
-| `PAID PAGE`, £2.50 | The Jungle | The **owned** half — blank price, no gate, when the account has already bought it |
+| An authored **`MORE` entry** | The Jungle (909) | Overflow the way the real service does it (§7.6): The Jungle holds 10 entries plus a `MORE` directory you enter like any other. Authored directories do **not** paginate |
+| **15 mail messages** | `mail.test` | The *generated*-listing exception — a mailbox is assembled by the server, so it carries a synthetic `MORE >>>>` row that pages when selected |
+| `PAY TO VIEW`, £1.50 | inside `MORE` | The **paid** half of the `SHOW`/`BUY` gate (§8.6.4) |
+| `PAID PAGE`, £2.50 | inside `MORE` | The **owned** half — blank price, no gate, when the account has already bought it |
 
 ## Keeping it usable
 
