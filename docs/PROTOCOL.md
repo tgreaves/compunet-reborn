@@ -1462,6 +1462,38 @@ the dispatch table at L_AE15, indexing into L_A176) are:
 `$30`=EDITR, `$5A`=MORE, `$66`=SEND, `$9C`=ID, `$A2`=DONE. An earlier revision of this document
 mis-decoded five of these seven.)*
 
+> **⚠ The Handler column above is misaligned with the Command column — do not read a row
+> across.** Disassembling the targets shows they do not do what their row says:
+>
+> ```
+> $B039  A9 4D     LDA #$4D      ; 'M'
+> $B03B  A0 01     LDY #$01      ; no parameters
+> $B03D  4C 5F A3  JMP $A35F     ; shared send+receive
+>
+> $B040  A9 49     LDA #$49      ; 'I'
+> $B042  8D 00 C1  STA $C100
+> $B045  A2 D6 A0 BD ...         ; prompt, then $B0D9 = "ID TO CHECK?"
+> ```
+>
+> `$B039` sends a bare `M`, so it cannot be SHOW — SHOW carries an entry index (`D`+index).
+> `$B040` is plainly the ID lookup. Of the seven mail commands, the only one that can be the
+> bare-`M` sender is **MORE**: DIR and SHOW carry an index, SEND sends `U`, ID sends `I`, and
+> EDITR/DONE are client-side. So:
+>
+> **MORE in the mail menu sends `M` with no parameters** — `M` while already in mail mode
+> advances the mailbox by one page. This is why MORE exists in the mail row when the directory
+> row deliberately has none (spec §4.8): the mailbox is a *generated* listing that can overflow,
+> and the mail response carries no synthetic pagination row, so MORE is the only way to reach
+> page 2 of a mailbox.
+>
+> **Unconfirmed:** the exact shift. The dispatcher at `$AE1C` reads `$8033`, doubles it, and
+> uses the RTS trick on the byte pairs at `$AE28`/`$AE29`, so the handler for menu index *i* is
+> at `$AE28 + 2i` — but `$8033` is set to **1** on mail entry, and index 0 (DIR) would resolve
+> to garbage (`$6049`), so the two tables are not indexed identically. Both candidate alignments
+> leave one command implausibly placed. The `MORE` → `M` mapping above is independent of that
+> question and is what the server implements; the rest of the Handler column should be treated
+> as unverified until someone reads the dispatcher against a live trace.
+
 The initial $8033 value is set to 1 on mail entry. L_AE1C dispatches based
 on $8033 using the handler address table at $AE2A.
 

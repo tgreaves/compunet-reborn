@@ -1105,6 +1105,25 @@ def handle_message(session, msg):
         cmd = b'P' if t == "enter" else b'D'
         return _drive(session, cmd + str(i).encode('ascii'), mid)
     if t == "more":
+        # ⚠ MORE is context-sensitive on the wire, and this binding sent the
+        # DIRECTORY byte everywhere. In Courier with no message open, bare `D`
+        # falls into _cmd_mail_show, where the absent index defaults to 0 and
+        # OPENS the first message — MORE silently became SHOW, and marked mail
+        # read on the way. The mail duckshoot's MORE sends `M`, verified from
+        # the original C64 client: its handler at $B039 is LDA #$4D / LDY #$01
+        # (no params) / JMP $A35F, and the core answers `M`-while-in-mail-mode
+        # by advancing the mailbox one page (_cmd_mail).
+        #
+        # This is why MORE exists in the mail row when the directory row
+        # deliberately has none (§4.8): the mailbox is GENERATED and can
+        # overflow, but _make_mail_response emits no synthetic pagination row
+        # (§7.6), so MORE is the only way to reach page 2 of a mailbox.
+        #
+        # While a message IS open, MORE pages the message — that is bare `D`,
+        # which _cmd_mail_show's first branch handles.
+        if getattr(session, 'mail_mode', False) and \
+                getattr(session, 'mail_show_msg', None) is None:
+            return _drive(session, b'M', mid, expect='directory')
         return _drive(session, b'D', mid)
 
     # ⚠ There is deliberately NO paging command. Authored directories do not

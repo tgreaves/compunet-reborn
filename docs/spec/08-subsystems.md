@@ -50,6 +50,20 @@ directory listing.
   send (§A.11).
 - **Read a message:** selecting a message entry (with `D` + index) returns the message body
   as frame(s) (§6), paged like any other content.
+- **⚠ `MORE` means two different things in Courier, and sends two different bytes
+  (normative).** While a message is open it pages the **message** — bare `D`, like any other
+  content. In the **listing** it pages the **mailbox**, and that is **`M`**: `M` issued while
+  already in mail mode advances the mailbox by one page. A client that sends bare `D` here gets
+  the index defaulted to 0 and **opens the first message** — `MORE` silently becomes `SHOW`, and
+  marks mail read on the way. (Verified in the original C64 client: the mail menu's bare-`M`
+  handler at `$B039` is `LDA #$4D / LDY #$01 / JMP $A35F`. See `docs/PROTOCOL.md`, which had the
+  mail menu's handler column misaligned.)
+- **⚠ This is why the mail row has a `MORE` and the directory row does not** (§4.8). Authored
+  directories do not paginate at all, and generated listings carry the synthetic pagination row
+  of §7.6 — but the **mailbox response carries no such row**, so `MORE` is the only way to reach
+  page 2 of a mailbox. The general rule ("paging a listing is a selection gesture") has this one
+  documented exception, and it is why the mail menu is a *distinct* command table rather than the
+  directory's with substitutions.
 - **Send a message:** mail send uses the upload command `U` — see §8.3, which distinguishes
   mail-send from content-upload by the parameter shape. The user-facing flow is §8.2.1.
 

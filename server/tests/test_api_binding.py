@@ -114,6 +114,35 @@ class ReplyTypeInference(unittest.TestCase):
         self.assertEqual(reply.get('context'), 'ucat')
         self.assertNotEqual(reply.get('context'), 'mail')
 
+    def test_more_in_the_mailbox_pages_the_mailbox(self):
+        """MORE in Courier sent the DIRECTORY byte (bare `D`), which the core
+        reads as mail-show with a defaulted index of 0 — so MORE opened the
+        first message instead of paging, silently becoming SHOW (and marking
+        the message read). The mail duckshoot's MORE sends `M`; verified from
+        the original client's handler at $B039 (LDA #$4D, no params)."""
+        s = session()
+        first = send(s, type='mail.list')
+        self.assertEqual(first['type'], 'directory')
+        reply = send(s, type='more')
+        self.assertEqual(reply['type'], 'directory',
+                         'MORE in the mailbox must page the listing, not open a message')
+        self.assertIsNone(getattr(s, 'mail_show_msg', None),
+                          'MORE must not open a message')
+        self.assertNotEqual([e['title'] for e in reply['entries']],
+                            [e['title'] for e in first['entries']],
+                            'the second page should not repeat the first')
+
+    def test_more_while_reading_a_message_still_pages_the_message(self):
+        """The other half of the same context rule: with a message open, MORE
+        advances its frames (bare `D`), which is what §4.8's mail row means by
+        'SHOW reads the highlighted message, MORE pages it'."""
+        s = session()
+        send(s, type='mail.list')
+        opened = send(s, type='mail.read', index=0)
+        self.assertEqual(opened['type'], 'frame')
+        self.assertIsNotNone(getattr(s, 'mail_show_msg', None))
+        self.assertEqual(send(s, type='more')['type'], 'frame')
+
     def test_mail_mode_does_not_outlive_mail(self):
         """F18. `goto` was inert in Courier, and mail mode survived `ucat`."""
         s = session()
