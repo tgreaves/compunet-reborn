@@ -1,7 +1,7 @@
 {
   "name": "compunet-reborn-desktop",
   "productName": "Compunet Reborn",
-  "version": "0.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Compunet Reborn desktop client (Electron shell around the web client)",
   "main": "main.js",
