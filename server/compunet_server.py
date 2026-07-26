@@ -427,8 +427,12 @@ class CompunetDirectory:
                 page.shortcuts = sub_data.get('shortcuts', None)
                 if sub_data.get('header'):
                     page.header = sub_data['header']
-                if sub_data.get('open_upload'):
-                    page.open_upload = True
+                # Store the flag only when the key is PRESENT, so that an
+                # explicit `false` is distinguishable from "not set" — the
+                # former stops inheritance, the latter defers to the ancestor
+                # (see _can_upload_here).
+                if 'open_upload' in sub_data:
+                    page.open_upload = bool(sub_data['open_upload'])
                 for child_data in sub_data.get('pages', []):
                     child = self._build_flat_page(child_data, page, sub_base_dir)
                     page.children.append(child)
@@ -563,16 +567,30 @@ class CompunetSession:
             return self._make_error(ascii_to_petscii('UNKNOWN COMMAND'))
     
     def _can_upload_here(self):
-        """Check if current user can upload/create DIRs in the current page."""
+        """May the current user upload / create directories in the current page?
+
+        Order matters:
+
+        1. Admins and editors may write anywhere.
+        2. The **owner** of a directory may always write to it, whatever the
+           open-upload setting says — a user cannot be locked out of their own
+           space by an inherited `false`.
+        3. Otherwise the **nearest explicit** `open_upload` decides. The flag is
+           INHERITED: setting it on The Jungle opens everything beneath it, so
+           each sub-directory does not have to repeat it. A child that sets it
+           explicitly to `false` **stops** that inheritance for itself and its
+           own descendants — which is how a user keeps their own Jungle
+           directory private while the Jungle around it stays open.
+        4. With no setting anywhere on the path, uploads are refused.
+        """
         if self.is_admin or self.is_editor:
             return True
         if self.current_page.author == self.user_id:
             return True
-        # Check if this page or any ancestor has open_upload set
         page = self.current_page
         while page is not None:
-            if getattr(page, 'open_upload', False):
-                return True
+            if hasattr(page, 'open_upload'):      # present => authoritative
+                return bool(page.open_upload)
             page = page.parent
         return False
 
@@ -1861,8 +1879,11 @@ class CompunetSession:
         def _save_dir_json(page, json_path):
             """Write a directory JSON for a page's children."""
             data = {}
-            if hasattr(page, 'open_upload') and page.open_upload:
-                data['open_upload'] = True
+            # Round-trip the flag whenever it is set, including an explicit
+            # `false` — writing back only the truthy case would silently drop a
+            # directory's opt-out and reopen it to everyone (_can_upload_here).
+            if hasattr(page, 'open_upload'):
+                data['open_upload'] = bool(page.open_upload)
             if hasattr(page, 'header') and page.header:
                 data['header'] = page.header
             if hasattr(page, '_adverts') and page._adverts:

@@ -86,6 +86,25 @@ stamp). Then start a **brand-new** agent session (a fresh `claude` in that direc
 otherwise isolated agent) — not a continuation of any session that has seen the codebase —
 and give it the brief below.
 
+## Test data the server must carry
+
+⚠ **Content lives in `server/data/`, which is not tracked in git** — so these fixtures do not
+travel with a checkout and must be set up on whichever server the run targets. Without them the
+builder cannot reach several normative obligations, and (worse) reports them as faults: the
+seventh run listed six items as unverifiable, and five were missing fixtures rather than bugs.
+
+| Fixture | Why | Set up |
+|---|---|---|
+| A directory the test account may write to | Uploads, `directory_full`, latent-directory creation (§8.3.2, §7.4) — all three fail identically without it | `"open_upload": true` on The Jungle's `directory.json`. Inherited by descendants; a child may set `false` to opt out |
+| A **paid** page the account has **not** bought | The `SHOW`-refuses / `BUY`-confirms gate (§8.6.4). A paid page the account already owns shows a blank price and exercises only the free half | A page with `price > 0` whose number is absent from the user's `purchased` list |
+| A listing of **more than 11** entries | Paging (§7.6) — `hasMore` is otherwise never true and the paging path never runs | Add entries until the listing exceeds 11 |
+
+Keep the paid page **unpurchased between runs**: buying it is part of the test, so reset the
+account's `purchased` list and credit afterwards, or the next run sees a free page.
+
+Also make sure the account is a **normal** one, not an administrator — admins bypass
+`_can_upload_here` entirely, so a run as admin proves nothing about the permission rules.
+
 ## The brief (paste this to the fresh agent)
 
 > You are building a client from a protocol specification. The **only** reference material

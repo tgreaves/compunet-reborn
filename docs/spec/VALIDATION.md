@@ -409,9 +409,31 @@ was reached except the items it listed as unverifiable (below). All findings are
 | The paid half of the `BUY`/`SHOW` gate | No content on the server carries a price |
 | Program **upload** | Behind the same `permission_denied`; program *download* works |
 
-The first three are one question — whether a normal account can write anywhere on this server —
-and want a fixture directory the test account owns. The next two need test content. None is a
-protocol gap.
+**All six were resolved after the run, and five were test-data gaps rather than faults:**
+
+- The three write obligations were one question. `_can_upload_here` is correct — owner, or
+  admin/editor, or an inherited `open_upload` — but **`open_upload` was set on no directory in
+  the content tree**, and The Jungle's author is `JUNGLE`, not a real account, so neither branch
+  could fire. A code rule with no data to trigger it. With The Jungle opened, all three verified:
+  an upload lands and appears in the refreshed listing; the twelfth entry is refused with
+  `directory_full`; and `DIR` on a `+`-less entry opens a new empty directory, which is §7.4's
+  hierarchy-building mechanism.
+- Paging needed a listing longer than 11. With one: 11 entries and `hasMore`, then `dir.more`
+  returns the rest.
+- The price gate was a **misreading, not missing data**. The paid page existed and cost £2.50 —
+  it showed blank because the test account had **already bought it**, and a purchased page
+  correctly has no price. Only the free half of the table was ever reachable. With an unbought
+  paid page the whole cycle checks out: the price appears right-justified in the PRICE column,
+  opening it deducts the credit, and the price then blanks because the page is owned.
+
+The fixtures are now listed in [CLEANROOM.md](CLEANROOM.md) — content is not tracked in git, so
+they must be set up per server or the next run hits the same walls and reports them as faults.
+
+While opening The Jungle, `open_upload` gained a proper inheritance model: it flows down, a child
+may set it explicitly to `false` to stop that, and an owner is never locked out of their own
+directory by an inherited `false`. That needed three changes, one of them latent and nasty — the
+tree-save path wrote the flag back only when truthy, so saving a directory would have **dropped a
+child's opt-out and silently reopened it**.
 
 ## Conclusion
 
