@@ -1176,12 +1176,18 @@ def handle_message(session, msg):
         if i is None:
             return {"type": "error", "id": mid, "code": "not_found",
                     "message": "no such message"}
-        # An out-of-range index used to fall through and return the mailbox
-        # listing, which reads as "your message is a directory" (F36).
+        # ⚠ Bound to the VISIBLE page, not the whole mailbox. `index` is scoped
+        # to the listing on screen (api §4), so on a paged mailbox an index past
+        # the displayed messages must fail — it used to return a message the
+        # user could not see, and index 10 hit the MORE row's position.
         msgs = _mail_messages(session)
-        if not (0 <= int(i) < len(msgs)):
+        offset = getattr(session, 'mail_page_offset', 0)
+        visible = len(msgs) - offset
+        if visible > 11:
+            visible = 10          # the MORE row takes the eleventh slot (F14)
+        if not (0 <= int(i) < max(0, visible)):
             return {"type": "error", "id": mid, "code": "not_found",
-                    "message": "no message at index %s" % i}
+                    "message": "no message at index %s on this page" % i}
         return _drive(session, b'D' + ('%02d' % int(i)).encode('ascii'), mid)
 
     if t == "idlookup":
