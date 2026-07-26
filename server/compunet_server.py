@@ -3549,14 +3549,28 @@ async def main():
         log.info('REST API on port %d', API_PORT)
 
         # Binding B — modern JSON client API, its own isolated app + port (6404).
-        import sys as _sys
-        import api_binding
-        client_api = api_binding.make_app(_sys.modules[__name__])
-        client_runner = aiohttp_web.AppRunner(client_api)
-        await client_runner.setup()
-        client_site = aiohttp_web.TCPSite(client_runner, '0.0.0.0', CLIENT_API_PORT)
-        await client_site.start()
-        log.info('Client API (Binding B) on port %d', CLIENT_API_PORT)
+        #
+        # ⚠ A failure here MUST NOT take the server down. Binding B is a second
+        # binding over the same core (§1.8), not a dependency of the first: the
+        # C64 and Amiga clients on 6400 do not touch a line of it. An unguarded
+        # import meant a deployment that shipped compunet_server.py without
+        # api_binding.py died at startup and took the framed protocol with it —
+        # every vintage client offline because a JSON module was absent. The
+        # REST API above already degrades this way when aiohttp is missing;
+        # this now matches it.
+        try:
+            import sys as _sys
+            import api_binding
+            client_api = api_binding.make_app(_sys.modules[__name__])
+            client_runner = aiohttp_web.AppRunner(client_api)
+            await client_runner.setup()
+            client_site = aiohttp_web.TCPSite(client_runner, '0.0.0.0', CLIENT_API_PORT)
+            await client_site.start()
+            log.info('Client API (Binding B) on port %d', CLIENT_API_PORT)
+        except Exception:
+            log.exception('Client API (Binding B) failed to start on port %d — '
+                          'continuing without it; the framed protocol is unaffected',
+                          CLIENT_API_PORT)
     else:
         log.warning('aiohttp not installed — REST API disabled')
 
