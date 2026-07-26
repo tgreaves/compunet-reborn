@@ -33,6 +33,7 @@ server/data/votes.json
 server/data/content/
 server/data/partyline.jsonl
 server/data/audit.jsonl
+server/data/mail.test/
 
 # Virtual environments
 server/venv/
