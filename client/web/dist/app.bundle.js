@@ -176,9 +176,8 @@ var Renderer = class {
     const s = this.scale, row = ROWS;
     this.ctx.fillStyle = this.assets.palette[0];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
-    const start = Math.max(0, Math.floor((COLS - text.length) / 2));
-    for (let i = 0; i < text.length && start + i < COLS; i++)
-      this.drawGlyph({ g: asciiGlyph(text[i]), fg: 1, bg: 0, rv: 0 }, start + i, row);
+    for (let i = 0; i < text.length && i < COLS; i++)
+      this.drawGlyph({ g: asciiGlyph(text[i]), fg: 1, bg: 0, rv: 0 }, i, row);
   }
   renderDuckshoot(words, centre) {
     const s = this.scale, row = ROWS, WORD = 6, VISIBLE = 7, MID = 3;
@@ -538,6 +537,10 @@ function onMessage(m) {
       break;
     }
     case "directory":
+      if (mailDownloading) {
+        pendingMailListing = m;
+        break;
+      }
       mode = "directory";
       dir = m;
       sel = 0;
@@ -966,6 +969,8 @@ async function idCheck() {
 var pendingMail = null;
 var outgoing = [];
 var awaitingKey = false;
+var mailDownloading = false;
+var pendingMailListing = null;
 var sentTo = "";
 var courierActions = {
   // SEND transmits the frames one at a time, as the original does; FINISH ends
@@ -1092,6 +1097,25 @@ function saveBase64(b64, filename) {
   a.click();
   URL.revokeObjectURL(url);
 }
+async function showMail(index) {
+  mailDownloading = true;
+  let reply = await request({ type: "mail.read", index });
+  let frames = 0;
+  while (reply.type === "frame") {
+    frames++;
+    reply = await request({ type: "more" });
+  }
+  mailDownloading = false;
+  if (reply.type === "error") {
+    render();
+    status(`Could not read the message: ${reply.message ?? ""}`, true);
+    return;
+  }
+  pendingMailListing = reply;
+  awaitingKey = true;
+  render();
+  status(`${frames} frame(s) \u2014 now in the editor, readable offline. Press any key.`);
+}
 var actions = {
   // In the mailbox, SHOW reads the highlighted message (§8.2); otherwise it opens the entry.
   // SHOW refuses a paid page — the user must go through BUY (§8.6.4).
@@ -1099,7 +1123,7 @@ var actions = {
     const e = curEntry();
     if (!e) return;
     if (dir?.context === "mail") {
-      gw.send({ type: "mail.read", index: e.index });
+      void showMail(e.index);
       return;
     }
     if (curPrice()) {
@@ -1262,7 +1286,13 @@ var CONTEXT_COMMANDS = {
   frame: ["MORE", "ALL", "FINISH"],
   // multi-frame only; single frame shows PRESS ANY KEY
   mail: ["SEND", "SHOW", "MORE", "ID", "EDITR", "DONE"],
-  mailFrame: ["SEND", "SHOW", "MORE", "ID", "EDITR", "DONE"],
+  // ⚠ Empty, and NOT an oversight. Reading a mail message has NO duckshoot: in
+  // Courier, SHOW behaves like ALL — it pulls every frame of the message and
+  // ends on PRESS ANY KEY (§8.2), so there is nothing to choose while it runs
+  // and nothing to choose at the end. Any key returns to the mailbox. Offering
+  // the mail row here would imply the message can be paged command-by-command,
+  // which is not how Courier reads mail.
+  mailFrame: [],
   // Message composition (§8.2.1), reached once subject and recipients are
   // accepted. SEND adds a frame, FINISH transmits — distinct commands.
   courierSend: ["SEND", "FINISH", "LAST", "NEXT", "EDITR"],
@@ -1382,7 +1412,10 @@ window.addEventListener("keydown", (e) => {
   if (awaitingKey) {
     awaitingKey = false;
     courier = null;
-    render();
+    const held = pendingMailListing;
+    pendingMailListing = null;
+    if (held) onMessage(held);
+    else render();
     e.preventDefault();
     return;
   }

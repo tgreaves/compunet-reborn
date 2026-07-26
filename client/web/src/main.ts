@@ -98,6 +98,10 @@ function onMessage(m: ServerMsg): void {
       break;
     }
     case 'directory':
+      // ⚠ A mail download ends by returning the mailbox (§8.2). Applying it here
+      // would replace the message on screen with the listing before the user has
+      // read a word of it; showMail holds it until they press a key.
+      if (mailDownloading) { pendingMailListing = m; break; }
       mode = 'directory'; dir = m as DirectoryMsg; sel = 0; colIdx = 0;
       isWelcome = false;
       const wasMail = inMail;
@@ -566,6 +570,11 @@ let pendingMail: { subject: string; ids: string[] } | null = null;
 let outgoing: ReturnType<EditorBuffer['toFrames']> = [];
 /** A PRESS ANY KEY screen is showing; the next key dismisses it (§4.8). */
 let awaitingKey = false;
+/** SHOW is pulling a message's frames (§8.2). While this is set, the mailbox
+ *  listing that ends the download must NOT be rendered — see showMail. */
+let mailDownloading = false;
+/** The listing held back by that download, applied on the next keypress. */
+let pendingMailListing: ServerMsg | null = null;
 /** Recipients of the message in flight, for the delivery confirmation. */
 let sentTo = '';
 
@@ -680,12 +689,49 @@ function saveBase64(b64: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+/** ⚠ SHOW in Courier is not "open the message" — it behaves like `ALL` (§8.2):
+ *  it pulls EVERY frame of the message as fast as it can, then stops on
+ *  `PRESS ANY KEY`. There is no duckshoot while it runs and none at the end.
+ *
+ *  The point is the editor. Frames stream into the buffer as they arrive
+ *  (§8.4.2), so the user can hang up and read their mail offline — which is
+ *  what the whole download-it-all gesture was FOR on a metered phone line.
+ *
+ *  The wire is already this shape: `D`+index gives frame 0, bare `D` advances,
+ *  and after the last frame the server clears the message and answers with the
+ *  mailbox — so the loop terminates on "the reply stopped being a frame",
+ *  exactly as §4.7 defines ALL. */
+async function showMail(index: number): Promise<void> {
+  // Each frame reply flows through onMessage on its way here, which renders it
+  // and captures it — the download is visible, as it was on the C64.
+  mailDownloading = true;
+  let reply = await request({ type: 'mail.read', index });
+  let frames = 0;
+  while (reply.type === 'frame') {
+    frames++;
+    reply = await request({ type: 'more' });
+  }
+  mailDownloading = false;
+  if (reply.type === 'error') {
+    render();
+    status(`Could not read the message: ${(reply as { message?: string }).message ?? ''}`, true);
+    return;
+  }
+  // ⚠ The reply that ENDED the loop is the mailbox listing. Hold it back until
+  // the user presses a key: rendering it here would wipe the last frame off the
+  // screen the instant it arrived, leaving nothing to read.
+  pendingMailListing = reply;
+  awaitingKey = true;
+  render();
+  status(`${frames} frame(s) — now in the editor, readable offline. Press any key.`);
+}
+
 const actions: Record<string, () => void> = {
   // In the mailbox, SHOW reads the highlighted message (§8.2); otherwise it opens the entry.
   // SHOW refuses a paid page — the user must go through BUY (§8.6.4).
   SHOW: () => {
     const e = curEntry(); if (!e) return;
-    if (dir?.context === 'mail') { gw.send({ type: 'mail.read', index: e.index }); return; }
+    if (dir?.context === 'mail') { void showMail(e.index); return; }
     if (curPrice()) { status('PLEASE USE BUY'); return; }
     gw.send({ type: 'open', page: e.page });
   },
@@ -788,7 +834,13 @@ const CONTEXT_COMMANDS: Record<Context, string[]> = {
               'LEAVE', 'PRINT', 'LIFE', 'BUY', 'LOAD', 'UPLD', 'VOTE'],
   frame:     ['MORE', 'ALL', 'FINISH'],   // multi-frame only; single frame shows PRESS ANY KEY
   mail:      ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
-  mailFrame: ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
+  // ⚠ Empty, and NOT an oversight. Reading a mail message has NO duckshoot: in
+  // Courier, SHOW behaves like ALL — it pulls every frame of the message and
+  // ends on PRESS ANY KEY (§8.2), so there is nothing to choose while it runs
+  // and nothing to choose at the end. Any key returns to the mailbox. Offering
+  // the mail row here would imply the message can be paged command-by-command,
+  // which is not how Courier reads mail.
+  mailFrame: [],
   // Message composition (§8.2.1), reached once subject and recipients are
   // accepted. SEND adds a frame, FINISH transmits — distinct commands.
   courierSend: ['SEND', 'FINISH', 'LAST', 'NEXT', 'EDITR'],
@@ -939,9 +991,15 @@ window.addEventListener('keydown', (e) => {
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
   if (inParty) return;
 
-  // A PRESS ANY KEY screen (ID results, §8.2.1): any key returns to the mailbox.
+  // A PRESS ANY KEY screen (ID results §8.2.1, a read message §8.2): any key
+  // returns to the mailbox. After SHOW that means applying the listing the
+  // download held back; after an ID check there is nothing to apply and the
+  // mailbox is already behind the COURIER frame.
   if (awaitingKey) {
-    awaitingKey = false; courier = null; render();
+    awaitingKey = false; courier = null;
+    const held = pendingMailListing;
+    pendingMailListing = null;
+    if (held) onMessage(held); else render();
     e.preventDefault(); return;
   }
 

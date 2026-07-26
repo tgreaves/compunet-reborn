@@ -153,12 +153,18 @@ class ContextCoverage(unittest.TestCase):
         client = client_contexts()
         self.assertEqual(client['welcome'], client['directory'][:len(client['welcome'])])
 
-    def test_partyline_and_idle_offer_nothing(self):
-        """§4.8: Partyline offers none of the normal commands. §8.4: with no
-        session there is no Compunet screen, so no command row either."""
+    def test_contexts_the_spec_says_have_no_duckshoot_have_none(self):
+        """§4.8 has rows whose command set is "none — no duckshoot at all", and
+        a client that fills them in has invented a context the original lacks.
+
+        - `mailFrame`: reading a mail message. SHOW downloads the whole message
+          and ends on PRESS ANY KEY (§8.2) — there is nothing to choose.
+        - `partyline`: chat, none of the normal commands apply.
+        - `idle`: no session means no Compunet screen, so no row (§8.4.2) —
+          NOT because the editor is unavailable offline, which it is not."""
         client = client_contexts()
-        self.assertEqual(client['partyline'], [])
-        self.assertEqual(client['idle'], [])
+        for ctx in ('mailFrame', 'partyline', 'idle'):
+            self.assertEqual(client[ctx], [], '%s must offer no commands' % ctx)
 
 
 if __name__ == '__main__':

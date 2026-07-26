@@ -368,9 +368,10 @@ This table consolidates the contexts and is the authority for *when* each comman
 |---|---|---|
 | **Welcome frame** (just logged in, §3.5) | the **same row as a directory** (below) | The welcome screen is not a "reading" context: it carries the directory row, with **`HELP` — the first command — centred by default**. `DIR` must therefore be reachable here (§4.7); `MORE`/`FINISH` are **not** offered |
 | **Directory listing** | `HELP`, `DIR`, `SHOW`, `BACK`, `GOTO`, `UCAT`, `MAIL`, `ACCNT`, `SAVE`, `EDITR`, `LEAVE` | The row the original presents, **in its display order**, with `HELP` centred by default. The remaining commands of §4.7 (`PRINT`, `LIFE`, `BUY`, `LOAD`, `UPLD`, `VOTE`) exist and are reachable, but sit **beyond the displayed count** — see §4.9.4. Commands acting on a highlighted entry (`SHOW`, `DIR`, `VOTE`, `LIFE`, `BUY`) require a selection |
-| **Reading a single-frame page** | **none — no duckshoot at all** | The row is replaced by the prompt **`PRESS ANY KEY`**. There is nothing to page and nothing to choose, so no commands are offered. Any key returns to whatever was on screen before — which is how `HELP` (§A.8) gets back, since `FINISH` is not offered here |
+| **Reading a single-frame page** | **none — no duckshoot at all** | The row is replaced by the prompt **`PRESS ANY KEY`**, **left justified** (⚠ see below). There is nothing to page and nothing to choose, so no commands are offered. Any key returns to whatever was on screen before — which is how `HELP` (§A.8) gets back, since `FINISH` is not offered here |
 | **Reading a multi-frame page** | `MORE`, `ALL`, `FINISH` — in that order | **Only** these. There is no `FINISH` in a directory and no `MORE` in one (§4.7) |
-| **Mail (Courier, §8.2)** — listing and message | `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `SHOW` reads the highlighted message. **`MORE` is context-sensitive**: reading a message it pages the message (`D`), and in the listing it pages the **mailbox** (`M`) — see §8.2. **`DONE` returns the user to where they were before entering Courier** — see the note below |
+| **Mail (Courier, §8.2)** — the **listing only** | `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `MORE` pages the **mailbox** (`M`, §8.2) — there is no other way to reach page 2. `SHOW` **downloads the whole message** and leaves a `PRESS ANY KEY` screen (next row). **`DONE` returns the user to where they were before entering Courier** — see the note below |
+| **Reading a mail message** (§8.2) | **none — no duckshoot at all** | `SHOW` behaves like `ALL`: it pulls **every** frame of the message as fast as it can, ending on **`PRESS ANY KEY`**; any key returns to the mailbox. So there is no row *during* the download and none at the end. ⚠ Do **not** offer the mail row here — that implies a message is paged command-by-command, which Courier does not do. The purpose is the **editor**: the frames land in the buffer (§8.4.2) so mail can be read **offline**, which is what the gesture was for on a metered line |
 | **Mail composition** (§8.2.2) | `SEND`, `FINISH`, `LAST`, `NEXT`, `EDITR` | Reached once `SEND`'s subject and recipients are accepted. `SEND` adds **one** editor frame to the message, `FINISH` completes and delivers it — two commands, two jobs. `LAST`/`NEXT` page the editor's frames |
 | **Mail `ID` results** (§8.2.1) | **none — no duckshoot at all** | Replaced by the prompt **`PRESS ANY KEY`**; any key returns to the mailbox |
 | **Upload / send** (§8.3.2) | `SEND`, `LOAD`, `GET`, `FINISH` | The original entered an upload sub-context with its own set. Entered once the title/type/price/lifetime are accepted; **each command's function here is defined in §8.3.2**, and `SEND`/`FINISH` are two jobs as in composition |
@@ -420,6 +421,13 @@ question, asked at the moment the frame appears, when the flag is the only signa
 it for the row; use the response for the paging. If the flag was optimistic the user presses
 `MORE` and lands back in the directory — which is exactly what the original does (§6.5).
 (VALIDATION.md, F28.)
+
+**⚠ `PRESS ANY KEY` is LEFT JUSTIFIED (normative).** It occupies the same row the duckshoot
+would, and that row is written from the **left edge** — so the prompt starts at column 0, not
+centred. Centring it is an easy and invisible mistake: the text looks fine on its own, but the
+bottom row visibly jumps sideways as the user moves between reading a page and choosing a
+command, which the original never does. This applies to every `PRESS ANY KEY` screen in this
+table — single-frame pages, `ID` results, and a downloaded mail message.
 
 **Selection-dependent commands.** `SHOW`, `DIR`, `VOTE`, `LIFE` and `BUY` act on the
 **highlighted entry** (§4.5). When no entry is highlighted — an empty directory, or a listing

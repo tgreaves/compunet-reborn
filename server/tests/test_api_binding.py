@@ -132,16 +132,34 @@ class ReplyTypeInference(unittest.TestCase):
                             [e['title'] for e in first['entries']],
                             'the second page should not repeat the first')
 
-    def test_more_while_reading_a_message_still_pages_the_message(self):
-        """The other half of the same context rule: with a message open, MORE
-        advances its frames (bare `D`), which is what §4.8's mail row means by
-        'SHOW reads the highlighted message, MORE pages it'."""
+    def test_show_downloads_a_whole_message_and_ends_at_the_mailbox(self):
+        """⚠ Courier does not page a message — `SHOW` pulls ALL of it (§8.2),
+        like `ALL`: `D`+index, then bare `D` until the reply stops being a
+        frame. The client drives that loop, so the contract it depends on is
+        that the loop TERMINATES, and terminates holding the mailbox.
+
+        With a message open, `more` must therefore stay on bare `D` (advance a
+        frame) rather than paging the mailbox — the other half of the rule
+        tested above."""
         s = session()
         send(s, type='mail.list')
-        opened = send(s, type='mail.read', index=0)
-        self.assertEqual(opened['type'], 'frame')
+        reply = send(s, type='mail.read', index=0)
+        self.assertEqual(reply['type'], 'frame')
         self.assertIsNotNone(getattr(s, 'mail_show_msg', None))
-        self.assertEqual(send(s, type='more')['type'], 'frame')
+
+        frames = 0
+        while reply['type'] == 'frame':
+            frames += 1
+            self.assertLess(frames, 50, 'SHOW loop did not terminate')
+            reply = send(s, type='more')
+
+        self.assertGreater(frames, 0)
+        self.assertEqual(reply['type'], 'directory',
+                         'the frame that ends the download must hand back a listing')
+        self.assertEqual(reply.get('context'), 'mail',
+                         'and that listing is the MAILBOX, not the content tree')
+        self.assertIsNone(getattr(s, 'mail_show_msg', None),
+                          'the message must be closed once its frames run out')
 
     def test_mail_mode_does_not_outlive_mail(self):
         """F18. `goto` was inert in Courier, and mail mode survived `ucat`."""

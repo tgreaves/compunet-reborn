@@ -1119,8 +1119,12 @@ def handle_message(session, msg):
         # overflow, but _make_mail_response emits no synthetic pagination row
         # (§7.6), so MORE is the only way to reach page 2 of a mailbox.
         #
-        # While a message IS open, MORE pages the message — that is bare `D`,
-        # which _cmd_mail_show's first branch handles.
+        # With a message OPEN this is not a MORE command at all — there is no
+        # duckshoot while reading mail (§4.8). It is the frame-advance step of
+        # SHOW's download loop: the client repeats it until the reply stops
+        # being a frame, exactly as ALL does (§8.2). Bare `D` is that step, and
+        # _cmd_mail_show's first branch answers it, returning the mailbox once
+        # the frames run out — which is what ends the loop.
         if getattr(session, 'mail_mode', False) and \
                 getattr(session, 'mail_show_msg', None) is None:
             return _drive(session, b'M', mid, expect='directory')

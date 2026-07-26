@@ -119,6 +119,17 @@ The server does not report these; a client that ignores them looks fine and lose
       looks right and drops the whole message header. Both show **five** slots.
 - [ ] **`ID` results are `PRESS ANY KEY`**, not a command row, and any key returns to the
       mailbox (§8.2.1). IDs and found names **blue**; `*** NO SUCH USER ***` **black**.
+- [ ] **⚠ `SHOW` in Courier downloads the WHOLE message** (§8.2) — every frame, as fast as the
+      line allows, ending on `PRESS ANY KEY` with **no duckshoot**, and every frame captured
+      into the editor so the mail can be read offline. A client that shows one frame and offers
+      the mail row has implemented content paging instead, and it *looks* right: the first frame
+      appears, the row is populated, nothing errors. Check the **editor buffer** afterwards —
+      if only one page arrived, this is wrong.
+- [ ] **⚠ `MORE` in Courier pages the MAILBOX** (§8.2), and there is no `MORE` while reading.
+      If MORE opens the highlighted message, the client is sending `D` where it should send `M`.
+- [ ] **⚠ `PRESS ANY KEY` is LEFT justified** (§4.8) — column 0, where the duckshoot starts.
+      Centred text looks perfectly reasonable in isolation; the tell is the bottom row jumping
+      sideways as you move between reading and choosing.
 - [ ] **Mail composition offers `SEND FINISH LAST NEXT EDITR`** (§8.2.2), with `SEND` adding
       **one** frame and `FINISH` completing the message — not one combined "send".
 - [ ] **Re-entering mail starts on `SEND`** (§4.9.4) — the mail row resets on leaving Courier.

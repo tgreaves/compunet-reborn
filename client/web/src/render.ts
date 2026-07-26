@@ -185,9 +185,11 @@ export class Renderer {
     const s = this.scale, row = ROWS;
     this.ctx.fillStyle = this.assets.palette[0];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
-    const start = Math.max(0, Math.floor((COLS - text.length) / 2));
-    for (let i = 0; i < text.length && start + i < COLS; i++)
-      this.drawGlyph({ g: asciiGlyph(text[i]), fg: 1, bg: 0, rv: 0 }, start + i, row);
+    // ⚠ LEFT justified, not centred (§4.8). The prompt replaces the duckshoot,
+    // and the duckshoot starts at the left edge — centring it makes the bottom
+    // row jump sideways as the client moves between reading and choosing.
+    for (let i = 0; i < text.length && i < COLS; i++)
+      this.drawGlyph({ g: asciiGlyph(text[i]), fg: 1, bg: 0, rv: 0 }, i, row);
   }
 
   renderDuckshoot(words: string[], centre: number): void {

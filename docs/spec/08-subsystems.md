@@ -48,16 +48,29 @@ directory listing.
   hierarchy, so the usual `*** COMPUNET *** / …` trail says nothing the title does not — and the
   owner's identity is what the sender needs, since it is the `FROM` shown on every message they
   send (§A.11).
-- **Read a message:** selecting a message entry (with `D` + index) returns the message body
-  as frame(s) (§6), paged like any other content.
-- **⚠ `MORE` means two different things in Courier, and sends two different bytes
-  (normative).** While a message is open it pages the **message** — bare `D`, like any other
-  content. In the **listing** it pages the **mailbox**, and that is **`M`**: `M` issued while
-  already in mail mode advances the mailbox by one page. A client that sends bare `D` here gets
-  the index defaulted to 0 and **opens the first message** — `MORE` silently becomes `SHOW`, and
-  marks mail read on the way. (Verified in the original C64 client: the mail menu's bare-`M`
-  handler at `$B039` is `LDA #$4D / LDY #$01 / JMP $A35F`. See `docs/PROTOCOL.md`, which had the
-  mail menu's handler column misaligned.)
+- **Read a message — `SHOW` downloads ALL of it (normative).** Courier does **not** page a
+  message frame by frame. `SHOW` sends `D`+index for the first frame and then **repeats bare
+  `D`** until the reply stops being a frame — the same loop §4.7 defines for `ALL` — pulling the
+  entire message as fast as the line allows, and ending on a **`PRESS ANY KEY`** screen with
+  **no duckshoot** (§4.8). The server clears the open message after the last frame and answers
+  with the **mailbox listing**, which is what terminates the loop; a client **MUST** hold that
+  listing back until the keypress, or the message it just fetched is wiped off the screen before
+  it can be read.
+
+  **⚠ The point is the editor, not the screen.** Every frame is captured into the editor buffer
+  on the way past (§8.4.2), so the user can hang up and read their mail **offline**. That is what
+  the download-it-all gesture was *for* on a metered phone line, and it is why `SHOW` behaves
+  unlike `SHOW` anywhere else in the system. A client that fetches one frame and waits has
+  implemented content paging, not Courier.
+- **⚠ `MORE` in Courier pages the MAILBOX, and sends `M` — not `D` (normative).** It is a
+  command of the **listing** row only (§4.8); there is no `MORE` while reading, because there is
+  no duckshoot while reading. `M` issued while already in mail mode advances the mailbox one
+  page. A client that sends bare `D` from the listing gets the index defaulted to 0 and **opens
+  the first message** — `MORE` silently becomes `SHOW`, marking mail read on the way. (Verified
+  in the original C64 client: the mail menu's bare-`M` handler at `$B039` is `LDA #$4D /
+  LDY #$01 / JMP $A35F`. See `docs/PROTOCOL.md`, which had the mail menu's handler column
+  misaligned.) Bare `D` in Courier is not a user command at all — it is the frame-advance step
+  of `SHOW`'s download loop, above.
 - **⚠ This is why the mail row has a `MORE` and the directory row does not** (§4.8). Authored
   directories do not paginate at all; generated listings page by *selection* (§7.6). But
   **Binding A's mailbox response carries no synthetic pagination row** — it emits up to eleven
