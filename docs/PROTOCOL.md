@@ -1483,8 +1483,8 @@ mis-decoded five of these seven.)*
 > **MORE in the mail menu sends `M` with no parameters** — `M` while already in mail mode
 > advances the mailbox by one page. This is why MORE exists in the mail row when the directory
 > row deliberately has none (spec §4.8): the mailbox is a *generated* listing that can overflow,
-> and the mail response carries no synthetic pagination row, so MORE is the only way to reach
-> page 2 of a mailbox.
+> and this response carries no synthetic pagination row (it emits up to eleven real entries and
+> nothing else), so on the wire MORE is the only way to reach page 2 of a mailbox.
 >
 > **Unconfirmed:** the exact shift. The dispatcher at `$AE1C` reads `$8033`, doubles it, and
 > uses the RTS trick on the byte pairs at `$AE28`/`$AE29`, so the handler for menu index *i* is

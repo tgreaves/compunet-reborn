@@ -59,11 +59,17 @@ directory listing.
   handler at `$B039` is `LDA #$4D / LDY #$01 / JMP $A35F`. See `docs/PROTOCOL.md`, which had the
   mail menu's handler column misaligned.)
 - **⚠ This is why the mail row has a `MORE` and the directory row does not** (§4.8). Authored
-  directories do not paginate at all, and generated listings carry the synthetic pagination row
-  of §7.6 — but the **mailbox response carries no such row**, so `MORE` is the only way to reach
-  page 2 of a mailbox. The general rule ("paging a listing is a selection gesture") has this one
-  documented exception, and it is why the mail menu is a *distinct* command table rather than the
-  directory's with substitutions.
+  directories do not paginate at all; generated listings page by *selection* (§7.6). But
+  **Binding A's mailbox response carries no synthetic pagination row** — it emits up to eleven
+  real entries and nothing else — so on the wire `MORE` is the **only** way to reach page 2 of a
+  mailbox. That is what the command is for, and why the mail menu is a *distinct* table rather
+  than the directory's with substitutions.
+
+  A binding that *does* add the pagination row (Binding B appends one to generated listings)
+  therefore offers **two** routes to the same place: the `MORE` command and selecting the row.
+  Both are conforming and both **MUST** work — the row is how the general §7.6 gesture applies
+  here, and `MORE` is the mail row's own command, which a client displays whether or not its
+  binding also draws the row.
 - **Send a message:** mail send uses the upload command `U` — see §8.3, which distinguishes
   mail-send from content-upload by the parameter shape. The user-facing flow is §8.2.1.
 
