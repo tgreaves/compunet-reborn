@@ -545,6 +545,37 @@ keys, and a client implementing the editor **SHOULD** provide all seven function
 | **f6** | colour on / off — when off, typing changes the character but not the colour under it |
 | **f7 / f8** | screen and border colour |
 
+**⚠ The cursor BLINKS, and it blinks in colour as well as in reverse video (normative).**
+A client offering the editor **MUST** show a blinking cursor, and it **MUST NOT** be possible for
+that cursor to become invisible. The original guarantees this with **two** mechanisms, and both
+are needed — implementing either alone leaves a cursor that vanishes:
+
+1. **Per-tick, it alternates with the cell's own colour.** Each blink toggles reverse video on
+   the character *and* chooses a colour: the client's current colour normally, but the **cell's
+   existing colour** if the two are identical. Because the choice is written back, the test flips
+   on the next tick, so the cursor oscillates between the two — a cursor that changes colour as
+   it blinks is correct, not a bug.
+2. **The drawing colour itself is derived from the background.** The client keeps its current
+   colour contrasting with the screen background by table lookup, so the cursor can never take
+   the background's colour. Where a client lets the user choose a drawing colour freely (as the
+   editor does), it **MUST** apply this as a final guard: a cursor the same colour as the cell it
+   sits on is invisible in **both** blink phases.
+
+The reference contrast table, indexed by background colour 0–15 — each entry is black or white,
+by luminance:
+
+```
+1 0 1 0 1 1 1 0 0 1 0 1 1 0 1 0
+```
+
+*(Provenance: the blink routine at `$87A0` in the C64 cartridge ROM — `EOR #$80` on the screen
+code, then `LDX $0286 / EOR ($F3),Y / AND #$0F / BNE +` and, on equality, `LDX $C158`. The table
+is at `$93A4`, read as `LDA $D021 / AND #$0F / TAX / LDA $93A4,X / STA $0286` at `$90A0`; the
+same table colours the duckshoot row at `$938B`, which is why that row stays readable over any
+frame. The blink period is a software delay loop around `GETIN`, so no exact interval is
+specified — the reference client uses 300 ms a phase. Unverified: which polarity of the f6
+colour flag at `$C15B` selects which alternate; both readings blink correctly.)*
+
 **⚠ `STOP` stores and `RUN` restores — they are a pair.** Editing without a restore is editing
 without an undo, on a page the user may have spent a long time on. `STOP` is what *makes* the
 restore point, so a client that stops editing without storing leaves `RUN` with nothing to

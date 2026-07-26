@@ -166,12 +166,20 @@ export class Renderer {
    *  same thing (§8.4.2), so nothing may be reserved here for chrome. The
    *  buffer position ("page 2 of 5") belongs in the pane's own furniture, not
    *  in a row stolen from the page. */
+  /** `cursor` carries the blink phase AND the colour chosen for this tick
+   *  (§8.4.3) — the original blinks the cursor in colour as well as in reverse
+   *  video, which is what keeps it visible over any background. Pass null when
+   *  not editing. */
   renderEditorPage(cells: Cell[], background: number, border: number,
-                   row: number, col: number, editing: boolean): void {
+                   row: number, col: number,
+                   cursor: { colour: number; reverse: boolean } | null): void {
     const g: Cell[] = cells.map((c) => ({ ...c }));
-    if (editing) {                       // cursor block
+    if (cursor) {
       const i = row * COLS + col;
-      if (g[i]) g[i] = { ...g[i], rv: g[i].rv ? 0 : 1 };
+      // ⚠ Both halves matter. Reverse alone leaves the cursor invisible
+      // wherever the cell's colour matches the background; the colour alone
+      // would not read as a cursor at all.
+      if (g[i]) g[i] = { ...g[i], fg: cursor.colour, rv: cursor.reverse ? 1 : 0 };
     }
     this.renderGrid(g, background);
     this.setBorder(border);

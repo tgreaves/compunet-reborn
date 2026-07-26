@@ -68,7 +68,7 @@ function render(): void {
   // one on screen, so the user must be able to see which that is (§8.2.2).
   if (pendingMail && courier?.kind === 'send') {
     const p = buf.page();
-    renderer.renderEditorPage(p.cells, p.background, p.border, 0, 0, false);
+    renderer.renderEditorPage(p.cells, p.background, p.border, 0, 0, null);
   } else if (courier) drawCourier();
   else if (mode === 'directory' && dir) renderer.renderDirectory(dir, sel, colIdx);
   else if (mode === 'frame' && frame) renderer.renderFrame(frame);
@@ -245,9 +245,24 @@ function captureViewedFrame(f: FrameMsg): void {
   if (wasEmpty) $('edMeta').textContent = `page ${buf.cur + 1}/${buf.pages.length}`;
 }
 
+/** ⚠ The cursor blinks, and blinking is not decoration — it is half of what
+ *  makes it findable (§8.4.3). The original's period is a software delay loop
+ *  around GETIN ($87B6-$87C5), so it has no exact millisecond value to copy;
+ *  ~300 ms a phase matches the observed rate closely enough. */
+const CURSOR_BLINK_MS = 300;
+
+setInterval(() => {
+  // Only while actually editing, and only when the editor is on screen: a
+  // timer redrawing a hidden pane is wasted work, and capture (§8.4.2) must
+  // not be disturbed by it.
+  if (!inEditor || !buf.editing) return;
+  buf.tickCursor();
+  renderEditor();
+}, CURSOR_BLINK_MS);
+
 function renderEditor(): void {
   const p = buf.page();
-  edRenderer.renderEditorPage(p.cells, p.background, p.border, buf.row, buf.col, buf.editing);
+  edRenderer.renderEditorPage(p.cells, p.background, p.border, buf.row, buf.col, buf.cursorState());
   // Buffer position lives in the pane furniture, never in a row taken from the
   // page: a page is the full 40x24 frame (§8.4.2).
   $('edMeta').textContent = `page ${buf.cur + 1}/${buf.pages.length}`

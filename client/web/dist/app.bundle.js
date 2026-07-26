@@ -159,11 +159,15 @@ var Renderer = class {
    *  same thing (§8.4.2), so nothing may be reserved here for chrome. The
    *  buffer position ("page 2 of 5") belongs in the pane's own furniture, not
    *  in a row stolen from the page. */
-  renderEditorPage(cells, background, border, row, col, editing) {
+  /** `cursor` carries the blink phase AND the colour chosen for this tick
+   *  (§8.4.3) — the original blinks the cursor in colour as well as in reverse
+   *  video, which is what keeps it visible over any background. Pass null when
+   *  not editing. */
+  renderEditorPage(cells, background, border, row, col, cursor) {
     const g = cells.map((c) => ({ ...c }));
-    if (editing) {
+    if (cursor) {
       const i = row * COLS + col;
-      if (g[i]) g[i] = { ...g[i], rv: g[i].rv ? 0 : 1 };
+      if (g[i]) g[i] = { ...g[i], fg: cursor.colour, rv: cursor.reverse ? 1 : 0 };
     }
     this.renderGrid(g, background);
     this.setBorder(border);
@@ -270,7 +274,7 @@ function frameToPage(f) {
     raw: f.raw
   };
 }
-var EditorBuffer = class {
+var EditorBuffer = class _EditorBuffer {
   constructor() {
     this.pages = [blankPage()];
     this.cur = 0;
@@ -287,6 +291,103 @@ var EditorBuffer = class {
     this.autoRepeat = true;
     /** The page as last STORED, for RUN ("restore original"). */
     this.original = null;
+    /** Reverse-video phase — the `EOR #$80` ($87CE). */
+    this.cursorReverse = false;
+    /** What is currently "written" in the cursor cell's colour RAM. */
+    this.cursorColour = 0;
+    /** $C158 — the colour to fall back on when the intended one clashes. */
+    this.cursorAlternate = 0;
+    /** Which cell the above describes; a move re-captures ($8B30). */
+    this.cursorCell = -1;
+  }
+  static {
+    // --- cursor blink (§8.4.3) -----------------------------------------------
+    //
+    // ⚠ The cursor blinks in COLOUR as well as in reverse video, and that is what
+    // stops it disappearing. Reconstructed from the original's blink routine at
+    // $87A0 in the cartridge ROM:
+    //
+    //   $87CC  LDA ($D1),Y / EOR #$80 / STA ($D1),Y   toggle reverse video
+    //   $87D2  LDX $0286                              intended cursor colour
+    //   $87D6  EOR ($F3),Y / AND #$0F                 XOR with the cell's colour
+    //   $87DA  BNE +                                    differ -> keep $0286
+    //   $87DC  LDX $C158                                SAME  -> use the alternate
+    //   $87E0  STA ($F3),Y                            write the choice back
+    //
+    // Because the choice is written back, the test flips on the next tick, so the
+    // colour oscillates between the two. A single "pick a contrasting colour"
+    // would give a statically-coloured cursor blinking only in reverse — visibly
+    // different, and it is why guessing this from first principles gets it wrong.
+    //
+    // The page is NEVER mutated by any of this: `cursorColour` is the colour-RAM
+    // cell, held here so the cell underneath is restored simply by not drawing.
+    /** ⚠ The OTHER half of the original's answer, and both are needed.
+     *
+     *  The blink routine only stops the cursor vanishing into the CHARACTER's
+     *  colour. What stops it vanishing into the BACKGROUND is that the colour it
+     *  uses ($0286) is itself derived from the background, through this 16-byte
+     *  table at $93A4 in the cartridge ROM:
+     *
+     *    $90A0  LDA $D021 / AND #$0F / TAX / LDA $93A4,X / STA $0286
+     *
+     *  Verified bytes, indexed by background colour — every entry is black (0) or
+     *  white (1), chosen by luminance. (The same table colours the duckshoot row
+     *  at $938B and $943A, which is why that row stays readable on any frame.)
+     *
+     *  In the editor the user picks the drawing colour and can pick the
+     *  background's, so this is applied as the final guard: whatever the blink
+     *  chooses, it may not equal the cell's background. */
+    this.CONTRAST = [
+      1,
+      0,
+      1,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0
+    ];
+  }
+  /** $87A1-$87AB — on arriving at a cell, remember its alternate colour.
+   *
+   *  ⚠ UNVERIFIED POLARITY: the original selects between the cell's own colour
+   *  and $0286 on bit 7 of $C15B, which `EOR #$80` at $88E8 toggles — the f6
+   *  colour on/off flag. Which polarity is "on" is not established from a
+   *  static read. Mapped here so that colour OFF (typing preserves the cell's
+   *  colour) makes the cursor alternate with that colour, and colour ON pins it
+   *  to the drawing colour, which is the reading consistent with §8.4.3. */
+  captureCursorCell() {
+    const p = this.page();
+    const i = this.row * PAGE_COLS + this.col;
+    const own = p.cells[i]?.fg ?? p.colour;
+    this.cursorAlternate = this.colourOn ? p.colour : own;
+    this.cursorColour = own;
+    this.cursorCell = i;
+  }
+  /** One blink tick ($87CA-$87E0). Call on the blink interval while editing. */
+  tickCursor() {
+    const i = this.row * PAGE_COLS + this.col;
+    if (i !== this.cursorCell) this.captureCursorCell();
+    this.cursorReverse = !this.cursorReverse;
+    const draw = this.page().colour;
+    this.cursorColour = this.cursorColour === draw ? this.cursorAlternate : draw;
+  }
+  /** The cursor's current appearance, or null when not editing. */
+  cursorState() {
+    if (!this.editing) return null;
+    const i = this.row * PAGE_COLS + this.col;
+    if (i !== this.cursorCell) this.captureCursorCell();
+    const bg = this.page().cells[i]?.bg ?? this.page().background;
+    const colour = this.cursorColour === bg ? _EditorBuffer.CONTRAST[bg & 15] : this.cursorColour;
+    return { colour, reverse: this.cursorReverse };
   }
   /** STOP — stop editing and store the frame (§A.9). */
   stopEdit() {
@@ -506,7 +607,7 @@ function setFocus(p) {
 function render() {
   if (pendingMail && courier?.kind === "send") {
     const p = buf.page();
-    renderer.renderEditorPage(p.cells, p.background, p.border, 0, 0, false);
+    renderer.renderEditorPage(p.cells, p.background, p.border, 0, 0, null);
   } else if (courier) drawCourier();
   else if (mode === "directory" && dir) renderer.renderDirectory(dir, sel, colIdx);
   else if (mode === "frame" && frame) renderer.renderFrame(frame);
@@ -677,9 +778,15 @@ function captureViewedFrame(f) {
   if (inEditor) renderEditor();
   if (wasEmpty) $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}`;
 }
+var CURSOR_BLINK_MS = 300;
+setInterval(() => {
+  if (!inEditor || !buf.editing) return;
+  buf.tickCursor();
+  renderEditor();
+}, CURSOR_BLINK_MS);
 function renderEditor() {
   const p = buf.page();
-  edRenderer.renderEditorPage(p.cells, p.background, p.border, buf.row, buf.col, buf.editing);
+  edRenderer.renderEditorPage(p.cells, p.background, p.border, buf.row, buf.col, buf.cursorState());
   $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}` + (buf.editing ? ` \xB7 EDIT ${buf.row + 1},${buf.col + 1}` : "") + (p.raw ? " \xB7 captured" : "");
 }
 var pendingUpload = null;

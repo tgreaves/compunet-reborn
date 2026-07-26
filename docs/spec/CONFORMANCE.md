@@ -62,6 +62,13 @@ marked **⚠** are the ones known to have been got wrong in practice.
       counter (§8.4.2). Capture a page that uses all 24 rows and check the last one survives.
 - [ ] **Unedited captured pages re-upload unchanged** — as their original bytes, not re-encoded
       (§8.4.2). Edit one character and the client must switch to sending the grid.
+- [ ] **⚠ The editor cursor blinks, and cannot become invisible** (§8.4.3). Two things to check
+      separately, because each has its own mechanism and one can be present without the other:
+      put the cursor on a cell whose colour **differs** from the drawing colour — it should
+      **change colour** as it blinks, not merely invert. Then put it on a cell coloured the
+      **same as the background** (type a character in the background's own colour): it must
+      still be visible in **both** phases. A cursor that only inverts disappears there, and the
+      disappearance is easy to miss because it looks like the cursor is simply "off".
 
 ## B. Behaviour that shares an encoding
 
