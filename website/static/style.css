@@ -459,17 +459,24 @@ pre {
     }
 }
 
-/* Extras — printed-model photographs */
+/* Extras — printed-model photographs.
+   The two shots have very different aspect ratios (a wide banner and a
+   near-square angle), so they stack and each takes its NATURAL size within a
+   height cap: the wide one is limited by width, the square one by height. Not
+   a fixed box with object-fit — that pillarboxes the square shot. */
 .print-shots {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 12px;
     margin: 20px 0 28px;
 }
 
 .print-shots img {
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     height: auto;
+    max-height: 420px;
+    margin: 0 auto;
     display: block;
     border: 1px solid var(--c64-surface-light);
     border-radius: var(--radius);
