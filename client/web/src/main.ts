@@ -689,6 +689,37 @@ function saveBase64(b64: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+/** ⚠ How long each frame stays on screen during a multi-frame download.
+ *
+ *  This is DELIBERATE PACING, not a throttle. On the original, a 1200-baud line
+ *  took seconds to paint a frame, so the user watched the message arrive one
+ *  page at a time. Over TCP the whole thing lands in one flash and reads as
+ *  "only the last frame was sent" — the frames really are all captured, but
+ *  nothing on screen says so. Restoring the beat restores the meaning. */
+const FRAME_DWELL_MS = 500;
+
+const dwell = (): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, FRAME_DWELL_MS));
+
+/** `ALL` (§4.7) — read the REST of a multi-frame page in one gesture: repeat
+ *  the paging command until the reply stops being a frame. Paced like a mail
+ *  download, and for the same reason.
+ *
+ *  Unlike a mail download this ends in the DIRECTORY, not `PRESS ANY KEY` —
+ *  running past the last frame of content lands you back in the listing, which
+ *  is what the original does (§6.5). So the terminating reply renders normally
+ *  and nothing is held back. */
+async function readAll(): Promise<void> {
+  let reply = await request({ type: 'more' });
+  let frames = 1;
+  while (reply.type === 'frame') {
+    frames++;
+    status(`ALL — frame ${frames}…`);
+    await dwell();
+    reply = await request({ type: 'more' });
+  }
+}
+
 /** ⚠ SHOW in Courier is not "open the message" — it behaves like `ALL` (§8.2):
  *  it pulls EVERY frame of the message as fast as it can, then stops on
  *  `PRESS ANY KEY`. There is no duckshoot while it runs and none at the end.
@@ -709,6 +740,8 @@ async function showMail(index: number): Promise<void> {
   let frames = 0;
   while (reply.type === 'frame') {
     frames++;
+    status(`Downloading frame ${frames}…`);
+    await dwell();
     reply = await request({ type: 'more' });
   }
   mailDownloading = false;
@@ -778,7 +811,13 @@ const actions: Record<string, () => void> = {
   LOAD: () => status('LOAD is a client feature — not implemented in this reference client'),
   // EDITR enters the EDITOR context (§8.4.1) — it does not open an upload form.
   EDITR: () => { editorReturn = () => render(); enterEditor(); },
-  ALL: () => gw.send({ type: 'more' }),           // page to the end
+  // ⚠ ALL is NOT MORE. It reads the REST of a multi-frame page in one gesture
+  // (§4.7) — repeat the paging command until the reply stops being a frame.
+  // Sending a single `more` here made ALL a synonym for MORE: same bytes, same
+  // one-frame advance, no way for the user to tell them apart. That is exactly
+  // the collapse §4.7's closed vocabulary forbids, and it is invisible because
+  // both "work".
+  ALL: () => { void readAll(); },
   MORE: () => gw.send({ type: 'more' }),
   FINISH: () => gw.send({ type: 'finish' }),
   GOTO: () => { void ask('GOTO', [{ label: 'page number or keyword' }]).then((r) => { if (r?.[0]) gw.send({ type: 'goto', target: r[0] }); }); },

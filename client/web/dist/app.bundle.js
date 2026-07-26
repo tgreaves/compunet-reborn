@@ -1097,12 +1097,26 @@ function saveBase64(b64, filename) {
   a.click();
   URL.revokeObjectURL(url);
 }
+var FRAME_DWELL_MS = 500;
+var dwell = () => new Promise((resolve) => setTimeout(resolve, FRAME_DWELL_MS));
+async function readAll() {
+  let reply = await request({ type: "more" });
+  let frames = 1;
+  while (reply.type === "frame") {
+    frames++;
+    status(`ALL \u2014 frame ${frames}\u2026`);
+    await dwell();
+    reply = await request({ type: "more" });
+  }
+}
 async function showMail(index) {
   mailDownloading = true;
   let reply = await request({ type: "mail.read", index });
   let frames = 0;
   while (reply.type === "frame") {
     frames++;
+    status(`Downloading frame ${frames}\u2026`);
+    await dwell();
     reply = await request({ type: "more" });
   }
   mailDownloading = false;
@@ -1197,8 +1211,15 @@ var actions = {
     editorReturn = () => render();
     enterEditor();
   },
-  ALL: () => gw.send({ type: "more" }),
-  // page to the end
+  // ⚠ ALL is NOT MORE. It reads the REST of a multi-frame page in one gesture
+  // (§4.7) — repeat the paging command until the reply stops being a frame.
+  // Sending a single `more` here made ALL a synonym for MORE: same bytes, same
+  // one-frame advance, no way for the user to tell them apart. That is exactly
+  // the collapse §4.7's closed vocabulary forbids, and it is invisible because
+  // both "work".
+  ALL: () => {
+    void readAll();
+  },
   MORE: () => gw.send({ type: "more" }),
   FINISH: () => gw.send({ type: "finish" }),
   GOTO: () => {

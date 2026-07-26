@@ -130,6 +130,13 @@ The server does not report these; a client that ignores them looks fine and lose
 - [ ] **⚠ `PRESS ANY KEY` is LEFT justified** (§4.8) — column 0, where the duckshoot starts.
       Centred text looks perfectly reasonable in isolation; the tell is the bottom row jumping
       sideways as you move between reading and choosing.
+- [ ] **⚠ Multi-frame runs are PACED** (§4.7) — `ALL` and Courier's `SHOW` leave each frame up
+      ~500 ms. Unpaced, the run completes in a single flash and the user sees only the last
+      frame; count the pages in the **editor buffer** to see that the rest did arrive. This one
+      cannot be caught by reading the code — the loop is correct either way.
+- [ ] **⚠ `ALL` is not `MORE`** (§4.7) — `MORE` advances one frame, `ALL` runs to the end. If
+      pressing `ALL` moves a single page, the client has issued one paging command instead of
+      looping, collapsing two commands onto one.
 - [ ] **Mail composition offers `SEND FINISH LAST NEXT EDITR`** (§8.2.2), with `SEND` adding
       **one** frame and `FINISH` completing the message — not one combined "send".
 - [ ] **Re-entering mail starts on `SEND`** (§4.9.4) — the mail row resets on leaving Courier.

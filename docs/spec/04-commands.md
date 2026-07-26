@@ -313,7 +313,7 @@ table standardises the *names*, not the interface.)
 | Name | User action | Wire command |
 |---|---|---|
 | `MORE` | Show the next page of a multi-frame item | `D` (no arg) / `N` |
-| `ALL` | Read the **rest** of a multi-frame item without pressing `MORE` for each — repeat the paging command until the reply stops being a frame | repeated `D` (no arg) |
+| `ALL` | Read the **rest** of a multi-frame item without pressing `MORE` for each — repeat the paging command until the reply stops being a frame. ⚠ **`ALL` is not `MORE`**: one advances a single frame, the other runs to the end. Issuing one paging command for `ALL` makes the two indistinguishable — the §4.7 collapse, and it looks like it works. Pace the frames (⚠ below) | repeated `D` (no arg) |
 | `ABORT` | Abandon an exchange in progress (an upload, §8.3.2) and return without sending | context-dependent; see §8.3.2 |
 | `FINISH` | Return to the directory | `P` (no arg) |
 
@@ -421,6 +421,20 @@ question, asked at the moment the frame appears, when the flag is the only signa
 it for the row; use the response for the paging. If the flag was optimistic the user presses
 `MORE` and lands back in the directory — which is exactly what the original does (§6.5).
 (VALIDATION.md, F28.)
+
+**⚠ A run of frames MUST be paced so the user can see it (normative).** Wherever a client
+fetches frames in a loop rather than one per keypress — `ALL` (§4.7) and Courier's `SHOW`
+(§8.2) — it **MUST** leave each frame on screen long enough to be perceived before replacing it.
+**500 ms** is the reference client's dwell and is **RECOMMENDED**.
+
+This is not decoration, and it is not throttling. On the original a 1200-baud line took seconds
+per frame, so "read the rest of it" *looked* like a sequence of pages arriving. Over TCP the same
+loop completes in one flash, and the user sees only the final frame — reasonably concluding that
+only the final frame was sent. The frames are all present, and every one is captured into the
+editor (§8.4.2), but nothing on screen says so, and the feature the download exists to serve
+(offline reading) is the part the user cannot see. Transport got faster; the interface still has
+to be legible. A client **MAY** offer a key to skip the remaining dwell, but **MUST NOT** make
+"no pause" the default.
 
 **⚠ `PRESS ANY KEY` is LEFT JUSTIFIED (normative).** It occupies the same row the duckshoot
 would, and that row is written from the **left edge** — so the prompt starts at column 0, not

@@ -62,6 +62,12 @@ directory listing.
   the download-it-all gesture was *for* on a metered phone line, and it is why `SHOW` behaves
   unlike `SHOW` anywhere else in the system. A client that fetches one frame and waits has
   implemented content paging, not Courier.
+
+  **⚠ Pace the download (normative — §4.7's frame-pacing rule).** "As fast as the line allows"
+  was seconds per frame at 1200 baud; over TCP it is one flash, and the user sees only the last
+  frame and concludes that only the last frame arrived. Hold each for **~500 ms**. The
+  correctness of the download is not the issue — the frames *are* all in the editor — but a
+  client that leaves the user believing otherwise has lost the feature all the same.
 - **⚠ `MORE` in Courier pages the MAILBOX, and sends `M` — not `D` (normative).** It is a
   command of the **listing** row only (§4.8); there is no `MORE` while reading, because there is
   no duckshoot while reading. `M` issued while already in mail mode advances the mailbox one
