@@ -46,7 +46,14 @@ trailing `$00` as "Part 2's terminator" swallows Part 3's terminator and shifts 
 part by one byte** — the entries spill into the path line. Read exactly two `$0D` lines for
 Part 2, then let Part 3's loop consume the `$00`.
 
-**The Part-5 column headers are response-specific — read them, do not hard-code them.** The
+**⚠ The `1` on breadcrumb line 1 is not a page number.** Every content listing opens with
+`"     1 *** COMPUNET ***"`, which reads as "page 1 is the root" — it is not. There is no page 1;
+`GOTO 1` fails. The digit is part of the fixed system banner, occupying the same 6-character
+page-number field as the line below it so the two align. Render Part 4 **verbatim** (§7.7) and
+never parse a page number out of it: a client that did, to build a "go to root" affordance, would
+produce a dead command — and would be inventing one, which §4.7 forbids. (VALIDATION.md, F54.)
+
+**The Part-5 column headers are response-specific — do not hard-code them.** The
 top directory sends five: `PRICE`, `AUTHOR`, `VOTE/NUM`, `UPLDDATE`, `LIFE`. But other DIR-type
 responses send a **different set** — e.g. `MAIL` (`M`) sends three: `SENDER`, `DATE`, `STATUS`.
 A client **MUST** take the column names (and their count) from each response's own Part 5 and

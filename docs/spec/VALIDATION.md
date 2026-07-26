@@ -494,6 +494,50 @@ measured against the server it is pushed once. Recorded as probably client-side 
 "fixed", since changing working code to chase an unreproducible symptom is how faults get
 introduced.
 
+## Ninth clean-room run — Binding B, after the paging correction
+
+A third Tier-3 Electron build, on the spec with §7.6 corrected. The builder verified its decoder
+against the document **before writing any networking code** — §A.9 character-for-character, §A.10's
+colon at column 12, §A.11's field rows, §A.6's borders and divider, §6.4's RLE counts, §6.7's
+worked example — and reproduced the §A.8 body-only trap on demand, getting exactly the
+`—IRECTORY` corruption the appendix predicts. It called that "the single most useful thing the
+specification does for an implementer", noting it caught nothing *only because it was run first*.
+
+**Two server bugs, both the same root cause as UCAT (F9) — this binding inferring the reply
+type from session state instead of from what the command produced:**
+
+- **⚠ `goto` and `back` returned a FRAME while a frame was displayed, and stayed that way.** §4.4
+  says a GOTO reply is *always* a directory, and §4.5 warns that feeding frame data to a
+  reference client's GOTO handler **crashes it**. Any successful `open` left `show_page` set;
+  `back` and `goto` then serialized as whatever that state produced — a frame, or, after opening
+  a program entry, the **download descriptor** — and navigation silently died until something
+  else cleared it. The route in is ordinary: §4.8's mail row offers `DONE`, §4.8 maps `DONE` to
+  `B`, so *reading a message and pressing DONE* hits it. Binding A was never affected: it returns
+  the bytes the command actually produced. Commands whose reply is definitionally a directory now
+  clear the reading state first.
+- **Mail mode outlived mail.** `goto` was inert inside Courier and mail mode survived a `ucat`,
+  so a later `goto` still answered with the mailbox. §4.4 places no such restriction on GOTO.
+
+**Two more, found by measurement:**
+
+- A generated listing carrying the MORE row returned **12 rows** where only 11 exist on screen.
+  The row must *replace* the eleventh entry, as Binding A's UCAT does — it is not a twelfth.
+- `GET /v1/dir/{page}` returned the **root** for a target that names no page, instead of 404. The
+  builder read that as "the page argument is ignored", having tested only `1` and `100` — but
+  page 1 does not exist (their own F54), so both fell back. The argument was always honoured; the
+  silent fallback was the bug, and is the same silent-no-op the gateway's `goto` had.
+
+**A trap worth recording** (F54): the `1` in every breadcrumb's `"     1 *** COMPUNET ***"` is not
+a page number — `GOTO 1` fails. It is part of the fixed banner, sharing the page-number field's
+width so the two lines align. §7.2 now says so.
+
+**The one item reported unreachable across three runs turned out to work** — `DIR` on a `+`-less
+entry does create the latent directory where the user may write. What is true is that where they
+*may not*, the core returns the unchanged listing, which is indistinguishable from "nothing
+happened" — so the flow was undiagnosable from outside rather than absent. That is precisely what
+this binding exists to fix, and it now answers `permission_denied`. Three runs reported the
+symptom accurately; none could have told the difference without the source.
+
 ## Root-cause correction: directories do not paginate
 
 Three findings across both Binding-B runs (F15, F26, F35) concerned directory paging, and the

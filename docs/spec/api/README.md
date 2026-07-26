@@ -47,7 +47,7 @@ REST for cacheable reads:
 |---|---|---|---|
 | `POST` | `/v1/session` | log in with credentials → bearer token | 1 |
 | `GET`  | `/v1/gateway` (WebSocket upgrade) | the interactive session | 1 |
-| `GET`  | `/v1/dir/{page}` | a directory as JSON (cacheable, bearer auth) | done |
+| `GET`  | `/v1/dir/{page}` | a directory as JSON (cacheable, bearer auth). `404 not_found` for a target that names no page — it does **not** fall back to the root | done |
 | `GET`  | `/v1/frame/{page}[?index=N]` | a frame as a cell grid (bearer auth) | done |
 | `GET`  | `/v1/health` | `{"ok": true}` — liveness, **no auth** | done |
 

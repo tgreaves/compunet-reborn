@@ -200,6 +200,10 @@ def ucat_to_json(session, msg_id=None):
     pages = [p for p in session.directory.pages.values() if p.author == session.user_id]
     offset = getattr(session, '_ucat_offset', 0)
     visible = pages[offset:offset + 11]
+    # ⚠ Only 11 rows exist. When more follow, the MORE row takes the last one —
+    # it is not a 12th entry (VALIDATION.md, F14). Binding A does the same.
+    if len(pages) > offset + 11:
+        visible = visible[:10]
 
     entries = [{
         "index": i,
@@ -218,7 +222,7 @@ def ucat_to_json(session, msg_id=None):
     elif len(pages) > offset + 11:
         # UCAT is GENERATED, so a user cannot author a MORE entry into it —
         # the server supplies one, as Binding A does (§7.6).
-        entries.append(_more_row(len(entries)))
+        entries.append(_more_row(len(entries)))   # 10 real + MORE = 11 rows
 
     return {
         "type": "directory", "id": msg_id, "context": "ucat",
@@ -537,6 +541,8 @@ def mail_to_json(session, msg_id=None):
     offset = getattr(session, 'mail_page_offset', 0)
     msgs = session.mail_messages or []
     visible = msgs[offset:offset + 11]
+    if len(msgs) > offset + 11:      # MORE takes the 11th row, not a 12th (F14)
+        visible = visible[:10]
     entries = []
     for i, m in enumerate(visible):
         raw_date = m.get('date', '') or ''
@@ -993,6 +999,20 @@ def _page_generated_listing(session, msg_id=None):
     return ucat_to_json(session, msg_id)
 
 
+def _target_exists(session, target):
+    """Does a GOTO target name a real page, by number or by title/keyword?"""
+    t = str(target).strip().upper()
+    if not t:
+        return False
+    for page in session.directory.pages.values():
+        if str(page.page_num) == t or str(page.title or '').strip().upper() == t:
+            return True
+        for kw in (getattr(page, 'shortcuts', None) or {}) or {}:
+            if str(kw).strip().upper() == t:
+                return True
+    return False
+
+
 def _goto_offset(session, target):
     """Page offset that brings a GOTO target into view, or None if not in this
     listing at all. Matches by page number or by title, across ALL children —
@@ -1016,8 +1036,31 @@ def _goto_target_index(session, reply, target):
     return None
 
 
-def _drive(session, cmd_bytes, msg_id=None):
+def _clear_reading_state(session):
+    """Drop any open frame / download so the next reply serializes as a listing.
+
+    ⚠ Commands whose reply is *definitionally* a directory — BACK, GOTO, MAIL,
+    UCAT (§4.4) — must clear this first. `_serialize_state` infers frame-vs-
+    directory from session state, and the core leaves `show_page` set after an
+    `open`, so a following `back` or `goto` came back as a FRAME and stayed that
+    way until something else cleared it: navigation silently died. §4.5 is
+    explicit that a GOTO reply is always a directory and that feeding frame data
+    to a reference client's GOTO handler crashes it.
+
+    Binding A never had this: it returns the bytes the command actually
+    produced. The fault is this binding's state inference — the same root cause
+    as UCAT returning the current listing (VALIDATION.md, F9 and F17).
+    """
+    session.show_page = None
+    session.show_frame_index = 0
+    session._program_download_pending = False
+    session._program_download_data = None
+
+
+def _drive(session, cmd_bytes, msg_id=None, expect=None):
     """Run authoritative navigation for its side-effects, then serialize."""
+    if expect == 'directory':
+        _clear_reading_state(session)
     raw = session.handle_command(cmd_bytes)
     return _serialize_state(session, raw, msg_id)
 
@@ -1038,8 +1081,8 @@ def handle_message(session, msg):
         # always reply `directory` (F9). §4.8's stepwise model routes mail exits
         # through `back`, which is why only `back` recovered.
         if getattr(session, 'mail_mode', False) and getattr(session, 'mail_show_msg', None) is not None:
-            return _drive(session, b'B', mid)
-        return _drive(session, b'P', mid)
+            return _drive(session, b'B', mid, expect='directory')
+        return _drive(session, b'P', mid, expect='directory')
     if t in ("enter", "open"):
         # Selecting the MORE row of a generated listing pages it forward — the
         # same gesture Binding A uses (§7.6). No paging command exists.
@@ -1048,6 +1091,17 @@ def handle_message(session, msg):
         i = _find_index(session, msg.get("page"))
         if i is None:
             return {"type": "error", "id": mid, "code": "not_found", "message": "no such entry"}
+        # ⚠ DIR on an entry with no sub-directory CREATES one (§7.4/§8.3.2). If
+        # the user may not write here the core simply returns the unchanged
+        # listing, which is indistinguishable from "nothing happened" — three
+        # clean-room runs reported the creation flow as unreachable and
+        # undiagnosable for exactly that reason. Say why instead (F36).
+        if t == "enter":
+            offset = getattr(session, 'dir_page_offset', 0)
+            kids = session.current_page.children[offset:offset + 11]
+            if i < len(kids) and not kids[i].has_subdir() and not session._can_upload_here():
+                return {"type": "error", "id": mid, "code": "permission_denied",
+                        "message": "you may not create a directory here"}
         cmd = b'P' if t == "enter" else b'D'
         return _drive(session, cmd + str(i).encode('ascii'), mid)
     if t == "more":
@@ -1061,7 +1115,7 @@ def handle_message(session, msg):
     # `dir.more`/`dir.back` here invented vocabulary with no Binding-A
     # counterpart, which §1.8 forbids (VALIDATION.md, F15/F26/F35).
     if t == "back":
-        return _drive(session, b'B', mid)
+        return _drive(session, b'B', mid, expect='directory')
     if t == "goto":
         # ⚠ GOTO must not fail silently. The core answers an unknown target with
         # the CURRENT listing, so without this check the client gets a plausible
@@ -1069,8 +1123,11 @@ def handle_message(session, msg):
         # binding explicitly rejects for vote/life (§5.3). Found by clean-room
         # measurement (VALIDATION.md, F30).
         target = str(msg.get("target", "")).strip()
+        # GOTO is a jump; §4.4 places no restriction on it, but it was inert
+        # inside Courier because mail mode outranked it in the serializer (F18).
+        session.mail_mode = False
         before = getattr(session.current_page, 'page_num', None)
-        reply = _drive(session, b'L' + target.encode('ascii', 'ignore'), mid)
+        reply = _drive(session, b'L' + target.encode('ascii', 'ignore'), mid, expect='directory')
         if reply.get("type") == "directory":
             # ⚠ Search the WHOLE listing, not the visible page. Searching only
             # the 11 entries on screen made `goto` answer "no such page" for any
@@ -1101,6 +1158,10 @@ def handle_message(session, msg):
     if t == "ucat":
         # Drive `C` for its side-effects (it resets the UCAT offset), then use
         # the dedicated serializer — UCAT is synthetic, see ucat_to_json.
+        # Leaving mail mode is part of leaving mail: it used to survive `ucat`,
+        # after which `goto` kept answering with the mailbox (F18).
+        _clear_reading_state(session)
+        session.mail_mode = False
         session.handle_command(b'C')
         return ucat_to_json(session, mid)
 
@@ -1241,8 +1302,17 @@ async def http_dir(request):
     session = _rest_session(request)
     if session is None:
         return web.json_response({"error": {"code": "unauthorized"}}, status=401)
-    target = request.match_info.get('page', '')
-    session.handle_command(b'L' + str(target).encode('ascii', 'ignore'))
+    target = str(request.match_info.get('page', '')).strip()
+    # ⚠ An unresolvable target must 404, not quietly return the root. It used to
+    # fall through to whatever listing the fresh session was on, so `/v1/dir/1`
+    # and `/v1/dir/99999` both answered with the root — indistinguishable from a
+    # real hit, and reported by a clean-room build as "the page argument is
+    # ignored" (it is not; page 1 simply does not exist). VALIDATION.md, F53/F54.
+    if not _target_exists(session, target):
+        return web.json_response({"error": {"code": "not_found",
+                                            "message": "no such page or keyword: %s" % target}},
+                                 status=404)
+    session.handle_command(b'L' + target.encode('ascii', 'ignore'))
     if getattr(session, 'show_page', None):
         return web.json_response({"error": {"code": "not_found",
                                             "message": "not a directory"}}, status=404)

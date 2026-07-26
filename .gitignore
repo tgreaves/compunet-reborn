@@ -34,6 +34,7 @@ server/data/content/
 server/data/partyline.jsonl
 server/data/audit.jsonl
 server/data/mail.test/
+server/data/archive/
 
 # Virtual environments
 server/venv/
