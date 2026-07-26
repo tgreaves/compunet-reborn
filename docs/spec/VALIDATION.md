@@ -71,7 +71,7 @@ it draws; §3.5 states the server ignores the login system-info field.)*
 
 ## Test-client validation (Tier 1)
 
-A clean-room Tier-1 client (`client/pygame/`) was written **from `docs/spec/` alone** — not
+A clean-room Tier-1 client was written **from `docs/spec/` alone** — not
 referencing the server or the C64/Amiga source — and run against the live `docker.lan:6400`
 server. It successfully connected, identified (native handshake), logged in, rendered the
 welcome/personal-info frame, listed the top directory, selected an entry, and rendered the
@@ -116,9 +116,16 @@ A second round of testing (wiring up the commands) surfaced three more, all fixe
   the earlier "a client cannot create directories" was wrong — creation just isn't a dedicated
   command, it is the server's response to DIR + upload.
 
-*(Caveat: the `client/pygame/` build above and its findings were produced by the spec author,
-who carries the codebase in their head — so it is a contaminated test. Its value is real but
-weaker than an independent build. See the clean-room run below.)*
+*(Caveat: the build above and its findings were produced by the spec author, who carries the
+codebase in their head — so it is a contaminated test. Its value is real but weaker than an
+independent build. See the clean-room runs below.)*
+
+*(The client itself — `client/pygame/`, a Tier-1 Binding-A instrument that parsed Appendix A for
+its own font and palette — was removed once the isolated clean-room runs superseded it. It was
+last updated on 24 July and the spec has moved materially since: it still implemented `MORE` as a
+directory-paging command, a mechanism §7.6 now establishes never existed. An unmaintained
+reference implementation of a superseded spec teaches the wrong protocol to anyone who opens it.
+It remains in git history.)*
 
 ## Independent clean-room run
 
