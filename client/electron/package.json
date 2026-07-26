@@ -6,10 +6,12 @@
   "description": "Compunet Reborn desktop client (Electron shell around the web client)",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac"
+    "_comment": "⚠ Every script that PACKAGES or RUNS the app rebuilds the web client first. The shell only copies ../web/dist/app.bundle.js, so without this an installer silently ships whatever bundle happened to be on disk — it builds fine, launches fine, and runs stale code. That shipped once: an installer went out carrying a bundle four commits old, and the symptom (an old behaviour persisting after a fix) looks like a bug in the fix.",
+    "build:web": "npm --prefix ../web run build",
+    "start": "npm run build:web && electron .",
+    "dist": "npm run build:web && electron-builder",
+    "dist:win": "npm run build:web && electron-builder --win",
+    "dist:mac": "npm run build:web && electron-builder --mac"
   },
   "devDependencies": {
     "electron": "^33.0.0",
