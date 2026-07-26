@@ -230,7 +230,7 @@ def ucat_to_json(session, msg_id=None):
         "breadcrumb": ["%6d %s" % (1, "*** COMPUNET ***"),
                        "%6s %s" % ("", "USER CATALOGUE : %s" % session.user_id)],
         "columns": list(_DIR_COLUMNS),
-        "advert": [],
+        "advert": ["", ""],   # §7.2: always two lines
         "header": _render_header(session),
         "hasMore": len(pages) > offset + 11,
         "entries": entries,
@@ -581,7 +581,7 @@ def mail_to_json(session, msg_id=None):
         "breadcrumb": ["%6s %s" % ("", "USER ID : %s" % session.user_id),
                        "%6s %s" % ("", _real_name(session) or "")],
         "columns": list(_MAIL_COLUMNS),
-        "advert": [],
+        "advert": ["", ""],   # §7.2: always two lines
         # The Courier Part-1 header, exactly as Binding A serves it
         # (_make_mail_response): body-only PETSCII with charset $8E.
         "header": _render_courier_header(),
