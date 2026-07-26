@@ -91,10 +91,16 @@ TERM_PORT = 6401
 CLIENT_API_PORT = 6404   # Binding B — modern JSON client API (see api_binding.py)
 SERVER_DIR = os.path.dirname(__file__)
 CFG_DIR = os.path.join(SERVER_DIR, 'cfg')
-DATA_DIR = os.path.join(SERVER_DIR, 'data')
-CONTENT_DIR = os.path.join(DATA_DIR, 'content')
+
+# Data locations are overridable so a run can be pointed at a fixture tree
+# (server/data/content.test) without touching live content — see
+# docs/spec/CLEANROOM.md. COMPUNET_DATA_DIR moves everything together, which is
+# what a validation run wants: test uploads and test mail then land in the
+# fixture tree instead of polluting real data.
+DATA_DIR = os.environ.get('COMPUNET_DATA_DIR') or os.path.join(SERVER_DIR, 'data')
+CONTENT_DIR = os.environ.get('COMPUNET_CONTENT_DIR') or os.path.join(DATA_DIR, 'content')
 ROOT_DIR = os.path.join(CONTENT_DIR, 'root')
-MAIL_DIR = os.path.join(DATA_DIR, 'mail')
+MAIL_DIR = os.environ.get('COMPUNET_MAIL_DIR') or os.path.join(DATA_DIR, 'mail')
 VOTES_PATH = os.path.join(DATA_DIR, 'votes.json')
 
 

@@ -1,0 +1,52 @@
+{
+  "header": "header.seq",
+  "pages": [
+    {
+      "page_num": 101,
+      "title": "NEWS",
+      "type": "T",
+      "author": "ADMIN",
+      "price": 0,
+      "life": 0,
+      "keyword": "NEWS",
+      "frames": [
+        "frame-1.seq"
+      ]
+    },
+    {
+      "page_num": 600,
+      "title": "JUNGLE",
+      "type": "T",
+      "author": "JUNGLE",
+      "price": 0,
+      "life": 105,
+      "keyword": "JUNGLE",
+      "frames": [
+        "frame-1.seq"
+      ],
+      "directory": "jungle\\directory.json"
+    },
+    {
+      "page_num": 900,
+      "title": "PARTYLINE",
+      "type": "D",
+      "author": "SYSTEM",
+      "price": 0,
+      "life": 0,
+      "keyword": "PARTYLINE",
+      "directory": "partyline\\directory.json"
+    },
+    {
+      "page_num": 800,
+      "title": "WHO IS ONLINE?",
+      "type": "T",
+      "author": "SYSTEM",
+      "price": 0,
+      "life": 0,
+      "dynamic": "who",
+      "frames": [
+        "frame-1.seq"
+      ]
+    }
+  ]
+}
