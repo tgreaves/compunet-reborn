@@ -49,10 +49,19 @@ const CAPACITY = 12 * CELLS;
 /** Hard stop matching the top of the original's quoted range. */
 export const MAX_PAGES = 15;
 
-/** ASCII -> screen code, uppercase/graphics set (§5.3). Typed text uses that
- *  set; a captured page may use either, and both may appear on one page — the
+/** ASCII -> glyph index, in whichever character set the editor is in (§5.3).
+ *  ⚠ The sets index letters DIFFERENTLY: in the lowercase/mixed set a-z are
+ *  $01-$1A and capitals live at $41-$5A; in uppercase/graphics A-Z are $01-$1A.
+ *  Glyphs >= 128 select the lowercase set. Both may appear on one page — the
  *  server emits the $0E/$8E switches when it encodes. */
-function charToGlyph(ch: string): number {
+function charToGlyph(ch: string, lower: boolean): number {
+  const c = ch.charCodeAt(0) & 0xFF;
+  if (lower) {
+    if (c >= 0x61 && c <= 0x7A) return 128 + (c - 0x60);   // a-z
+    if (c >= 0x41 && c <= 0x5A) return 128 + c;            // A-Z
+    if (c >= 0x20 && c <= 0x3F) return 128 + c;
+    return 128 + 0x20;
+  }
   const b = ch.toUpperCase().charCodeAt(0) & 0xFF;
   if (b >= 0x20 && b <= 0x3F) return b;
   if (b >= 0x40 && b <= 0x5F) return b & 0x1F;
@@ -79,6 +88,33 @@ export class EditorBuffer {
   row = 0;
   col = 0;
   editing = false;
+
+  // --- editing modes, from the editor's own help frame (§A.9 / §8.4.3) ---
+  /** SHIFT-C= "change case overwrite": which set typed text goes into. */
+  lowerCase = false;
+  /** f6 "on/off colour": when off, typing keeps each cell's existing colour. */
+  colourOn = true;
+  /** f5 "on/off auto-repeat": when off, held keys do not repeat. */
+  autoRepeat = true;
+  /** The page as last STORED, for RUN ("restore original"). */
+  private original: Cell[] | null = null;
+
+  /** STOP — stop editing and store the frame (§A.9). */
+  stopEdit(): void { this.editing = false; this.original = this.page().cells.map((c) => ({ ...c })); }
+
+  /** RUN — restore the frame to its last stored state (§A.9). */
+  restoreOriginal(): boolean {
+    if (!this.original) return false;
+    this.page().cells = this.original.map((c) => ({ ...c }));
+    delete this.page().raw;
+    return true;
+  }
+
+  /** Remember the starting state when an edit begins. */
+  beginEdit(): void {
+    this.editing = true;
+    if (!this.original) this.original = this.page().cells.map((c) => ({ ...c }));
+  }
 
   page(): Page { return this.pages[this.cur]; }
 
@@ -140,10 +176,16 @@ export class EditorBuffer {
   typeChar(ch: string): void {
     const p = this.page();
     this.touch();
-    p.cells[this.row * PAGE_COLS + this.col] =
-      { g: charToGlyph(ch), fg: p.colour, bg: p.background, rv: 0 };
+    const i = this.row * PAGE_COLS + this.col;
+    // f6 off: the character changes, the colour under it does not.
+    const fg = this.colourOn ? p.colour : p.cells[i].fg;
+    p.cells[i] = { g: charToGlyph(ch, this.lowerCase), fg, bg: p.background, rv: 0 };
     if (++this.col >= PAGE_COLS) { this.col = 0; this.moveRow(1); }
   }
+
+  /** f7 / f8 — screen (background) and border colour (§A.9). */
+  cycleBackground(d: number): void { const p = this.page(); p.background = ((p.background + d) % 16 + 16) % 16; this.touch(); }
+  cycleBorder(d: number): void { const p = this.page(); p.border = ((p.border + d) % 16 + 16) % 16; }
 
   backspace(): void {
     if (this.col === 0) { if (this.row > 0) { this.row--; this.col = PAGE_COLS - 1; } return; }

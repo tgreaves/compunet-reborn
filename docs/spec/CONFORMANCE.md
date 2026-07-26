@@ -36,9 +36,9 @@ marked **⚠** are the ones known to have been got wrong in practice.
       the selection (not a highlight moving along a fixed row); it sits outside the 40×24 grid;
       contents are the context's set in the §4.8 priority order, truncated **from the end**; and
       the row **wraps** at both ends rather than clamping.
-- [ ] **⚠ No command appears twice at once.** Look at a **short** row — mail (six) and a
-      multi-frame page (three). Are the surplus positions blank? A modulo-based wrap tiles them
-      instead, repeating the set across the row (§4.9.4).
+- [ ] **⚠ A short row fills every cell by repeating.** Look at mail (six commands, seven cells):
+      it must read `ID EDITR DONE [SEND] SHOW MORE ID` — `ID` twice, by design (§4.9.4). A row
+      **blank on the left** means the repeat was suppressed.
 - [ ] **⚠ No invented row for the disconnected state.** Offline, the editor is reached by a host
       affordance (menu/button), not by a command row holding a lone `EDITR` (§8.4).
 - [ ] **If you show two contexts at once (§4.10):** each has its **own** command row; focus is
@@ -114,8 +114,26 @@ The server does not report these; a client that ignores them looks fine and lose
 - [ ] **⚠ No input uses `window.prompt()`/`confirm()`.** They are **not implemented in
       Electron** and throw, so any command relying on them (`ID`, `GOTO`, `VOTE`, `LIFE`, `BUY`)
       silently does nothing in a desktop build while working in a browser.
-- [ ] **`SEND` and `ID` open on the COURIER frame** (§A.10, §8.2.1), with **five** recipient
-      slots — not four, not six.
+- [ ] **⚠ `SEND` and `ID` use DIFFERENT frames** — §A.11 (with `FROM`/`DATE`/`TIME`/`SUBJECT`/
+      `TO`) and §A.10 (bare slots). They open identically, so reusing the `ID` frame for `SEND`
+      looks right and drops the whole message header. Both show **five** slots.
+- [ ] **`ID` results are `PRESS ANY KEY`**, not a command row, and any key returns to the
+      mailbox (§8.2.1). IDs and found names **blue**; `*** NO SUCH USER ***` **black**.
+- [ ] **Mail composition offers `SEND FINISH LAST NEXT EDITR`** (§8.2.2), with `SEND` adding
+      **one** frame and `FINISH` completing the message — not one combined "send".
+- [ ] **Re-entering mail starts on `SEND`** (§4.9.4) — the mail row resets on leaving Courier.
+- [ ] **The mailbox breadcrumb shows `USER ID : <id>` and the real name** (§8.2), not a
+      content-tree trail — and the mailbox has its **Part-1 header** like any directory.
+- [ ] **⚠ Recipient names appear on the envelope** before `OKAY?` (§8.2.1) — an ID alone does
+      not confirm the right person. Blue when found, black `*** NO SUCH USER ***` when not.
+- [ ] **⚠ Composition shows the frame being sent**, not the envelope (§8.2.2). `SEND` adds the
+      frame **on screen**, so choosing blind is the failure to look for.
+- [ ] **⚠ A prompt must not hide what it is asking about.** `OKAY?` confirms the envelope, so the
+      envelope has to stay visible behind it (§8.2.1). A centred modal over the screen fails this.
+- [ ] **Mail confirmation names the recipients** — mail lands in *their* mailbox, not the
+      sender's, so "sent" with no addressee reads as nothing having happened (§8.2.1).
+- [ ] **The seven editing controls work** (§8.4.3): STOP stores, RUN restores, case change,
+      f3/f4 line delete/insert, f5 auto-repeat, f6 colour, f7/f8 screen/border.
 - [ ] **⚠ `DONE` after `ID` returns to the mailbox**, not out of Courier (§8.2.1). Sending `B`
       here unwinds one level too many.
 - [ ] **⚠ `SEND`/`UPLD` work with an empty buffer** (§8.2.1) — address first, compose second.

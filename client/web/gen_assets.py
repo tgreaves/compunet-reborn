@@ -67,9 +67,17 @@ courier_path = os.path.join(ROOT, 'server', 'cfg', 'courier.pet')
 courier = (api.frame_to_cells(open(courier_path, 'rb').read())
            if os.path.exists(courier_path) else None)
 
+# COURIER SEND frame (§A.11) — a DIFFERENT, larger frame from the ID one: it
+# carries FROM / DATE / TIME / SUBJECT / TO labels above the five slots.
+send_path = os.path.join(ROOT, 'server', 'cfg', 'courier-send.pet')
+courier_send = (api.frame_to_cells(open(send_path, 'rb').read())
+                if os.path.exists(send_path) else None)
+
 json.dump({'palette': palette, 'font': font, 'template': template, 'help': help_frame,
-           'editorHelp': editor_help, 'courier': courier}, open(OUT, 'w'), separators=(',', ':'))
-print('wrote %s (palette %d, font %d, template %d cells, help %s, editorHelp %s, courier %s)' %
+           'editorHelp': editor_help, 'courier': courier, 'courierSend': courier_send},
+          open(OUT, 'w'), separators=(',', ':'))
+print('wrote %s (palette %d, font %d, template %d cells, help %s, editorHelp %s, '
+      'courier %s, courierSend %s)' %
       (OUT, len(palette), len(font), len(template['cells']),
        'yes' if help_frame else 'MISSING', 'yes' if editor_help else 'MISSING',
-       'yes' if courier else 'MISSING'))
+       'yes' if courier else 'MISSING', 'yes' if courier_send else 'MISSING'))

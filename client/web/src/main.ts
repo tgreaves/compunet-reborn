@@ -1,7 +1,7 @@
 // App orchestration: DOM, view state, input, and the command actions that map
 // user intent to Binding-B messages.
 
-import type { Account, Assets, DirectoryMsg, FrameMsg, ServerMsg } from './protocol';
+import type { Account, Assets, Cell, DirectoryMsg, FrameMsg, ServerMsg } from './protocol';
 import { Renderer } from './render';
 import { Gateway } from './gateway';
 import { EditorBuffer, frameToPage } from './editor';
@@ -36,6 +36,9 @@ let frame: FrameMsg | null = null;
 let sel = 0;          // highlighted entry (client-local)
 let colIdx = 0;       // which Part-5 column shows in the right pane (F7/F8)
 let account: Account | null = null;
+/** The user's real name, for the SEND frame's FROM field (§A.11). Taken from
+ *  the mailbox breadcrumb, which identifies the mailbox owner (§8.2). */
+let accountName = '';
 // Context discriminators for §4.8 — the welcome frame is an entry point, not a
 // "reading" context, and mail has its own command set.
 let isWelcome = false;
@@ -60,7 +63,13 @@ function render(): void {
   // Both panes draw independently — neither can hide the other. This is what
   // fixes "connect while editing does nothing": the welcome frame lands in the
   // Compunet pane while the editor keeps its page.
-  if (courierSlots) drawCourier();
+  // In message composition the Compunet surface shows the FRAME BEING SENT, not
+  // the envelope: LAST/NEXT page through the editor's frames and SEND adds the
+  // one on screen, so the user must be able to see which that is (§8.2.2).
+  if (pendingMail && courier?.kind === 'send') {
+    const p = buf.page();
+    renderer.renderEditorPage(p.cells, p.background, p.border, 0, 0, false);
+  } else if (courier) drawCourier();
   else if (mode === 'directory' && dir) renderer.renderDirectory(dir, sel, colIdx);
   else if (mode === 'frame' && frame) renderer.renderFrame(frame);
   else renderer.renderIdle();
@@ -90,8 +99,13 @@ function onMessage(m: ServerMsg): void {
     }
     case 'directory':
       mode = 'directory'; dir = m as DirectoryMsg; sel = 0; colIdx = 0;
-      isWelcome = false; inMail = (m as DirectoryMsg).context === 'mail';
-      courierSlots = null;                 // a real listing replaces the COURIER screen
+      isWelcome = false;
+      const wasMail = inMail;
+      inMail = (m as DirectoryMsg).context === 'mail';
+      // Left Courier: forget the mail row so re-entry starts on SEND (§4.9.4).
+      if (wasMail && !inMail) { delete lastCommand.mail; delete lastCommand.mailFrame; }
+      if (inMail) accountName = ((m as DirectoryMsg).breadcrumb[1] || '').trim();
+      courier = null;                      // a real listing replaces the COURIER screen
       render();
       // An upload's result is the refreshed listing (§8.3.2) — the pages have
       // landed, so the Compunet pane takes focus back.
@@ -131,7 +145,10 @@ function onMessage(m: ServerMsg): void {
       break;
     }
     case 'ack':
-      status(`${(m as { of?: string }).of ?? 'command'} accepted`);
+      if ((m as { of?: string }).of === 'mail.send' && sentTo) {
+        status(`Message sent to ${sentTo} — it is in THEIR mailbox, not yours.`);
+        sentTo = '';
+      } else status(`${(m as { of?: string }).of ?? 'command'} accepted`);
       // Mail sent: the result is an ack, not a listing — hand focus back here.
       if (submitting) { submitting = false; setFocus('net'); }
       break;
@@ -332,7 +349,11 @@ const editorActions: Record<string, () => void> = {
     edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix);
     status('Editor help — any other editor command returns to the page');
   },
-  EDIT: () => { buf.editing = !buf.editing; status(buf.editing ? 'EDIT — typing on the page; ESC stops' : 'Edit stopped'); render(); },
+  EDIT: () => {
+    if (buf.editing) { buf.stopEdit(); status('STOP — edit stopped, frame stored'); }
+    else { buf.beginEdit(); status('EDIT — ESC stops & stores · SHIFT+ESC restores · SHIFT+TAB case · f3/f4 line · f6 colour · f7/f8 screen/border'); }
+    render();
+  },
   LAST: () => { status(buf.last() ? `Page ${buf.cur + 1} of ${buf.pages.length}` : 'Already at the first page'); render(); },
   NEXT: () => { status(buf.next() ? `Page ${buf.cur + 1} of ${buf.pages.length}` : 'Already at the last page'); render(); },
   // ⚠ NEW is a BLANK page; COPY duplicates. Not the same command (§8.4.1).
@@ -445,45 +466,89 @@ function request(msg: Record<string, unknown>): Promise<ServerMsg> {
 // Both open on the embedded COURIER frame (§A.10) — the C64 shows it before
 // asking anything, so the user is in Courier before they start typing.
 
-/** ⚠ The COURIER screen is a CLIENT-SIDE sub-state of Courier, not a place on
- *  the server: the lookup changes nothing and the frame is our own asset. So
- *  leaving it is a local redraw back to the mailbox — DONE here must NOT send
- *  `back`, which would unwind out of mail altogether (§8.2.1). */
-let courierSlots: string[] | null = null;
+/** ⚠ The COURIER screens are CLIENT-SIDE sub-states of Courier, not places on
+ *  the server: the lookup changes nothing and the frames are our own assets. So
+ *  leaving one is a local redraw back to the mailbox — DONE here must NOT send
+ *  `back`, which would unwind out of mail altogether (§8.2.1).
+ *
+ *  There are TWO of them and they are different frames: the ID screen (§A.10)
+ *  and the SEND screen (§A.11), which carries FROM/DATE/TIME/SUBJECT/TO. */
+type Courier =
+  | { kind: 'id'; lines: { text: string; colour: number }[] }
+  | { kind: 'send'; subject: string; to: { id: string; name: string | null }[] };
+let courier: Courier | null = null;
 
-function showCourier(slots: string[]): void {
-  courierSlots = slots;
-  drawCourier();
+const C_BLUE = 6, C_BLACK = 0;
+
+/** Write text into a copied grid at (row, col). */
+function put(cells: Cell[], row: number, col: number, text: string, fg: number, bg: number): void {
+  const t = text.toUpperCase();
+  for (let i = 0; i < t.length && col + i < 40; i++) {
+    const b = t.charCodeAt(i) & 0xFF;
+    const sc = b >= 0x40 && b <= 0x5F ? b & 0x1F : (b >= 0x20 && b <= 0x3F ? b : 0x20);
+    cells[row * 40 + col + i] = { g: sc, fg, bg, rv: 0 };
+  }
 }
 
 function drawCourier(): void {
-  const slots = courierSlots ?? [];
-  if (!assets.courier) return;
-  const f = assets.courier;
+  if (!courier) return;
+  const f = courier.kind === 'send' ? assets.courierSend : assets.courier;
+  if (!f) return;
   const cells = f.cells.map((c) => ({ ...c }));
-  slots.slice(0, 5).forEach((text, i) => {
-    const row = 6 + i;                       // the five ':' rows (§A.10)
-    for (let j = 0; j < text.length && 3 + j < 40; j++) {
-      const ch = text.toUpperCase().charCodeAt(j) & 0xFF;
-      const sc = ch >= 0x40 && ch <= 0x5F ? ch & 0x1F : (ch >= 0x20 && ch <= 0x3F ? ch : 0x20);
-      cells[row * 40 + 3 + j] = { g: sc, fg: 2, bg: f.background, rv: 0 };
-    }
-  });
+
+  if (courier.kind === 'id') {
+    // Five result rows against the frame's ':' slots (§A.10): ID from column 3,
+    // the frame's own colon at column 12, the name after it.
+    courier.lines.slice(0, 5).forEach((l, i) => put(cells, 6 + i, 3, l.text, l.colour, f.background));
+  } else {
+    // §A.11 field positions: values sit one space past each label.
+    put(cells, 6, 10, account?.user ?? '', C_BLUE, f.background);
+    put(cells, 7, 10, accountName, C_BLUE, f.background);
+    const now = new Date();
+    const p2 = (n: number): string => String(n).padStart(2, '0');
+    put(cells, 9, 10, `${p2(now.getDate())}-${p2(now.getMonth() + 1)}-${p2(now.getFullYear() % 100)}`, C_BLUE, f.background);
+    put(cells, 10, 10, `${p2(now.getHours())}:${p2(now.getMinutes())}`, C_BLUE, f.background);
+    put(cells, 12, 13, courier.subject, C_BLUE, f.background);
+    // ⚠ Recipients show their looked-up NAME beside the ID, exactly as the ID
+    // screen does (§8.2.1) — the name is how the sender confirms they have the
+    // right person before committing. Same colours: blue found, black not.
+    courier.to.slice(0, 5).forEach((r, i) => {
+      put(cells, 16 + i, 3, r.id, C_BLUE, f.background);
+      if (r.name === null) put(cells, 16 + i, 14, '*** NO SUCH USER ***', C_BLACK, f.background);
+      else if (r.name) put(cells, 16 + i, 14, r.name, C_BLUE, f.background);
+    });
+  }
   renderer.renderGrid(cells, f.background);
   renderer.setBorder(f.border);
 }
 
-/** ID — look up to five IDs and show each one's real name (§8.2). */
+/** ID — look up to five IDs and show each one's real name (§8.2.1).
+ *  Results are a PRESS ANY KEY screen, not a duckshoot: there is nothing to
+ *  choose, only something to read. Any key returns to the mailbox. */
 async function idCheck(): Promise<void> {
-  showCourier([]);
+  courier = { kind: 'id', lines: [] };
+  render();
   const r = await ask('ID TO CHECK?', Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
-  if (!r) { render(); return; }
+  if (!r) { courier = null; render(); return; }
   const ids = r.filter(Boolean);
-  if (!ids.length) { render(); return; }
+  if (!ids.length) { courier = null; render(); return; }
+
   const reply = await request({ type: 'idlookup', ids });
   const users = (reply as { users?: { id: string; name: string | null }[] }).users ?? [];
-  showCourier(users.map((u) => `${u.id.padEnd(8)} : ${u.name ?? 'NOT KNOWN'}`));
-  status(`${users.filter((u) => u.name).length} of ${ids.length} ID(s) known`);
+  // ⚠ Colours are normative (§8.2.1): the ID and a found name are BLUE; the
+  // not-found marker is BLACK, so a failed lookup reads differently at a glance.
+  courier = {
+    kind: 'id',
+    lines: ids.map((id) => {
+      const u = users.find((x) => x.id.trim().toUpperCase() === id.toUpperCase());
+      return u?.name
+        ? { text: `${id.padEnd(8)} : ${u.name}`, colour: C_BLUE }
+        : { text: `${id.padEnd(8)} : *** NO SUCH USER ***`, colour: C_BLACK };
+    }),
+  };
+  awaitingKey = true;
+  render();
+  status(`${users.filter((u) => u.name).length} of ${ids.length} ID(s) known — press any key`);
 }
 
 /** SEND — subject, then up to five destination IDs, each VALIDATED before the
@@ -491,49 +556,83 @@ async function idCheck(): Promise<void> {
  *  DESTINATION ID? up to five times, then OKAY? to confirm. */
 /** Recipients and subject, held between the two halves of the flow. */
 let pendingMail: { subject: string; ids: string[] } | null = null;
+/** Frames the user has SENT into the message, awaiting FINISH (§8.2.1). */
+let outgoing: ReturnType<EditorBuffer['toFrames']> = [];
+/** A PRESS ANY KEY screen is showing; the next key dismisses it (§4.8). */
+let awaitingKey = false;
+/** Recipients of the message in flight, for the delivery confirmation. */
+let sentTo = '';
+
+/** The message-composition commands (§8.2.1) — a distinct context reached once
+ *  the subject and recipients are accepted. */
+const courierActions: Record<string, () => void> = {
+  // SEND transmits the frames one at a time, as the original does; FINISH ends
+  // the message. Two commands, two jobs — not one "send it all" button.
+  SEND: () => {
+    outgoing.push(buf.toFrames()[buf.cur]);
+    status(`Page ${buf.cur + 1} added — ${outgoing.length} frame(s) in the message. FINISH to send.`);
+  },
+  FINISH: () => {
+    if (!pendingMail) return;
+    if (!outgoing.length) { status('Nothing sent yet — SEND at least one frame first', true); return; }
+    gw.send({ type: 'mail.send', to: pendingMail.ids, subject: pendingMail.subject, frames: outgoing });
+    submitMode = 'mail'; submitting = true;
+    // Name the recipients in the confirmation: mail lands in THEIR mailbox, not
+    // the sender's, so "sent" with no addressee reads as "nothing happened".
+    sentTo = pendingMail.ids.join(', ');
+    status(`SENDING ${outgoing.length} frame(s) to ${sentTo}…`);
+    pendingMail = null; outgoing = []; courier = null;
+    gw.send({ type: 'mail.list' });          // back to the mailbox
+  },
+  LAST: () => { buf.last(); render(); status(`Frame ${buf.cur + 1} of ${buf.pages.length}`); },
+  NEXT: () => { buf.next(); render(); status(`Frame ${buf.cur + 1} of ${buf.pages.length}`); },
+  EDITR: () => {
+    if (!inEditor) { editorReturn = () => render(); enterEditor(); }
+    setFocus('editor');
+  },
+};
 
 async function sendMail(): Promise<void> {
   // ⚠ An empty buffer must NOT block the attempt. Addressing a message before
   // writing it is a normal order of work — the user can compose once focus
   // lands in the editor, then run SEND again to transmit (§8.2.1).
-  if (!pendingMail) {
-    showCourier([]);
-    const subj = await ask('SUBJECT?', [{ label: 'subject', maxlength: 16 }]);
-    if (!subj?.[0]) { courierSlots = null; render(); return; }
+  courier = { kind: 'send', subject: '', to: [] };
+  render();
+  const subj = await ask('SUBJECT?', [{ label: 'subject', maxlength: 16 }]);
+  if (!subj?.[0]) { courier = null; render(); return; }
+  courier = { kind: 'send', subject: subj[0], to: [] };
+  render();   // subject appears on the envelope before the IDs are asked for
 
-    const dest = await ask('DESTINATION ID?', Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
-    if (!dest) { courierSlots = null; render(); return; }
-    const ids = dest.filter(Boolean);
-    if (!ids.length) { status('At least one recipient is required'); return; }
+  const dest = await ask('DESTINATION ID?', Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
+  if (!dest) { courier = null; render(); return; }
+  const ids = dest.filter(Boolean);
+  if (!ids.length) { status('At least one recipient is required'); return; }
 
-    // ⚠ Validate BEFORE sending: the server accepts unknown IDs silently, so an
-    // unchecked typo becomes mail that is never delivered and never reported.
-    const reply = await request({ type: 'idlookup', ids });
-    const users = (reply as { users?: { id: string; name: string | null }[] }).users ?? [];
-    const bad = ids.filter((id) => !users.find((u) => u.id.trim().toUpperCase() === id.toUpperCase() && u.name));
-    showCourier(ids.map((id) => {
-      const u = users.find((x) => x.id.trim().toUpperCase() === id.toUpperCase());
-      return `${id.padEnd(8)} : ${u?.name ?? 'NOT KNOWN'}`;
-    }));
-    if (bad.length) { status(`Unknown ID(s): ${bad.join(', ')} — nothing sent`, true); return; }
-    pendingMail = { subject: subj[0], ids };
-  }
+  // ⚠ Validate BEFORE sending: the server accepts unknown IDs silently, so an
+  // unchecked typo becomes mail that is never delivered and never reported.
+  const reply = await request({ type: 'idlookup', ids });
+  const users = (reply as { users?: { id: string; name: string | null }[] }).users ?? [];
+  const resolved = ids.map((id) => ({
+    id,
+    name: users.find((u) => u.id.trim().toUpperCase() === id.toUpperCase())?.name ?? null,
+  }));
+  const bad = resolved.filter((r) => !r.name);
+  courier = { kind: 'send', subject: subj[0], to: resolved };
+  render();
+  if (bad.length) { status(`Unknown ID(s): ${bad.map((b) => b.id).join(', ')} — nothing sent`, true); return; }
 
-  // Addressed but not yet written: hand them the editor and keep the recipients.
-  if (buf.isEmpty()) {
-    if (!inEditor) { editorReturn = () => render(); enterEditor(); }
-    setFocus('editor');
-    status(`Addressed to ${pendingMail.ids.join(', ')} — compose your message, then SEND again`);
-    return;
-  }
+  // ⚠ "OKAY? " ($AFF7) — the original confirms the completed envelope before
+  // going any further, with the names on screen so the user can check them.
+  if (!await askConfirm('OKAY?')) { courier = null; render(); return; }
 
-  if (!await askConfirm(`OKAY? — send ${buf.pages.length} page(s) to ${pendingMail.ids.join(', ')}`)) return;
-  submitMode = 'mail';
-  setFocus('editor');
-  gw.send({ type: 'mail.send', to: pendingMail.ids, subject: pendingMail.subject, frames: buf.toFrames() });
-  submitting = true;
-  pendingMail = null;
-  status('SENDING…');
+  // Accepted: this becomes the message-composition context (§8.2.2). The user
+  // pages the editor with LAST/NEXT, SENDs each frame, and FINISHes.
+  pendingMail = { subject: subj[0], ids };
+  outgoing = [];
+  if (!inEditor) { editorReturn = () => render(); enterEditor(); }
+  setFocus('net');
+  render();
+  status('SEND each frame of the message, then FINISH. EDITR to compose.');
 }
 
 /** Trigger a browser save of base64 payload (program download, §8.3.1). */
@@ -582,7 +681,10 @@ const actions: Record<string, () => void> = {
   // screen is client-side, so this is a redraw, not a wire command (§8.2.1).
   // Only from the mailbox itself does DONE leave Courier.
   DONE: () => {
-    if (courierSlots) { courierSlots = null; pendingMail = null; render(); status('Back to the mailbox'); return; }
+    if (courier) { courier = null; pendingMail = null; outgoing = []; render(); status('Back to the mailbox'); return; }
+    // ⚠ Leaving Courier forgets the mail row's position, so re-entering starts
+    // on SEND again (§4.9.4) — mail is entered to do something, not resumed.
+    delete lastCommand.mail; delete lastCommand.mailFrame;
     exitingMail = true; gw.send({ type: 'back' });
   },
   // HELP shows the embedded help frame (§A.8) — a client asset, nothing is sent.
@@ -643,7 +745,8 @@ const actions: Record<string, () => void> = {
 // directory order below is the original's priority order (§4.8), so a client
 // short of room drops from the end.
 
-type Context = 'idle' | 'welcome' | 'directory' | 'frame' | 'mail' | 'mailFrame' | 'editor' | 'partyline';
+type Context = 'idle' | 'welcome' | 'directory' | 'frame' | 'mail' | 'mailFrame'
+  | 'courierSend' | 'editor' | 'partyline';
 
 const CONTEXT_COMMANDS: Record<Context, string[]> = {
   // ⚠ Empty, and NOT because the editor is unavailable offline. With no session
@@ -659,6 +762,9 @@ const CONTEXT_COMMANDS: Record<Context, string[]> = {
   frame:     ['MORE', 'ALL', 'FINISH'],   // multi-frame only; single frame shows PRESS ANY KEY
   mail:      ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
   mailFrame: ['SEND', 'SHOW', 'MORE', 'ID', 'EDITR', 'DONE'],
+  // Message composition (§8.2.1), reached once subject and recipients are
+  // accepted. SEND adds a frame, FINISH transmits — distinct commands.
+  courierSend: ['SEND', 'FINISH', 'LAST', 'NEXT', 'EDITR'],
   // ⚠ §8.4.1 order — it ends FREE, RETURN, DOS. Storage order (…FREE DOS RETURN)
   // is NOT display order: the C64 offset table is non-monotonic at the tail.
   editor:    ['HELP', 'EDIT', 'LAST', 'NEXT', 'NEW', 'COPY', 'ERASE', 'GET', 'PUT',
@@ -674,6 +780,7 @@ const NEEDS_SELECTION = new Set(['SHOW', 'DIR', 'VOTE', 'LIFE', 'BUY']);
  *  pane model, and it is why connecting while editing is now visible. */
 function netContext(): Context {
   if (inParty) return 'partyline';
+  if (courier?.kind === 'send' && pendingMail) return 'courierSend';
   if (mode === 'idle') return 'idle';
   if (mode === 'frame') return isWelcome ? 'welcome' : (inMail ? 'mailFrame' : 'frame');
   return inMail ? 'mail' : 'directory';
@@ -705,8 +812,14 @@ function rememberRow(pane: Pane): void {
   if (r.words[r.ix]) lastCommand[ctx] = r.words[r.ix];
 }
 
+function tableFor(ctx: Context): Record<string, () => void> {
+  if (ctx === 'editor') return editorActions;
+  if (ctx === 'courierSend') return courierActions;
+  return actions;
+}
+
 function buildRow(ctx: Context): string[] {
-  const table = ctx === 'editor' ? editorActions : actions;
+  const table = tableFor(ctx);
   return CONTEXT_COMMANDS[ctx].filter((name) => {
     if (!table[name]) return false;
     // selection-dependent commands need a real highlighted entry (§4.9.5)
@@ -726,8 +839,9 @@ function updateBar(): void {
   const keep = rows.net.words.indexOf(lastCommand[nctx] ?? '');
   rows.net.ix = rows.net.words.length ? (keep >= 0 ? keep : 0) : 0;
 
-  // A single-frame page has NO duckshoot — just a prompt (§4.8/§4.9).
-  if (nctx === 'frame' && frame && !frame.morePages) renderer?.renderPrompt('PRESS ANY KEY');
+  // A single-frame page has NO duckshoot — just a prompt (§4.8/§4.9). The ID
+  // results screen is the same shape: something to read, nothing to choose.
+  if (awaitingKey || (nctx === 'frame' && frame && !frame.morePages)) renderer?.renderPrompt('PRESS ANY KEY');
   else renderer?.renderDuckshoot(rows.net.words, rows.net.ix);
 
   if (inEditor) {
@@ -756,7 +870,7 @@ function duckScroll(delta: number): void {
 function duckCommit(): void {
   const r = rows[focusPane];
   const name = r.words[r.ix];
-  const table = focusPane === 'editor' ? editorActions : actions;
+  const table = tableFor(focusPane === 'editor' ? 'editor' : netContext());
   // Record BEFORE running it: the command may change context (SHOW leaves the
   // directory), and this row's position must be captured against the context
   // the user was actually in.
@@ -793,9 +907,16 @@ window.addEventListener('keydown', (e) => {
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
   if (inParty) return;
 
-  // Tab moves focus between panes — the standard WIMP gesture, and the thing
-  // that decides which context the keyboard drives (§4.8).
-  if (e.key === 'Tab' && inEditor) {
+  // A PRESS ANY KEY screen (ID results, §8.2.1): any key returns to the mailbox.
+  if (awaitingKey) {
+    awaitingKey = false; courier = null; render();
+    e.preventDefault(); return;
+  }
+
+  // ⚠ Tab is the COMMODORE key (§8.4.3) — VICE's binding, and the editor needs
+  // it for SHIFT-C=. Pane focus therefore moves to Ctrl+Tab; the C64 mapping
+  // wins because it is fixed by the original, while pane focus is ours to place.
+  if (e.key === 'Tab' && e.ctrlKey && inEditor) {
     setFocus(focusPane === 'net' ? 'editor' : 'net');
     e.preventDefault(); return;
   }
@@ -804,16 +925,35 @@ window.addEventListener('keydown', (e) => {
   // Only when the EDITOR pane holds focus: with the Compunet pane focused the
   // editor is visible but inert, exactly as an unfocused window should be.
   if (focusPane === 'editor' && inEditor && buf.editing) {
-    if (e.key === 'Escape')     { buf.editing = false; status('Edit stopped'); render(); e.preventDefault(); return; }
+    // f5 "on/off auto-repeat": when off, a held key does not repeat (§A.9).
+    if (e.repeat && !buf.autoRepeat) { e.preventDefault(); return; }
+    // RUN/STOP maps to Escape: STOP alone stops the edit and stores the frame;
+    // SHIFT+STOP is the C64's RUN, which restores the original (§8.4.3).
+    if (e.key === 'Escape' && e.shiftKey) {
+      status(buf.restoreOriginal() ? 'RUN — frame restored to its stored state' : 'Nothing stored to restore');
+      render(); e.preventDefault(); return;
+    }
+    if (e.key === 'Escape')     { buf.stopEdit(); status('STOP — edit stopped, frame stored'); render(); e.preventDefault(); return; }
+    // SHIFT-C= "change case overwrite" — Tab is the Commodore key (§8.4.3).
+    if (e.key === 'Tab' && e.shiftKey) {
+      buf.lowerCase = !buf.lowerCase;
+      status(`Case: ${buf.lowerCase ? 'lower/mixed' : 'upper/graphics'}`);
+      e.preventDefault(); return;
+    }
+    if (e.key === 'F5')         { buf.autoRepeat = !buf.autoRepeat; status(`Auto-repeat ${buf.autoRepeat ? 'on' : 'off'}`); e.preventDefault(); return; }
+    if (e.key === 'F6')         { buf.colourOn = !buf.colourOn; status(`Colour ${buf.colourOn ? 'on' : 'off'}`); e.preventDefault(); return; }
+    // f7 / f8 — screen and border colour (§A.9)
+    if (e.key === 'F7')         { buf.cycleBackground(e.shiftKey ? -1 : 1); render(); status(`Screen colour ${buf.page().background}`); e.preventDefault(); return; }
+    if (e.key === 'F8')         { buf.cycleBorder(e.shiftKey ? -1 : 1); render(); status(`Border colour ${buf.page().border}`); e.preventDefault(); return; }
     if (e.key === 'ArrowUp')    { buf.moveRow(-1); render(); e.preventDefault(); return; }
     if (e.key === 'ArrowDown')  { buf.moveRow(1);  render(); e.preventDefault(); return; }
     if (e.key === 'ArrowLeft')  { buf.moveCol(-1); render(); e.preventDefault(); return; }
     if (e.key === 'ArrowRight') { buf.moveCol(1);  render(); e.preventDefault(); return; }
     if (e.key === 'Enter')      { buf.newline();   render(); e.preventDefault(); return; }
     if (e.key === 'Backspace')  { buf.backspace(); render(); e.preventDefault(); return; }
-    // f3/f4 — insert / delete a line above the cursor (§A.9)
-    if (e.key === 'F3')         { buf.insertLine(); render(); e.preventDefault(); return; }
-    if (e.key === 'F4')         { buf.deleteLine(); render(); e.preventDefault(); return; }
+    // f3 / f4 — delete / insert a line above the cursor (§A.9, in that order)
+    if (e.key === 'F3')         { buf.deleteLine(); render(); e.preventDefault(); return; }
+    if (e.key === 'F4')         { buf.insertLine(); render(); e.preventDefault(); return; }
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
       buf.typeChar(e.key); render(); e.preventDefault(); return;
     }

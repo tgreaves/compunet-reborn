@@ -359,6 +359,8 @@ This table consolidates the contexts and is the authority for *when* each comman
 | **Reading a single-frame page** | **none — no duckshoot at all** | The row is replaced by the prompt **`PRESS ANY KEY`**. There is nothing to page and nothing to choose, so no commands are offered |
 | **Reading a multi-frame page** | `MORE`, `ALL`, `FINISH` — in that order | **Only** these. There is no `FINISH` in a directory and no `MORE` in one (§4.7) |
 | **Mail (Courier, §8.2)** — listing and message | `SEND`, `SHOW`, `MORE`, `ID`, `EDITR`, `DONE` | A **distinct**, verified set (the mail menu has its own table). Content commands — `VOTE`, `UPLD`, `BUY`, `BACK`, `GOTO` — do **not** apply. `SHOW` reads the highlighted message, `MORE` pages it. **`DONE` returns the user to where they were before entering Courier** — see the note below |
+| **Mail composition** (§8.2.2) | `SEND`, `FINISH`, `LAST`, `NEXT`, `EDITR` | Reached once `SEND`'s subject and recipients are accepted. `SEND` adds **one** editor frame to the message, `FINISH` completes and delivers it — two commands, two jobs. `LAST`/`NEXT` page the editor's frames |
+| **Mail `ID` results** (§8.2.1) | **none — no duckshoot at all** | Replaced by the prompt **`PRESS ANY KEY`**; any key returns to the mailbox |
 | **Upload / send** (§8.3.2) | `SEND`, `LOAD`, `GET`, `FINISH` | The original entered an upload sub-context with its own set |
 | **Editor** (§8.4) | `HELP`, `EDIT`, `LAST`, `NEXT`, `NEW`, `COPY`, `ERASE`, `GET`, `PUT`, `STORE`, `PRINT`, `FREE`, `RETURN`, `DOS` | Entirely client-side (no wire commands); `RETURN` leaves the editor. **Each command's function is defined in §8.4.1** — and note the order ends `FREE`, `RETURN`, `DOS` (⚠ §8.4.1). `HELP` here shows the *editor's* help frame (§A.9), not §A.8's. **⚠ This is the one context that is also available OFFLINE** (§8.4) — it is reachable with no session at all, so it is the only row that can appear before login |
 | **Partyline** (§8.5) | None of the above — the `*`-commands (`*help`, `*who`, `*enter`, `*dice`, `*call`, `*quit`…) and free text | While in Partyline the client is in a **chat** context. Normal commands resume only after leaving |
@@ -494,13 +496,22 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
   - Remember the **command**, not its index. Selection-dependent commands appear and disappear
     (§4.9.5), so the row's length changes and a stored index drifts onto a different command.
   - If the remembered command is no longer in the row, fall back to the first.
-- **⚠ Wrapping does not mean tiling.** §4.9.6's wrap makes the row a loop *for scrolling*. It
-  does **not** repeat a short set to fill the view: a command **MUST NOT** appear twice on screen
-  at once. Where a context has fewer commands than the row displays — mail has six, a multi-frame
-  page has three — the surplus positions are **blank**, and the words simply scroll past the
-  blanks. Implementing the wrap as an unguarded modulo over the visible positions tiles the row
-  instead (three commands become "MORE ALL FINISH MORE ALL FINISH MORE"), which is wrong in
-  every context that does not fill the row.
+  - **⚠ Leaving Courier forgets the mail row.** Re-entering mail **MUST** start on **`SEND`**,
+    the first command, not wherever the user was last time. Mail is entered to *do* something,
+    so the row resets; the exception exists because the mailbox is a destination rather than a
+    place being browsed. (Within a session in mail, the row still remembers normally.)
+- **⚠ The row is a circular buffer — every visible cell is filled (normative).** Where a context
+  has fewer commands than the row displays, the set **repeats**: the wrap applies *within a
+  single view*, not only to scrolling. The C64's mail row is the worked example — six commands
+  in seven cells, centred on `SEND`:
+
+  ```
+  ID  EDITR  DONE  [SEND]  SHOW  MORE  ID
+  ```
+
+  `ID` appears **twice**, and that is correct. Suppressing the repeat — on the reasoning that a
+  command should not appear twice at once — leaves the row **blank on the left**, which is the
+  visible symptom of getting this wrong. Implement it as a plain modulo over the command count.
 - The full §4.7 vocabulary continues past the displayed directory row (`PRINT`, `LIFE`, `BUY`,
   `LOAD`, `UPLD`, `VOTE`). These are real commands and a client **MUST** keep them reachable; the
   original simply shows a shorter row by lowering its count.

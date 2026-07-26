@@ -162,6 +162,16 @@ def _render_header(session):
     return frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x8E]) + body)
 
 
+def _render_courier_header():
+    """The mailbox's Part-1 header frame (§7.2). Binding A sends this same file
+    after a $8E charset byte; body-only, so we supply the 4-byte header."""
+    path = os.path.join(_srv.CONTENT_DIR, 'courier-header.seq')
+    if not os.path.exists(path):
+        return None
+    with open(path, 'rb') as f:
+        return frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x8E]) + f.read())
+
+
 def directory_to_json(session, msg_id=None):
     """Serialize the session's current directory (spec §7) as Binding-B JSON.
 
@@ -245,6 +255,15 @@ def _petscii_to_screencode(b):
 
 def _is_control(b):
     return b <= 0x1F or 0x80 <= b <= 0x9F
+
+
+def _real_name(session):
+    """The logged-in user's real name, for the Courier breadcrumb (§8.2)."""
+    try:
+        rec = session._load_users().get(session.user_id) or {}
+    except Exception:
+        return ''
+    return (rec.get('name') or rec.get('real_name') or '').upper()
 
 
 def _b64(data):
@@ -443,10 +462,16 @@ def mail_to_json(session, msg_id=None):
     return {
         "type": "directory", "id": msg_id, "context": "mail",
         "page": 0, "title": "COURIER",
-        "breadcrumb": ["%6d %s" % (1, "*** COMPUNET ***"), "%6s %s" % ("", "COURIER")],
+        # The mailbox breadcrumb identifies the MAILBOX OWNER, not the position
+        # in the content tree (§8.2): Courier is not a place in the hierarchy,
+        # so "*** COMPUNET *** / COURIER" says nothing the title does not.
+        "breadcrumb": ["%6s %s" % ("", "USER ID : %s" % session.user_id),
+                       "%6s %s" % ("", _real_name(session) or "")],
         "columns": list(_MAIL_COLUMNS),
         "advert": [],
-        "header": None,
+        # The Courier Part-1 header, exactly as Binding A serves it
+        # (_make_mail_response): body-only PETSCII with charset $8E.
+        "header": _render_courier_header(),
         "hasMore": len(msgs) > offset + 11,
         "entries": entries,
     }

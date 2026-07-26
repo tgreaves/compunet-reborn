@@ -1,10 +1,39 @@
 # Clean-room validation brief
 
 > **Scope: this is the procedure for validating [Binding A](README.md)** (X.25-over-TCP), and it
-> has been run five times — see [VALIDATION.md](VALIDATION.md). The same method applies to
-> **[Binding B](api/README.md)** (the JSON API), which has **not** yet been clean-room validated;
-> doing so is an outstanding item on issue #91. To validate Binding B, follow this document but
-> isolate `docs/spec/api/README.md` plus the shared model sections and appendix instead.
+> has been run five times — see [VALIDATION.md](VALIDATION.md). For **[Binding B](api/README.md)**
+> (the JSON API), follow this document with the changes in *Validating Binding B* below.
+
+## Validating Binding B
+
+Same method, three differences:
+
+**The isolated set is different.** Copy `api/README.md` plus the **shared model** sections and
+the appendix — and **exclude `02-transport.md` and `03-session.md`**, which are Binding-A wire
+detail that a JSON client neither needs nor should be reading:
+
+```
+README.md  01-overview.md  04-commands.md  05-display.md  06-frame-format.md
+07-directory-format.md  08-subsystems.md  99-appendices.md  api/README.md
+```
+
+`05` and `06` stay in despite the API delivering rendered cell grids: the client still carries
+the **embedded frames** of §A.6/§A.8–§A.11 as raw PETSCII and must parse them itself.
+
+Sections will now reference §2/§3, which the builder does not have. That is intended — tell them
+a reference into a missing section is itself worth logging.
+
+**⚠ Do not point the builder at `run_api_dev.py`.** That launcher serves `client/web` on the same
+origin as the API, so the builder can fetch our reference implementation — `index.html`,
+`dist/app.bundle.js`, even `src/` — and the run is **void**. Use `server/run_api_only.py`
+(default port 6414), which exposes `/v1/*` and nothing else. Verify before starting:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:6414/dist/app.bundle.js   # must be 404
+```
+
+**Findings are tagged differently:** `[API]`, `[MODEL]`, `[UX]`, `[BUG]` — the API surface, the
+shared model beneath it, invented presentation, and outright faults.
 
 This document defines how to validate that the [Compunet Client Specification](README.md)
 is **sufficient to build a working client from the spec alone**. It exists because the spec

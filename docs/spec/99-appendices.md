@@ -850,3 +850,49 @@ frame has exactly five rows for them — the `:` sits at **column 12**, with the
 Note the body is almost all run-length codes (`07 0D 02` = three CRs; `06 02` = three spaces;
 `07 A3 06` = seven `$A3`; `06 0B 3A` = twelve spaces then `:`), so it is also a compact worked
 example of §6.4's `1 + N` counts.
+
+**⚠ This is the `ID` screen only.** `SEND` uses a **different, larger** frame — §A.11 — which
+carries the `FROM` / `DATE` / `TIME` / `SUBJECT` / `TO` labels above the same five slots. They
+look alike at a glance (both open `COURIER` in red with the `$A3` underline) and reusing this one
+for `SEND` loses every field of the message header.
+
+## §A.11 — COURIER SEND frame (client asset)
+
+The mail **composition** screen, embedded in the C64 client at **`$BD77`** — immediately before
+§A.10 — and shown by `SEND` (§8.2.1). It carries its **own 4-byte header** `00 F4 F1 8E`
+(border 4, background 1, uppercase/graphics), like §A.6 and §A.10.
+
+96 bytes, reproduced verbatim; also kept as `server/cfg/courier-send.pet`:
+
+```
+  0000: 00 F4 F1 8E 07 0D 02 06 02 1C 43 4F 55 52 49 45
+  0010: 52 0D 06 02 07 A3 06 0D 0D 06 02 46 52 4F 4D 20
+  0020: 3A 07 0D 02 06 02 44 41 54 45 20 3A 0D 06 02 54
+  0030: 49 4D 45 20 3A 0D 0D 06 02 53 55 42 4A 45 43 54
+  0040: 20 3A 0D 0D 06 02 54 4F 20 3A 0D 0D 06 0B 3A 0D
+  0050: 06 0B 3A 0D 06 0B 3A 0D 06 0B 3A 0D 06 0B 3A 00
+```
+
+It renders as a message header above the five recipient slots:
+
+```
+   3 |    COURIER              (red)
+   4 |    ▔▔▔▔▔▔▔
+   6 |    FROM :    <user id>
+   7 |              <real name>
+   9 |    DATE :    <dd-mm-yy>
+  10 |    TIME :    <hh:mm>
+  12 |    SUBJECT : <subject>
+  14 |    TO :
+  16 |    <id>     :
+  17 |    <id>     :          (up to five)
+  …
+```
+
+**Field positions.** Labels are drawn from **column 3**. Values go at **column 10** for `FROM`,
+`DATE` and `TIME`, and at **column 13** for `SUBJECT` (one space past the longer label). The
+sender's **real name** goes on the line *below* the ID, at column 10 — the `FROM` block is two
+lines. Recipient IDs are written from **column 3** against the frame's `:` at column 12.
+
+*(The frames are chained in memory: each one's `$00` terminator doubles as the next one's
+`flags` byte, which is why §A.6 ends at `$BD77` where this frame begins.)*

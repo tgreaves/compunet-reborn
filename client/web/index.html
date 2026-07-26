@@ -66,12 +66,18 @@
                font: 13px ui-monospace, monospace; caret-color: #0d0; }
 
   /* --- submit dialog (metadata only; the body comes from the editor) -- */
-  #submit, #ask { position: fixed; inset: 0; background: #000a; display: flex;
+  #submit { position: fixed; inset: 0; background: #000a; display: flex;
             align-items: center; justify-content: center; z-index: 10; }
+  /* ⚠ The prompt must NOT cover the screen it is asking about: OKAY? confirms
+     the envelope, so the envelope has to stay visible (§8.2.1). Anchored to the
+     bottom, with no dimming backdrop. */
+  #ask { position: fixed; inset: auto 0 0 0; display: flex; justify-content: center;
+         padding: 0 16px 16px; z-index: 10; pointer-events: none; }
+  #ask > * { pointer-events: auto; }
   #submit[hidden], #ask[hidden] { display: none; }
   #askBox { width: 420px; max-width: calc(100vw - 32px); background: var(--panel);
-            border: 1px solid var(--line); border-radius: 10px; padding: 16px;
-            display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px #000a; }
+            border: 1px solid var(--accent); border-radius: 10px; padding: 14px;
+            display: flex; flex-direction: column; gap: 10px; box-shadow: 0 12px 40px #000c; }
   #askTitle { font-weight: 650; color: #9ab; }
   #askFields { display: flex; flex-direction: column; gap: 6px; }
   #askFields input { width: 100%; }

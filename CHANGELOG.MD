@@ -1,91 +1,48 @@
 # 1.2.0 (2026-07-25)
 
-Adds a complete **Compunet Client Specification** (#111) — a normative, platform-agnostic
-single source of truth for building a Compunet client over TCP/IP, in `docs/spec/`. It pins
-down the wire protocol and the display contract in enough detail, with the font, palette, and
-directory template extracted as concrete data, that a client can be built from the spec alone.
-It has been validated by repeated source-isolated clean-room builds against the live server.
+Adds a complete **Compunet Client Specification** (#111) in `docs/spec/` — a normative,
+platform-agnostic single source of truth for building a client over TCP/IP, detailed enough
+(with the font, palette and template extracted as data) to build from the document alone. Adds
+a **JSON API** and a **web/desktop client** on top of it (#91).
 
 * Client Specification (new, `docs/spec/`) (#111):
-	* Eight normative sections: transport (X.25-over-TCP framing, byte-stuffing, CRC-CCITT,
-	  sequencing, ACK pacing), session lifecycle (handshake, identification, login, LINKING,
-	  command loop), command protocol, display contract (40×24 PETSCII grid, charsets,
-	  16-colour palette), frame format (4-byte header, RLE), the six-part directory stream,
-	  and subsystems (mail, download, upload, editor, Partyline, UCAT/VOTE/LIFE).
-	* Self-contained appendix: the C64 character-ROM font (8×8 and 8×16), the palette RGB, and
-	  the built-in directory template — extracted as concrete data so a client can render an
-	  authentic screen with no access to the original binaries.
-	* Conformance tiers (Browse / Interact / Full) and a standard command vocabulary mapped to
-	  the wire commands, plus companion docs: an implementation cross-reference (spec → server
-	  source), a documentation audit, and a validation log.
-* Validation:
-	* Source-isolated clean-room process (`docs/spec/CLEANROOM.md`): a fresh agent builds a
-	  client from the spec alone — no server or client source — against the live server, logging
-	  every gap. Five independent builds (Tier 1 through full Tier 3) all produced working
-	  clients from the document alone.
-	* Corrections folded in from the runs: the DIR/SHOW/FINISH/MORE command model and
-	  server-side directory creation; the canonical directory layout (entry columns, PRICE
-	  header row, red-first/blue-rest entry colours, client-drawn selection bar); byte-boundary
-	  and ACK-timing details (Part 2 carries no terminator of its own; the Partyline link header
-	  and per-frame upload accepts must be ACKed); handshake-drain and bare-`P` FINISH semantics;
-	  and client obligations (surface `DIR` on the welcome screen, prompt for upload type and
-	  price, mandatory right-hand column cycling and full-directory checks).
+	* Eight normative sections: transport, session lifecycle, commands, the 40x24 PETSCII display
+	  contract, frame format, the six-part directory stream, and subsystems.
+	* Self-contained appendix: C64 character-ROM font, palette RGB, and the embedded directory,
+	  HELP, editor-help and COURIER frames, reproduced verbatim.
+	* `CONFORMANCE.md` — a self-audit for divergences that normal testing cannot catch.
+	* Validated by five source-isolated clean-room builds (`CLEANROOM.md`): a fresh agent builds
+	  from the spec alone, against the live server, logging every gap. Corrections folded back in.
 * Client API - **Binding B** (new, `server/api_binding.py`, port 6404) (#91):
-	* A JSON API (WebSocket gateway + REST) for modern clients, added as a *second transport
-	  binding* over the same application model rather than a parallel implementation: it is a
-	  **serializer over the existing core**, driving the authoritative `handle_command` and
-	  serializing the resulting state. Binding A (X.25-over-TCP + PETSCII, port 6400) is frozen
-	  and byte-for-byte unchanged for the C64 and Amiga ROM clients.
-	* Frames are delivered as a rendered **40x24 cell grid** (glyph, foreground, background,
-	  reverse) so a client never parses PETSCII, plus the exact source bytes (`raw`) so a page
-	  can be stored and republished unchanged.
-	* Token-first auth, typed errors for the checks Binding A applies silently
-	  (`permission_denied`, `directory_full`), per-column server-side justification of directory
-	  values, and a CORS layer (the desktop shell serves from an ephemeral loopback origin).
-	* The old, broken WebSocket handler and its port are removed. The admin API (port 6403,
-	  used by the website) is untouched.
+	* Why: reaching Compunet on a modern platform meant reimplementing X.25 framing, CRC,
+	  sequencing, PETSCII rendering and the directory stream in every client — weeks of work
+	  each, and every one drifting differently. That work now happens once, in the server.
+	* JSON over WebSocket + REST, added as a *second transport binding over the same application
+	  model* — a serializer driving the same authoritative command handling, not a parallel
+	  implementation. Binding A (port 6400) is frozen and byte-for-byte unchanged for the C64 and
+	  Amiga clients.
+	* Frames are delivered as a rendered 40x24 cell grid, so a client never parses PETSCII, plus
+	  the source bytes so a captured page can be republished unchanged.
+	* Token auth, CORS, and typed errors for the checks Binding A applies silently. The old
+	  WebSocket handler is removed; the website's admin API (6403) is untouched.
 * Reference client - web and desktop (new, `client/web/`, `client/electron/`) (#91):
-	* TypeScript (strict) + esbuild, rendering the authentic 40x24 screen on a canvas from the
-	  spec's font and palette; an Electron shell serves the same build as a desktop app, so
-	  browser and desktop share one codebase.
-	* Full duckshoot (the row scrolls, the centre is the selection, it wraps), per-context
-	  command sets, click-to-highlight and double-click-DIR, F7/F8 column cycling.
-	* A **multi-pane workspace**: the Compunet surface and the editor side by side, each owning
-	  its own command row, with focus deciding which the keyboard drives - so composing a page
-	  while the target directory stays visible is possible for the first time. Partyline takes
-	  over the Compunet pane, as the C64's chat program takes over the screen.
-	* A full **frame editor**: a multi-page cell-grid buffer (`LAST`/`NEXT`/`NEW`/`COPY`/
-	  `ERASE`), local `GET`/`PUT`/`STORE`, works offline, and captures every page viewed on
-	  Compunet **verbatim** - colour, reverse video, graphics and charset preserved.
-* Specification extensions:
-	* `§1.8` the model-and-bindings architecture; `docs/spec/api/` (the Binding-B spec and its
-	  design rationale); `CONFORMANCE.md`, a self-audit checklist for the failure the usual
-	  tests miss - a client that is complete, correct on the wire, and quietly not Compunet.
-	* `§4.8` command availability by context (normative, eight contexts); `§4.9` the duckshoot
-	  defined in full; `§4.10` showing more than one context at once, which contexts tile and
-	  which replace, and focus following the content being committed.
-	* `§8.4.1` the editor's fourteen commands defined (`PUT` saves one page, `STORE` the
-	  buffer - not synonyms); `§8.4.2` verbatim capture of viewed pages; `§8.2.1` the mail send
-	  flow (subject, up to five destination IDs, each validated before anything is sent).
-	* `§A.8`/`§A.9`/`§A.10`: the embedded HELP, editor-help and COURIER frames extracted from
-	  the C64 client and reproduced verbatim, each stating whether it carries its own header -
-	  they disagree, and assuming otherwise renders a page in the wrong character set.
-	* `§1.5.1` names the recurring failure mode these guards exist for - the **plausible edit**,
-	  where a command is dropped as redundant or invented for convenience, producing a client
-	  that works and is not Compunet.
-* Corrections found by reconstruction, verified against the disassembly:
-	* The editor duckshoot order ends `FREE RETURN DOS`, not `FREE DOS RETURN`: the offset table
-	  at `$83FE` is non-monotonic, which is what proves it is a display order rather than the
-	  order the strings happen to be stored in. `docs/PROTOCOL.md` carried the storage order.
-	* The mail and directory duckshoot lists in `docs/PROTOCOL.md` were wrong (five of seven
-	  mail names mis-decoded, `LOAD` missing from the directory row).
-	* `BUY` is a distinct command from `SHOW` despite sharing wire bytes - `SHOW` refuses a paid
-	  page, `BUY` confirms the charge - and had been dropped as redundant.
+	* TypeScript + esbuild, rendering the authentic screen on a canvas; an Electron shell serves
+	  the same build as a desktop app.
+	* Duckshoot, per-context command sets, and a two-pane workspace — the Compunet surface and the
+	  editor side by side, each owning its own command row, with focus deciding which the keyboard
+	  drives.
+	* A full frame editor: multi-page cell-grid buffer, local load/save, works offline, and
+	  captures every page viewed on Compunet verbatim (colour, reverse video, graphics, charset).
+* Corrections, verified against the disassembly:
+	* The editor command row ends `FREE RETURN DOS`, not `FREE DOS RETURN` — the offset table at
+	  `$83FE` is non-monotonic, which is what proves it is a display order. `docs/PROTOCOL.md`
+	  carried the storage order, and its mail and directory rows were also wrong.
+	* `BUY` is a distinct command from `SHOW` despite sharing wire bytes (`SHOW` refuses a paid
+	  page, `BUY` confirms the charge), and had been dropped as redundant.
 * Server:
-	* `SHOW` on an entry with no frames is now **inert**, as the original: it no longer falls
-	  back to entering the sub-directory, which had collapsed `SHOW` and `DIR` into one command
-	  on exactly the entries where they differ. The old `NO CONTENT` error was not inert either -
-	  the C64 renders any non-ACK, non-LINKING response as data, so it painted over the screen.
+	* `SHOW` on an entry with no frames is now inert, as the original: it no longer falls back to
+	  entering the sub-directory, which had collapsed `SHOW` and `DIR` into one command on exactly
+	  the entries where they differ.
 	* Mail directory is created on demand, fixing a send failure on a fresh deployment.
 
 # 1.1.0 (2026-07-24)

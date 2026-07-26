@@ -144,13 +144,13 @@ var Renderer = class {
    *  session there is no Compunet screen and no command row (§8.4). */
   renderIdle() {
     const g = Array.from({ length: COLS * ROWS }, () => ({ g: 32, fg: 6, bg: 0, rv: 0 }));
-    const put = (r, t, fg) => {
+    const put2 = (r, t, fg) => {
       const c0 = Math.max(0, Math.floor((COLS - t.length) / 2));
       for (let i = 0; i < t.length && c0 + i < COLS; i++)
         g[r * COLS + c0 + i] = { g: asciiGlyph(t[i]), fg, bg: 0, rv: 0 };
     };
-    put(10, "COMPUNET REBORN", 14);
-    put(12, "NOT CONNECTED", 11);
+    put2(10, "COMPUNET REBORN", 14);
+    put2(12, "NOT CONNECTED", 11);
     this.renderGrid(g, 0);
     this.setBorder(6);
   }
@@ -188,9 +188,7 @@ var Renderer = class {
     if (words.length === 1 && words[0] === "\0PRESSANYKEY") return;
     const startCol = Math.floor((COLS - VISIBLE * WORD) / 2);
     for (let slot = 0; slot < VISIBLE; slot++) {
-      const linear = centre + slot - MID;
-      if (words.length < VISIBLE && (linear < 0 || linear >= words.length)) continue;
-      const wi = (linear % words.length + words.length) % words.length;
+      const wi = ((centre + slot - MID) % words.length + words.length) % words.length;
       const name = words[wi];
       const text = (DUCK_CELL[name] ?? name.padEnd(WORD)).slice(0, WORD);
       const selected = slot === MID;
@@ -251,7 +249,14 @@ function blankPage() {
 }
 var CAPACITY = 12 * CELLS;
 var MAX_PAGES = 15;
-function charToGlyph(ch) {
+function charToGlyph(ch, lower) {
+  const c = ch.charCodeAt(0) & 255;
+  if (lower) {
+    if (c >= 97 && c <= 122) return 128 + (c - 96);
+    if (c >= 65 && c <= 90) return 128 + c;
+    if (c >= 32 && c <= 63) return 128 + c;
+    return 128 + 32;
+  }
   const b = ch.toUpperCase().charCodeAt(0) & 255;
   if (b >= 32 && b <= 63) return b;
   if (b >= 64 && b <= 95) return b & 31;
@@ -274,6 +279,32 @@ var EditorBuffer = class {
     this.row = 0;
     this.col = 0;
     this.editing = false;
+    // --- editing modes, from the editor's own help frame (§A.9 / §8.4.3) ---
+    /** SHIFT-C= "change case overwrite": which set typed text goes into. */
+    this.lowerCase = false;
+    /** f6 "on/off colour": when off, typing keeps each cell's existing colour. */
+    this.colourOn = true;
+    /** f5 "on/off auto-repeat": when off, held keys do not repeat. */
+    this.autoRepeat = true;
+    /** The page as last STORED, for RUN ("restore original"). */
+    this.original = null;
+  }
+  /** STOP — stop editing and store the frame (§A.9). */
+  stopEdit() {
+    this.editing = false;
+    this.original = this.page().cells.map((c) => ({ ...c }));
+  }
+  /** RUN — restore the frame to its last stored state (§A.9). */
+  restoreOriginal() {
+    if (!this.original) return false;
+    this.page().cells = this.original.map((c) => ({ ...c }));
+    delete this.page().raw;
+    return true;
+  }
+  /** Remember the starting state when an edit begins. */
+  beginEdit() {
+    this.editing = true;
+    if (!this.original) this.original = this.page().cells.map((c) => ({ ...c }));
   }
   page() {
     return this.pages[this.cur];
@@ -350,11 +381,23 @@ var EditorBuffer = class {
   typeChar(ch) {
     const p = this.page();
     this.touch();
-    p.cells[this.row * PAGE_COLS + this.col] = { g: charToGlyph(ch), fg: p.colour, bg: p.background, rv: 0 };
+    const i = this.row * PAGE_COLS + this.col;
+    const fg = this.colourOn ? p.colour : p.cells[i].fg;
+    p.cells[i] = { g: charToGlyph(ch, this.lowerCase), fg, bg: p.background, rv: 0 };
     if (++this.col >= PAGE_COLS) {
       this.col = 0;
       this.moveRow(1);
     }
+  }
+  /** f7 / f8 — screen (background) and border colour (§A.9). */
+  cycleBackground(d) {
+    const p = this.page();
+    p.background = ((p.background + d) % 16 + 16) % 16;
+    this.touch();
+  }
+  cycleBorder(d) {
+    const p = this.page();
+    p.border = ((p.border + d) % 16 + 16) % 16;
   }
   backspace() {
     if (this.col === 0) {
@@ -446,6 +489,7 @@ var frame = null;
 var sel = 0;
 var colIdx = 0;
 var account = null;
+var accountName = "";
 var isWelcome = false;
 var inMail = false;
 var exitingMail = false;
@@ -461,7 +505,10 @@ function setFocus(p) {
   updateBar();
 }
 function render() {
-  if (courierSlots) drawCourier();
+  if (pendingMail && courier?.kind === "send") {
+    const p = buf.page();
+    renderer.renderEditorPage(p.cells, p.background, p.border, 0, 0, false);
+  } else if (courier) drawCourier();
   else if (mode === "directory" && dir) renderer.renderDirectory(dir, sel, colIdx);
   else if (mode === "frame" && frame) renderer.renderFrame(frame);
   else renderer.renderIdle();
@@ -496,8 +543,14 @@ function onMessage(m) {
       sel = 0;
       colIdx = 0;
       isWelcome = false;
+      const wasMail = inMail;
       inMail = m.context === "mail";
-      courierSlots = null;
+      if (wasMail && !inMail) {
+        delete lastCommand.mail;
+        delete lastCommand.mailFrame;
+      }
+      if (inMail) accountName = (m.breadcrumb[1] || "").trim();
+      courier = null;
       render();
       if (submitting) {
         submitting = false;
@@ -545,7 +598,10 @@ function onMessage(m) {
       break;
     }
     case "ack":
-      status(`${m.of ?? "command"} accepted`);
+      if (m.of === "mail.send" && sentTo) {
+        status(`Message sent to ${sentTo} \u2014 it is in THEIR mailbox, not yours.`);
+        sentTo = "";
+      } else status(`${m.of ?? "command"} accepted`);
       if (submitting) {
         submitting = false;
         setFocus("net");
@@ -721,8 +777,13 @@ var editorActions = {
     status("Editor help \u2014 any other editor command returns to the page");
   },
   EDIT: () => {
-    buf.editing = !buf.editing;
-    status(buf.editing ? "EDIT \u2014 typing on the page; ESC stops" : "Edit stopped");
+    if (buf.editing) {
+      buf.stopEdit();
+      status("STOP \u2014 edit stopped, frame stored");
+    } else {
+      buf.beginEdit();
+      status("EDIT \u2014 ESC stops & stores \xB7 SHIFT+ESC restores \xB7 SHIFT+TAB case \xB7 f3/f4 line \xB7 f6 colour \xB7 f7/f8 screen/border");
+    }
     render();
   },
   LAST: () => {
@@ -840,94 +901,163 @@ function request(msg) {
     }, 1e4);
   });
 }
-var courierSlots = null;
-function showCourier(slots) {
-  courierSlots = slots;
-  drawCourier();
+var courier = null;
+var C_BLUE = 6;
+var C_BLACK = 0;
+function put(cells, row, col, text, fg, bg) {
+  const t = text.toUpperCase();
+  for (let i = 0; i < t.length && col + i < 40; i++) {
+    const b = t.charCodeAt(i) & 255;
+    const sc = b >= 64 && b <= 95 ? b & 31 : b >= 32 && b <= 63 ? b : 32;
+    cells[row * 40 + col + i] = { g: sc, fg, bg, rv: 0 };
+  }
 }
 function drawCourier() {
-  const slots = courierSlots ?? [];
-  if (!assets.courier) return;
-  const f = assets.courier;
+  if (!courier) return;
+  const f = courier.kind === "send" ? assets.courierSend : assets.courier;
+  if (!f) return;
   const cells = f.cells.map((c) => ({ ...c }));
-  slots.slice(0, 5).forEach((text, i) => {
-    const row = 6 + i;
-    for (let j = 0; j < text.length && 3 + j < 40; j++) {
-      const ch = text.toUpperCase().charCodeAt(j) & 255;
-      const sc = ch >= 64 && ch <= 95 ? ch & 31 : ch >= 32 && ch <= 63 ? ch : 32;
-      cells[row * 40 + 3 + j] = { g: sc, fg: 2, bg: f.background, rv: 0 };
-    }
-  });
+  if (courier.kind === "id") {
+    courier.lines.slice(0, 5).forEach((l, i) => put(cells, 6 + i, 3, l.text, l.colour, f.background));
+  } else {
+    put(cells, 6, 10, account?.user ?? "", C_BLUE, f.background);
+    put(cells, 7, 10, accountName, C_BLUE, f.background);
+    const now = /* @__PURE__ */ new Date();
+    const p2 = (n) => String(n).padStart(2, "0");
+    put(cells, 9, 10, `${p2(now.getDate())}-${p2(now.getMonth() + 1)}-${p2(now.getFullYear() % 100)}`, C_BLUE, f.background);
+    put(cells, 10, 10, `${p2(now.getHours())}:${p2(now.getMinutes())}`, C_BLUE, f.background);
+    put(cells, 12, 13, courier.subject, C_BLUE, f.background);
+    courier.to.slice(0, 5).forEach((r, i) => {
+      put(cells, 16 + i, 3, r.id, C_BLUE, f.background);
+      if (r.name === null) put(cells, 16 + i, 14, "*** NO SUCH USER ***", C_BLACK, f.background);
+      else if (r.name) put(cells, 16 + i, 14, r.name, C_BLUE, f.background);
+    });
+  }
   renderer.renderGrid(cells, f.background);
   renderer.setBorder(f.border);
 }
 async function idCheck() {
-  showCourier([]);
+  courier = { kind: "id", lines: [] };
+  render();
   const r = await ask("ID TO CHECK?", Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
   if (!r) {
+    courier = null;
     render();
     return;
   }
   const ids = r.filter(Boolean);
   if (!ids.length) {
+    courier = null;
     render();
     return;
   }
   const reply = await request({ type: "idlookup", ids });
   const users = reply.users ?? [];
-  showCourier(users.map((u) => `${u.id.padEnd(8)} : ${u.name ?? "NOT KNOWN"}`));
-  status(`${users.filter((u) => u.name).length} of ${ids.length} ID(s) known`);
+  courier = {
+    kind: "id",
+    lines: ids.map((id) => {
+      const u = users.find((x) => x.id.trim().toUpperCase() === id.toUpperCase());
+      return u?.name ? { text: `${id.padEnd(8)} : ${u.name}`, colour: C_BLUE } : { text: `${id.padEnd(8)} : *** NO SUCH USER ***`, colour: C_BLACK };
+    })
+  };
+  awaitingKey = true;
+  render();
+  status(`${users.filter((u) => u.name).length} of ${ids.length} ID(s) known \u2014 press any key`);
 }
 var pendingMail = null;
-async function sendMail() {
-  if (!pendingMail) {
-    showCourier([]);
-    const subj = await ask("SUBJECT?", [{ label: "subject", maxlength: 16 }]);
-    if (!subj?.[0]) {
-      courierSlots = null;
-      render();
+var outgoing = [];
+var awaitingKey = false;
+var sentTo = "";
+var courierActions = {
+  // SEND transmits the frames one at a time, as the original does; FINISH ends
+  // the message. Two commands, two jobs — not one "send it all" button.
+  SEND: () => {
+    outgoing.push(buf.toFrames()[buf.cur]);
+    status(`Page ${buf.cur + 1} added \u2014 ${outgoing.length} frame(s) in the message. FINISH to send.`);
+  },
+  FINISH: () => {
+    if (!pendingMail) return;
+    if (!outgoing.length) {
+      status("Nothing sent yet \u2014 SEND at least one frame first", true);
       return;
     }
-    const dest = await ask("DESTINATION ID?", Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
-    if (!dest) {
-      courierSlots = null;
-      render();
-      return;
-    }
-    const ids = dest.filter(Boolean);
-    if (!ids.length) {
-      status("At least one recipient is required");
-      return;
-    }
-    const reply = await request({ type: "idlookup", ids });
-    const users = reply.users ?? [];
-    const bad = ids.filter((id) => !users.find((u) => u.id.trim().toUpperCase() === id.toUpperCase() && u.name));
-    showCourier(ids.map((id) => {
-      const u = users.find((x) => x.id.trim().toUpperCase() === id.toUpperCase());
-      return `${id.padEnd(8)} : ${u?.name ?? "NOT KNOWN"}`;
-    }));
-    if (bad.length) {
-      status(`Unknown ID(s): ${bad.join(", ")} \u2014 nothing sent`, true);
-      return;
-    }
-    pendingMail = { subject: subj[0], ids };
-  }
-  if (buf.isEmpty()) {
+    gw.send({ type: "mail.send", to: pendingMail.ids, subject: pendingMail.subject, frames: outgoing });
+    submitMode = "mail";
+    submitting = true;
+    sentTo = pendingMail.ids.join(", ");
+    status(`SENDING ${outgoing.length} frame(s) to ${sentTo}\u2026`);
+    pendingMail = null;
+    outgoing = [];
+    courier = null;
+    gw.send({ type: "mail.list" });
+  },
+  LAST: () => {
+    buf.last();
+    render();
+    status(`Frame ${buf.cur + 1} of ${buf.pages.length}`);
+  },
+  NEXT: () => {
+    buf.next();
+    render();
+    status(`Frame ${buf.cur + 1} of ${buf.pages.length}`);
+  },
+  EDITR: () => {
     if (!inEditor) {
       editorReturn = () => render();
       enterEditor();
     }
     setFocus("editor");
-    status(`Addressed to ${pendingMail.ids.join(", ")} \u2014 compose your message, then SEND again`);
+  }
+};
+async function sendMail() {
+  courier = { kind: "send", subject: "", to: [] };
+  render();
+  const subj = await ask("SUBJECT?", [{ label: "subject", maxlength: 16 }]);
+  if (!subj?.[0]) {
+    courier = null;
+    render();
     return;
   }
-  if (!await askConfirm(`OKAY? \u2014 send ${buf.pages.length} page(s) to ${pendingMail.ids.join(", ")}`)) return;
-  submitMode = "mail";
-  setFocus("editor");
-  gw.send({ type: "mail.send", to: pendingMail.ids, subject: pendingMail.subject, frames: buf.toFrames() });
-  submitting = true;
-  pendingMail = null;
-  status("SENDING\u2026");
+  courier = { kind: "send", subject: subj[0], to: [] };
+  render();
+  const dest = await ask("DESTINATION ID?", Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
+  if (!dest) {
+    courier = null;
+    render();
+    return;
+  }
+  const ids = dest.filter(Boolean);
+  if (!ids.length) {
+    status("At least one recipient is required");
+    return;
+  }
+  const reply = await request({ type: "idlookup", ids });
+  const users = reply.users ?? [];
+  const resolved = ids.map((id) => ({
+    id,
+    name: users.find((u) => u.id.trim().toUpperCase() === id.toUpperCase())?.name ?? null
+  }));
+  const bad = resolved.filter((r) => !r.name);
+  courier = { kind: "send", subject: subj[0], to: resolved };
+  render();
+  if (bad.length) {
+    status(`Unknown ID(s): ${bad.map((b) => b.id).join(", ")} \u2014 nothing sent`, true);
+    return;
+  }
+  if (!await askConfirm("OKAY?")) {
+    courier = null;
+    render();
+    return;
+  }
+  pendingMail = { subject: subj[0], ids };
+  outgoing = [];
+  if (!inEditor) {
+    editorReturn = () => render();
+    enterEditor();
+  }
+  setFocus("net");
+  render();
+  status("SEND each frame of the message, then FINISH. EDITR to compose.");
 }
 function saveBase64(b64, filename) {
   const bin = atob(b64);
@@ -988,13 +1118,16 @@ var actions = {
   // screen is client-side, so this is a redraw, not a wire command (§8.2.1).
   // Only from the mailbox itself does DONE leave Courier.
   DONE: () => {
-    if (courierSlots) {
-      courierSlots = null;
+    if (courier) {
+      courier = null;
       pendingMail = null;
+      outgoing = [];
       render();
       status("Back to the mailbox");
       return;
     }
+    delete lastCommand.mail;
+    delete lastCommand.mailFrame;
     exitingMail = true;
     gw.send({ type: "back" });
   },
@@ -1117,6 +1250,9 @@ var CONTEXT_COMMANDS = {
   // multi-frame only; single frame shows PRESS ANY KEY
   mail: ["SEND", "SHOW", "MORE", "ID", "EDITR", "DONE"],
   mailFrame: ["SEND", "SHOW", "MORE", "ID", "EDITR", "DONE"],
+  // Message composition (§8.2.1), reached once subject and recipients are
+  // accepted. SEND adds a frame, FINISH transmits — distinct commands.
+  courierSend: ["SEND", "FINISH", "LAST", "NEXT", "EDITR"],
   // ⚠ §8.4.1 order — it ends FREE, RETURN, DOS. Storage order (…FREE DOS RETURN)
   // is NOT display order: the C64 offset table is non-monotonic at the tail.
   editor: [
@@ -1140,6 +1276,7 @@ var CONTEXT_COMMANDS = {
 var NEEDS_SELECTION = /* @__PURE__ */ new Set(["SHOW", "DIR", "VOTE", "LIFE", "BUY"]);
 function netContext() {
   if (inParty) return "partyline";
+  if (courier?.kind === "send" && pendingMail) return "courierSend";
   if (mode === "idle") return "idle";
   if (mode === "frame") return isWelcome ? "welcome" : inMail ? "mailFrame" : "frame";
   return inMail ? "mail" : "directory";
@@ -1155,8 +1292,13 @@ function rememberRow(pane) {
   const ctx = pane === "editor" ? "editor" : netContext();
   if (r.words[r.ix]) lastCommand[ctx] = r.words[r.ix];
 }
+function tableFor(ctx) {
+  if (ctx === "editor") return editorActions;
+  if (ctx === "courierSend") return courierActions;
+  return actions;
+}
 function buildRow(ctx) {
-  const table = ctx === "editor" ? editorActions : actions;
+  const table = tableFor(ctx);
   return CONTEXT_COMMANDS[ctx].filter((name) => {
     if (!table[name]) return false;
     if (NEEDS_SELECTION.has(name) && ctx === "directory" && !hasSelection()) return false;
@@ -1168,7 +1310,7 @@ function updateBar() {
   rows.net.words = buildRow(nctx);
   const keep = rows.net.words.indexOf(lastCommand[nctx] ?? "");
   rows.net.ix = rows.net.words.length ? keep >= 0 ? keep : 0 : 0;
-  if (nctx === "frame" && frame && !frame.morePages) renderer?.renderPrompt("PRESS ANY KEY");
+  if (awaitingKey || nctx === "frame" && frame && !frame.morePages) renderer?.renderPrompt("PRESS ANY KEY");
   else renderer?.renderDuckshoot(rows.net.words, rows.net.ix);
   if (inEditor) {
     rows.editor.words = buildRow("editor");
@@ -1189,7 +1331,7 @@ function duckScroll(delta) {
 function duckCommit() {
   const r = rows[focusPane];
   const name = r.words[r.ix];
-  const table = focusPane === "editor" ? editorActions : actions;
+  const table = tableFor(focusPane === "editor" ? "editor" : netContext());
   rememberRow(focusPane);
   if (name && table[name]) table[name]();
 }
@@ -1219,16 +1361,65 @@ window.addEventListener("keydown", (e) => {
   const el = e.target;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
   if (inParty) return;
-  if (e.key === "Tab" && inEditor) {
+  if (awaitingKey) {
+    awaitingKey = false;
+    courier = null;
+    render();
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "Tab" && e.ctrlKey && inEditor) {
     setFocus(focusPane === "net" ? "editor" : "net");
     e.preventDefault();
     return;
   }
   if (focusPane === "editor" && inEditor && buf.editing) {
-    if (e.key === "Escape") {
-      buf.editing = false;
-      status("Edit stopped");
+    if (e.repeat && !buf.autoRepeat) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Escape" && e.shiftKey) {
+      status(buf.restoreOriginal() ? "RUN \u2014 frame restored to its stored state" : "Nothing stored to restore");
       render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Escape") {
+      buf.stopEdit();
+      status("STOP \u2014 edit stopped, frame stored");
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Tab" && e.shiftKey) {
+      buf.lowerCase = !buf.lowerCase;
+      status(`Case: ${buf.lowerCase ? "lower/mixed" : "upper/graphics"}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F5") {
+      buf.autoRepeat = !buf.autoRepeat;
+      status(`Auto-repeat ${buf.autoRepeat ? "on" : "off"}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F6") {
+      buf.colourOn = !buf.colourOn;
+      status(`Colour ${buf.colourOn ? "on" : "off"}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F7") {
+      buf.cycleBackground(e.shiftKey ? -1 : 1);
+      render();
+      status(`Screen colour ${buf.page().background}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F8") {
+      buf.cycleBorder(e.shiftKey ? -1 : 1);
+      render();
+      status(`Border colour ${buf.page().border}`);
       e.preventDefault();
       return;
     }
@@ -1269,13 +1460,13 @@ window.addEventListener("keydown", (e) => {
       return;
     }
     if (e.key === "F3") {
-      buf.insertLine();
+      buf.deleteLine();
       render();
       e.preventDefault();
       return;
     }
     if (e.key === "F4") {
-      buf.deleteLine();
+      buf.insertLine();
       render();
       e.preventDefault();
       return;

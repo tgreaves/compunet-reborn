@@ -39,6 +39,15 @@ directory listing.
   directory response** (§7) whose entries are the user's messages — sender/subject in the
   first field, metadata (date, status) in the column fields. A client **MUST** parse this
   exactly as a §7 directory.
+- **The mailbox carries a Part-1 header** like any other directory (§7.2) — the Courier banner
+  (`courier-header.seq`), body-only PETSCII served after a `$8E` charset byte. A client renders it
+  exactly as it renders a content directory's header; a mailbox with no header is a serialisation
+  bug, not a property of Courier.
+- **⚠ The mailbox breadcrumb identifies the MAILBOX OWNER**, not a position in the content tree:
+  line 1 is `USER ID : <id>` and line 2 the user's **real name**. Courier is not a place in the
+  hierarchy, so the usual `*** COMPUNET *** / …` trail says nothing the title does not — and the
+  owner's identity is what the sender needs, since it is the `FROM` shown on every message they
+  send (§A.11).
 - **Read a message:** selecting a message entry (with `D` + index) returns the message body
   as frame(s) (§6), paged like any other content.
 - **Send a message:** mail send uses the upload command `U` — see §8.3, which distinguishes
@@ -56,11 +65,15 @@ Its five slots are the five recipients.
 1. **`SUBJECT?`** — up to **16** characters.
 2. **`DESTINATION ID?`** — up to **five** IDs of **8** characters each. The original asks
    repeatedly, ending the list on an empty entry, and stops at five (`CMP #$05`).
-3. **⚠ Each ID is validated before anything is sent.** The server accepts unknown recipients
-   **silently**, so an unchecked typo becomes a message that is never delivered and never
-   reported — the §8.3.2 silent-failure pattern again. A client **MUST** resolve every ID
-   (`I`, §4.4) and **MUST NOT** proceed while any is unknown.
-4. **`OKAY?`** — confirm.
+3. **⚠ Each ID is validated before anything is sent, and the resolved NAME is shown.** The
+   server accepts unknown recipients **silently**, so an unchecked typo becomes a message that is
+   never delivered and never reported — the §8.3.2 silent-failure pattern again. A client
+   **MUST** resolve every ID (`I`, §4.4) and **MUST NOT** proceed while any is unknown. The name
+   is written beside the ID on the envelope, in the same colours as the `ID` screen (blue when
+   found, black `*** NO SUCH USER ***` when not) — an ID alone does not tell the sender they have
+   the right person, which is the whole reason to look it up.
+4. **`OKAY?`** — confirm, with the completed envelope (sender, date, time, subject, recipients
+   **and their names**) on screen to be checked.
 5. **`SENDING`** — the composed frames go via the upload path (§8.3.2).
 
 **The message body comes from the editor** (§8.4), not from a text box in the send dialogue:
@@ -82,12 +95,56 @@ A client that issues `B` here unwinds one level too many and drops the user out 
 altogether. This is the same stepwise model as §4.8's `DONE` note: COURIER screen → mailbox
 listing → out of Courier, one step per command.
 
-**`ID`** is the same screen used for lookup alone: prompt **`ID TO CHECK?`** (`$B0D9`), up to
-five IDs, then show each one's real name against its slot. It is **not** a "who is online"
-command — there is no such command (§4.7).
+**⚠ `SEND` and `ID` use DIFFERENT frames.** `ID` uses §A.10 (title and five bare slots); `SEND`
+uses **§A.11**, a larger frame carrying `FROM` / `DATE` / `TIME` / `SUBJECT` / `TO` above the same
+five slots. They open identically — `COURIER` in red with an underline — so reusing the `ID`
+frame for `SEND` looks right and silently drops the entire message header. A client **MUST**
+render the `SEND` frame's fields: sender ID and **real name** (two lines), date, time, subject,
+and the recipients.
 
-*(Layout: the C64 writes each ID from **column 3**, with the frame's `:` at **column 12** and the
+**`ID`** is the lookup screen: prompt **`ID TO CHECK?`** (`$B0D9`), up to five IDs, then show each
+one's real name against its slot. It is **not** a "who is online" command — there is no such
+command (§4.7).
+
+**⚠ `ID` results are a `PRESS ANY KEY` screen, not a command row.** There is nothing to choose,
+only something to read, so the duckshoot is replaced by the prompt exactly as for a single-frame
+page (§4.8). Any key returns to the **mailbox**.
+
+**⚠ Result colours are normative:** the **ID** and a **found name** are **blue**; the not-found
+marker **`*** NO SUCH USER ***`** is **black**. The colour is the signal — a failed lookup must
+be distinguishable at a glance from a successful one, not merely by reading the text.
+
+*(Layout: each ID is written from **column 3**, with the frame's `:` at **column 12** and the
 name after it — §A.10.)*
+
+### 8.2.2 Composing the message
+
+Once the subject and recipients are accepted, the Compunet surface becomes a **message
+composition** context with its own command row (§4.8):
+
+```
+  SEND  FINISH  LAST  NEXT  EDITR
+```
+
+- **`SEND`** adds the current editor frame to the message. The original transmits the message
+  frame by frame, so this is issued **once per frame** — it is not "send the message".
+- **`FINISH`** ends the message: the server delivers it and the user returns to the **mailbox**.
+- **`LAST` / `NEXT`** page through the **editor's** frames, so the user can pick which to send.
+- **`EDITR`** opens the editor to compose or correct a frame.
+
+**⚠ The Compunet surface now shows the FRAME BEING SENT, not the envelope.** The screen becomes
+essentially the editor's: `LAST`/`NEXT` page through the frames and `SEND` adds *the one on
+screen*, so the user **MUST** be able to see which that is. Leaving the addressed envelope up
+makes `SEND` a blind command — the user is choosing frames they cannot see.
+
+**⚠ `SEND` and `FINISH` are two commands doing two jobs** — adding a frame, and completing the
+message. Collapsing them into one "send" button loses the ability to build a multi-frame message,
+which is the normal case for anything longer than a screen.
+
+**There is always a frame to show.** The editor buffer holds **at least one page** — a blank one
+when nothing has been composed or captured (§8.4) — so this context is reachable with an empty
+editor and the user simply writes into the blank frame. A client **MUST NOT** require that
+something be composed first (§8.2.1).
 
 *(Non-normative: once read, a message is presented in the client's editor buffer and is not
 re-served by the server; the login screen and the next directory carry an unread-mail
@@ -263,6 +320,17 @@ A client **MAY** implement editing in any way its environment allows; the only w
 requirement is that what it submits is a valid frame (§6) delivered via §8.3.2. The editor
 is therefore Tier 3 by virtue of depending on uploads, but imposes no protocol of its own.
 
+**The buffer is never empty.** It holds **at least one page** at all times — a blank one before
+anything is composed or captured. `LAST` and `NEXT` clamp at the ends rather than running off
+them (verified in the C64 client: both compare the current pointer against the buffer bounds and
+return without moving), so there is always a current page to display and edit. A client
+**SHOULD** therefore start the editor on a blank page rather than presenting an empty state.
+
+*(Unverified detail: whether the original materialises that first blank page at editor
+initialisation or on first use is not established from a static read of the client — the buffer
+start pointer is a fixed address that the code never writes. Both readings give the same
+user-visible behaviour, so this specifies the behaviour, not the mechanism.)*
+
 **⚠ The editor works OFFLINE, and this is not optional.** It is a **local** application that
 happens to be bundled with the terminal: on the original, `EDITOR` is one of the BASIC commands
 the ROM installs (alongside `CONNECT`, `CNLOAD`, `CNSAVE` — see the parser table at `$8249`), so
@@ -392,6 +460,42 @@ mean anything against a buffer of pages with a current position, and `STORE` ver
 differ because that buffer exists. A client offering a single text box has not implemented
 this context — it has implemented an upload form (see §4.8, and the conformance item in
 [CONFORMANCE.md](CONFORMANCE.md) §A).
+
+### 8.4.3 Editing controls
+
+The editor's **help frame** (§A.9) is not decoration — it is the specification of the editing
+keys, and a client implementing the editor **SHOULD** provide all seven functions:
+
+| Original key | Function |
+|---|---|
+| **STOP** | stop editing, **store the frame** |
+| **RUN** (shifted STOP) | **restore** the frame to its stored state |
+| **SHIFT-C=** | change case — switch which character set typed text enters |
+| **f3 / f4** | delete / insert a line above the cursor |
+| **f5** | auto-repeat on / off |
+| **f6** | colour on / off — when off, typing changes the character but not the colour under it |
+| **f7 / f8** | screen and border colour |
+
+**⚠ `STOP` stores and `RUN` restores — they are a pair.** Editing without a restore is editing
+without an undo, on a page the user may have spent a long time on. `STOP` is what *makes* the
+restore point, so a client that stops editing without storing leaves `RUN` with nothing to
+return to.
+
+**Mapping to a modern keyboard.** The C64 keys have no direct equivalents, so a client **MUST**
+choose bindings; these are the reference client's, and are **RECOMMENDED** for consistency:
+
+| C64 | Modern | Note |
+|---|---|---|
+| `C=` (Commodore) | **`Tab`** | the VICE convention — so `SHIFT`+`Tab` is *change case* |
+| `RUN/STOP` | **`Esc`** | `Esc` = STOP; **`SHIFT`+`Esc`** = RUN, matching the shifted-key pairing on the original |
+| `f3`–`f8` | the same function keys | |
+
+**⚠ Both of those collide with common client bindings, and the collision resolves the same way
+each time: the C64 mapping wins.** `Tab` is conventionally focus-switching and `Esc` conventionally
+"cancel", but the editor's key assignments are **fixed by the original** while a client's own
+gestures are free to move. In the reference client pane focus moved to `Ctrl`+`Tab`. Note that
+`Esc` = STOP is not a deviation from "cancel" so much as a refinement: on the original it does
+stop the edit — it also *stores*, which a plain cancel would not.
 
 **Adaptation is expected, substitution is not.** `DOS`, `PRINT`, `GET`, `PUT` and `STORE` name
 *local* facilities that differ per platform; a client **SHOULD** map them onto its own

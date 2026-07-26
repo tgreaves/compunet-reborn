@@ -137,6 +137,9 @@ export interface Assets {
   /** the EDITOR's help frame (§A.9) — a DIFFERENT asset, shown by the editor's
    *  own HELP command (§8.4.1). Not interchangeable with `help`. */
   editorHelp: FrameMsg | null;
-  /** the COURIER frame (§A.10) — the mail screen, shown by SEND and ID (§8.2) */
+  /** the COURIER frame (§A.10) — the ID-check screen (§8.2.1) */
   courier: FrameMsg | null;
+  /** the COURIER SEND frame (§A.11) — a DIFFERENT, larger frame carrying the
+   *  FROM / DATE / TIME / SUBJECT / TO labels. Not interchangeable with `courier`. */
+  courierSend: FrameMsg | null;
 }

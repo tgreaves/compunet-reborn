@@ -201,12 +201,12 @@ export class Renderer {
     // outermost words clip — as on the original.
     const startCol = Math.floor((COLS - VISIBLE * WORD) / 2);
     for (let slot = 0; slot < VISIBLE; slot++) {
-      // Wrapping (§4.9.6) makes the row a LOOP for scrolling — it does not mean
-      // tiling a short row across the view. A command must never appear twice
-      // at once: with fewer commands than slots, the surplus slots stay BLANK.
-      const linear = centre + slot - MID;
-      if (words.length < VISIBLE && (linear < 0 || linear >= words.length)) continue;
-      const wi = ((linear % words.length) + words.length) % words.length;
+      // ⚠ The row is a CIRCULAR BUFFER: every visible cell is filled, wrapping
+      // as needed, so a short set REPEATS rather than leaving blanks. Verified
+      // against the C64's mail row — six commands in seven cells:
+      //   ID EDITR DONE [SEND] SHOW MORE ID    <- ID appears twice, by design
+      // Suppressing the repeat leaves the row blank on the left (§4.9.4).
+      const wi = (((centre + slot - MID) % words.length) + words.length) % words.length;
       const name = words[wi];
       const text = (DUCK_CELL[name] ?? name.padEnd(WORD)).slice(0, WORD);
       const selected = slot === MID;
