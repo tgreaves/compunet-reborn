@@ -633,6 +633,7 @@ var account = null;
 var accountName = "";
 var isWelcome = false;
 var inMail = false;
+var connected = false;
 function status(s, bad = false) {
   statusEl.textContent = s;
   statusEl.classList.toggle("bad", bad);
@@ -667,6 +668,7 @@ function onMessage(m) {
       const r = m;
       account = r.account;
       $("credit").textContent = `${account.user} \xB7 \xA3${account.credit.toFixed(2)}`;
+      connected = true;
       if (r.welcome) {
         mode = "frame";
         frame = r.welcome;
@@ -1485,6 +1487,7 @@ var CONTEXT_COMMANDS = {
 };
 var NEEDS_SELECTION = /* @__PURE__ */ new Set(["SHOW", "DIR", "VOTE", "LIFE", "BUY"]);
 function netContext() {
+  if (!connected) return "idle";
   if (inParty) return "partyline";
   if (courier?.kind === "send" && pendingMail) return "courierSend";
   if (pendingUpload) return "upload";
@@ -1552,6 +1555,22 @@ function duckCommit() {
   rememberRow(focusPane);
   if (name && table[name]) table[name]();
 }
+function endSession(msg) {
+  connected = false;
+  account = null;
+  inMail = false;
+  courier = null;
+  pendingMail = null;
+  pendingUpload = null;
+  mailDownloading = false;
+  pendingMailListing = null;
+  setChatVisible(false);
+  inParty = false;
+  $("connect").disabled = false;
+  $("credit").textContent = "";
+  render();
+  status(msg + " Press Connect to log in again.");
+}
 async function connect() {
   const wsBase = $("host").value.trim().replace(/\/$/, "");
   const httpBase = wsBase.replace(/^ws/, "http");
@@ -1561,7 +1580,7 @@ async function connect() {
       wsBase,
       token,
       onMessage,
-      () => status("Disconnected."),
+      () => endSession("Disconnected."),
       () => status("WebSocket error.")
     );
     $("connect").disabled = true;

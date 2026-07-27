@@ -43,6 +43,10 @@ let accountName = '';
 // "reading" context, and mail has its own command set.
 let isWelcome = false;
 let inMail = false;
+/** ⚠ A session exists. NOT the same as `mode !== 'idle'`: after LEAVE the
+ *  goodbye frame stays on screen to be read (§3.8) while the session is over,
+ *  and §8.4.2 is explicit that with no session there is no command row. */
+let connected = false;
 
 function status(s: string, bad = false): void {
   statusEl.textContent = s;
@@ -89,6 +93,7 @@ function onMessage(m: ServerMsg): void {
       const r = m as { account: Account; welcome: FrameMsg | null };
       account = r.account;
       $('credit').textContent = `${account.user} · £${account.credit.toFixed(2)}`;
+      connected = true;
       if (r.welcome) { mode = 'frame'; frame = r.welcome; isWelcome = true; inMail = false; }
       // Always render: if the editor pane is open the Compunet pane still
       // updates beside it, so connecting is visibly successful.
@@ -923,6 +928,7 @@ const NEEDS_SELECTION = new Set(['SHOW', 'DIR', 'VOTE', 'LIFE', 'BUY']);
  *  context, so it never displaces this one — that is the whole point of the
  *  pane model, and it is why connecting while editing is now visible. */
 function netContext(): Context {
+  if (!connected) return 'idle';      // no session, no row (§8.4.2)
   if (inParty) return 'partyline';
   if (courier?.kind === 'send' && pendingMail) return 'courierSend';
   if (pendingUpload) return 'upload';
@@ -1036,6 +1042,30 @@ function duckCommit(): void {
   if (name && table[name]) table[name]();
 }
 
+/** The session has ended — by LEAVE, by the server closing, or by a dropped
+ *  socket. Put the client back in a state it can reconnect FROM.
+ *
+ *  ⚠ `connect` is disabled while connected and nothing used to re-enable it, so
+ *  LEAVE left the user staring at the goodbye frame with a greyed-out button and
+ *  no way back in short of reloading. The goodbye frame stays up — it is meant
+ *  to be read — but the session is over, so the command row empties with it. */
+function endSession(msg: string): void {
+  connected = false;
+  account = null;
+  inMail = false;
+  courier = null;
+  pendingMail = null;
+  pendingUpload = null;
+  mailDownloading = false;
+  pendingMailListing = null;
+  setChatVisible(false);
+  inParty = false;
+  $<HTMLButtonElement>('connect').disabled = false;
+  $('credit').textContent = '';
+  render();
+  status(msg + ' Press Connect to log in again.');
+}
+
 async function connect(): Promise<void> {
   const wsBase = $<HTMLInputElement>('host').value.trim().replace(/\/$/, '');
   const httpBase = wsBase.replace(/^ws/, 'http');
@@ -1043,7 +1073,7 @@ async function connect(): Promise<void> {
     const { token } = await gw.login(httpBase, $<HTMLInputElement>('user').value, $<HTMLInputElement>('pass').value);
     gw.connect(
       wsBase, token, onMessage,
-      () => status('Disconnected.'),
+      () => endSession('Disconnected.'),
       () => status('WebSocket error.'),
     );
     $<HTMLButtonElement>('connect').disabled = true;
