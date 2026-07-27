@@ -46,7 +46,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 
 ### Option 1: Browser (Quickest)
 
-1. Go to [compunet.live/connect](https://compunet.live/connect) and follow the link to the client
+1. Go to [connect.compunet.live](https://connect.compunet.live)
 2. Log in with your registered account
 
 Nothing to download, no emulator, no configuration. The same client is also available as a

@@ -5,8 +5,9 @@ Opens Compunet Reborn to modern clients, and pins down how to build one.
 * **A modern Compunet client** (new, `client/web/`, `client/electron/`) (#91) —
   **one client, two ways to run it.** The browser version and the desktop app
   are the same code and behave identically; only the wrapper differs:
-	* **In your browser** — no download, no emulator, no setup. The quickest way
-	  in, and nothing to keep up to date.
+	* **In your browser at [connect.compunet.live](https://connect.compunet.live)**
+	  — no download, no emulator, no setup. The quickest way in, and nothing to
+	  keep up to date.
 	* **As a desktop app** — a Windows installer that asks where to put it, or a
 	  **portable build** that keeps its settings and your editor pages beside the
 	  executable. macOS and Linux are configured but not yet published.
@@ -38,8 +39,9 @@ Opens Compunet Reborn to modern clients, and pins down how to build one.
 	  original's cyan background, i.e. invisible — and the editor's had two keys'
 	  actions swapped.
 * **Website**:
-	* Links straight through to the browser client, which is now the quickest
-	  way in.
+	* "Connect now" goes straight to
+	  [connect.compunet.live](https://connect.compunet.live), which is now the
+	  quickest way in — no client to choose, nothing to install.
 	* New **Extras** page carrying the printable logo.
 	* Refreshed look, built on the authentic Compunet red, blue and grey.
 * **3D-printed logo** (new, `3dprint/`) — a desk plaque of the Compunet logo for
