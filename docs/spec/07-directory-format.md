@@ -330,8 +330,27 @@ itself**, and a conforming client **MUST** use this scheme so the directory look
 Selection is entirely client-local (§4.5): there is no wire field for "which row is
 highlighted", so the client draws the highlight itself. It is a **bar spanning the row across
 both panes** — the entry columns **and** the right-hand value column — in **the entry's own
-positional colour** (a **red** bar for the first entry, a **blue** bar for the others), with the
-**text drawn in white** (index 1) on top.
+positional colour** (a **red** bar for the first entry, a **blue** bar for the others).
+
+**⚠ The bar is REVERSE VIDEO, and the text in it is the SCREEN BACKGROUND colour — not white
+(normative).** Verified in the original client at `$A6DC`, which walks the row doing
+`LDA ($D1),Y / ORA #$80 / STA ($D1),Y` — setting bit 7 of each screen code — and writes the bar
+colour to **colour RAM**. It cannot work any other way: the C64 has **one** background register
+for the whole screen (§8.4.3), so "a coloured background behind white text" is not something the
+hardware can express, and `cnet.prg` contains no colour-RAM write that could fake it.
+
+The consequence is what a client must reproduce: reversing a cell fills it with the
+**foreground** and knocks the character out in the **background**, so the text inside the bar
+appears in the screen's background colour. Selected and unselected rows therefore differ by
+**`rv` alone** — one bit, exactly as they do on the original. A client that models the bar as a
+per-cell background gets a *visibly* different result (white text instead of background-coloured)
+and, worse, builds a page model the hardware cannot produce, which then leaks into everything
+that touches cell backgrounds (§8.4.3).
+
+*(This passage previously specified white text and asserted that "colour bar + white text cannot
+be expressed with a single PETSCII cell attribute". Both were wrong: it is precisely one
+attribute. The reference client followed the spec and drew white until the disassembly was
+read.)*
 
 > **The bar must not overwrite the vertical divider (normative).** The template's divider at
 > **column 30** (§7.7 geometry) stays visible *through* the highlighted row: the bar is drawn in
@@ -339,24 +358,31 @@ positional colour** (a **red** bar for the first entry, a **blue** bar for the o
 > as the template drew it. The row reads as two highlighted panes separated by the divider, not
 > as one bar painted over the box furniture. A client that fills straight across the row erases
 > the divider on whichever row is selected, so the column separator appears to break as the
-> user moves the highlight. This "colour bar + white text" cannot be
-expressed with a single PETSCII cell attribute, which is another reason it is client chrome,
-not wire content. A client **MUST** draw the highlight this way (not a single fixed colour),
-and the red-first / blue-rest entry colouring is **required** either way — it is part of the
-authored Compunet look.
-
-> **Do not fake the bar with per-cell reverse-video.** Reverse-video swaps each cell's
-> foreground and background independently, so the "bar" only appears in the cells that happen to
-> be blank and the glyph cells stay their own colour — you get a broken row of coloured stripes,
-> not a solid bar with white text. Draw it as a genuine two-layer highlight: fill the row's
-> background **across both panes** with the positional colour, then render the glyphs in
-> **white** over it. The bar's colour is the *background* of every cell it covers, independent
-> of each glyph's own colour.
+> user moves the highlight. A client **MUST** draw the highlight this way (not a single fixed
+> colour), and the red-first / blue-rest entry colouring is **required** either way — it is part
+> of the authored Compunet look.
 >
-> *(This is about the **technique** — a background fill, not per-cell reverse video. The
-> **extent** is columns 1–29 and 31–38, as the box above requires: the divider at column 30 and
-> the borders at 0 and 39 are not part of the bar. An earlier wording here said "all 40 columns",
-> which contradicted that; VALIDATION.md, F25.)*
+> *(The original's loop runs `LDY #$26` down to 1 with `CPY #$1E / BEQ` skipping the divider —
+> columns 1–38 except 30, which is exactly the extent above. An earlier wording said "all 40
+> columns", which contradicted it; VALIDATION.md, F25.)*
+
+> **Draw the bar with per-cell reverse video, setting the whole row to one colour.** For each
+> cell in the extent: set **bit 7** of the screen code and write the **bar colour** to that
+> cell's foreground. The row then reads as a solid bar with the text knocked out of it in the
+> screen's background colour.
+>
+> The trap is doing only half of it. Reverse video **alone** — flipping each cell while leaving
+> its own colour — gives a broken row of coloured stripes, because each glyph keeps whatever
+> colour it had. What makes it a *bar* is that the original writes the **same** colour to every
+> cell in the row before reversing it (`TXA / STA ($F3),Y` at `$A6F2`), so the whole extent
+> shares one foreground. Reverse video plus a uniform row colour is the mechanism; reverse video
+> by itself is the failure.
+>
+> *(An earlier version of this passage said the opposite — "do not fake the bar with per-cell
+> reverse-video… fill the row's background with the positional colour, then render the glyphs in
+> white over it" — and justified it with the stripe argument above, which only applies when the
+> row colour is left alone. A background fill is not available to the hardware at all: there is
+> one background register for the whole screen. Corrected against `$A6DC`.)*
 
 ### The selected column header
 

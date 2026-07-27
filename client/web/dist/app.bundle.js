@@ -4,7 +4,6 @@ var ROWS = 24;
 var CELL = 8;
 var RED = 2;
 var BLUE = 6;
-var WHITE = 1;
 var TEMPLATE_BG = 15;
 var DIVIDER_COL = 30;
 var DUCK_CELL = {
@@ -90,11 +89,11 @@ var Renderer = class {
     this.renderGrid(frame2.cells, frame2.background);
     this.setBorder(frame2.border);
   }
-  put(grid, row, col, text, fg, bg) {
+  put(grid, row, col, text, fg, bg, rv = 0) {
     const t = (text || "").toUpperCase();
     for (let i = 0; i < t.length && col + i < COLS; i++) {
       if (col + i < 0) continue;
-      grid[row * COLS + (col + i)] = { g: asciiGlyph(t[i]), fg, bg, rv: 0 };
+      grid[row * COLS + (col + i)] = { g: asciiGlyph(t[i]), fg, bg, rv };
     }
   }
   /** Compose the 40x24 directory screen: template chrome + overlaid entries. */
@@ -116,22 +115,23 @@ var Renderer = class {
       const row = 10 + i;
       const colour = i === 0 ? RED : BLUE;
       const selected = i === sel2;
-      const fg = selected ? WHITE : colour;
-      const bg = selected ? colour : TEMPLATE_BG;
+      const fg = colour;
+      const bg = TEMPLATE_BG;
+      const rv = selected ? 1 : 0;
       if (selected)
         for (let c = 1; c <= 38; c++) {
           if (c === DIVIDER_COL) continue;
-          g[row * COLS + c] = { g: 32, fg: WHITE, bg: colour, rv: 0 };
+          g[row * COLS + c] = { g: 32, fg, bg, rv: 1 };
         }
       if (selected) {
         const ps = String(e.page);
-        this.put(g, row, 7 - ps.length, ps, fg, bg);
+        this.put(g, row, 7 - ps.length, ps, fg, bg, rv);
       }
-      this.put(g, row, 8, e.title, fg, bg);
+      this.put(g, row, 8, e.title, fg, bg, rv);
       const type = e.type + (e.size ? String(e.size) : "") + (e.hasSubdir ? "+" : "");
-      this.put(g, row, 25, type, fg, bg);
+      this.put(g, row, 25, type, fg, bg, rv);
       const val = e.values?.[colIdx2] || "";
-      if (val) this.put(g, row, 31, val, fg, bg);
+      if (val) this.put(g, row, 31, val, fg, bg, rv);
     });
     (dir2.advert || []).slice(0, 2).forEach((line, i) => {
       const col = Math.max(0, Math.floor((COLS - line.length) / 2));

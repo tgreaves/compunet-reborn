@@ -4,7 +4,10 @@
 import type { Assets, Cell, DirectoryMsg, FrameMsg } from './protocol';
 
 export const COLS = 40, ROWS = 24, CELL = 8;
-const RED = 2, BLUE = 6, WHITE = 1, TEMPLATE_BG = 15;
+// ⚠ No WHITE here any more. The selection bar used to draw its text white; the
+// original reverses the cell instead, so the text shows in the screen background
+// (§7.7, $A6DC). Nothing in the directory is white.
+const RED = 2, BLUE = 6, TEMPLATE_BG = 15;
 /** template geometry: left border 0, divider 30, right border 39 (§7.7/§A.6) */
 const DIVIDER_COL = 30;
 
@@ -83,11 +86,12 @@ export class Renderer {
     this.setBorder(frame.border);
   }
 
-  private put(grid: Cell[], row: number, col: number, text: string, fg: number, bg: number): void {
+  private put(grid: Cell[], row: number, col: number, text: string,
+              fg: number, bg: number, rv: 0 | 1 = 0): void {
     const t = (text || '').toUpperCase();
     for (let i = 0; i < t.length && col + i < COLS; i++) {
       if (col + i < 0) continue;
-      grid[row * COLS + (col + i)] = { g: asciiGlyph(t[i]), fg, bg, rv: 0 };
+      grid[row * COLS + (col + i)] = { g: asciiGlyph(t[i]), fg, bg, rv };
     }
   }
 
@@ -115,26 +119,40 @@ export class Renderer {
       const row = 10 + i;
       const colour = i === 0 ? RED : BLUE;          // first entry always red (§7.7)
       const selected = i === sel;
-      const fg = selected ? WHITE : colour;
-      const bg = selected ? colour : TEMPLATE_BG;
+      // ⚠ The selection bar is REVERSE VIDEO, not a coloured background.
+      //
+      // Verified in the original ($A6DC): it walks the row setting `ORA #$80` on
+      // each screen code and writing the bar colour to COLOUR RAM. It cannot do
+      // anything else — the C64 has one background register for the whole screen
+      // (§8.4.3), so a per-cell background does not exist and `cnet.prg` contains
+      // no colour-RAM write that could fake one.
+      //
+      // The consequence is visible: reversing a glyph fills the cell with the
+      // FOREGROUND and knocks the character out in the BACKGROUND, so the text
+      // inside the bar appears in the screen's background colour — not white, as
+      // this drew it before. Selected and unselected therefore differ ONLY by
+      // `rv`, exactly as they differ only by bit 7 on the original.
+      const fg = colour;
+      const bg = TEMPLATE_BG;
+      const rv: 0 | 1 = selected ? 1 : 0;
       if (selected)
-        // Fill both panes but SKIP the divider at column 30 — it stays visible
-        // through the highlighted row (§7.7).
+        // Columns 1-38, SKIPPING the divider at 30 — it stays visible through the
+        // highlighted row (§7.7, and `CPY #$1E / BEQ` at $A6E7 in the original).
         for (let c = 1; c <= 38; c++) {
           if (c === DIVIDER_COL) continue;
-          g[row * COLS + c] = { g: 0x20, fg: WHITE, bg: colour, rv: 0 };
+          g[row * COLS + c] = { g: 0x20, fg, bg, rv: 1 };
         }
       if (selected) {                                // page number only on selected row
         const ps = String(e.page);
-        this.put(g, row, 7 - ps.length, ps, fg, bg);  // right-justified, ending at col 6
+        this.put(g, row, 7 - ps.length, ps, fg, bg, rv);  // right-justified, ending at col 6
       }
-      this.put(g, row, 8, e.title, fg, bg);
+      this.put(g, row, 8, e.title, fg, bg, rv);
       const type = e.type + (e.size ? String(e.size) : '') + (e.hasSubdir ? '+' : '');
-      this.put(g, row, 25, type, fg, bg);
+      this.put(g, row, 25, type, fg, bg, rv);
       // right pane rendered verbatim from col 31 (one past the divider at 30); the
       // server already applied the per-column justification (§7.3), so no client layout.
       const val = e.values?.[colIdx] || '';
-      if (val) this.put(g, row, 31, val, fg, bg);
+      if (val) this.put(g, row, 31, val, fg, bg, rv);
     });
 
     (dir.advert || []).slice(0, 2).forEach((line, i) => {

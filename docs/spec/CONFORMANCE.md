@@ -108,7 +108,13 @@ marked **⚠** are the ones known to have been got wrong in practice.
 - [ ] **⚠ Selection bar leaves the divider intact** — filled either side of column 30, not
       straight across (§7.7).
 - [ ] **⚠ First entry is red, others blue**, independent of selection; the bar takes the entry's
-      own colour with white text (§7.7).
+      own colour (§7.7).
+- [ ] **⚠ The bar is reverse video, so its text is the SCREEN BACKGROUND colour — not white**
+      (§7.7). Highlight a row and look at the characters *in* the bar: they should be the same
+      light grey as the page behind the box, because reversing a cell knocks the glyph out in the
+      background. White text means the client models the bar as a coloured background, which the
+      hardware cannot do — and that model then leaks into anything else touching cell backgrounds
+      (§8.4.3). Both look plausible; only one matches.
 - [ ] **⚠ Right-pane content rendered verbatim** from column 31 — the server's leading spaces and
       right-justification are the positioning; do not re-justify (§7.3).
 - [ ] **Page number shown only on the selected row**, right-justified to column 6 (§7.7).
