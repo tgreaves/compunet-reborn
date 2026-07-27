@@ -213,9 +213,15 @@ function onMessage(m: ServerMsg): void {
       status(`Saved ${d.title} (${d.size} bytes)`);
       break;
     }
-    case 'account':
-      status(`You are ${(m as { creditText: string }).creditText} in credit`);
+    case 'account': {
+      // §4.4: the server sends the balance as text; the client words it. On the
+      // ROW, as the original prints it — not in the client's own status line.
+      const c = (m as { creditText: string }).creditText.trim();
+      const debit = c.startsWith('-');
+      rowMessage.net = `YOU ARE ${debit ? c.slice(1) : c} IN ${debit ? 'DEBIT' : 'CREDIT'}`;
+      updateBar();
       break;
+    }
     case 'idlookup': {
       const u = (m as { users: { id: string; name: string | null }[] }).users;
       status(u.map((x) => `${x.id} = ${x.name ?? '(unknown)'}`).join(' · ') || 'No such user');
@@ -481,7 +487,10 @@ const editorActions: Record<string, () => void> = {
   PUT: () => { saveText(buf.toJSON([buf.page()]), `page-${buf.cur + 1}.json`); status('PUT — current page saved'); },
   STORE: () => { saveText(buf.toJSON(), 'editor-buffer.json'); status(`STORE — all ${buf.pages.length} page(s) saved`); },
   PRINT: () => { window.print(); },
-  FREE: () => status(`${buf.free()} PAGES FREE — ${buf.pages.length} of ${buf.maxPages} used`),
+  FREE: () => {
+    rowMessage.editor = `${buf.free()} PAGES FREE, ${buf.pages.length} USED`;
+    updateBar();
+  },
   RETURN: () => leaveEditor(),
   // DOS names a local filesystem facility this environment does not have. §8.4.1
   // permits disabling it; it does NOT permit renaming or removing it.
@@ -676,6 +685,14 @@ let pendingMail: { subject: string; ids: string[] } | null = null;
 let outgoing: ReturnType<EditorBuffer['toFrames']> = [];
 /** A PRESS ANY KEY screen is showing; the next key dismisses it (§4.8). */
 let awaitingKey = false;
+
+/** ⚠ A command's reply goes ON THE COMMAND ROW, not into the client's own
+ *  furniture. The original clears row 24 and prints there ($9097: JSR $938B to
+ *  clear, plot to row 24 column 0, REVERSE ON, print) — so FREE and ACCOUNT
+ *  answer where the user is already looking, in the same place the command was
+ *  chosen. Putting the reply in a status line means the user never sees it.
+ *  Cleared by the next keypress, when the row returns. */
+let rowMessage: { net?: string; editor?: string } = {};
 /** SHOW is pulling a message's frames (§8.2). While this is set, the mailbox
  *  listing that ends the download must NOT be rendered — see showMail. */
 let mailDownloading = false;
@@ -1115,6 +1132,7 @@ function updateBar(): void {
   // A single-frame page has NO duckshoot — just a prompt (§4.8/§4.9). The ID
   // results screen is the same shape: something to read, nothing to choose.
   if (arriving) renderer?.renderDuckshoot([], 0, netBackground());   // blank while it lands
+  else if (rowMessage.net) renderer?.renderPrompt(rowMessage.net, netBackground());
   else if (awaitingKey || (nctx === 'frame' && frame && !frame.morePages))
     renderer?.renderPrompt('PRESS ANY KEY', netBackground());
   else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground());
@@ -1123,7 +1141,8 @@ function updateBar(): void {
     rows.editor.words = buildRow('editor');
     const keepE = rows.editor.words.indexOf(lastCommand.editor ?? '');
     rows.editor.ix = keepE >= 0 ? keepE : rows.editor.ix;
-    edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
+    if (rowMessage.editor) edRenderer?.renderPrompt(rowMessage.editor, buf.page().background);
+    else edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
   }
 
   $('netMeta').textContent = mode === 'idle' ? 'not connected' : nctx;
@@ -1275,6 +1294,12 @@ window.addEventListener('keydown', (e) => {
   // A frame still "arriving" at 1200 baud: finish it rather than acting on the
   // key. The first press completes the page, the next does what it says.
   if (finishReveal()) { e.preventDefault(); return; }
+
+  // A command's reply is on the row: the next key takes it away and puts the
+  // row back, rather than acting on whatever it would normally mean.
+  if (rowMessage.net || rowMessage.editor) {
+    rowMessage = {}; updateBar(); e.preventDefault(); return;
+  }
 
   // A PRESS ANY KEY screen (ID results §8.2.1, a read message §8.2): any key
   // returns to the mailbox. After SHOW that means applying the listing the

@@ -454,6 +454,18 @@ a simulated 1200 baud is already pausing — for seconds, computed from the fram
 legible. When a line speed is selected, this pacing **MUST** stand down. The two exist for the
 same reason, and only one of them should be doing the job at a time.
 
+**⚠ A command's reply appears ON THE COMMAND ROW (normative).** Commands that answer with a line
+of text rather than a page — `ACCNT` (§4.4) and the editor's `FREE` (§8.4.1) — print it **on the
+duckshoot row**, left justified from column 0, reverse video, in the same colours the row already
+uses. The original clears row 24 and prints there (`$9097`: `JSR $938B` to clear it to a bar,
+plot to row 24 column 0, `CHR$(18)` REVERSE ON, then print), so the answer arrives where the user
+is already looking — in the place they chose the command from.
+
+A client with its own furniture — a status bar, a title, a toast — will be tempted to put it
+there instead. That is how a reply becomes invisible: the user's attention is on the 40x24
+screen, and a line of small text somewhere outside it is not part of the machine they are using.
+The next keypress clears the message and restores the row.
+
 **⚠ `PRESS ANY KEY` is LEFT JUSTIFIED (normative).** It occupies the same row the duckshoot
 would, and that row is written from the **left edge** — so the prompt starts at column 0, not
 centred. Centring it is an easy and invisible mistake: the text looks fine on its own, but the

@@ -229,11 +229,19 @@ export class Renderer {
     const s = this.scale, row = ROWS, ink = CONTRAST[background & 0x0F];
     this.ctx.fillStyle = this.assets.palette[background & 0x0F];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
-    // ⚠ LEFT justified, not centred (§4.8). The prompt replaces the duckshoot,
-    // and the duckshoot starts at the left edge — centring it makes the bottom
-    // row jump sideways as the client moves between reading and choosing.
-    for (let i = 0; i < text.length && i < COLS; i++)
-      this.drawGlyph({ g: asciiGlyph(text[i]), fg: ink, bg: background, rv: 0 }, i, row);
+    // ⚠ A BAR with the words knocked out of it — the same shape as the
+    // duckshoot, because it is the same row drawn the same way. The original
+    // clears row 24 to a solid bar ($938B), plots to column 0, turns REVERSE
+    // ON (`LDA #$12` -> CHR$(18)) and prints; so every cell is reversed, the
+    // spaces reading as bar and the letters as holes in it.
+    //
+    // ⚠ LEFT justified, not centred (§4.8): the duckshoot starts at the left
+    // edge, and centring makes the bottom row jump sideways as the client moves
+    // between reading and choosing.
+    for (let i = 0; i < COLS; i++) {
+      const g = i < text.length ? asciiGlyph(text[i]) : 0x20;
+      this.drawGlyph({ g, fg: ink, bg: background, rv: 1 }, i, row);
+    }
   }
 
   /** ⚠ The row is a solid BAR with the words knocked out of it, and the centre

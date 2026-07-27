@@ -174,6 +174,9 @@ The server does not report these; a client that ignores them looks fine and lose
       if only one page arrived, this is wrong.
 - [ ] **⚠ `MORE` in Courier pages the MAILBOX** (§8.2), and there is no `MORE` while reading.
       If MORE opens the highlighted message, the client is sending `D` where it should send `M`.
+- [ ] **⚠ Text replies land on the COMMAND ROW** (§4.8) — run `ACCNT`, and the editor's `FREE`.
+      The answer must appear on the duckshoot line, not in a status bar or toast outside the
+      40x24 screen, where the user is not looking and may never see it.
 - [ ] **⚠ `PRESS ANY KEY` is LEFT justified** (§4.8) — column 0, where the duckshoot starts.
       Centred text looks perfectly reasonable in isolation; the tell is the bottom row jumping
       sideways as you move between reading and choosing.

@@ -186,8 +186,10 @@ var Renderer = class {
     const s = this.scale, row = ROWS, ink = CONTRAST[background & 15];
     this.ctx.fillStyle = this.assets.palette[background & 15];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
-    for (let i = 0; i < text.length && i < COLS; i++)
-      this.drawGlyph({ g: asciiGlyph(text[i]), fg: ink, bg: background, rv: 0 }, i, row);
+    for (let i = 0; i < COLS; i++) {
+      const g = i < text.length ? asciiGlyph(text[i]) : 32;
+      this.drawGlyph({ g, fg: ink, bg: background, rv: 1 }, i, row);
+    }
   }
   /** ⚠ The row is a solid BAR with the words knocked out of it, and the centre
    *  cell is the one that is NOT reversed (§4.9.3).
@@ -892,9 +894,13 @@ function onMessage(m) {
       status(`Saved ${d.title} (${d.size} bytes)`);
       break;
     }
-    case "account":
-      status(`You are ${m.creditText} in credit`);
+    case "account": {
+      const c = m.creditText.trim();
+      const debit = c.startsWith("-");
+      rowMessage.net = `YOU ARE ${debit ? c.slice(1) : c} IN ${debit ? "DEBIT" : "CREDIT"}`;
+      updateBar();
       break;
+    }
     case "idlookup": {
       const u = m.users;
       status(u.map((x) => `${x.id} = ${x.name ?? "(unknown)"}`).join(" \xB7 ") || "No such user");
@@ -1131,7 +1137,10 @@ var editorActions = {
   PRINT: () => {
     window.print();
   },
-  FREE: () => status(`${buf.free()} PAGES FREE \u2014 ${buf.pages.length} of ${buf.maxPages} used`),
+  FREE: () => {
+    rowMessage.editor = `${buf.free()} PAGES FREE, ${buf.pages.length} USED`;
+    updateBar();
+  },
   RETURN: () => leaveEditor(),
   // DOS names a local filesystem facility this environment does not have. §8.4.1
   // permits disabling it; it does NOT permit renaming or removing it.
@@ -1275,6 +1284,7 @@ async function idCheck() {
 var pendingMail = null;
 var outgoing = [];
 var awaitingKey = false;
+var rowMessage = {};
 var mailDownloading = false;
 var pendingMailListing = null;
 var sentTo = "";
@@ -1695,6 +1705,7 @@ function updateBar() {
   rows.net.ix = rows.net.words.length ? keep >= 0 ? keep : 0 : 0;
   lastNetCtx = nctx;
   if (arriving) renderer?.renderDuckshoot([], 0, netBackground());
+  else if (rowMessage.net) renderer?.renderPrompt(rowMessage.net, netBackground());
   else if (awaitingKey || nctx === "frame" && frame && !frame.morePages)
     renderer?.renderPrompt("PRESS ANY KEY", netBackground());
   else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground());
@@ -1702,7 +1713,8 @@ function updateBar() {
     rows.editor.words = buildRow("editor");
     const keepE = rows.editor.words.indexOf(lastCommand.editor ?? "");
     rows.editor.ix = keepE >= 0 ? keepE : rows.editor.ix;
-    edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
+    if (rowMessage.editor) edRenderer?.renderPrompt(rowMessage.editor, buf.page().background);
+    else edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
   }
   $("netMeta").textContent = mode === "idle" ? "not connected" : nctx;
   $("hint").textContent = focusPane === "editor" ? "Editor focused \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 EDIT then type \xB7 ESC stops editing" : "\u2191/\u2193 highlight an entry \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 F7/F8 cycle the right column";
@@ -1794,6 +1806,12 @@ window.addEventListener("keydown", (e) => {
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
   if (inParty) return;
   if (finishReveal()) {
+    e.preventDefault();
+    return;
+  }
+  if (rowMessage.net || rowMessage.editor) {
+    rowMessage = {};
+    updateBar();
     e.preventDefault();
     return;
   }
