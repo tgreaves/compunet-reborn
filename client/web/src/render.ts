@@ -92,8 +92,13 @@ export class Renderer {
 
   setBorder(idx: number): void { this.wrap.style.background = this.assets.palette[idx & 0x0F]; }
 
-  renderFrame(frame: FrameMsg): void {
-    this.renderGrid(frame.cells, frame.background);
+  /** `reveal` draws only the first N cells, the rest left as bare background —
+   *  the frame arriving down a slow line (§5.5). Omit it to draw the lot. */
+  renderFrame(frame: FrameMsg, reveal?: number): void {
+    const cells = reveal === undefined ? frame.cells
+      : frame.cells.map((c, i) => (i < reveal ? c
+          : { g: 0x20, fg: c.fg, bg: frame.background, rv: 0 as 0 | 1 }));
+    this.renderGrid(cells, frame.background);
     this.setBorder(frame.border);
   }
 

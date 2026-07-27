@@ -123,6 +123,30 @@ screen pens are not ordered in C64 index order; that remap is a platform detail 
 not change the palette a client must present — indices and colours are exactly the standard
 C64 set above.)*
 
+## 5.5.1 Line speed (optional)
+
+A client **MAY** offer to paint a frame **as if it were arriving down the original line**,
+rather than instantly. Compunet ran at **1200/75** (V.23 — 1200 bits per second inbound, 75
+out), and a page *arriving* was part of what the service felt like: you watched it paint, and a
+large picture cost real seconds of a metered call. Rendering instantly is correct and loses that.
+
+If offered:
+
+- **Fastest MUST be the default.** The pacing is an affordance for people who want the period
+  experience, not a tax on everyone else.
+- **Time it from the frame's OWN bytes**, not from a guess: at 8N1 a byte is 10 bits, so 1200
+  baud is **120 bytes per second** and a 1 KB frame takes about eight and a half seconds. Timing
+  it from the cell count instead would misreport every RLE-compressed frame (§6.4), which is most
+  of them.
+- **Only the DRAWING is paced.** The frame has already arrived: capture (§8.4.2), paging and the
+  command row all behave exactly as they would otherwise. This is presentation, not transport,
+  and it changes nothing on the wire.
+- A client **SHOULD** let a keypress complete the frame immediately. The original had no such
+  escape, but a page that cannot be hurried reads as a hung client to anyone who did not realise
+  what they had switched on.
+- Where a client also paces multi-frame runs (§4.7), the two **MUST NOT** compound — at 1200 baud
+  the painting already provides the pause that the run pacing exists to give.
+
 ## 5.6 Control codes
 
 Bytes `$00`–`$1F` and `$80`–`$9F` in the content stream are PETSCII **control codes**, not

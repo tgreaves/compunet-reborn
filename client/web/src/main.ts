@@ -80,6 +80,64 @@ function render(): void {
   updateBar();
 }
 
+
+// --- Line speed (§5.5) ------------------------------------------------------
+//
+// ⚠ Pretending to be slow, deliberately. Compunet ran at 1200/75 — V.23, 1200
+// bits per second inbound — and a page ARRIVING was part of what the service
+// felt like: you watched it paint, and a big picture cost you real seconds of
+// call time. Rendering instantly is correct engineering and loses that
+// entirely, which is why this is offered rather than assumed.
+//
+// The timing is taken from the frame's OWN bytes, not invented: `raw` carries
+// the §6 stream the server encoded, and 8N1 means 10 bits a byte, so 1200 baud
+// is 120 bytes a second. A 1 KB frame takes about eight and a half seconds,
+// because that is what it took.
+
+/** 0 = as fast as the transport allows. Otherwise bits per second. */
+let baud = 0;
+const BYTES_PER_BIT = 1 / 10;          // 8N1: start bit + 8 data + stop
+
+/** Cancels the reveal in progress, if any. */
+let revealTimer: number | undefined;
+
+function stopReveal(): void {
+  clearInterval(revealTimer);
+  revealTimer = undefined;
+}
+
+/** Paint `f` progressively, as if it were arriving at the selected speed.
+ *  Returns true if it took over the drawing; false to render normally. */
+function revealFrame(f: FrameMsg): boolean {
+  stopReveal();
+  if (!baud) return false;
+  const bytes = f.raw ? Math.ceil((f.raw.length * 3) / 4) : 960;
+  const seconds = (bytes / (baud * BYTES_PER_BIT));
+  if (seconds < 0.25) return false;             // not worth animating
+
+  const CELLS = 40 * 24;
+  const step = 40;                              // a row at a time: smooth enough, cheap
+  const tick = (seconds * 1000) / (CELLS / step);
+  let shown = 0;
+  renderer.renderFrame(f, 0);
+  revealTimer = setInterval(() => {
+    shown += step;
+    if (shown >= CELLS) { stopReveal(); renderer.renderFrame(f); return; }
+    renderer.renderFrame(f, shown);
+  }, tick) as unknown as number;
+  return true;
+}
+
+/** Finish the frame now — any key during a reveal completes it.
+ *  ⚠ The original had no such escape, but choosing 1200 baud should not mean
+ *  being unable to get out of it; without this a slow page reads as a hang. */
+function finishReveal(): boolean {
+  if (revealTimer === undefined) return false;
+  stopReveal();
+  if (frame) renderer.renderFrame(frame);
+  return true;
+}
+
 function onMessage(m: ServerMsg): void {
   // Correlated replies go to whoever is awaiting them (see `request`).
   const rid = (m as { id?: number }).id;
@@ -121,7 +179,11 @@ function onMessage(m: ServerMsg): void {
       status(`${(m as DirectoryMsg).title} — ${(m as DirectoryMsg).entries.length} entries`);
       break;
     case 'frame': {
-      mode = 'frame'; frame = m as FrameMsg; isWelcome = false; render();
+      mode = 'frame'; frame = m as FrameMsg; isWelcome = false;
+      // At a chosen line speed the frame paints as it "arrives"; otherwise the
+      // normal render runs. Capture below is unaffected — the data is all here,
+      // only the DRAWING is paced.
+      if (!revealFrame(m as FrameMsg)) render(); else updateBar();
       if ((m as { goodbye?: boolean }).goodbye) { status('Goodbye — disconnected.'); gw.close(); return; }
       // ⚠ Pages viewed on Compunet are automatically stored in the Editor
       // (§8.4). This is what makes the editor a reading tool as well as a
@@ -733,8 +795,11 @@ function saveBase64(b64: string, filename: string): void {
  *  nothing on screen says so. Restoring the beat restores the meaning. */
 const FRAME_DWELL_MS = 500;
 
+/** ⚠ No dwell when a line speed is set: the frame already takes seconds to
+ *  paint, so the pause it exists to provide is being provided by the reveal.
+ *  Adding both makes a multi-frame download crawl for no extra legibility. */
 const dwell = (): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, FRAME_DWELL_MS));
+  new Promise((resolve) => setTimeout(resolve, baud ? 0 : FRAME_DWELL_MS));
 
 /** `ALL` (§4.7) — read the REST of a multi-frame page in one gesture: repeat
  *  the paging command until the reply stops being a frame. Paced like a mail
@@ -1185,6 +1250,10 @@ window.addEventListener('keydown', (e) => {
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
   if (inParty) return;
 
+  // A frame still "arriving" at 1200 baud: finish it rather than acting on the
+  // key. The first press completes the page, the next does what it says.
+  if (finishReveal()) { e.preventDefault(); return; }
+
   // A PRESS ANY KEY screen (ID results §8.2.1, a read message §8.2): any key
   // returns to the mailbox. After SHOW that means applying the listing the
   // download held back; after an ID check there is nothing to apply and the
@@ -1321,6 +1390,7 @@ window.addEventListener('keydown', (e) => {
 const KEY_SETTINGS = 'compunet:settings';
 const KEY_EDITOR = 'compunet:editor';
 const KEY_LIMIT = 'compunet:pageLimit';
+const KEY_BAUD = 'compunet:baud';
 
 /** Never store the password. Plaintext in localStorage is readable by anything
  *  running in the renderer; "remember me" wants a server-issued token with an
@@ -1340,6 +1410,8 @@ function loadSettings(): void {
     }
     const lim = parseInt(localStorage.getItem(KEY_LIMIT) ?? '', 10);
     if (lim > 0) buf.maxPages = lim;
+    const b = parseInt(localStorage.getItem(KEY_BAUD) ?? '', 10);
+    if (b > 0) { baud = b; $<HTMLSelectElement>('baud').value = String(b); }
   } catch { /* unreadable settings are not worth failing over */ }
 }
 
@@ -1504,6 +1576,13 @@ async function boot(): Promise<void> {
   $('paneNet').addEventListener('mousedown', () => setFocus('net'));
   $('paneEditor').addEventListener('mousedown', () => setFocus('editor'));
   $<HTMLButtonElement>('edClose').onclick = () => leaveEditor();
+  const baudSel = $<HTMLSelectElement>('baud');
+  baudSel.onchange = () => {
+    baud = parseInt(baudSel.value, 10) || 0;
+    try { localStorage.setItem(KEY_BAUD, String(baud)); } catch { /* not fatal */ }
+    finishReveal();
+    status(baud ? `Line speed ${baud} baud — pages paint as they arrive` : 'Line speed: fastest');
+  };
   // Persistence is driven by the buffer's own change hook, so no edit path
   // has to remember to save. Subscribe BEFORE restoring, so a restore that
   // normalises anything is itself written back.

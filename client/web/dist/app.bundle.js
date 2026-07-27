@@ -86,8 +86,11 @@ var Renderer = class {
   setBorder(idx) {
     this.wrap.style.background = this.assets.palette[idx & 15];
   }
-  renderFrame(frame2) {
-    this.renderGrid(frame2.cells, frame2.background);
+  /** `reveal` draws only the first N cells, the rest left as bare background —
+   *  the frame arriving down a slow line (§5.5). Omit it to draw the lot. */
+  renderFrame(frame2, reveal) {
+    const cells = reveal === void 0 ? frame2.cells : frame2.cells.map((c, i) => i < reveal ? c : { g: 32, fg: c.fg, bg: frame2.background, rv: 0 });
+    this.renderGrid(cells, frame2.background);
     this.setBorder(frame2.border);
   }
   put(grid, row, col, text, fg, bg, rv = 0) {
@@ -774,6 +777,41 @@ function render() {
   if (inEditor) renderEditor();
   updateBar();
 }
+var baud = 0;
+var BYTES_PER_BIT = 1 / 10;
+var revealTimer;
+function stopReveal() {
+  clearInterval(revealTimer);
+  revealTimer = void 0;
+}
+function revealFrame(f) {
+  stopReveal();
+  if (!baud) return false;
+  const bytes = f.raw ? Math.ceil(f.raw.length * 3 / 4) : 960;
+  const seconds = bytes / (baud * BYTES_PER_BIT);
+  if (seconds < 0.25) return false;
+  const CELLS2 = 40 * 24;
+  const step = 40;
+  const tick = seconds * 1e3 / (CELLS2 / step);
+  let shown = 0;
+  renderer.renderFrame(f, 0);
+  revealTimer = setInterval(() => {
+    shown += step;
+    if (shown >= CELLS2) {
+      stopReveal();
+      renderer.renderFrame(f);
+      return;
+    }
+    renderer.renderFrame(f, shown);
+  }, tick);
+  return true;
+}
+function finishReveal() {
+  if (revealTimer === void 0) return false;
+  stopReveal();
+  if (frame) renderer.renderFrame(frame);
+  return true;
+}
 function onMessage(m) {
   const rid = m.id;
   if (typeof rid === "number" && pending.has(rid)) {
@@ -826,7 +864,8 @@ function onMessage(m) {
       mode = "frame";
       frame = m;
       isWelcome = false;
-      render();
+      if (!revealFrame(m)) render();
+      else updateBar();
       if (m.goodbye) {
         status("Goodbye \u2014 disconnected.");
         gw.close();
@@ -1360,7 +1399,7 @@ function saveBase64(b64, filename) {
   URL.revokeObjectURL(url);
 }
 var FRAME_DWELL_MS = 500;
-var dwell = () => new Promise((resolve) => setTimeout(resolve, FRAME_DWELL_MS));
+var dwell = () => new Promise((resolve) => setTimeout(resolve, baud ? 0 : FRAME_DWELL_MS));
 async function readAll() {
   let reply = await request({ type: "more" });
   let frames = 1;
@@ -1747,6 +1786,10 @@ window.addEventListener("keydown", (e) => {
   const el = e.target;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
   if (inParty) return;
+  if (finishReveal()) {
+    e.preventDefault();
+    return;
+  }
   if (awaitingKey) {
     awaitingKey = false;
     courier = null;
@@ -1951,6 +1994,7 @@ window.addEventListener("keydown", (e) => {
 var KEY_SETTINGS = "compunet:settings";
 var KEY_EDITOR = "compunet:editor";
 var KEY_LIMIT = "compunet:pageLimit";
+var KEY_BAUD = "compunet:baud";
 function loadSettings() {
   try {
     const raw = localStorage.getItem(KEY_SETTINGS);
@@ -1962,6 +2006,11 @@ function loadSettings() {
     }
     const lim = parseInt(localStorage.getItem(KEY_LIMIT) ?? "", 10);
     if (lim > 0) buf.maxPages = lim;
+    const b = parseInt(localStorage.getItem(KEY_BAUD) ?? "", 10);
+    if (b > 0) {
+      baud = b;
+      $("baud").value = String(b);
+    }
   } catch {
   }
 }
@@ -2101,6 +2150,16 @@ async function boot() {
   $("paneNet").addEventListener("mousedown", () => setFocus("net"));
   $("paneEditor").addEventListener("mousedown", () => setFocus("editor"));
   $("edClose").onclick = () => leaveEditor();
+  const baudSel = $("baud");
+  baudSel.onchange = () => {
+    baud = parseInt(baudSel.value, 10) || 0;
+    try {
+      localStorage.setItem(KEY_BAUD, String(baud));
+    } catch {
+    }
+    finishReveal();
+    status(baud ? `Line speed ${baud} baud \u2014 pages paint as they arrive` : "Line speed: fastest");
+  };
   loadSettings();
   buildEditorTools();
   $("openEditor").onclick = () => {

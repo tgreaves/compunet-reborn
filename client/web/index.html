@@ -117,6 +117,12 @@
     <input id="user" value="TEST" size="8" placeholder="user" autocomplete="username">
     <input id="pass" type="password" size="10" placeholder="password" autocomplete="current-password">
     <button id="connect" class="primary">Connect</button>
+    <!-- Line speed. Compunet ran at 1200/75 (V.23), and watching a page arrive
+         was part of what it felt like — so this is offered, not assumed. -->
+    <select id="baud" title="Pretend the line is this fast. Compunet ran at 1200 baud, and pages painted as they arrived.">
+      <option value="0">Fastest</option>
+      <option value="1200">1200 baud</option>
+    </select>
     <!-- Offline entry to the editor (§8.4). With no session there is no Compunet
          screen and so no duckshoot: on the original this is the BASIC `EDITOR`
          command, and here it is a host-environment button. EDITR in the
