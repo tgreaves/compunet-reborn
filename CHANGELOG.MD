@@ -22,17 +22,9 @@ Opens Compunet Reborn to modern clients, and pins down how to build one.
   PETSCII graphics set, by the C64's own keys (`CTRL`+1-8 for the pen, `SHIFT`
   +letter for graphics) or by clicking a swatch or glyph — the desktop app also
   ships as a **portable exe** that runs without installing.
-* **Mail reads like the original** — `SHOW` downloads the whole message at once
-  and drops every page into the editor, so mail can be read after hanging up;
-  `MORE` pages the mailbox. Multi-frame items arrive at a readable pace instead
-  of flashing past in one frame.
 * **3D-printed logo** (new, `3dprint/`) — a desk plaque of the Compunet logo for
   multi-colour printers, in flush and raised variants. There is no source
   artwork: it is generated from the PETSCII header frame the server sends.
-* **Display fidelity** — the command row, selection bar and editor cursor now
-  take their colours from the screen as the C64 does, so they stay readable on
-  any page and the cursor can no longer disappear into the background. Verified
-  against the original's own routines rather than by eye.
 * **Website** — new Extras page carrying the printable logo, and a refreshed look
   built on the authentic Compunet red, blue and grey.
 * Server:
