@@ -141,6 +141,14 @@ If offered:
 - **Only the DRAWING is paced.** The frame has already arrived: capture (§8.4.2), paging and the
   command row all behave exactly as they would otherwise. This is presentation, not transport,
   and it changes nothing on the wire.
+- **⚠ Pace what the SERVER sent; draw client assets instantly.** A page fetched from Compunet
+  paints; the embedded help, editor-help and COURIER frames (§A.8–§A.11) do not, because they
+  never crossed the line — the same reasoning §8.4.2 gives for not capturing them into the
+  editor. A local asset pretending to arrive over a modem is theatre rather than reconstruction.
+- **⚠ The WELCOME frame paces.** It is the first page anyone sees, which makes it the one where
+  watching it arrive matters most — and it is easy to miss, because it is delivered with the
+  session rather than as an ordinary frame (§3.5), so it takes a different path through a client
+  and quietly skips the pacing.
 - A client **SHOULD** let a keypress complete the frame immediately. The original had no such
   escape, but a page that cannot be hurried reads as a hung client to anyone who did not realise
   what they had switched on.

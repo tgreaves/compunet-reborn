@@ -152,10 +152,18 @@ function onMessage(m: ServerMsg): void {
       account = r.account;
       $('credit').textContent = `${account.user} · £${account.credit.toFixed(2)}`;
       connected = true;
-      if (r.welcome) { mode = 'frame'; frame = r.welcome; isWelcome = true; inMail = false; }
-      // Always render: if the editor pane is open the Compunet pane still
-      // updates beside it, so connecting is visibly successful.
-      render();
+      // ⚠ The welcome frame paces like any other page (§5.5.1). It arrives in
+      // `ready` rather than as a `frame` message, so it bypassed the reveal —
+      // and it is the FIRST thing anyone sees, which makes it the one page
+      // where "watch it arrive" matters most.
+      if (r.welcome) {
+        mode = 'frame'; frame = r.welcome; isWelcome = true; inMail = false;
+        // Always draw something: if the editor pane is open the Compunet pane
+        // still updates beside it, so connecting is visibly successful.
+        if (!revealFrame(r.welcome)) render(); else updateBar();
+      } else {
+        render();
+      }
       status(`Welcome, ${account.user} — press DIR to enter the system`);
       break;
     }

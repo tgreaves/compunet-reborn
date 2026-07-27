@@ -830,8 +830,11 @@ function onMessage(m) {
         frame = r.welcome;
         isWelcome = true;
         inMail = false;
+        if (!revealFrame(r.welcome)) render();
+        else updateBar();
+      } else {
+        render();
       }
-      render();
       status(`Welcome, ${account.user} \u2014 press DIR to enter the system`);
       break;
     }
