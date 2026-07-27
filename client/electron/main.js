@@ -16,6 +16,7 @@
 
 const { app, BrowserWindow, shell, protocol, net } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { pathToFileURL } = require('url');
 
 // In development the client lives beside this shell; when packaged it is copied
@@ -23,6 +24,30 @@ const { pathToFileURL } = require('url');
 const WEB_DIR = app.isPackaged
   ? path.join(process.resourcesPath, 'app', 'web')
   : path.join(__dirname, '..', 'web');
+
+// ⚠ A PORTABLE build keeps its data beside the exe, not in %APPDATA%.
+//
+// electron-builder sets PORTABLE_EXECUTABLE_DIR for the portable target only —
+// it is the folder the user actually put the exe in. Without this, "portable"
+// means "no install" but not "self-contained": the app would still write
+// settings and the editor buffer to %APPDATA%, leaving them behind on every
+// machine it ran on and sharing them with an installed copy. Someone carrying
+// this on a stick expects their pages to travel with it (§8.4 makes the buffer
+// something a client MUST keep).
+//
+// Falls back silently to the default when the location is not writable — a
+// portable exe run from a read-only stick or a CD should still start.
+const portableDir = process.env.PORTABLE_EXECUTABLE_DIR;
+if (portableDir) {
+  const dataDir = path.join(portableDir, 'Compunet Reborn Data');
+  try {
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.accessSync(dataDir, fs.constants.W_OK);
+    app.setPath('userData', dataDir);
+  } catch {
+    // read-only medium — keep the default location rather than failing to start
+  }
+}
 
 // Must be declared before the app is ready. `standard` gives the scheme a real
 // origin (so localStorage and relative URLs behave), `secure` keeps it out of

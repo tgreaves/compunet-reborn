@@ -44,11 +44,12 @@ reads as the app announcing "Installing…" every time you launch it. `oneClick:
 `allowToChangeInstallationDirectory` gives the wizard people expect, including putting it on
 another drive.
 
-⚠ **"Portable" means no install, NOT self-contained.** Both builds keep user data —
-settings and the editor buffer — in `%APPDATA%\Compunet Reborn`, because the app does not
-relocate `userData`. A portable copy therefore leaves data behind on any machine it runs on,
-and shares it with an installed copy. Making it travel with the exe means pointing
-`userData` at `PORTABLE_EXECUTABLE_DIR` when electron-builder sets it.
+⚠ **The portable build is self-contained.** It keeps settings and the editor buffer in a
+`Compunet Reborn Data` folder **beside the exe**, so a copy on a USB stick carries the user's
+pages with it and leaves nothing on the host — and an installed copy on the same machine keeps
+its own data in `%APPDATA%\Compunet Reborn`, entirely separately. If the exe sits somewhere
+unwritable (a read-only stick, a CD) it falls back to `%APPDATA%` rather than failing to
+start.
 
 ### Other platforms
 
