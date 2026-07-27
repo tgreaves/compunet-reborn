@@ -1448,54 +1448,50 @@ After the mailbox directory is displayed, the client enters a mail-specific
 menu loop at L_ADEA with its own duckshoot. The mail menu commands (from
 the dispatch table at L_AE15, indexing into L_A176) are:
 
-| Index | String Offset | Command | Handler |
-|-------|---------------|---------|---------|
-| 0     | $06           | DIR     | $AE36   |
-| 1     | $66           | SEND    | $B00B   |
-| 2     | $0C           | SHOW    | $B039   |
-| 3     | $5A           | MORE    | $B040   |
-| 4     | $9C           | ID      | $A270   |
-| 5     | $30           | EDITR   | (cont.) |
-| 6     | $A2           | DONE    | (cont.) |
+| Index | String Offset | Command | Handler | Sends |
+|-------|---------------|---------|---------|-------|
+| 0     | $06           | (DIR)   | —       | **filler — never dispatched**, see below |
+| 1     | $66           | SEND    | $AE36   | `U` ($55) + prompts |
+| 2     | $0C           | SHOW    | $B00B   | `D` ($44) + 2-digit entry index |
+| 3     | $5A           | MORE    | $B039   | `M` ($4D), no parameters |
+| 4     | $9C           | ID      | $B040   | `I` ($49), prompts "ID TO CHECK?" ($B0D9) |
+| 5     | $30           | EDITR   | $A270   | nothing — client-side |
+| 6     | $A2           | DONE    | $B164   | `N` ($4E), no parameters |
 
 *(Command names decoded from the 6-byte string table at `L_A176`: `$06`=DIR, `$0C`=SHOW,
 `$30`=EDITR, `$5A`=MORE, `$66`=SEND, `$9C`=ID, `$A2`=DONE. An earlier revision of this document
-mis-decoded five of these seven.)*
+mis-decoded five of these seven, and a later one paired every command with the WRONG handler —
+the column was shifted by one. Both are now settled: four of the six handlers identify
+themselves by the command byte they load, and the remaining two by having no command byte
+(EDITR) and by exiting the menu loop (DONE).)*
 
-> **⚠ The Handler column above is misaligned with the Command column — do not read a row
-> across.** Disassembling the targets shows they do not do what their row says:
->
-> ```
-> $B039  A9 4D     LDA #$4D      ; 'M'
-> $B03B  A0 01     LDY #$01      ; no parameters
-> $B03D  4C 5F A3  JMP $A35F     ; shared send+receive
->
-> $B040  A9 49     LDA #$49      ; 'I'
-> $B042  8D 00 C1  STA $C100
-> $B045  A2 D6 A0 BD ...         ; prompt, then $B0D9 = "ID TO CHECK?"
-> ```
->
-> `$B039` sends a bare `M`, so it cannot be SHOW — SHOW carries an entry index (`D`+index).
-> `$B040` is plainly the ID lookup. Of the seven mail commands, the only one that can be the
-> bare-`M` sender is **MORE**: DIR and SHOW carry an index, SEND sends `U`, ID sends `I`, and
-> EDITR/DONE are client-side. So:
->
-> **MORE in the mail menu sends `M` with no parameters** — `M` while already in mail mode
-> advances the mailbox by one page. This is why MORE exists in the mail row when the directory
-> row deliberately has none (spec §4.8): the mailbox is a *generated* listing that can overflow,
-> and this response carries no synthetic pagination row (it emits up to eleven real entries and
-> nothing else), so on the wire MORE is the only way to reach page 2 of a mailbox.
->
-> **Unconfirmed:** the exact shift. The dispatcher at `$AE1C` reads `$8033`, doubles it, and
-> uses the RTS trick on the byte pairs at `$AE28`/`$AE29`, so the handler for menu index *i* is
-> at `$AE28 + 2i` — but `$8033` is set to **1** on mail entry, and index 0 (DIR) would resolve
-> to garbage (`$6049`), so the two tables are not indexed identically. Both candidate alignments
-> leave one command implausibly placed. The `MORE` → `M` mapping above is independent of that
-> question and is what the server implements; the rest of the Handler column should be treated
-> as unverified until someone reads the dispatcher against a live trace.
+**How the dispatch works, and why index 0 is filler.** `L_ADEA` runs the menu loop; `$AE1C`
+dispatches:
 
-The initial $8033 value is set to 1 on mail entry. L_AE1C dispatches based
-on $8033 using the handler address table at $AE2A.
+```
+$AE1C  AD 33 80  LDA $8033      ; the duckshoot position
+$AE1F  0A        ASL            ; x2
+$AE20  AA        TAX
+$AE21  BD 29 AE  LDA $AE29,X    ; high byte  -> PHA
+$AE25  BD 28 AE  LDA $AE28,X    ; low byte   -> PHA
+$AE29  60        RTS            ; jump to handler
+```
+
+The address table therefore starts at **`$AE28`**, which is *inside the dispatcher's own code*
+(`$AE28`/`$AE29` are the `PHA`/`RTS` bytes). Index 0 consequently resolves to garbage — which is
+harmless because **`$8033` is set to 1 on mail entry** and the menu offers six commands, indices
+1–6. Entry 0 of the string table (`DIR`) is filler that keeps the two tables sharing one index.
+The editor's function-key table at `$88BC` uses the same overlapping-table idiom, there pointing
+its unused entries at the dispatcher's own `RTS` as a deliberate no-op.
+
+So the mail row is **SEND, SHOW, MORE, ID, EDITR, DONE** — six commands in the order above,
+which is exactly the row §4.8 of the client specification requires.
+
+**⚠ DONE sends `N`, not `B`.** `$B164` is `LDA #$4E / LDY #$01 / JSR $A35F`, and on success it
+pulls two bytes off the stack — discarding the return address, which exits the menu loop — before
+setting `$8033` to 7. One command leaves Courier; the server treats `N` in mail mode as "clear
+mail mode and return the directory" (`_cmd_more`). Repeated `B` reaches the same place by
+unwinding one level at a time, but it is not what the original does.
 
 #### Mail Response Format
 

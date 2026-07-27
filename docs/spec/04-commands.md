@@ -389,10 +389,21 @@ the client rewrites at runtime, dropping commands from the **end** of the direct
 So that order is a **priority order**: a client with less room (or a narrower context) should
 drop from the end — `VOTE`, `UPLD`, `LOAD` first — rather than pick arbitrarily.
 
-**⚠ `DONE` returns you where you were, and `B` gets there in steps (normative).** Entering
-Courier does **not** move the user's place in the content tree, so leaving it returns them to the
-directory they were in — *not* to that directory's parent, and not to the root. On the wire that
-is `B` (BACK), but `B` inside mail is **stepwise**, unwinding one level per command:
+**⚠ `DONE` sends `N`, and leaves Courier in ONE command (normative).** Entering Courier does
+**not** move the user's place in the content tree, so leaving it returns them to the directory
+they were in — *not* to that directory's parent, and not to the root. On the wire that is **`N`**
+($4E, no parameters): the server clears mail mode and answers with that directory. Verified in
+the original — the mail menu's `DONE` handler at `$B164` is `LDA #$4E / LDY #$01 / JSR $A35F`,
+and on success it pulls two bytes off the stack, discarding the return address so that control
+leaves the mail menu loop entirely.
+
+*(This section previously said `DONE` was `B` on the wire and required a client to repeat it
+"until the session is out of mail mode". That describes a workaround, not the original: `B` does
+unwind stepwise, but `DONE` is not `B`. Corrected against `$B164`; `docs/PROTOCOL.md` carries the
+full mail dispatch table.)*
+
+**⚠ `B` inside mail is stepwise, and that is a separate thing.** `BACK` is not offered in the
+mail row (§4.8), but a client may still reach `B` — and there it unwinds one level per command:
 
 0. on the **COURIER screen** (`SEND` / `ID`, §8.2.1) → back to the mailbox listing. This step is
    **client-side only** — no wire command — because that screen is a client asset and the lookup
@@ -402,9 +413,10 @@ is `B` (BACK), but `B` inside mail is **stepwise**, unwinding one level per comm
 3. on the first page of the listing → **leave Courier**, returning the directory the user came
    from.
 
-So a single `B` is *not* always "leave mail". A client **MUST** make `DONE` actually exit —
-repeating `B` until the session is out of mail mode — rather than issuing one and assuming it
-worked. (`N`/MORE also clears mail mode when it runs past the last message.)
+So a single `B` is *not* always "leave mail". A client that implements `DONE` by repeating `B`
+reaches the right place and **MUST** keep going until the session is actually out of mail mode
+rather than issuing one and assuming it worked — but `N` does it in one, and is what the original
+sends.
 
 **⚠ Paging a listing is not a command, in either binding.** There is deliberately no `MORE` in
 the directory row. Binding A pages when the user selects the **synthetic pagination row** §7.6

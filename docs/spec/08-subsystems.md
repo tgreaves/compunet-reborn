@@ -131,8 +131,9 @@ preferred order, which the original never imposed.
 `ID` screens are **client-side** sub-states — the frame is a client asset (§A.10) and an ID
 lookup changes nothing on the server — so leaving them is a **local redraw**, not a wire command.
 A client that issues `B` here unwinds one level too many and drops the user out of mail
-altogether. This is the same stepwise model as §4.8's `DONE` note: COURIER screen → mailbox
-listing → out of Courier, one step per command.
+altogether. This is the same stepwise model as §4.8's `B` note: COURIER screen → mailbox listing
+→ out of Courier, one step per command. (`DONE` itself is a single `N`, §4.8 — the stepwise rule
+is about `B`.)
 
 **⚠ `SEND` and `ID` use DIFFERENT frames.** `ID` uses §A.10 (title and five bare slots); `SEND`
 uses **§A.11**, a larger frame carrying `FROM` / `DATE` / `TIME` / `SUBJECT` / `TO` above the same
