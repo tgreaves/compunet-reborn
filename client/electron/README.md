@@ -21,12 +21,46 @@ deployed.
 ## Package
 
 ```bash
-npm run dist:win     # NSIS installer
-npm run dist:mac     # dmg
+npm run pack:win     # fast: dist/win-unpacked/ only, for testing
+npm run dist:win     # installer + portable exe
+npm run dist:mac     # dmg  (must run ON macOS — the dmg target needs hdiutil)
+npm run dist         # every target configured for the current platform
 ```
 
-`electron-builder` copies `index.html`, `assets.json`, and `dist/app.bundle.js` from
-`../web` into the app's resources — so **build the web client before packaging**.
+Every script rebuilds the web client first. The shell only *copies*
+`../web/dist/app.bundle.js` into its resources, so without that it packages whatever
+bundle happens to be on disk: it builds cleanly, launches cleanly, and runs stale code.
+
+### The two Windows artifacts
+
+| File | What it does |
+|---|---|
+| `Compunet Reborn <version> Setup.exe` | **Installer.** Asks where to install, makes shortcuts, registers an uninstaller |
+| `Compunet Reborn <version> (portable).exe` | **No install.** Unpacks to a temp folder and runs; delete the file to remove it |
+
+⚠ **The installer is deliberately not `oneClick`.** electron-builder's NSIS default installs
+silently to a fixed per-user path with no pages at all — so re-running it reinstalls, which
+reads as the app announcing "Installing…" every time you launch it. `oneClick: false` plus
+`allowToChangeInstallationDirectory` gives the wizard people expect, including putting it on
+another drive.
+
+⚠ **"Portable" means no install, NOT self-contained.** Both builds keep user data —
+settings and the editor buffer — in `%APPDATA%\Compunet Reborn`, because the app does not
+relocate `userData`. A portable copy therefore leaves data behind on any machine it runs on,
+and shares it with an installed copy. Making it travel with the exe means pointing
+`userData` at `PORTABLE_EXECUTABLE_DIR` when electron-builder sets it.
+
+### Other platforms
+
+macOS **must** be built on macOS. Linux can be built from any host via electron-builder's
+Docker image:
+
+```bash
+docker run --rm -it -v ${PWD}/../..:/project electronuserland/builder   /bin/bash -c "cd /project/client/electron && npm install && npm run dist -- --linux"
+```
+
+Neither is signed. macOS Gatekeeper will refuse an unsigned app until the user right-clicks
+→ Open; notarising needs an Apple Developer account.
 
 ## How it works
 

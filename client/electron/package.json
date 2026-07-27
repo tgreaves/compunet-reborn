@@ -51,6 +51,13 @@
     },
     "portable": {
       "artifactName": "Compunet Reborn ${version} (portable).exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   },
   "allowScripts": {
