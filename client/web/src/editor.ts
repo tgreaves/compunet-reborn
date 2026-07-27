@@ -320,6 +320,31 @@ export class EditorBuffer {
    *  immediately even before anything is typed. */
   setColour(c: number): void { this.page().colour = c & 0x0F; }
 
+  /** Set screen / border directly, for a picker (§8.4.3). Screen colour must
+   *  reach every cell — see cycleBackground for why. */
+  setBackground(c: number): void {
+    const p = this.page();
+    p.background = c & 0x0F;
+    for (const cell of p.cells) cell.bg = p.background;
+    this.touch();
+  }
+  setBorder(c: number): void { this.page().border = c & 0x0F; }
+
+  /** Write a raw SCREEN CODE at the cursor and advance — the route for glyphs
+   *  that have no letter to type: the graphics banks (§5.3).
+   *
+   *  ⚠ charToGlyph only maps letters, digits and punctuation, so before this
+   *  existed the editor could not produce a single graphics character — on a
+   *  client whose whole purpose is composing PETSCII pages. */
+  typeGlyph(code: number): void {
+    const p = this.page();
+    const i = this.row * PAGE_COLS + this.col;
+    this.touch();
+    const fg = this.colourOn ? p.colour : p.cells[i].fg;
+    p.cells[i] = { g: code & 0xFF, fg, bg: p.background, rv: 0 };
+    if (++this.col >= PAGE_COLS) { this.col = 0; this.moveRow(1); }
+  }
+
   /** DELETE/INSERT a line above the cursor (the original's f3/f4). */
   insertLine(): void {
     const p = this.page();

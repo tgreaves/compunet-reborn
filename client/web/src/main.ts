@@ -1127,6 +1127,16 @@ window.addEventListener('keydown', (e) => {
       status(`Pen colour ${bank[Number(e.key) - 1]}`);
       e.preventDefault(); return;
     }
+    // ⚠ SHIFT + letter types a GRAPHICS character, as on the C64 — the keys are
+    // the primary route and the picker is only an addition (§8.4.3). PETSCII
+    // $C1-$DA (shifted letters) map to screen codes $41-$5A (§5.3), which is
+    // the first graphics bank. The second bank ($61-$7A) is C=+letter on the
+    // original; `C=` is Tab here and cannot be chorded with a letter, so that
+    // bank is reachable only through the picker.
+    if (e.shiftKey && !e.ctrlKey && !e.altKey && !buf.lowerCase && /^[A-Za-z]$/.test(e.key)) {
+      buf.typeGlyph(0x40 + (e.key.toUpperCase().charCodeAt(0) - 0x40));
+      render(); e.preventDefault(); return;
+    }
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
       buf.typeChar(e.key); render(); e.preventDefault(); return;
     }
@@ -1160,6 +1170,92 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Enter')      { duckCommit();   e.preventDefault(); return; }
 });
 
+/** The colour and glyph pickers (§8.4.3).
+ *
+ *  ⚠ These are ADDITIONAL, never a replacement: every colour here is also on
+ *  CTRL+digit / f7 / f8, and the SHIFT-key graphics bank is also typeable. What
+ *  the pickers add is discoverability — the original's user knew the sixteen
+ *  colours and the graphics keyboard by heart, and a new one does not — plus the
+ *  one bank with no key route at all (C=+letter, since `C=` is Tab here and
+ *  cannot be chorded with a letter).
+ *
+ *  They are pane furniture, NOT commands: §8.4.1's fourteen are a closed set, so
+ *  nothing here may appear in the editor's row. */
+function buildEditorTools(): void {
+  const swatches = $('edSwatches');
+  const target = () => $<HTMLSelectElement>('edTarget').value;
+
+  const paint = (): void => {
+    // Show which colour is current for whatever the dropdown is pointing at.
+    const p = buf.page();
+    const cur = target() === 'pen' ? p.colour : target() === 'screen' ? p.background : p.border;
+    [...swatches.children].forEach((el, i) => el.classList.toggle('on', i === cur));
+  };
+
+  assets.palette.forEach((css, i) => {
+    const b = document.createElement('button');
+    b.className = 'swatch';
+    b.style.background = css;
+    b.title = `Colour ${i}`;
+    b.onclick = () => {
+      if (target() === 'pen') buf.setColour(i);
+      else if (target() === 'screen') buf.setBackground(i);
+      else buf.setBorder(i);
+      paint();
+      renderEditor();
+      status(`${target()} colour ${i}`);
+    };
+    swatches.appendChild(b);
+  });
+  $<HTMLSelectElement>('edTarget').onchange = paint;
+
+  // --- glyphs ---------------------------------------------------------------
+  const BANKS: Record<string, [number, number]> = {
+    shift:     [0x41, 0x5A],   // SHIFT + letter  (§5.3)
+    commodore: [0x61, 0x7A],   // C= + letter — no key route here, picker only
+    upper:     [0x01, 0x3F],   // A-Z, digits and punctuation
+    lower:     [0x81, 0xBF],   // the lowercase/mixed set
+  };
+  const glyphs = $('edGlyphs');
+
+  const drawBank = (): void => {
+    const [lo, hi] = BANKS[$<HTMLSelectElement>('edBank').value];
+    glyphs.replaceChildren();
+    for (let code = lo; code <= hi; code++) {
+      const b = document.createElement('button');
+      b.className = 'glyph';
+      b.title = `Screen code $${code.toString(16).toUpperCase().padStart(2, '0')}`;
+      // Render the glyph itself from the C64 font, so the picker shows the
+      // actual character rather than a name nobody knows.
+      const c = document.createElement('canvas');
+      c.width = c.height = 8;
+      const cx = c.getContext('2d');
+      if (cx) {
+        const bmp = assets.font[code] || assets.font[0x20];
+        cx.fillStyle = '#000'; cx.fillRect(0, 0, 8, 8);
+        cx.fillStyle = '#fff';
+        bmp.forEach((byte, y) => {
+          for (let x = 0; x < 8; x++) if ((byte >> (7 - x)) & 1) cx.fillRect(x, y, 1, 1);
+        });
+        b.style.backgroundImage = `url(${c.toDataURL()})`;
+        b.style.backgroundSize = '16px 16px';
+        b.style.backgroundRepeat = 'no-repeat';
+        b.style.backgroundPosition = 'center';
+      }
+      b.onclick = () => {
+        if (!buf.editing) { status('Press EDIT first — the picker types onto the page'); return; }
+        buf.typeGlyph(code);
+        renderEditor();
+        setFocus('editor');     // hand the keyboard straight back
+      };
+      glyphs.appendChild(b);
+    }
+  };
+  $<HTMLSelectElement>('edBank').onchange = drawBank;
+  drawBank();
+  paint();
+}
+
 async function boot(): Promise<void> {
   assets = await (await fetch('./assets.json')).json();
   renderer = new Renderer(canvas, assets, wrap);
@@ -1169,6 +1265,7 @@ async function boot(): Promise<void> {
   $('paneNet').addEventListener('mousedown', () => setFocus('net'));
   $('paneEditor').addEventListener('mousedown', () => setFocus('editor'));
   $<HTMLButtonElement>('edClose').onclick = () => leaveEditor();
+  buildEditorTools();
   // Host-environment route into the editor — the only way in with no session,
   // and harmless with one (it returns wherever the user was).
   $<HTMLButtonElement>('openEditor').onclick = () => {

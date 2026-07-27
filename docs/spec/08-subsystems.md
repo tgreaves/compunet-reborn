@@ -576,6 +576,25 @@ conditions:
   the client's own furniture, and the same reasoning that keeps the buffer position out of the
   40×24 page (§8.4.2).
 
+**⚠ The same applies to GRAPHICS CHARACTERS, and here the gap is worse.** On the C64 the
+graphics come off the keyboard: `SHIFT`+letter gives one bank and `C=`+letter the other, which
+§5.3 maps to screen codes **`$41`–`$5A`** and **`$61`–`$7A`** respectively. A client that maps
+only letters, digits and punctuation cannot produce **a single graphics character** — on a client
+whose entire purpose is composing PETSCII pages, and the failure is silent: the editor looks
+complete, types happily, and simply cannot draw. At least one bank **MUST** be reachable, and a
+client **SHOULD** provide both.
+
+A client **MAY** therefore offer a **glyph picker** — a grid of the character set, clicked to
+insert — and on a host where the C64 keyboard cannot be reproduced this is often the *only* route
+to one of the banks: where `C=` is bound to a key that will not chord with a letter, `$61`–`$7A`
+has no keyboard route at all and the picker is what makes it reachable. Show the **glyphs
+themselves**, drawn from the font of §A.1; a list of screen-code numbers is not a picker, because
+nobody knows what `$6D` looks like.
+
+The same two conditions apply as for colour: **additional, not instead of** — whatever the
+keyboard *can* reach it still **MUST** reach — and **an affordance, not a command**, so no
+`GRAPH` or `CHARS` cell appears in the editor's row.
+
 This is the general principle of §4.6 applied to the editor: *how* something is invoked is the
 client's business, *what exists to be invoked* is not.
 

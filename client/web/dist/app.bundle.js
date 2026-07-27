@@ -546,6 +546,34 @@ var EditorBuffer = class _EditorBuffer {
   setColour(c) {
     this.page().colour = c & 15;
   }
+  /** Set screen / border directly, for a picker (§8.4.3). Screen colour must
+   *  reach every cell — see cycleBackground for why. */
+  setBackground(c) {
+    const p = this.page();
+    p.background = c & 15;
+    for (const cell of p.cells) cell.bg = p.background;
+    this.touch();
+  }
+  setBorder(c) {
+    this.page().border = c & 15;
+  }
+  /** Write a raw SCREEN CODE at the cursor and advance — the route for glyphs
+   *  that have no letter to type: the graphics banks (§5.3).
+   *
+   *  ⚠ charToGlyph only maps letters, digits and punctuation, so before this
+   *  existed the editor could not produce a single graphics character — on a
+   *  client whose whole purpose is composing PETSCII pages. */
+  typeGlyph(code) {
+    const p = this.page();
+    const i = this.row * PAGE_COLS + this.col;
+    this.touch();
+    const fg = this.colourOn ? p.colour : p.cells[i].fg;
+    p.cells[i] = { g: code & 255, fg, bg: p.background, rv: 0 };
+    if (++this.col >= PAGE_COLS) {
+      this.col = 0;
+      this.moveRow(1);
+    }
+  }
   /** DELETE/INSERT a line above the cursor (the original's f3/f4). */
   insertLine() {
     const p = this.page();
@@ -1687,6 +1715,12 @@ window.addEventListener("keydown", (e) => {
       e.preventDefault();
       return;
     }
+    if (e.shiftKey && !e.ctrlKey && !e.altKey && !buf.lowerCase && /^[A-Za-z]$/.test(e.key)) {
+      buf.typeGlyph(64 + (e.key.toUpperCase().charCodeAt(0) - 64));
+      render();
+      e.preventDefault();
+      return;
+    }
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
       buf.typeChar(e.key);
       render();
@@ -1753,6 +1787,80 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 });
+function buildEditorTools() {
+  const swatches = $("edSwatches");
+  const target = () => $("edTarget").value;
+  const paint = () => {
+    const p = buf.page();
+    const cur = target() === "pen" ? p.colour : target() === "screen" ? p.background : p.border;
+    [...swatches.children].forEach((el, i) => el.classList.toggle("on", i === cur));
+  };
+  assets.palette.forEach((css, i) => {
+    const b = document.createElement("button");
+    b.className = "swatch";
+    b.style.background = css;
+    b.title = `Colour ${i}`;
+    b.onclick = () => {
+      if (target() === "pen") buf.setColour(i);
+      else if (target() === "screen") buf.setBackground(i);
+      else buf.setBorder(i);
+      paint();
+      renderEditor();
+      status(`${target()} colour ${i}`);
+    };
+    swatches.appendChild(b);
+  });
+  $("edTarget").onchange = paint;
+  const BANKS = {
+    shift: [65, 90],
+    // SHIFT + letter  (§5.3)
+    commodore: [97, 122],
+    // C= + letter — no key route here, picker only
+    upper: [1, 63],
+    // A-Z, digits and punctuation
+    lower: [129, 191]
+    // the lowercase/mixed set
+  };
+  const glyphs = $("edGlyphs");
+  const drawBank = () => {
+    const [lo, hi] = BANKS[$("edBank").value];
+    glyphs.replaceChildren();
+    for (let code = lo; code <= hi; code++) {
+      const b = document.createElement("button");
+      b.className = "glyph";
+      b.title = `Screen code $${code.toString(16).toUpperCase().padStart(2, "0")}`;
+      const c = document.createElement("canvas");
+      c.width = c.height = 8;
+      const cx = c.getContext("2d");
+      if (cx) {
+        const bmp = assets.font[code] || assets.font[32];
+        cx.fillStyle = "#000";
+        cx.fillRect(0, 0, 8, 8);
+        cx.fillStyle = "#fff";
+        bmp.forEach((byte, y) => {
+          for (let x = 0; x < 8; x++) if (byte >> 7 - x & 1) cx.fillRect(x, y, 1, 1);
+        });
+        b.style.backgroundImage = `url(${c.toDataURL()})`;
+        b.style.backgroundSize = "16px 16px";
+        b.style.backgroundRepeat = "no-repeat";
+        b.style.backgroundPosition = "center";
+      }
+      b.onclick = () => {
+        if (!buf.editing) {
+          status("Press EDIT first \u2014 the picker types onto the page");
+          return;
+        }
+        buf.typeGlyph(code);
+        renderEditor();
+        setFocus("editor");
+      };
+      glyphs.appendChild(b);
+    }
+  };
+  $("edBank").onchange = drawBank;
+  drawBank();
+  paint();
+}
 async function boot() {
   assets = await (await fetch("./assets.json")).json();
   renderer = new Renderer(canvas, assets, wrap);
@@ -1761,6 +1869,7 @@ async function boot() {
   $("paneNet").addEventListener("mousedown", () => setFocus("net"));
   $("paneEditor").addEventListener("mousedown", () => setFocus("editor"));
   $("edClose").onclick = () => leaveEditor();
+  buildEditorTools();
   $("openEditor").onclick = () => {
     if (inEditor) return;
     editorReturn = () => render();

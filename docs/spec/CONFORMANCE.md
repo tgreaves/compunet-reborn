@@ -62,6 +62,11 @@ marked **⚠** are the ones known to have been got wrong in practice.
       counter (§8.4.2). Capture a page that uses all 24 rows and check the last one survives.
 - [ ] **Unedited captured pages re-upload unchanged** — as their original bytes, not re-encoded
       (§8.4.2). Edit one character and the client must switch to sending the grid.
+- [ ] **⚠ Graphics characters can be typed at all** (§8.4.3). Try to draw a box: `SHIFT`+letter
+      must give a graphics glyph (screen codes `$41`–`$5A`), not a letter. A client that maps
+      only letters and digits can compose **text pages and nothing else**, which is easy to miss
+      because everything it *does* do works. If a bank is unreachable from the host's keyboard,
+      a picker must cover it.
 - [ ] **⚠ The pen colour can be set** (§8.4.3) — `CTRL`+`1`–`8` on the C64, `CTRL`+`4` giving
       cyan. Type a character, change the pen, type another: they must differ. A client that
       implements only the help frame's keys can produce **white text and nothing else**, which
