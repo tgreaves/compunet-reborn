@@ -491,8 +491,33 @@ highlight moves along a fixed list is **not** a duckshoot, however similar it lo
 
 ### 4.9.3 Appearance
 
-- Command words are **white on black**.
-- The **centred (selected)** word is drawn **inverse** — black on white.
+**⚠ The row is a solid BAR with the words knocked out of it, and its colours come from the
+SCREEN BACKGROUND (normative).** It is not a fixed black and white:
+
+- The bar's colour is **`CONTRAST[background]`** — the §8.4.3 table, so **black or white and
+  nothing else** (which is why it always *looks* monochrome), picked to contrast with whatever
+  the page behind it is.
+- Every cell of the row carries **that one colour**. Words are drawn **reverse video**, so each
+  appears as the bar with its letters knocked out in the **background** colour.
+- The **centred (selected)** word is the one cell that is **NOT reversed** — its letters are
+  drawn in the bar colour on the background. The selection is a **hole in the bar**, not a
+  differently-coloured cell.
+
+So the row **inverts with the page**: over a light directory it is a black bar with light letters;
+over a dark editor page it becomes a white bar with dark letters. A client that hardcodes
+"white on black, inverse when selected" is correct on the directory and exactly **backwards** on
+a dark page — and since both look like a normal duckshoot, nothing flags it.
+
+*(Verified in the original: `$938B` fills all forty cells of row 24 with `$A0` — a reversed
+space, i.e. a solid block — coloured `$93A4[$D021]`, and `$945A` writes each character with
+`ORA #$80` except columns 18–23, giving every cell that same colour. `f7`/`f8` call `$938B`
+again after stepping `$D021`/`$D020`, which is how the row keeps up with the background.)*
+
+**⚠ The row starts at column 0.** Seven cells of six characters at columns **0, 6, 12, 18, 24,
+30, 36** — so the centre cell is **18–23**, and only the **last** cell clips, showing 4 of its 6
+characters. 7 × 6 = 42 is wider than the screen, which tempts a client to centre the overflow and
+start at −1; that shifts every cell one column left, clips **both** ends, and costs the first
+word its leading character. The original's write loop begins `LDX #$00` (`$9458`).
 - **⚠ Load-bearing: each word is a 6-character cell, with its own padding.** The command-name
   table is 6-byte strings that already carry their spacing, and a client **MUST** use these forms
   rather than padding the bare names itself:

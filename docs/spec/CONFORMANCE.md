@@ -157,6 +157,13 @@ The server does not report these; a client that ignores them looks fine and lose
 - [ ] **⚠ `PRESS ANY KEY` is LEFT justified** (§4.8) — column 0, where the duckshoot starts.
       Centred text looks perfectly reasonable in isolation; the tell is the bottom row jumping
       sideways as you move between reading and choosing.
+- [ ] **⚠ The duckshoot inverts with the page** (§4.9.3). Look at the row over a **light**
+      directory and over a **dark** page: the bar should swap between black and white, because
+      its colour is derived from the background. A row that is always black-with-white-text is
+      right on the directory and backwards on a dark page, and both look normal in isolation.
+- [ ] **⚠ The duckshoot row starts at column 0** (§4.9.3) — cells at 0, 6, 12, 18, 24, 30, 36,
+      so only the **rightmost** word is clipped. If the leftmost word is missing its first
+      character, the client centred the 42-column overflow instead of starting at 0.
 - [ ] **⚠ Multi-frame runs are PACED** (§4.7) — `ALL` and Courier's `SHOW` leave each frame up
       ~500 ms. Unpaced, the run completes in a single flash and the user sees only the last
       frame; count the pages in the **editor buffer** to see that the rest did arrive. This one

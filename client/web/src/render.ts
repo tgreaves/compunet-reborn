@@ -8,6 +8,17 @@ export const COLS = 40, ROWS = 24, CELL = 8;
 // original reverses the cell instead, so the text shows in the screen background
 // (§7.7, $A6DC). Nothing in the directory is white.
 const RED = 2, BLUE = 6, TEMPLATE_BG = 15;
+
+/** ⚠ The original's contrast table at `$93A4`, indexed by the SCREEN background.
+ *
+ *  Every entry is black (0) or white (1), chosen by luminance. The client keeps
+ *  anything it draws over a frame in this colour — `$90A0` loads it into `$0286`
+ *  before printing a string, and `$938B` writes it into the duckshoot row's
+ *  colour RAM — so its own furniture stays legible whatever the page background
+ *  is. That is also why the duckshoot is only ever black or white.
+ *
+ *  Shared with the editor's cursor (§8.4.3), which needs the same guarantee. */
+export const CONTRAST = [1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0];
 /** template geometry: left border 0, divider 30, right border 39 (§7.7/§A.6) */
 const DIVIDER_COL = 30;
 
@@ -206,28 +217,47 @@ export class Renderer {
   /** Draw the duckshoot on the row below the content grid (§4.9).
    *  The ROW scrolls and the CENTRE cell is the selection — words are laid out
    *  around `centre`, which always lands in the middle of the screen. */
-  /** The single-frame case has no duckshoot at all — just a prompt (§4.8). */
-  renderPrompt(text: string): void {
-    const s = this.scale, row = ROWS;
-    this.ctx.fillStyle = this.assets.palette[0];
+  /** The single-frame case has no duckshoot at all — just a prompt (§4.8).
+   *  Printed in the contrast colour on the screen background, like any string
+   *  the client puts over a frame ($90A0 loads `$93A4[bg]` into `$0286`). */
+  renderPrompt(text: string, background = 0): void {
+    const s = this.scale, row = ROWS, ink = CONTRAST[background & 0x0F];
+    this.ctx.fillStyle = this.assets.palette[background & 0x0F];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
     // ⚠ LEFT justified, not centred (§4.8). The prompt replaces the duckshoot,
     // and the duckshoot starts at the left edge — centring it makes the bottom
     // row jump sideways as the client moves between reading and choosing.
     for (let i = 0; i < text.length && i < COLS; i++)
-      this.drawGlyph({ g: asciiGlyph(text[i]), fg: 1, bg: 0, rv: 0 }, i, row);
+      this.drawGlyph({ g: asciiGlyph(text[i]), fg: ink, bg: background, rv: 0 }, i, row);
   }
 
-  renderDuckshoot(words: string[], centre: number): void {
+  /** ⚠ The row is a solid BAR with the words knocked out of it, and the centre
+   *  cell is the one that is NOT reversed (§4.9.3).
+   *
+   *  Verified in the original. `$938B` fills all forty cells of row 24 with
+   *  `$A0` — a reversed space, i.e. a solid block — coloured `$93A4[$D021]`.
+   *  `$945A` then writes each character with `ORA #$80`, EXCEPT columns 18-23
+   *  (`CPX #$12 / BCC + / CPX #$18 / BCC`), and gives every cell that same one
+   *  colour. So the selection is a HOLE in the bar, not a differently-coloured
+   *  cell, and the row's two colours are the contrast colour and the screen
+   *  background — never a fixed black and white.
+   *
+   *  That is what makes it invert: over a light page the bar is black, over a
+   *  dark one it is white. Hardcoding black-with-white-text looks right on a
+   *  directory (background 15) and is exactly inverted on a dark editor page. */
+  renderDuckshoot(words: string[], centre: number, background = 0): void {
     const s = this.scale, row = ROWS, WORD = 6, VISIBLE = 7, MID = 3;
-    // clear the row to black (§4.9.3)
-    this.ctx.fillStyle = this.assets.palette[0];
+    const bar = CONTRAST[background & 0x0F];
+    this.ctx.fillStyle = this.assets.palette[background & 0x0F];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
     if (!words.length) return;
     if (words.length === 1 && words[0] === ' PRESSANYKEY') return;
-    // 7 cells of 6 chars = 42 > 40, so the row starts one column left and the
-    // outermost words clip — as on the original.
-    const startCol = Math.floor((COLS - VISIBLE * WORD) / 2);
+    // ⚠ Cells start at column 0 — 0, 6, 12, 18, 24, 30, 36 — so the CENTRE is
+    // columns 18-23 and only the LAST cell clips (4 of its 6 characters). The
+    // original starts its write loop at `LDX #$00` ($9458). Centring the 42
+    // columns instead put the row at -1, shifting every cell one left, clipping
+    // BOTH ends, and costing the first word its leading character.
+    const startCol = 0;
     for (let slot = 0; slot < VISIBLE; slot++) {
       // ⚠ The row is a CIRCULAR BUFFER: every visible cell is filled, wrapping
       // as needed, so a short set REPEATS rather than leaving blanks. Verified
@@ -241,8 +271,10 @@ export class Renderer {
       for (let i = 0; i < WORD; i++) {
         const col = startCol + slot * WORD + i;
         if (col < 0 || col >= COLS) continue;         // clip at the screen edges
+        // Every cell carries the SAME colour; only `rv` differs, and only for
+        // the centre cell — one bit, as on the original.
         this.drawGlyph(
-          { g: asciiGlyph(text[i]), fg: selected ? 0 : 1, bg: selected ? 1 : 0, rv: 0 },
+          { g: asciiGlyph(text[i]), fg: bar, bg: background, rv: selected ? 0 : 1 },
           col, row,
         );
       }

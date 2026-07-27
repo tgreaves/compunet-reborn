@@ -13,6 +13,7 @@
 // (one page) vs STORE (the whole buffer) only differ because it exists.
 
 import type { Cell, EditorPage, FrameMsg } from './protocol';
+import { CONTRAST } from './render';
 
 export const PAGE_COLS = 40, PAGE_ROWS = 24;
 const CELLS = PAGE_COLS * PAGE_ROWS;
@@ -124,21 +125,13 @@ export class EditorBuffer {
    *
    *  The blink routine only stops the cursor vanishing into the CHARACTER's
    *  colour. What stops it vanishing into the BACKGROUND is that the colour it
-   *  uses ($0286) is itself derived from the background, through this 16-byte
-   *  table at $93A4 in the cartridge ROM:
-   *
-   *    $90A0  LDA $D021 / AND #$0F / TAX / LDA $93A4,X / STA $0286
-   *
-   *  Verified bytes, indexed by background colour — every entry is black (0) or
-   *  white (1), chosen by luminance. (The same table colours the duckshoot row
-   *  at $938B and $943A, which is why that row stays readable on any frame.)
+   *  uses ($0286) is itself derived from the background, through the CONTRAST
+   *  table ($93A4) that render.ts owns — the same table that colours the
+   *  duckshoot row (§4.9.3) and every string the client prints over a frame.
    *
    *  In the editor the user picks the drawing colour and can pick the
    *  background's, so this is applied as the final guard: whatever the blink
    *  chooses, it may not equal the cell's background. */
-  private static readonly CONTRAST = [
-    1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0,
-  ];
 
   /** Reverse-video phase — the `EOR #$80` ($87CE). */
   cursorReverse = false;
@@ -192,7 +185,7 @@ export class EditorBuffer {
     // it sits on is invisible in BOTH blink phases, which is the reported bug.
     const bg = this.page().cells[i]?.bg ?? this.page().background;
     const colour = this.cursorColour === bg
-      ? EditorBuffer.CONTRAST[bg & 0x0F]
+      ? CONTRAST[bg & 0x0F]
       : this.cursorColour;
     return { colour, reverse: this.cursorReverse };
   }

@@ -5,6 +5,7 @@ var CELL = 8;
 var RED = 2;
 var BLUE = 6;
 var TEMPLATE_BG = 15;
+var CONTRAST = [1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0];
 var DIVIDER_COL = 30;
 var DUCK_CELL = {
   HELP: " HELP ",
@@ -175,21 +176,38 @@ var Renderer = class {
   /** Draw the duckshoot on the row below the content grid (§4.9).
    *  The ROW scrolls and the CENTRE cell is the selection — words are laid out
    *  around `centre`, which always lands in the middle of the screen. */
-  /** The single-frame case has no duckshoot at all — just a prompt (§4.8). */
-  renderPrompt(text) {
-    const s = this.scale, row = ROWS;
-    this.ctx.fillStyle = this.assets.palette[0];
+  /** The single-frame case has no duckshoot at all — just a prompt (§4.8).
+   *  Printed in the contrast colour on the screen background, like any string
+   *  the client puts over a frame ($90A0 loads `$93A4[bg]` into `$0286`). */
+  renderPrompt(text, background = 0) {
+    const s = this.scale, row = ROWS, ink = CONTRAST[background & 15];
+    this.ctx.fillStyle = this.assets.palette[background & 15];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
     for (let i = 0; i < text.length && i < COLS; i++)
-      this.drawGlyph({ g: asciiGlyph(text[i]), fg: 1, bg: 0, rv: 0 }, i, row);
+      this.drawGlyph({ g: asciiGlyph(text[i]), fg: ink, bg: background, rv: 0 }, i, row);
   }
-  renderDuckshoot(words, centre) {
+  /** ⚠ The row is a solid BAR with the words knocked out of it, and the centre
+   *  cell is the one that is NOT reversed (§4.9.3).
+   *
+   *  Verified in the original. `$938B` fills all forty cells of row 24 with
+   *  `$A0` — a reversed space, i.e. a solid block — coloured `$93A4[$D021]`.
+   *  `$945A` then writes each character with `ORA #$80`, EXCEPT columns 18-23
+   *  (`CPX #$12 / BCC + / CPX #$18 / BCC`), and gives every cell that same one
+   *  colour. So the selection is a HOLE in the bar, not a differently-coloured
+   *  cell, and the row's two colours are the contrast colour and the screen
+   *  background — never a fixed black and white.
+   *
+   *  That is what makes it invert: over a light page the bar is black, over a
+   *  dark one it is white. Hardcoding black-with-white-text looks right on a
+   *  directory (background 15) and is exactly inverted on a dark editor page. */
+  renderDuckshoot(words, centre, background = 0) {
     const s = this.scale, row = ROWS, WORD = 6, VISIBLE = 7, MID = 3;
-    this.ctx.fillStyle = this.assets.palette[0];
+    const bar = CONTRAST[background & 15];
+    this.ctx.fillStyle = this.assets.palette[background & 15];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
     if (!words.length) return;
     if (words.length === 1 && words[0] === "\0PRESSANYKEY") return;
-    const startCol = Math.floor((COLS - VISIBLE * WORD) / 2);
+    const startCol = 0;
     for (let slot = 0; slot < VISIBLE; slot++) {
       const wi = ((centre + slot - MID) % words.length + words.length) % words.length;
       const name = words[wi];
@@ -199,7 +217,7 @@ var Renderer = class {
         const col = startCol + slot * WORD + i;
         if (col < 0 || col >= COLS) continue;
         this.drawGlyph(
-          { g: asciiGlyph(text[i]), fg: selected ? 0 : 1, bg: selected ? 1 : 0, rv: 0 },
+          { g: asciiGlyph(text[i]), fg: bar, bg: background, rv: selected ? 0 : 1 },
           col,
           row
         );
@@ -274,7 +292,7 @@ function frameToPage(f) {
     raw: f.raw
   };
 }
-var EditorBuffer = class _EditorBuffer {
+var EditorBuffer = class {
   constructor() {
     this.pages = [blankPage()];
     this.cur = 0;
@@ -291,16 +309,6 @@ var EditorBuffer = class _EditorBuffer {
     this.autoRepeat = true;
     /** The page as last STORED, for RUN ("restore original"). */
     this.original = null;
-    /** Reverse-video phase — the `EOR #$80` ($87CE). */
-    this.cursorReverse = false;
-    /** What is currently "written" in the cursor cell's colour RAM. */
-    this.cursorColour = 0;
-    /** $C158 — the colour to fall back on when the intended one clashes. */
-    this.cursorAlternate = 0;
-    /** Which cell the above describes; a move re-captures ($8B30). */
-    this.cursorCell = -1;
-  }
-  static {
     // --- cursor blink (§8.4.3) -----------------------------------------------
     //
     // ⚠ The cursor blinks in COLOUR as well as in reverse video, and that is what
@@ -325,36 +333,21 @@ var EditorBuffer = class _EditorBuffer {
      *
      *  The blink routine only stops the cursor vanishing into the CHARACTER's
      *  colour. What stops it vanishing into the BACKGROUND is that the colour it
-     *  uses ($0286) is itself derived from the background, through this 16-byte
-     *  table at $93A4 in the cartridge ROM:
-     *
-     *    $90A0  LDA $D021 / AND #$0F / TAX / LDA $93A4,X / STA $0286
-     *
-     *  Verified bytes, indexed by background colour — every entry is black (0) or
-     *  white (1), chosen by luminance. (The same table colours the duckshoot row
-     *  at $938B and $943A, which is why that row stays readable on any frame.)
+     *  uses ($0286) is itself derived from the background, through the CONTRAST
+     *  table ($93A4) that render.ts owns — the same table that colours the
+     *  duckshoot row (§4.9.3) and every string the client prints over a frame.
      *
      *  In the editor the user picks the drawing colour and can pick the
      *  background's, so this is applied as the final guard: whatever the blink
      *  chooses, it may not equal the cell's background. */
-    this.CONTRAST = [
-      1,
-      0,
-      1,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      1,
-      1,
-      0,
-      1,
-      0
-    ];
+    /** Reverse-video phase — the `EOR #$80` ($87CE). */
+    this.cursorReverse = false;
+    /** What is currently "written" in the cursor cell's colour RAM. */
+    this.cursorColour = 0;
+    /** $C158 — the colour to fall back on when the intended one clashes. */
+    this.cursorAlternate = 0;
+    /** Which cell the above describes; a move re-captures ($8B30). */
+    this.cursorCell = -1;
   }
   /** $87A1-$87AB — on arriving at a cell, remember its alternate colour.
    *
@@ -392,7 +385,7 @@ var EditorBuffer = class _EditorBuffer {
     const i = this.row * PAGE_COLS + this.col;
     if (i !== this.cursorCell) this.captureCursorCell();
     const bg = this.page().cells[i]?.bg ?? this.page().background;
-    const colour = this.cursorColour === bg ? _EditorBuffer.CONTRAST[bg & 15] : this.cursorColour;
+    const colour = this.cursorColour === bg ? CONTRAST[bg & 15] : this.cursorColour;
     return { colour, reverse: this.cursorReverse };
   }
   /** STOP — stop editing and store the frame (§A.9). */
@@ -937,7 +930,7 @@ var editorActions = {
       return;
     }
     edRenderer.renderFrame(assets.editorHelp);
-    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix);
+    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
     status("Editor help \u2014 any other editor command returns to the page");
   },
   EDIT: () => {
@@ -1541,23 +1534,28 @@ function updateBar() {
   rows.net.words = buildRow(nctx);
   const keep = rows.net.words.indexOf(lastCommand[nctx] ?? "");
   rows.net.ix = rows.net.words.length ? keep >= 0 ? keep : 0 : 0;
-  if (awaitingKey || nctx === "frame" && frame && !frame.morePages) renderer?.renderPrompt("PRESS ANY KEY");
-  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix);
+  if (awaitingKey || nctx === "frame" && frame && !frame.morePages)
+    renderer?.renderPrompt("PRESS ANY KEY", netBackground());
+  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground());
   if (inEditor) {
     rows.editor.words = buildRow("editor");
     const keepE = rows.editor.words.indexOf(lastCommand.editor ?? "");
     rows.editor.ix = keepE >= 0 ? keepE : rows.editor.ix;
-    edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix);
+    edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
   }
   $("netMeta").textContent = mode === "idle" ? "not connected" : nctx;
   $("hint").textContent = focusPane === "editor" ? "Editor focused \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 EDIT then type \xB7 ESC stops editing" : "\u2191/\u2193 highlight an entry \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 F7/F8 cycle the right column";
+}
+function netBackground() {
+  if (mode === "frame" && frame) return frame.background;
+  return 15;
 }
 function duckScroll(delta) {
   const r = rows[focusPane];
   if (!r.words.length) return;
   r.ix = ((r.ix + delta) % r.words.length + r.words.length) % r.words.length;
   rememberRow(focusPane);
-  (focusPane === "editor" ? edRenderer : renderer).renderDuckshoot(r.words, r.ix);
+  focusPane === "editor" ? edRenderer.renderDuckshoot(r.words, r.ix, buf.page().background) : renderer.renderDuckshoot(r.words, r.ix, netBackground());
 }
 function duckCommit() {
   const r = rows[focusPane];

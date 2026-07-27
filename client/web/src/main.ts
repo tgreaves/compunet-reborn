@@ -377,7 +377,7 @@ const editorActions: Record<string, () => void> = {
     // Into the EDITOR pane — the Compunet pane keeps showing Compunet. Any
     // other editor command re-renders the page over it.
     edRenderer.renderFrame(assets.editorHelp);
-    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix);
+    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
     status('Editor help — any other editor command returns to the page');
   },
   EDIT: () => {
@@ -985,14 +985,15 @@ function updateBar(): void {
 
   // A single-frame page has NO duckshoot — just a prompt (§4.8/§4.9). The ID
   // results screen is the same shape: something to read, nothing to choose.
-  if (awaitingKey || (nctx === 'frame' && frame && !frame.morePages)) renderer?.renderPrompt('PRESS ANY KEY');
-  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix);
+  if (awaitingKey || (nctx === 'frame' && frame && !frame.morePages))
+    renderer?.renderPrompt('PRESS ANY KEY', netBackground());
+  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground());
 
   if (inEditor) {
     rows.editor.words = buildRow('editor');
     const keepE = rows.editor.words.indexOf(lastCommand.editor ?? '');
     rows.editor.ix = keepE >= 0 ? keepE : rows.editor.ix;
-    edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix);
+    edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
   }
 
   $('netMeta').textContent = mode === 'idle' ? 'not connected' : nctx;
@@ -1001,13 +1002,24 @@ function updateBar(): void {
     : '↑/↓ highlight an entry · ←/→ scroll the row · Enter runs it · F7/F8 cycle the right column';
 }
 
+/** The background of whatever the pane is currently showing — the duckshoot and
+ *  the PRESS ANY KEY prompt take their colours from it (§4.9.3): the row is the
+ *  contrast colour with the text knocked out in the background, so it inverts
+ *  over a dark page instead of staying a fixed black and white. */
+function netBackground(): number {
+  if (mode === 'frame' && frame) return frame.background;
+  return 15;                       // the directory template's (§7.7/§A.6)
+}
+
 /** Scroll the FOCUSED pane's row; the selection stays in the centre (§4.9.6). */
 function duckScroll(delta: number): void {
   const r = rows[focusPane];
   if (!r.words.length) return;
   r.ix = ((r.ix + delta) % r.words.length + r.words.length) % r.words.length;
   rememberRow(focusPane);   // where the user leaves the row is where it returns
-  (focusPane === 'editor' ? edRenderer : renderer).renderDuckshoot(r.words, r.ix);
+  focusPane === 'editor'
+    ? edRenderer.renderDuckshoot(r.words, r.ix, buf.page().background)
+    : renderer.renderDuckshoot(r.words, r.ix, netBackground());
 }
 
 /** Commit the centred command — a distinct action from scrolling (§4.9.6). */
