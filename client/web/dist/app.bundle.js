@@ -800,6 +800,7 @@ function revealFrame(f) {
     if (shown >= CELLS2) {
       stopReveal();
       renderer.renderFrame(f);
+      updateBar();
       return;
     }
     renderer.renderFrame(f, shown);
@@ -810,6 +811,7 @@ function finishReveal() {
   if (revealTimer === void 0) return false;
   stopReveal();
   if (frame) renderer.renderFrame(frame);
+  updateBar();
   return true;
 }
 function onMessage(m) {
@@ -1684,6 +1686,7 @@ function buildRow(ctx) {
 var lastNetCtx = null;
 function updateBar() {
   const nctx = netContext();
+  const arriving = revealTimer !== void 0;
   const current = rows.net.words[rows.net.ix];
   rows.net.words = buildRow(nctx);
   const remembered = lastCommand[rowMemoryKey(nctx)];
@@ -1691,7 +1694,8 @@ function updateBar() {
   const keep = rows.net.words.indexOf(wanted ?? "");
   rows.net.ix = rows.net.words.length ? keep >= 0 ? keep : 0 : 0;
   lastNetCtx = nctx;
-  if (awaitingKey || nctx === "frame" && frame && !frame.morePages)
+  if (arriving) renderer?.renderDuckshoot([], 0, netBackground());
+  else if (awaitingKey || nctx === "frame" && frame && !frame.morePages)
     renderer?.renderPrompt("PRESS ANY KEY", netBackground());
   else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground());
   if (inEditor) {

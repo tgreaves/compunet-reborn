@@ -195,7 +195,9 @@ The server does not report these; a client that ignores them looks fine and lose
       a multi-frame download must not pay both. Check the **welcome** frame paces too: it is
       delivered with the session rather than as an ordinary frame (§3.5), so it takes a
       different path and is the one most likely to have been missed. Check the embedded
-      **help** frame does **not** — it never crossed the line.
+      **help** frame does **not** — it never crossed the line. And check **no command row is
+      shown while a page arrives**: the original draws the row only when it is about to block for
+      a key, so a row visible mid-paint is one the user cannot use.
 - [ ] **⚠ `ALL` is not `MORE`** (§4.7) — `MORE` advances one frame, `ALL` runs to the end. If
       pressing `ALL` moves a single page, the client has issued one paging command instead of
       looping, collapsing two commands onto one.

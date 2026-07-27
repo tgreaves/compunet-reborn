@@ -122,7 +122,7 @@ function revealFrame(f: FrameMsg): boolean {
   renderer.renderFrame(f, 0);
   revealTimer = setInterval(() => {
     shown += step;
-    if (shown >= CELLS) { stopReveal(); renderer.renderFrame(f); return; }
+    if (shown >= CELLS) { stopReveal(); renderer.renderFrame(f); updateBar(); return; }
     renderer.renderFrame(f, shown);
   }, tick) as unknown as number;
   return true;
@@ -135,6 +135,7 @@ function finishReveal(): boolean {
   if (revealTimer === undefined) return false;
   stopReveal();
   if (frame) renderer.renderFrame(frame);
+  updateBar();                 // the row appears now the page has landed
   return true;
 }
 
@@ -1091,6 +1092,18 @@ function updateBar(): void {
   // the position and snapped back to HELP. Within a context the row simply
   // stays where it is; `lastCommand` is for RETURNING to a context later
   // (§4.9.4), which is a different question.
+  // ⚠ NO command row while a page is still arriving (§4.9.3).
+  //
+  // The original draws the row and immediately blocks for a key ($93D0: JSR
+  // $9436 to draw, then JSR $9002, which is GETIN in a loop). It is therefore
+  // on screen exactly when the client will accept input — never during
+  // reception, when the C64 is inside its receive loop and the frame's own
+  // clear-screen has wiped row 24 anyway.
+  //
+  // Showing it early is worse than cosmetic: the row is INERT until the page
+  // lands, so it invites a keypress that does nothing.
+  const arriving = revealTimer !== undefined;
+
   const current = rows.net.words[rows.net.ix];
   rows.net.words = buildRow(nctx);
   const remembered = lastCommand[rowMemoryKey(nctx)];
@@ -1101,7 +1114,8 @@ function updateBar(): void {
 
   // A single-frame page has NO duckshoot — just a prompt (§4.8/§4.9). The ID
   // results screen is the same shape: something to read, nothing to choose.
-  if (awaitingKey || (nctx === 'frame' && frame && !frame.morePages))
+  if (arriving) renderer?.renderDuckshoot([], 0, netBackground());   // blank while it lands
+  else if (awaitingKey || (nctx === 'frame' && frame && !frame.morePages))
     renderer?.renderPrompt('PRESS ANY KEY', netBackground());
   else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground());
 

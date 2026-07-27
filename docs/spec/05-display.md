@@ -149,6 +149,13 @@ If offered:
   watching it arrive matters most — and it is easy to miss, because it is delivered with the
   session rather than as an ordinary frame (§3.5), so it takes a different path through a client
   and quietly skips the pacing.
+- **⚠ No command row while the page is arriving (normative).** The original draws the duckshoot
+  and immediately blocks for a key (`$93D0`: `JSR $9436` to draw, then `JSR $9002`, which is
+  `GETIN` in a loop), so the row is on screen exactly when the client will accept input — never
+  during reception, when the C64 is inside its receive loop and the frame's own clear-screen has
+  wiped row 24 anyway. A client that paces the drawing **MUST** keep the row off screen until the
+  page lands, or it offers commands that do nothing: the row is inert until the frame completes,
+  so showing it invites a keypress the client cannot honour.
 - A client **SHOULD** let a keypress complete the frame immediately. The original had no such
   escape, but a page that cannot be hurried reads as a hung client to anyone who did not realise
   what they had switched on.
