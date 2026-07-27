@@ -20,17 +20,31 @@
     </video>
 </div>
 
-<h2>CONNECT NOW</h2>
+<h2>WAYS TO CONNECT</h2>
+{% if client_url %}
 <div class="info-box">
-    <h3>PETSCII TERMINAL (Easiest)</h3>
-    <p>Use <strong>SyncTerm</strong> on Windows/Mac/Linux — no C64 required. Connect to <code>vme.compunet.live:6401</code> in Raw mode with the C64 screen mode. Full PETSCII graphics, file transfers via XMODEM.</p>
-    <p><a href="{{ url_for('connect') }}">SETUP INSTRUCTIONS &raquo;</a></p>
+    <h3>BROWSER (Easiest)</h3>
+    <p>Nothing to download or configure — the whole service in a tab, on any modern machine.</p>
+    <p><a href="{{ client_url }}">CONNECT NOW &raquo;</a></p>
 </div>
+{% endif %}
 
 <div class="info-box">
     <h3>C64 CLIENT</h3>
     <p>The full experience on <strong>VICE</strong>, <strong>C64 Ultimate</strong>, or real hardware with SwiftLink. Download the auto-connect client and you're online in seconds.</p>
     <p><a href="{{ url_for('connect') }}">DOWNLOAD &amp; CONNECT &raquo;</a></p>
+</div>
+
+<div class="info-box">
+    <h3>AMIGA CLIENT</h3>
+    <p>The recovered 1989 Amiga client, reverse-engineered and running over TCP/IP — the same service, on Workbench.</p>
+    <p><a href="{{ url_for('connect') }}">DOWNLOAD &amp; CONNECT &raquo;</a></p>
+</div>
+
+<div class="info-box">
+    <h3>PETSCII TERMINAL</h3>
+    <p>Use <strong>SyncTerm</strong> on Windows/Mac/Linux — no C64 required. Connect to <code>vme.compunet.live:6401</code> in Raw mode with the C64 screen mode. Full PETSCII graphics, file transfers via XMODEM.</p>
+    <p><a href="{{ url_for('connect') }}">SETUP INSTRUCTIONS &raquo;</a></p>
 </div>
 
 <h2>FEATURES</h2>
