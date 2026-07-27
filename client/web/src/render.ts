@@ -46,9 +46,24 @@ export function petsciiToScreencode(b: number): number {
   return b & 0x7F;
 }
 
-/** directory text is unshifted uppercase ASCII (§7.2) -> uppercase/graphics glyph */
-function asciiGlyph(ch: string): number {
-  return petsciiToScreencode(ch.charCodeAt(0) & 0xFF);
+/** ASCII -> glyph, in whichever character set the SCREEN is currently in.
+ *
+ *  ⚠ Row 24 is part of the same screen as the page, so the duckshoot and any
+ *  message on it render in the page's charset — the original writes bare screen
+ *  codes there (`AND #$3F` at $9464), which the VIC then draws from whatever
+ *  character set is selected. On a lowercase page the row therefore reads
+ *  `press any key` and `more all finish`, from the very same bytes. */
+function asciiGlyph(ch: string, lower = false): number {
+  return petsciiToScreencode(ch.charCodeAt(0) & 0xFF) + (lower ? 128 : 0);
+}
+
+/** Is this frame in the lowercase/mixed set? The SERVER reports it (`lower`),
+ *  because it cannot be inferred reliably: blank cells carry whatever charset
+ *  was in force when they were last cleared, which need not be the final one.
+ *  Falls back to "any lowercase cell" for a frame that predates the field. */
+export function frameIsLower(f: FrameMsg): boolean {
+  const flag = (f as FrameMsg & { lower?: boolean }).lower;
+  return flag !== undefined ? flag : f.cells.some((c) => c.g >= 128);
 }
 
 export class Renderer {
@@ -225,7 +240,7 @@ export class Renderer {
   /** The single-frame case has no duckshoot at all — just a prompt (§4.8).
    *  Printed in the contrast colour on the screen background, like any string
    *  the client puts over a frame ($90A0 loads `$93A4[bg]` into `$0286`). */
-  renderPrompt(text: string, background = 0): void {
+  renderPrompt(text: string, background = 0, lower = false): void {
     const s = this.scale, row = ROWS, ink = CONTRAST[background & 0x0F];
     this.ctx.fillStyle = this.assets.palette[background & 0x0F];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
@@ -239,7 +254,7 @@ export class Renderer {
     // edge, and centring makes the bottom row jump sideways as the client moves
     // between reading and choosing.
     for (let i = 0; i < COLS; i++) {
-      const g = i < text.length ? asciiGlyph(text[i]) : 0x20;
+      const g = i < text.length ? asciiGlyph(text[i], lower) : (lower ? 0xA0 : 0x20);
       this.drawGlyph({ g, fg: ink, bg: background, rv: 1 }, i, row);
     }
   }
@@ -258,7 +273,7 @@ export class Renderer {
    *  That is what makes it invert: over a light page the bar is black, over a
    *  dark one it is white. Hardcoding black-with-white-text looks right on a
    *  directory (background 15) and is exactly inverted on a dark editor page. */
-  renderDuckshoot(words: string[], centre: number, background = 0): void {
+  renderDuckshoot(words: string[], centre: number, background = 0, lower = false): void {
     const s = this.scale, row = ROWS, WORD = 6, VISIBLE = 7, MID = 3;
     const bar = CONTRAST[background & 0x0F];
     this.ctx.fillStyle = this.assets.palette[background & 0x0F];
@@ -287,7 +302,7 @@ export class Renderer {
         // Every cell carries the SAME colour; only `rv` differs, and only for
         // the centre cell — one bit, as on the original.
         this.drawGlyph(
-          { g: asciiGlyph(text[i]), fg: bar, bg: background, rv: selected ? 0 : 1 },
+          { g: asciiGlyph(text[i], lower), fg: bar, bg: background, rv: selected ? 0 : 1 },
           col, row,
         );
       }

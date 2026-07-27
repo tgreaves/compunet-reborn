@@ -466,6 +466,18 @@ there instead. That is how a reply becomes invisible: the user's attention is on
 screen, and a line of small text somewhere outside it is not part of the machine they are using.
 The next keypress clears the message and restores the row.
 
+**⚠ The row draws in the PAGE's character set (normative).** Row 24 is part of the same screen,
+so the duckshoot and any message on it render in whichever set the page selected — the original
+writes bare screen codes there (`AND #$3F`, `$9464`) and the VIC draws them from the current set.
+On a lowercase page the row therefore reads `press any key` and `more all finish`, **from the very
+same bytes**. A client that hardcodes the uppercase set for its own furniture will show
+`PRESS ANY KEY` over a page that says `At Connect`, which is not a mixture the original can
+produce.
+
+*(A frame's charset cannot be reliably inferred from its cells: blank ones carry whatever was in
+force when they were last cleared, which need not be the final state. Binding B reports it as
+`lower` on the frame.)*
+
 **⚠ `PRESS ANY KEY` is LEFT JUSTIFIED (normative).** It occupies the same row the duckshoot
 would, and that row is written from the **left edge** — so the prompt starts at column 0, not
 centred. Centring it is an easy and invisible mistake: the text looks fine on its own, but the

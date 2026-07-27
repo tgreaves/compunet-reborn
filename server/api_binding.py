@@ -367,9 +367,18 @@ def frame_to_cells(raw, msg_id=None):
     row = col = 0
     just_wrapped = False
 
-    # grid initialised to spaces (screencode 0x20) in the header background
-    space_g = 0x20
-    grid = [{"g": space_g, "fg": colour, "bg": background, "rv": 0}
+    # ⚠ A blank cell carries a CHARSET too, and it must be the one in force.
+    #
+    # This was hardcoded to 0x20 — the uppercase space — even on a page whose
+    # header selects the lowercase set. Invisible, because a space looks the
+    # same in both, right up until something reads bit 7: the client needs the
+    # page's charset to draw row 24 in it (§4.9.3), and an editor capture stores
+    # whatever is here. So spaces follow `lower`, and a mid-stream clear uses
+    # the charset in force AT THAT POINT, not the header's.
+    def _space():
+        return 0xA0 if lower else 0x20
+
+    grid = [{"g": _space(), "fg": colour, "bg": background, "rv": 0}
             for _ in range(ROWS * COLS)]
 
     def place(b):
@@ -415,7 +424,7 @@ def frame_to_cells(raw, msg_id=None):
             row = col = 0; just_wrapped = False
         elif b == 0x93:                  # clear + home
             for i in range(ROWS * COLS):
-                grid[i] = {"g": space_g, "fg": colour, "bg": background, "rv": 0}
+                grid[i] = {"g": _space(), "fg": colour, "bg": background, "rv": 0}
             row = col = 0; just_wrapped = False
         elif b == 0x12:
             reverse = 1
@@ -457,6 +466,13 @@ def frame_to_cells(raw, msg_id=None):
         "morePages": bool(flags & 0x80),
         "rows": ROWS, "cols": COLS,
         "cells": grid,
+        # ⚠ The charset in force at the END of the stream. Row 24 is part of the
+        # same screen, so a client draws its command row and any message in this
+        # set (§4.9.3) — on a lowercase page the row reads `press any key` from
+        # the very same bytes. Inferring it from the cells does not work: blank
+        # cells reflect whatever was in force when they were last cleared, which
+        # need not be the final state.
+        "lower": lower,
         # The exact bytes this grid was rendered from. A client that stores
         # viewed pages in its editor (§8.4.2) keeps this alongside the cells, so
         # an UNEDITED captured page can be re-uploaded byte-for-byte rather than

@@ -52,7 +52,13 @@ help_path = os.path.join(ROOT, 'server', 'cfg', 'help.pet')
 # so supply the 4-byte header ourselves: [flags][border][bg][charset]. The body's
 # own $0E then selects the lowercase/mixed set — feeding the file raw eats those
 # bytes as a header and renders the whole page in uppercase/graphics.
-help_frame = (api.frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x0E]) + open(help_path, 'rb').read())
+# ⚠ Border and background are CYAN (3), matching the original's help screen.
+# They were 0xF4/0xFF here — filler copied from the directory-header code, where
+# a comment says outright that border and bg are IGNORED because the client uses
+# the template's. Copied into a context that RENDERS them, that filler became a
+# purple border on a light-grey page: plausible enough to survive review, and
+# wrong against a photograph of the real thing.
+help_frame = (api.frame_to_cells(bytes([0x00, 0xF3, 0xF3, 0x0E]) + open(help_path, 'rb').read())
               if os.path.exists(help_path) else None)
 
 # Editor help frame (§A.9) — a DIFFERENT asset from §A.8, shown by the editor's

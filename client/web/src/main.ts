@@ -2,7 +2,7 @@
 // user intent to Binding-B messages.
 
 import type { Account, Assets, Cell, DirectoryMsg, FrameMsg, ServerMsg } from './protocol';
-import { Renderer } from './render';
+import { Renderer, frameIsLower } from './render';
 import { Gateway } from './gateway';
 import { EditorBuffer, frameToPage, MIN_PAGES, DEFAULT_MAX_PAGES } from './editor';
 
@@ -460,7 +460,7 @@ const editorActions: Record<string, () => void> = {
     // Into the EDITOR pane — the Compunet pane keeps showing Compunet. Any
     // other editor command re-renders the page over it.
     edRenderer.renderFrame(assets.editorHelp);
-    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
+    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background, buf.lowerCase);
     status('Editor help — any other editor command returns to the page');
   },
   EDIT: () => {
@@ -1131,18 +1131,18 @@ function updateBar(): void {
 
   // A single-frame page has NO duckshoot — just a prompt (§4.8/§4.9). The ID
   // results screen is the same shape: something to read, nothing to choose.
-  if (arriving) renderer?.renderDuckshoot([], 0, netBackground());   // blank while it lands
-  else if (rowMessage.net) renderer?.renderPrompt(rowMessage.net, netBackground());
+  if (arriving) renderer?.renderDuckshoot([], 0, netBackground(), netLower());   // blank while it lands
+  else if (rowMessage.net) renderer?.renderPrompt(rowMessage.net, netBackground(), netLower());
   else if (awaitingKey || (nctx === 'frame' && frame && !frame.morePages))
-    renderer?.renderPrompt('PRESS ANY KEY', netBackground());
-  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground());
+    renderer?.renderPrompt('PRESS ANY KEY', netBackground(), netLower());
+  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground(), netLower());
 
   if (inEditor) {
     rows.editor.words = buildRow('editor');
     const keepE = rows.editor.words.indexOf(lastCommand.editor ?? '');
     rows.editor.ix = keepE >= 0 ? keepE : rows.editor.ix;
-    if (rowMessage.editor) edRenderer?.renderPrompt(rowMessage.editor, buf.page().background);
-    else edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
+    if (rowMessage.editor) edRenderer?.renderPrompt(rowMessage.editor, buf.page().background, buf.lowerCase);
+    else edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background, buf.lowerCase);
   }
 
   $('netMeta').textContent = mode === 'idle' ? 'not connected' : nctx;
@@ -1160,6 +1160,13 @@ function netBackground(): number {
   return 15;                       // the directory template's (§7.7/§A.6)
 }
 
+/** Which character set the Compunet pane's row draws in — the page's, since
+ *  row 24 shares the screen (§4.9.3). A directory is composed in the uppercase
+ *  set, so only a frame can put the row into lowercase. */
+function netLower(): boolean {
+  return mode === 'frame' && !!frame && frameIsLower(frame);
+}
+
 /** Scroll the FOCUSED pane's row; the selection stays in the centre (§4.9.6). */
 function duckScroll(delta: number): void {
   const r = rows[focusPane];
@@ -1167,8 +1174,8 @@ function duckScroll(delta: number): void {
   r.ix = ((r.ix + delta) % r.words.length + r.words.length) % r.words.length;
   rememberRow(focusPane);   // where the user leaves the row is where it returns
   focusPane === 'editor'
-    ? edRenderer.renderDuckshoot(r.words, r.ix, buf.page().background)
-    : renderer.renderDuckshoot(r.words, r.ix, netBackground());
+    ? edRenderer.renderDuckshoot(r.words, r.ix, buf.page().background, buf.lowerCase)
+    : renderer.renderDuckshoot(r.words, r.ix, netBackground(), netLower());
 }
 
 /** Commit the centred command — a distinct action from scrolling (§4.9.6). */

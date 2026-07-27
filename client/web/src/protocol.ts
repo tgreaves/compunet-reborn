@@ -28,6 +28,8 @@ export interface FrameMsg {
    *  client never parses it; it stores it with a captured page so an unedited
    *  page re-uploads byte-for-byte (§8.4.2). */
   raw?: string;
+  /** charset in force at the end of the stream — row 24 draws in it (§4.9.3) */
+  lower?: boolean;
 }
 
 export interface Entry {

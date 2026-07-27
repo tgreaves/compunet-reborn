@@ -262,6 +262,13 @@ it does **not** re-justify. It renders one column at a time and cycles locally (
 
 ### 5.2 `frame`
 
+**`lower`** reports the character set in force at the **end** of the stream (`true` = the
+lowercase/mixed set, §5.3). A client needs it to draw its command row, which shares the screen
+and so uses the same set (§4.9.3). It is reported rather than left to inference because blank
+cells carry whatever set was in force when they were last cleared, which need not be the final
+state — a page can end lowercase with most of its blanks recorded as uppercase.
+
+
 Server-rendered 40×24 grid, RLE / charset / control codes already expanded. The client just
 paints each cell (glyph from the appendix font, `fg`/`bg` from the palette).
 

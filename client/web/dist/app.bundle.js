@@ -47,8 +47,11 @@ function petsciiToScreencode(b) {
   if (b === 255) return 94;
   return b & 127;
 }
-function asciiGlyph(ch) {
-  return petsciiToScreencode(ch.charCodeAt(0) & 255);
+function asciiGlyph(ch, lower = false) {
+  return petsciiToScreencode(ch.charCodeAt(0) & 255) + (lower ? 128 : 0);
+}
+function frameIsLower(cells) {
+  return (cells[cells.length - 1]?.g ?? 0) >= 128;
 }
 var Renderer = class {
   constructor(canvas2, assets2, wrap2, scale = 2) {
@@ -182,12 +185,12 @@ var Renderer = class {
   /** The single-frame case has no duckshoot at all — just a prompt (§4.8).
    *  Printed in the contrast colour on the screen background, like any string
    *  the client puts over a frame ($90A0 loads `$93A4[bg]` into `$0286`). */
-  renderPrompt(text, background = 0) {
+  renderPrompt(text, background = 0, lower = false) {
     const s = this.scale, row = ROWS, ink = CONTRAST[background & 15];
     this.ctx.fillStyle = this.assets.palette[background & 15];
     this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
     for (let i = 0; i < COLS; i++) {
-      const g = i < text.length ? asciiGlyph(text[i]) : 32;
+      const g = i < text.length ? asciiGlyph(text[i], lower) : lower ? 160 : 32;
       this.drawGlyph({ g, fg: ink, bg: background, rv: 1 }, i, row);
     }
   }
@@ -205,7 +208,7 @@ var Renderer = class {
    *  That is what makes it invert: over a light page the bar is black, over a
    *  dark one it is white. Hardcoding black-with-white-text looks right on a
    *  directory (background 15) and is exactly inverted on a dark editor page. */
-  renderDuckshoot(words, centre, background = 0) {
+  renderDuckshoot(words, centre, background = 0, lower = false) {
     const s = this.scale, row = ROWS, WORD = 6, VISIBLE = 7, MID = 3;
     const bar = CONTRAST[background & 15];
     this.ctx.fillStyle = this.assets.palette[background & 15];
@@ -222,7 +225,7 @@ var Renderer = class {
         const col = startCol + slot * WORD + i;
         if (col < 0 || col >= COLS) continue;
         this.drawGlyph(
-          { g: asciiGlyph(text[i]), fg: bar, bg: background, rv: selected ? 0 : 1 },
+          { g: asciiGlyph(text[i], lower), fg: bar, bg: background, rv: selected ? 0 : 1 },
           col,
           row
         );
@@ -1087,7 +1090,7 @@ var editorActions = {
       return;
     }
     edRenderer.renderFrame(assets.editorHelp);
-    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
+    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background, buf.lowerCase);
     status("Editor help \u2014 any other editor command returns to the page");
   },
   EDIT: () => {
@@ -1704,17 +1707,17 @@ function updateBar() {
   const keep = rows.net.words.indexOf(wanted ?? "");
   rows.net.ix = rows.net.words.length ? keep >= 0 ? keep : 0 : 0;
   lastNetCtx = nctx;
-  if (arriving) renderer?.renderDuckshoot([], 0, netBackground());
-  else if (rowMessage.net) renderer?.renderPrompt(rowMessage.net, netBackground());
+  if (arriving) renderer?.renderDuckshoot([], 0, netBackground(), netLower());
+  else if (rowMessage.net) renderer?.renderPrompt(rowMessage.net, netBackground(), netLower());
   else if (awaitingKey || nctx === "frame" && frame && !frame.morePages)
-    renderer?.renderPrompt("PRESS ANY KEY", netBackground());
-  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground());
+    renderer?.renderPrompt("PRESS ANY KEY", netBackground(), netLower());
+  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground(), netLower());
   if (inEditor) {
     rows.editor.words = buildRow("editor");
     const keepE = rows.editor.words.indexOf(lastCommand.editor ?? "");
     rows.editor.ix = keepE >= 0 ? keepE : rows.editor.ix;
-    if (rowMessage.editor) edRenderer?.renderPrompt(rowMessage.editor, buf.page().background);
-    else edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background);
+    if (rowMessage.editor) edRenderer?.renderPrompt(rowMessage.editor, buf.page().background, buf.lowerCase);
+    else edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background, buf.lowerCase);
   }
   $("netMeta").textContent = mode === "idle" ? "not connected" : nctx;
   $("hint").textContent = focusPane === "editor" ? "Editor focused \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 EDIT then type \xB7 ESC stops editing" : "\u2191/\u2193 highlight an entry \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 F7/F8 cycle the right column";
@@ -1723,12 +1726,15 @@ function netBackground() {
   if (mode === "frame" && frame) return frame.background;
   return 15;
 }
+function netLower() {
+  return mode === "frame" && !!frame && frameIsLower(frame.cells);
+}
 function duckScroll(delta) {
   const r = rows[focusPane];
   if (!r.words.length) return;
   r.ix = ((r.ix + delta) % r.words.length + r.words.length) % r.words.length;
   rememberRow(focusPane);
-  focusPane === "editor" ? edRenderer.renderDuckshoot(r.words, r.ix, buf.page().background) : renderer.renderDuckshoot(r.words, r.ix, netBackground());
+  focusPane === "editor" ? edRenderer.renderDuckshoot(r.words, r.ix, buf.page().background, buf.lowerCase) : renderer.renderDuckshoot(r.words, r.ix, netBackground(), netLower());
 }
 function duckCommit() {
   const r = rows[focusPane];
