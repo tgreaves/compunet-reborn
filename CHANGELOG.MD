@@ -1,3 +1,75 @@
+# 1.2.0 (2026-07-27)
+
+Opens Compunet Reborn to modern clients, and pins down how to build one.
+
+* **A modern Compunet client** (new, `client/web/`, `client/electron/`) (#91) —
+  **one client, two ways to run it.** The browser version and the desktop app
+  are the same code and behave identically; only the wrapper differs:
+	* **In your browser at [connect.compunet.live](https://connect.compunet.live)**
+	  — no download, no emulator, no setup. The quickest way in, and nothing to
+	  keep up to date.
+	* **As a desktop app** — a Windows installer that asks where to put it, or a
+	  **portable build** that keeps its settings and your editor pages beside the
+	  executable. macOS and Linux are configured but not yet published.
+	* Whichever you choose, you get: the authentic 40x24 PETSCII screen, the
+	  duckshoot, mail, Partyline and the frame editor.
+	* An **editor that works offline** — compose pages with no connection, and
+	  every page you read is kept so you can read your mail after hanging up.
+	  The buffer survives closing the client.
+	* An optional **1200 baud mode**: pages paint as they arrive, at the speed
+	  Compunet actually ran at.
+* **JSON API** (new, port 6404) (#91) — for anyone wanting to write their own
+  client:
+	* Reaching Compunet used to mean reimplementing X.25 framing, CRC,
+	  sequencing and PETSCII. That work now happens once, in the server.
+	* Directories arrive as entry lists and frames as a rendered cell grid, over
+	  WebSocket + REST.
+	* A second binding over the same core — the C64 and Amiga wire protocol is
+	  untouched.
+* **Client Specification** (new, `docs/spec/`) (#111) — a normative,
+  platform-agnostic guide to building a Compunet client:
+	* Transport, session, commands, the 40x24 PETSCII display contract, frame and
+	  directory formats, and the subsystems.
+	* Carries the C64 font, the palette and the embedded frames as data, so a
+	  client can be built from the document alone.
+	* Validated by nine independent clean-room builds that did exactly that.
+	* The two `HELP` frames (§A.8, §A.9) are now the **original bytes**, lifted
+	  from the C64 binaries rather than retyped from a screenshot. The retyped
+	  versions had invented borders and the wrong ink — cyan text on the
+	  original's cyan background, i.e. invisible — and the editor's had two keys'
+	  actions swapped.
+* **Website**:
+	* "Connect now" goes straight to
+	  [connect.compunet.live](https://connect.compunet.live), which is now the
+	  quickest way in — no client to choose, nothing to install.
+	* New **Extras** page carrying the printable logo.
+	* Refreshed look, built on the authentic Compunet red, blue and grey.
+* **3D-printed logo** (new, `3dprint/`) — a desk plaque of the Compunet logo for
+  multi-colour printers, in flush and raised variants. There is no source
+  artwork: it is generated from the PETSCII header frame the server sends.
+* **Server**:
+	* `SHOW` on an entry with no frames is now inert, as the original. It used to
+	  fall back to entering the sub-directory, collapsing `SHOW` and `DIR` into
+	  one command on exactly the entries where they differ.
+	* Uploads: The Jungle is open for uploads, inherited by its sub-directories,
+	  and a directory can opt out. The mail directory is created on demand,
+	  fixing a send failure on a fresh deployment.
+	* An empty sub-directory is no longer deleted when the tree is saved. Any
+	  upload rewrote the whole tree, and a directory with nothing in it yet lost
+	  its link — leaving its content on disk but unreachable.
+	* The admin API's audit endpoint now requires the API key, like every other
+	  admin route.
+	* **Uploading a program from a C64 works again.** In 1.1.0 the server read the
+	  body length from the wrong part of the upload header — the two bytes that
+	  hold a C64 program's load address — so it waited for roughly 17 MB that were
+	  never coming and the upload simply never finished. It also threw away the
+	  first part of the file when the header and body arrived together, which a
+	  C64 always does. Amiga uploads, which the 1.1.0 change was written for, are
+	  unaffected.
+	* An empty directory shows just `(EMPTY)`, with no page number and no type
+	  beside it. It used to claim page `0` and type `T` — a text page that does
+	  not exist, in a listing whose whole message is that it holds nothing.
+
 # 1.1.0 (2026-07-24)
 
 Adds a native **Amiga client** (#109). It speaks the same protocol and offers the same

@@ -1,5 +1,10 @@
 # PETSCII Terminal Mode
 
+> **Separate product, not the protocol.** This documents the server-rendered PETSCII
+> terminal client (TCP port 6401) — the server renders PETSCII and streams it to a dumb
+> terminal. It does **not** speak the framed protocol in [docs/spec/](spec/README.md) and is
+> out of that spec's scope. Retained as its own product documentation.
+
 ## Overview
 
 Port 6401 provides a server-rendered PETSCII terminal interface to Compunet

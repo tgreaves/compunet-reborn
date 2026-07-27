@@ -1,0 +1,152 @@
+# §1 — Overview
+
+> Part of the [Compunet Client Specification](README.md). Normative unless a passage is
+> explicitly marked non-normative.
+
+## 1.1 Purpose
+
+This document specifies how to build a client for **Compunet Reborn** — the modern
+recreation of the Compunet online service — that connects to the server over **TCP/IP**.
+It is written to be complete on its own: an implementer should be able to build a working
+client from this specification without reading the C64 or Amiga client source.
+
+The protocol described here is the original Compunet application protocol, preserved on
+the wire. The modern server implements it over TCP; TCP supplies the reliable transport
+the original phone line could not, while the X.25-derived framing (§2) supplies the packet
+boundaries and sequencing the protocol expects.
+
+This document is **Binding A** — the X.25-over-TCP wire protocol — one of two ways to carry
+the same underlying service. The modern **JSON API (Binding B)** is specified in
+[`api/README.md`](api/README.md), for capable clients; the constrained C64/Amiga ROM clients
+stay on Binding A permanently. §1.8 explains the model-and-bindings architecture and which
+sections here are shared model versus Binding-A wire format.
+
+## 1.2 Authority and provenance
+
+The **server** (`server/compunet_server.py` and `server/x25_protocol.py`) is the
+normative authority: a conforming client is one whose bytes the server accepts and whose
+behaviour matches what the server sends. Where a historical document disagrees with the
+server, the server wins.
+
+Every normative claim in this specification has been verified against the server and,
+where possible, corroborated against the two reference clients (Commodore 64 and Amiga),
+which independently implement the same protocol and therefore triangulate it. Reverse-
+engineering notes cited in passing (under `client/*/vintage/`) are **provenance, not
+normative** — they record how a fact was established, not the requirement itself.
+
+## 1.3 Scope
+
+**In scope.** The Reborn protocol over TCP — **Binding A**: transport framing (§2), session
+lifecycle (§3), the command protocol (§4), the PETSCII display contract (§5), the frame (§6)
+and directory (§7) formats, and the application subsystems (§8). The **JSON API binding
+(Binding B)** is a separate document ([`api/README.md`](api/README.md)), not specified here; it
+reuses this spec's model sections (§1.8) and replaces only the wire-format ones.
+
+**Out of scope.** These belong to platform notes, not this specification, and a client
+MAY implement them however its environment dictates:
+
+- Physical/link hardware — the original 1200/75 modem (the "brick"), 6551 ACIA /
+  SwiftLink emulation, AT dial commands, `cnet.device`. This specification begins at an
+  established TCP connection.
+- Client-local concerns — user input handling, local caching/storage, and the on-screen
+  chrome outside the defined display contract.
+- The server-rendered **PETSCII terminal** (TCP port 6401). That is a *separate client*
+  that Compunet Reborn also provides: the server renders PETSCII and streams it to a dumb
+  terminal, which does not speak the protocol in this specification. It is documented on
+  its own in `docs/TERMINAL.md` and is not covered here.
+
+## 1.4 Conformance tiers
+
+A client need not implement every subsystem to be useful. This specification defines three
+cumulative conformance tiers. A client **MUST** state the highest tier it claims, and
+**MUST** implement every requirement of that tier and all lower tiers.
+
+| Tier | Name | A conforming client at this tier can… | Requires |
+|---|---|---|---|
+| **1** | **Browse** | connect, identify, log in, navigate directories, and render frames | §§2, 3, 4, 5, 6, 7 |
+| **2** | **Interact** | everything in Tier 1, plus read/send mail, download content, and use LIFE / VOTE | Tier 1 + the relevant parts of §8 |
+| **3** | **Full** | everything in Tier 2, plus uploads, the frame editor, and Partyline | Tier 1 + all of §8 |
+
+Tier 1 is the meaningful minimum: a Tier 1 client is a working read-and-navigate
+Compunet client. Tiers 2 and 3 add optional application subsystems that ride on the same
+transport, command, and display machinery; a client MAY implement any subset of §8 at
+Tier 2 but MUST implement all of it to claim Tier 3.
+
+"Can" here means the user can actually do it: a conforming client MUST give the user a way to
+**invoke** the commands of its tier (§4.6), not merely render the results. The interface —
+keys, menu, or the original duckshoot — is the client's choice.
+
+## 1.5 Requirement conventions
+
+The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **SHOULD**,
+**SHOULD NOT**, **RECOMMENDED**, **MAY**, and **OPTIONAL** are to be interpreted as
+described in RFC 2119 — but only where they appear in **UPPERCASE**. The same words in
+lowercase carry their ordinary English meaning.
+
+Requirement language is used for the protocol (§§2–4, §§6–7) and for the display
+constraints in §5 that a user-visible client must honour to look and behave like Compunet.
+Explanatory and background prose is non-normative.
+
+## 1.5.1 Load-bearing details (⚠)
+
+Some facts in this specification look **cosmetic but are structural**: change them and something
+visibly breaks, often somewhere else. They are marked **⚠ load-bearing**, and each says *what
+breaks* if it is altered. Examples already found the hard way: the leading space in the `" PRICE"`
+column header (it is the column's *position*, §7.3); the `1 + N` in RLE counts (§6.4); the
+divider column the selection bar must not overwrite (§7.7); the price gate that separates `BUY`
+from `SHOW` (§8.6.4).
+
+**Treat a ⚠ as "do not tidy".** The recurring failure mode is a *plausible edit* — a competent
+implementer sees a detail with no stated reason, concludes it is redundant or missing, and
+"improves" it. That produces a client that **works**, so no test objects; the divergence is only
+caught by someone who knows the original service. Where this spec states a decision, it also owes
+you the reason; if a reason is missing, treat that as a spec bug and ask, rather than inferring
+one.
+
+## 1.6 Notation
+
+- Byte values are hexadecimal with a `$` or `0x` prefix (`$01`, `0x43`); the two forms are
+  interchangeable. Bit 7 is the most-significant bit of a byte.
+- `CR` is the carriage return `$0D`; `SP` is the space `$20`.
+- "Screen code" refers to a C64 screen (display) code, distinct from a PETSCII code — the
+  distinction is defined in §5.
+- Wire diagrams show the bytes **between** the frame markers unless the `$01`/`$02` markers
+  are drawn explicitly.
+
+## 1.7 Document map
+
+| § | Section |
+|---|---|
+| 2 | [Transport](02-transport.md) — framing, tokens, CRC, sequencing, flow control |
+| 3 | [Session lifecycle](03-session.md) — connect, identify, log in, disconnect |
+| 4 | [Command protocol](04-commands.md) — commands and ack conventions |
+| 5 | [Display contract (PETSCII)](05-display.md) — screen model, palette, control codes, RLE |
+| 6 | [Frame (SEQ) format](06-frame-format.md) |
+| 7 | [Directory format](07-directory-format.md) |
+| 8 | [Subsystems](08-subsystems.md) — mail, downloads, uploads, editor, Partyline, LIFE/VOTE |
+| A | [Appendices](99-appendices.md) — command & token tables, charset + palette, session trace |
+
+## 1.8 Transport bindings and the shared model
+
+Compunet Reborn is one **application model** carried by one or more **transport bindings**. The
+model is *what* the service is; a binding is *how* it is carried on the wire.
+
+- **Application model** (transport-agnostic): the content model (pages, directories, frames),
+  the command and navigation semantics, and the subsystems. In this document the model lives in
+  **§3** (session), **§4** (command semantics), **§8** (subsystems), and the abstract screen
+  model and palette of **§5**.
+- **Binding wire format** (this binding only): the concrete bytes. Here that is **§2** (X.25
+  framing), **§6** (frame bytes: header, RLE, control codes), **§7** (the six-part directory
+  stream), and the PETSCII byte encoding within **§5**.
+
+**This document is Binding A — X.25-over-TCP.** **Binding B — the modern JSON API** (web /
+desktop / mobile) reuses the model sections above verbatim and replaces only the wire-format
+sections with structured JSON. It is a **sibling document**, [`api/README.md`](api/README.md),
+not a change to this one; [`api/RATIONALE.md`](api/RATIONALE.md) records why it is shaped as it is.
+
+Bindings exist because clients differ in capability. The **C64 and Amiga ROM clients** cannot
+afford JSON or a WebSocket, so they remain on Binding A **permanently** — it is frozen, not
+deprecated. Because every binding projects the *same* model, a constrained client and a modern
+one see the same Compunet; Binding B must therefore never introduce content behaviour Binding A
+cannot express. **Conformance is stated per binding** — a client declares its binding *and* its
+tier (§1.4), e.g. "Binding A, Tier 1".

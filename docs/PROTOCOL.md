@@ -1,5 +1,12 @@
 # Compunet Communication Protocol - Reverse Engineered from ROM v1.22
 
+> **⚠ Superseded as the protocol authority.** The normative, platform-agnostic protocol
+> specification now lives in **[docs/spec/](spec/README.md)** — use it as the single source
+> of truth for building a client. This document is retained as the **C64 ROM / platform
+> reference and reverse-engineering provenance**: it records the original 6502 ROM's memory
+> maps, hardware layer, and the RE that established the protocol. Where this document and
+> the spec disagree, the spec (verified against the server) wins.
+
 ## Overview
 
 This document describes the communication protocol used by the Compunet Terminal
@@ -556,8 +563,19 @@ Different contexts show different duckshoot commands:
 #### Editor Duckshoot (from $83AA)
 
 ```
-HELP  EDIT  LAST  NEXT  NEW  COPY  ERASE  GET  PUT  STORE  PRINT  FREE  DOS  RETURN
+HELP  EDIT  LAST  NEXT  NEW  COPY  ERASE  GET  PUT  STORE  PRINT  FREE  RETURN  DOS
 ```
+
+The 6-byte name strings start at `$83AA` (note the **leading space** byte — the base is `$83AA`,
+not `$83AB`), followed at `$83FE` by a 14-entry **offset table in display order**:
+
+```
+$00 $06 $0C $12 $18 $1E $24 $2A $30 $36 $3C $42 $4E $48
+```
+
+The last two offsets are **non-monotonic** — `$4E` (`RETURN`) precedes `$48` (`DOS`) — so the
+display order ends `FREE RETURN DOS`. Reading the strings in storage order gives
+`… FREE DOS RETURN`, which is wrong; this document previously carried that error.
 
 | Command | Function |
 |---------|----------|
@@ -578,9 +596,21 @@ HELP  EDIT  LAST  NEXT  NEW  COPY  ERASE  GET  PUT  STORE  PRINT  FREE  DOS  RET
 
 #### Directory Duckshoot (online)
 
+Decoded from the client: the command-name strings are a table of 6-byte entries at `L_A176`
+(`$A176`), and `L_A21E` holds the duckshoot configuration — a **count byte** followed by string
+offsets, **in display order**:
+
 ```
-DIR  EDITR  SAVE  LEAVE  BUY  SHOW  ACCNT  BACK  GOTO  HELP  LIFE  MAIL  PRINT  UCAT  UPLD  VOTE
+HELP  DIR  SHOW  BACK  GOTO  UCAT  MAIL  ACCNT  SAVE  EDITR  LEAVE  PRINT  LIFE  BUY  LOAD  UPLD  VOTE
 ```
+
+`L_A21E` = `$11` (count = 17) then `$00 $06 $0C $12 $18 $1E $24 $2A $7E $30 $36 $3C $42 $48 $78
+$4E $54`.
+
+**The count byte is rewritten at runtime to shorten the list** — the client stores a smaller
+count (e.g. `$0F` = 15, `$0B` = 11) in `L_A21E` in some contexts, which drops commands from the
+**end** of the order above. So the list is a priority order, not an arbitrary one, and the set
+offered varies with context and with the selected entry.
 
 | Command | Function |
 |---------|----------|
@@ -609,8 +639,11 @@ MORE  FINISH  ALL
 
 #### Courier (Mail) Duckshoot
 
+Decoded from the mail menu's own offset table at `L_AE15`
+(`$06 $66 $0C $5A $9C $30 $A2`), against the `L_A176` string table:
+
 ```
-SEND  FINISH  NEXT  LAST  GET
+DIR  SEND  SHOW  MORE  ID  EDITR  DONE
 ```
 
 ### Directory Entry Types
@@ -1102,16 +1135,33 @@ When receiving page content (SHOW, DIR responses), the client:
 5. `$07` followed by 2 bytes = repeat character (RLE: char, count)
 6. All other bytes = literal character data (PETSCII)
 
-### Directory Paging
+### Directory Overflow
 
-Directories with more than 12 entries are paginated using a `***MORE***` entry:
+An authored directory shows **11 entries and does not paginate.** There is no page two and no
+paging command — and the C64 client keeps no page state at all (no offset, no scroll counter),
+which is the simplest proof: a client that cannot remember which page it is on cannot page.
 
-- Server sends max 12 entries per page
-- If more entries exist, a `***MORE***` entry (type D+) is appended as the last item
-- User highlights `***MORE***` and selects DIR to load the next page
-- This matches the manual: "A dummy page; cannot be shown. Use DIR to access the directory beneath"
-- BACK resets to the first page of the parent directory
-- F7/F8 only toggles the extra column display (Price/Life/Author/Vote)
+Overflow is **authored, not automatic**. When a directory fills, its owner adds an ordinary
+`D` entry — conventionally titled `MORE` — whose sub-directory holds the next batch, and the
+user enters it with DIR like any other. This is what the manual means by "A dummy page; cannot
+be shown. Use DIR to access the directory beneath": it is describing the **`D` entry type**, not
+a pagination mechanism.
+
+This is also why uploads are capped at 11 per directory: the cap is the display limit, and the
+`MORE` entry is the user's answer to it.
+
+**Generated listings are the exception.** UCAT and the mailbox are assembled by the server, so
+their owner cannot author a `MORE` entry into them. Those, and only those, carry a synthetic
+`MORE        >>>>` row; selecting it sends an index one past the real entries, which the server
+reads as "next page". The client still keeps no page state — it just sends an index.
+
+BACK resets to the first page of the parent directory. F7/F8 only toggles the extra column
+display (Price/Life/Author/Vote).
+
+*(An earlier revision of this section described automatic server-side pagination with a
+`***MORE***` row appended to every listing. That was never true, it cited the manual's `D`-type
+description as evidence for it, and it said "12 entries" where the server uses 11. Two
+clean-room builds reported downstream symptoms of it before the root claim was checked.)*
 
 Directory entries are sent as structured data from the server, NOT as pre-formatted
 PETSCII. The client parses, stores in RAM, and renders locally.
@@ -1280,6 +1330,41 @@ Key differences from MAIL SEND:
 - Validation response must NOT have EOS (client proceeds immediately)
 - Metadata sent with EACH frame (not just once at the start)
 
+#### Program ('P') Upload Header — MACHINE-DEPENDENT
+
+A type-'P' upload sends an 8-byte header followed by the raw file as DAT chunks.
+**Byte 0 selects both the header layout and how the body ends**, because a C64
+program carries a load address and an Amiga executable does not:
+
+```
+Byte 0:   machine type (0 = C64, 1 = Amiga)
+Bytes 1-3: reserved (0)
+
+C64 (byte 0 = 0):
+  Bytes 4-5: LOAD ADDRESS (lo, hi)     <- not a size
+  Bytes 6-7: size
+  Body ends: a DAT chunk shorter than 100 bytes, as for a PETSCII frame.
+  The client streams header and body CONTINUOUSLY — the first packet carries
+  body bytes after the header, and a server that discards them truncates the
+  start of every program.
+
+Amiga (byte 0 = 1):
+  Bytes 4-7: body size, BIG-ENDIAN     <- no load address to store
+  Body ends: when that many bytes have arrived. A HUNK body rarely ends on a
+  short chunk, so it cannot be chunk-terminated.
+```
+
+The server stores a C64 program as `header[4:6] + body` (reconstructing the .prg)
+and an Amiga executable as the body alone.
+
+**Regression, 2026-07-22 to 2026-07-27:** the server sized *every* body from
+bytes 4-7 big-endian. Correct for Amiga; for C64 it read the load address as the
+top half of a size, so $0801 became a demand for ~17 MB and the upload never
+completed. Introduced while fixing Amiga upload (the accumulator it replaced was
+chunk-terminated: right for C64, truncating Amiga to 2 bytes). Evidence for the
+layout above: `mission-monday.prg`, uploaded 2026-06-05, 18381 bytes, stored
+opening `01 08` = $0801 — only possible if bytes 4-5 held the load address.
+
 #### Frame Upload Mechanism ($B175)
 
 **Important:** The frame upload at $B175 does NOT use ACIA_SEND_PACKET.
@@ -1398,18 +1483,50 @@ After the mailbox directory is displayed, the client enters a mail-specific
 menu loop at L_ADEA with its own duckshoot. The mail menu commands (from
 the dispatch table at L_AE15, indexing into L_A176) are:
 
-| Index | String Offset | Command | Handler |
-|-------|---------------|---------|---------|
-| 0     | $06           | DIR     | $AE36   |
-| 1     | $66           | GET     | $B00B   |
-| 2     | $0C           | SHOW    | $B039   |
-| 3     | $5A           | LAST    | $B040   |
-| 4     | $9C           | DONE    | $A270   |
-| 5     | $30           | LIFE    | (cont.) |
-| 6     | $A2           | ID      | (cont.) |
+| Index | String Offset | Command | Handler | Sends |
+|-------|---------------|---------|---------|-------|
+| 0     | $06           | (DIR)   | —       | **filler — never dispatched**, see below |
+| 1     | $66           | SEND    | $AE36   | `U` ($55) + prompts |
+| 2     | $0C           | SHOW    | $B00B   | `D` ($44) + 2-digit entry index |
+| 3     | $5A           | MORE    | $B039   | `M` ($4D), no parameters |
+| 4     | $9C           | ID      | $B040   | `I` ($49), prompts "ID TO CHECK?" ($B0D9) |
+| 5     | $30           | EDITR   | $A270   | nothing — client-side |
+| 6     | $A2           | DONE    | $B164   | `N` ($4E), no parameters |
 
-The initial $8033 value is set to 1 on mail entry. L_AE1C dispatches based
-on $8033 using the handler address table at $AE2A.
+*(Command names decoded from the 6-byte string table at `L_A176`: `$06`=DIR, `$0C`=SHOW,
+`$30`=EDITR, `$5A`=MORE, `$66`=SEND, `$9C`=ID, `$A2`=DONE. An earlier revision of this document
+mis-decoded five of these seven, and a later one paired every command with the WRONG handler —
+the column was shifted by one. Both are now settled: four of the six handlers identify
+themselves by the command byte they load, and the remaining two by having no command byte
+(EDITR) and by exiting the menu loop (DONE).)*
+
+**How the dispatch works, and why index 0 is filler.** `L_ADEA` runs the menu loop; `$AE1C`
+dispatches:
+
+```
+$AE1C  AD 33 80  LDA $8033      ; the duckshoot position
+$AE1F  0A        ASL            ; x2
+$AE20  AA        TAX
+$AE21  BD 29 AE  LDA $AE29,X    ; high byte  -> PHA
+$AE25  BD 28 AE  LDA $AE28,X    ; low byte   -> PHA
+$AE29  60        RTS            ; jump to handler
+```
+
+The address table therefore starts at **`$AE28`**, which is *inside the dispatcher's own code*
+(`$AE28`/`$AE29` are the `PHA`/`RTS` bytes). Index 0 consequently resolves to garbage — which is
+harmless because **`$8033` is set to 1 on mail entry** and the menu offers six commands, indices
+1–6. Entry 0 of the string table (`DIR`) is filler that keeps the two tables sharing one index.
+The editor's function-key table at `$88BC` uses the same overlapping-table idiom, there pointing
+its unused entries at the dispatcher's own `RTS` as a deliberate no-op.
+
+So the mail row is **SEND, SHOW, MORE, ID, EDITR, DONE** — six commands in the order above,
+which is exactly the row §4.8 of the client specification requires.
+
+**⚠ DONE sends `N`, not `B`.** `$B164` is `LDA #$4E / LDY #$01 / JSR $A35F`, and on success it
+pulls two bytes off the stack — discarding the return address, which exits the menu loop — before
+setting `$8033` to 7. One command leaves Courier; the server treats `N` in mail mode as "clear
+mail mode and return the directory" (`_cmd_more`). Repeated `B` reaches the same place by
+unwinding one level at a time, but it is not what the original does.
 
 #### Mail Response Format
 

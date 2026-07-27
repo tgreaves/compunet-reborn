@@ -32,6 +32,12 @@ server/data/mail/
 server/data/votes.json
 server/data/content/
 server/data/partyline.jsonl
+server/data/audit.jsonl
+server/data/archive/
+# ⚠ server/data/mail.test/ is TRACKED, deliberately — it is the mail half of the
+# test fixtures, the counterpart to content.test/. Ignoring it meant the suite
+# passed here and had nothing to run against on a fresh clone. The tests copy it
+# to a temp directory before use, so running them leaves it untouched.
 
 # Virtual environments
 server/venv/

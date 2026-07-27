@@ -24,8 +24,8 @@ Both WebSocket and TCP clients speak the same binary protocol:
     Standard PETSCII control codes for colours, reverse, charset
 
 Transport:
-  WebSocket (port 6502): binary frames containing raw protocol bytes
-  TCP (port 6400): raw protocol bytes over stream
+  TCP (port 6400): raw protocol bytes over stream (X.25 binding)
+  Client API (port 6404): JSON over WebSocket/HTTP (see api_binding.py)
 """
 
 import asyncio
@@ -44,39 +44,14 @@ import partyline
 import terminal
 
 try:
-    import websockets
-except ImportError:
-    print("Install websockets: pip install websockets")
-    raise
-
-try:
     from aiohttp import web as aiohttp_web
 except ImportError:
     aiohttp_web = None
 
-class _DropWSHandshakeTraceback(logging.Filter):
-    """The websockets library rejects non-WebSocket connections (port scanners, health
-    checks, plain HTTP hitting the WS port) correctly with '426 Upgrade Required' — but it
-    also logs the rejection a second time as an ERROR with a full traceback. That is pure
-    noise on a public server. Drop just that record; the concise 'connection rejected
-    (426 ...)' INFO line the library already emits is kept, and genuine errors still show."""
-    def filter(self, record):
-        if record.getMessage() == 'opening handshake failed' and record.exc_info:
-            try:
-                from websockets.exceptions import InvalidHandshake
-                if isinstance(record.exc_info[1], InvalidHandshake):
-                    return False
-            except Exception:
-                pass
-        return True
-
-# Log level is env-configurable (LOG_LEVEL); default INFO for production. DEBUG is very
-# verbose (it includes the websockets library's wire-level tracing). Set LOG_LEVEL=DEBUG
-# in the environment to restore full debug output.
+# Log level is env-configurable (LOG_LEVEL); default INFO for production. Set
+# LOG_LEVEL=DEBUG in the environment to restore full debug output.
 _LOG_LEVEL = getattr(logging, os.environ.get('LOG_LEVEL', 'INFO').upper(), logging.INFO)
 logging.basicConfig(level=_LOG_LEVEL, format='%(asctime)s %(levelname)s %(message)s')
-for _h in logging.getLogger().handlers:
-    _h.addFilter(_DropWSHandshakeTraceback())
 log = logging.getLogger('compunet')
 
 # Load .env file if present (allows restart without rebuild)
@@ -110,16 +85,26 @@ def audit_log(event, user=None, **details):
         log.warning('Failed to write audit log entry: %s', entry)
 
 # Server configuration
-WS_PORT = 6502
 TCP_PORT = 6400
 API_PORT = 6403
 TERM_PORT = 6401
+CLIENT_API_PORT = 6404   # Binding B — modern JSON client API (see api_binding.py)
 SERVER_DIR = os.path.dirname(__file__)
 CFG_DIR = os.path.join(SERVER_DIR, 'cfg')
-DATA_DIR = os.path.join(SERVER_DIR, 'data')
-CONTENT_DIR = os.path.join(DATA_DIR, 'content')
+
+# Data locations are overridable so a run can be pointed at a fixture tree
+# (server/data/content.test) without touching live content — see
+# docs/spec/CLEANROOM.md. COMPUNET_DATA_DIR moves everything together, which is
+# what a validation run wants: test uploads and test mail then land in the
+# fixture tree instead of polluting real data.
+DATA_DIR = os.environ.get('COMPUNET_DATA_DIR') or os.path.join(SERVER_DIR, 'data')
+CONTENT_DIR = os.environ.get('COMPUNET_CONTENT_DIR') or os.path.join(DATA_DIR, 'content')
 ROOT_DIR = os.path.join(CONTENT_DIR, 'root')
-MAIL_DIR = os.path.join(DATA_DIR, 'mail')
+#: The reference web client, served from the client API's own origin when built
+#: into the image (see server/Dockerfile). Empty in a source checkout, where
+#: run_api_dev.py serves it instead.
+WEB_CLIENT_DIR = os.environ.get('COMPUNET_WEB_CLIENT_DIR') or os.path.join(SERVER_DIR, 'web')
+MAIL_DIR = os.environ.get('COMPUNET_MAIL_DIR') or os.path.join(DATA_DIR, 'mail')
 VOTES_PATH = os.path.join(DATA_DIR, 'votes.json')
 
 
@@ -452,8 +437,12 @@ class CompunetDirectory:
                 page.shortcuts = sub_data.get('shortcuts', None)
                 if sub_data.get('header'):
                     page.header = sub_data['header']
-                if sub_data.get('open_upload'):
-                    page.open_upload = True
+                # Store the flag only when the key is PRESENT, so that an
+                # explicit `false` is distinguishable from "not set" — the
+                # former stops inheritance, the latter defers to the ancestor
+                # (see _can_upload_here).
+                if 'open_upload' in sub_data:
+                    page.open_upload = bool(sub_data['open_upload'])
                 for child_data in sub_data.get('pages', []):
                     child = self._build_flat_page(child_data, page, sub_base_dir)
                     page.children.append(child)
@@ -588,16 +577,30 @@ class CompunetSession:
             return self._make_error(ascii_to_petscii('UNKNOWN COMMAND'))
     
     def _can_upload_here(self):
-        """Check if current user can upload/create DIRs in the current page."""
+        """May the current user upload / create directories in the current page?
+
+        Order matters:
+
+        1. Admins and editors may write anywhere.
+        2. The **owner** of a directory may always write to it, whatever the
+           open-upload setting says — a user cannot be locked out of their own
+           space by an inherited `false`.
+        3. Otherwise the **nearest explicit** `open_upload` decides. The flag is
+           INHERITED: setting it on The Jungle opens everything beneath it, so
+           each sub-directory does not have to repeat it. A child that sets it
+           explicitly to `false` **stops** that inheritance for itself and its
+           own descendants — which is how a user keeps their own Jungle
+           directory private while the Jungle around it stays open.
+        4. With no setting anywhere on the path, uploads are refused.
+        """
         if self.is_admin or self.is_editor:
             return True
         if self.current_page.author == self.user_id:
             return True
-        # Check if this page or any ancestor has open_upload set
         page = self.current_page
         while page is not None:
-            if getattr(page, 'open_upload', False):
-                return True
+            if hasattr(page, 'open_upload'):      # present => authoritative
+                return bool(page.open_upload)
             page = page.parent
         return False
 
@@ -770,16 +773,19 @@ class CompunetSession:
                 audit_log('read', user=self.user_id, page=child.page_num,
                           title=child.title, type=child.page_type)
                 return self._send_current_frame()
-            # Dynamic directory: populate children on each view
-            if getattr(child, 'dynamic', None) == 'new':
-                _populate_whats_new(child, self.directory)
-            if child.has_subdir():
-                self.current_page = child
-                self.selected_entry = 0
-                self.dir_page_offset = 0
-                return self._make_dir_response()
-            else:
-                return self._make_error(ascii_to_petscii('NO CONTENT'))
+            # No frames: SHOW is INERT (spec §7.4). It must NOT fall back to
+            # entering the sub-directory — that is DIR ('P'+index, _cmd_show),
+            # and collapsing them would make SHOW and DIR the same command on
+            # exactly the entries where they are meant to differ (§4.7). A 'D'
+            # entry normally has no frames, so this is its ordinary outcome.
+            #
+            # Inert means the screen does not change, so re-send the CURRENT
+            # listing: same page, same highlight (_make_dir_response preserves
+            # both). Answering 'D' with a directory response is an established
+            # path the client already handles — MORE past the last frame does
+            # exactly this a few lines above. An error frame would instead paint
+            # 'NO CONTENT' over the screen, which is a visible change.
+            return self._make_dir_response()
         else:
             self.dir_page_offset = offset + 11
             self.selected_entry = 0
@@ -1468,6 +1474,7 @@ class CompunetSession:
 
     def _save_mail(self):
         """Persist mail metadata (read status etc)."""
+        os.makedirs(MAIL_DIR, exist_ok=True)
         mail_file = os.path.join(MAIL_DIR, self.user_id + '.json')
         data = {'messages': self.mail_messages}
         with open(mail_file, 'w') as f:
@@ -1475,6 +1482,9 @@ class CompunetSession:
 
     def _next_message_number(self):
         """Get and increment the global message sequence number."""
+        # MAIL_DIR is runtime data and may not exist on a fresh install; this runs
+        # before _complete_mail_send's per-recipient makedirs, so create it here.
+        os.makedirs(MAIL_DIR, exist_ok=True)
         seq_file = os.path.join(MAIL_DIR, 'sequence.json')
         if os.path.exists(seq_file):
             with open(seq_file, 'r') as f:
@@ -1879,8 +1889,11 @@ class CompunetSession:
         def _save_dir_json(page, json_path):
             """Write a directory JSON for a page's children."""
             data = {}
-            if hasattr(page, 'open_upload') and page.open_upload:
-                data['open_upload'] = True
+            # Round-trip the flag whenever it is set, including an explicit
+            # `false` — writing back only the truthy case would silently drop a
+            # directory's opt-out and reopen it to everyone (_can_upload_here).
+            if hasattr(page, 'open_upload'):
+                data['open_upload'] = bool(page.open_upload)
             if hasattr(page, 'header') and page.header:
                 data['header'] = page.header
             if hasattr(page, '_adverts') and page._adverts:
@@ -1906,10 +1919,19 @@ class CompunetSession:
                 frame_files = getattr(child, '_frame_files', [])
                 if frame_files:
                     node['frames'] = frame_files
-                if child.children and not getattr(child, 'dynamic', None):
-                    child_slug = _page_slug(child.title)
-                    child_dir = getattr(child, '_dir_path', '')
-                    dir_json_path = os.path.join(child_dir, 'directory.json')
+                child_slug = _page_slug(child.title)
+                child_dir = getattr(child, '_dir_path', '')
+                dir_json_path = os.path.join(child_dir, 'directory.json')
+                # ⚠ Keep the sub-directory whenever one EXISTS, not only while it
+                # currently holds children. An authored-but-empty directory is
+                # real — §7.3 lists it with the (EMPTY) placeholder — and the
+                # narrower `if child.children` test DELETED it: the next save
+                # wrote the entry back without its `directory` key, so the
+                # sub-tree became unreachable while its files sat on disk. Found
+                # in the fixture tree after clean-room run 9, where JUNGLE's
+                # GRAPHICS entry lost its directory to an unrelated upload.
+                if not getattr(child, 'dynamic', None) and (
+                        child.children or os.path.exists(dir_json_path)):
                     node['directory'] = os.path.relpath(dir_json_path, ROOT_DIR)
                     _save_dir_json(child, dir_json_path)
                 pages_list.append(node)
@@ -2203,7 +2225,12 @@ class CompunetSession:
             # field: page_num(6)+space + title(17)+type(3), then the 5 comma columns + CR.
             # Safe for the C64 too: its parser (L_A5F3) reads the title until a comma and
             # pads to 30, so a 27-char field is length-tolerant there.
-            first_field = '0'.rjust(6) + ' ' + '(EMPTY)'.ljust(17) + '   '   # 27 chars
+            # ⚠ The page column is BLANK, not '0'. "(EMPTY)" is a label, not an
+            # entry, and a page number beside it invites the user to think there
+            # is something at page 0. The type column was already blank (the
+            # three spaces below) — the number was the odd one out.
+            # The WIDTHS are load-bearing, so this pads rather than shortens.
+            first_field = ''.rjust(6) + ' ' + '(EMPTY)'.ljust(17) + '   '   # 27 chars
             data.extend(ascii_to_petscii(first_field))
             data.append(0x2C)
             data.append(0x2C)
@@ -2465,95 +2492,6 @@ class CompunetSession:
     def _make_error(self, message_petscii):
         """Build an error response."""
         return bytes([RESP_ERROR]) + message_petscii + b'\x00'
-
-
-# ============================================================
-# WebSocket interface - binary protocol over WebSocket frames
-# ============================================================
-
-async def ws_handler(websocket):
-    """Handle a WebSocket connection. Same protocol as TCP but over WebSocket binary frames.
-
-    Unlike the TCP/C64 path where the client knows what response to expect based
-    on the command it sent, WebSocket responses are prefixed with a type byte so
-    the web client can demultiplex them:
-      $41 = ACK, $44 = Directory, $46 = Frame, $45 = Error
-    """
-    directory = CompunetDirectory()
-    session = CompunetSession(directory)
-
-    log.info('WebSocket client connected: %s', websocket.remote_address)
-
-    def _ws_wrap(response):
-        """Add response type prefix byte for WebSocket clients.
-
-        The session sets last_response_type before building each response.
-        Methods that already embed their own prefix byte (_make_error, _cmd_mail,
-        _cmd_vote) are detected by checking if first byte equals the tracked type.
-        """
-        if not response:
-            return response
-        prefix = session.last_response_type
-        if not prefix:
-            # No type tracked - check if response self-identifies
-            first = response[0]
-            if first in (RESP_ACK, RESP_ERROR, RESP_FRAME, RESP_DIR, RESP_LINKING):
-                return response
-            return bytes([RESP_DIR]) + response
-        # If the response already starts with its own prefix, pass through
-        if response[0] == prefix:
-            return response
-        return bytes([prefix]) + response
-
-    try:
-        # Login loop - keep prompting until successful
-        while True:
-            login_data = await websocket.recv()
-            if isinstance(login_data, str):
-                login_data = login_data.encode('latin-1')
-
-            parts = login_data.split(b'\x00')
-            user_id = parts[0].decode('latin-1') if len(parts) > 0 else 'GUEST'
-            password = parts[1].decode('latin-1') if len(parts) > 1 else ''
-
-            async with _lock_users:
-                response = session.handle_login(user_id, password)
-            await websocket.send(_ws_wrap(response))
-
-            if session.authenticated:
-                break
-
-        # Command loop (only reached after successful login)
-        async for message in websocket:
-            if isinstance(message, str):
-                message = message.encode('latin-1')
-
-            if len(message) == 0:
-                continue
-
-            # Check for GOTO (special: starts with 'G' + page number as ASCII)
-            if message[0] == ord('G') and len(message) > 1:
-                try:
-                    page_num = int(message[1:].decode('latin-1'))
-                    response = session.handle_goto(page_num)
-                except ValueError:
-                    response = session._make_error(ascii_to_petscii('INVALID PAGE'))
-            # Check for SELECT (highlight change: 'S' + index byte)
-            elif message[0] == ord('S') and len(message) > 1:
-                session.handle_select(message[1])
-                continue  # no response
-            else:
-                # Standard command (lock prevents interleaved writes)
-                async with _lock_content:
-                    response = session.handle_command(message)
-
-            if response:
-                await websocket.send(_ws_wrap(response))
-
-    except websockets.exceptions.ConnectionClosed:
-        pass
-    finally:
-        log.info('WebSocket client disconnected')
 
 
 # ============================================================
@@ -3045,35 +2983,66 @@ async def tcp_handler(reader, writer):
 
                 elif (session.pending_send is not None and token != 0x43
                         and session.pending_send.get('type') == 'P'):
-                    # PROGRAM upload (Amiga/C64 binary). The client sends an 8-byte header
-                    # DAT first (byte0 = machine type: 1=Amiga, 0=C64; bytes 4-7 = body size,
-                    # big-endian), then the raw file as DAT chunks. We can't use the PETSCII
-                    # "<100 bytes ends the frame" heuristic here (the 8-byte header would end a
-                    # frame, and a binary body rarely ends on a short chunk). Instead: read the
-                    # size from the header, accumulate exactly that many body bytes, then store
-                    # ONE frame (header + body) and send a single final ACK. No per-chunk ACK,
-                    # so the client — which blasts every chunk before reading — never stalls.
+                    # PROGRAM upload (Amiga/C64 binary), 8-byte header then the file.
+                    #
+                    # ⚠ THE HEADER IS MACHINE-DEPENDENT, and so is how the body ENDS.
+                    # Byte 0 selects (§8.3.2):
+                    #
+                    #   Amiga (1): no load address, so bytes 4-7 are a big-endian body
+                    #              SIZE. The client sends the header as its own DAT and
+                    #              then blasts the body; a HUNK body rarely ends on a
+                    #              short chunk, so the size is what terminates it.
+                    #   C64   (0): bytes 4-5 are the LOAD ADDRESS (4-7 is therefore NOT a
+                    #              size). The client streams header and body continuously
+                    #              and a chunk < 100 bytes ends the transfer, exactly as a
+                    #              PETSCII frame does.
+                    #
+                    # Reading 4-7 as a size for BOTH machines is a regression introduced
+                    # 2026-07-22 while fixing the Amiga path: a C64 load address of $0801
+                    # reads as a demand for ~17 MB, so the upload never completes. C64
+                    # program upload worked before that date (mission-monday.prg,
+                    # 2026-06-05, 18381 bytes, stored opening 01 08) and was not exercised
+                    # afterwards, so nothing caught it.
+                    #
+                    # The C64 terminator is deliberately the ORIGINAL chunk rule rather
+                    # than a size read from bytes 6-7: that the C64 client populates 6-7
+                    # on UPLOAD is unverified, whereas chunk-termination is proven by the
+                    # uploads that worked.
                     ps = session.pending_send
                     if '_prog_header' not in ps:
-                        ps['_prog_header'] = bytes(payload[:8])
-                        ps['_prog_size'] = int.from_bytes(ps['_prog_header'][4:8], 'big')
-                        ps['_prog_body'] = bytearray()
-                        log.info('UPLOAD: program header machine=%d body_size=%d',
-                                 ps['_prog_header'][0], ps['_prog_size'])
+                        hdr = bytes(payload[:8])
+                        ps['_prog_header'] = hdr
+                        ps['_prog_amiga'] = (hdr[0] == 1)
+                        ps['_prog_size'] = int.from_bytes(hdr[4:8], 'big') if ps['_prog_amiga'] else None
+                        # ⚠ Keep body bytes that arrived in the SAME packet as the header.
+                        # The C64 streams them together, so discarding the remainder here
+                        # silently truncated the first ~92 bytes of every C64 program.
+                        ps['_prog_body'] = bytearray(payload[8:])
+                        log.info('UPLOAD: program header machine=%d (%s) body_size=%s carried=%d',
+                                 hdr[0], 'amiga' if ps['_prog_amiga'] else 'c64',
+                                 ps['_prog_size'] if ps['_prog_amiga'] else 'chunk-terminated',
+                                 len(ps['_prog_body']))
+                        complete = (not ps['_prog_amiga']) and len(payload) < 100
                     else:
                         ps['_prog_body'].extend(payload)
-                        log.info('TCP: program body +%d (%d/%d)', len(payload),
-                                 len(ps['_prog_body']), ps['_prog_size'])
-                        if len(ps['_prog_body']) >= ps['_prog_size']:
-                            frame_data = ps['_prog_header'] + bytes(ps['_prog_body'][:ps['_prog_size']])
-                            ps['frames'].append(frame_data)
-                            log.info('UPLOAD: program complete (%d bytes = 8 header + %d body)',
-                                     len(frame_data), ps['_prog_size'])
-                            ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
-                            ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
-                            await send_pkt_with_ack(ack_pkt)
-                            await writer.drain()
-                            log.info('UPLOAD: sent final program ACK (%d wire)', len(ack_pkt))
+                        log.info('TCP: program body +%d (%d/%s)', len(payload),
+                                 len(ps['_prog_body']),
+                                 ps['_prog_size'] if ps['_prog_amiga'] else '?')
+                        complete = (len(ps['_prog_body']) >= ps['_prog_size']
+                                    if ps['_prog_amiga'] else len(payload) < 100)
+
+                    if complete:
+                        body = (bytes(ps['_prog_body'][:ps['_prog_size']]) if ps['_prog_amiga']
+                                else bytes(ps['_prog_body']))
+                        frame_data = ps['_prog_header'] + body
+                        ps['frames'].append(frame_data)
+                        log.info('UPLOAD: program complete (%d bytes = 8 header + %d body)',
+                                 len(frame_data), len(body))
+                        ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
+                        ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
+                        await send_pkt_with_ack(ack_pkt)
+                        await writer.drain()
+                        log.info('UPLOAD: sent final program ACK (%d wire)', len(ack_pkt))
 
                 elif session.pending_send is not None and token != 0x43:
                     # Any non-COM packet during a NON-program upload = PETSCII frame chunk
@@ -3565,7 +3534,18 @@ async def api_ws_partyline(request):
 
 
 async def api_get_audit(request):
-    """GET /api/audit — return audit log entries with pagination."""
+    """GET /api/audit — return audit log entries with pagination.
+
+    ⚠ Every other /api route guards itself and this one did not. The audit log
+    records `user` and `ip` against connects, page reads, purchases, uploads,
+    mail sends and password resets — who read what, from where, and when. On a
+    deployment that publishes 6403 (the Cloudflare tunnel exposes it as
+    api.compunet.live) an unguarded handler served all of that to anyone who
+    guessed the path. It was missed because the endpoint only READS, and a
+    read-only endpoint feels harmless right up until you notice what it reads.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
     page = int(request.query.get('page', '1'))
     per_page = int(request.query.get('per_page', '50'))
     if not os.path.exists(AUDIT_LOG_PATH):
@@ -3591,9 +3571,6 @@ async def api_get_audit(request):
 # ============================================================
 
 async def main():
-    ws_server = await websockets.serve(ws_handler, '0.0.0.0', WS_PORT)
-    log.info('WebSocket server on port %d', WS_PORT)
-
     tcp_server = await asyncio.start_server(tcp_handler, '0.0.0.0', TCP_PORT)
     log.info('TCP server on port %d', TCP_PORT)
 
@@ -3621,6 +3598,36 @@ async def main():
         site = aiohttp_web.TCPSite(runner, '0.0.0.0', API_PORT)
         await site.start()
         log.info('REST API on port %d', API_PORT)
+
+        # Binding B — modern JSON client API, its own isolated app + port (6404).
+        #
+        # ⚠ A failure here MUST NOT take the server down. Binding B is a second
+        # binding over the same core (§1.8), not a dependency of the first: the
+        # C64 and Amiga clients on 6400 do not touch a line of it. An unguarded
+        # import meant a deployment that shipped compunet_server.py without
+        # api_binding.py died at startup and took the framed protocol with it —
+        # every vintage client offline because a JSON module was absent. The
+        # REST API above already degrades this way when aiohttp is missing;
+        # this now matches it.
+        try:
+            import sys as _sys
+            import api_binding
+            # ⚠ Serve the web client from the SAME origin as the API when it is
+            # present. That is what lets a tunnel publish ONE hostname
+            # (connect.compunet.live -> compunet-server:6404): the client needs
+            # no address typed, there is no CORS, and mixed content cannot
+            # arise. Absent the directory the API runs alone, exactly as before.
+            client_api = api_binding.make_app(_sys.modules[__name__],
+                                              web_client_dir=WEB_CLIENT_DIR)
+            client_runner = aiohttp_web.AppRunner(client_api)
+            await client_runner.setup()
+            client_site = aiohttp_web.TCPSite(client_runner, '0.0.0.0', CLIENT_API_PORT)
+            await client_site.start()
+            log.info('Client API (Binding B) on port %d', CLIENT_API_PORT)
+        except Exception:
+            log.exception('Client API (Binding B) failed to start on port %d — '
+                          'continuing without it; the framed protocol is unaffected',
+                          CLIENT_API_PORT)
     else:
         log.warning('aiohttp not installed — REST API disabled')
 
@@ -3632,9 +3639,8 @@ async def main():
         _version = 'unknown'
     log.info('Compunet server v%s ready.', _version)
 
-    async with ws_server, tcp_server, term_server:
+    async with tcp_server, term_server:
         await asyncio.gather(
-            ws_server.serve_forever(),
             tcp_server.serve_forever(),
             term_server.serve_forever(),
         )
