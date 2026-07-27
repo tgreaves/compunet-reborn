@@ -48,23 +48,28 @@ template = api.frame_to_cells(bytes(tb))
 
 # HELP frame (§A.8) — a client asset like the template; the server never sends it
 help_path = os.path.join(ROOT, 'server', 'cfg', 'help.pet')
-# help.pet is BODY-ONLY (it opens 93 0E 1F ... = clear, select lowercase, blue),
-# so supply the 4-byte header ourselves: [flags][border][bg][charset]. The body's
-# own $0E then selects the lowercase/mixed set — feeding the file raw eats those
-# bytes as a header and renders the whole page in uppercase/graphics.
-# ⚠ Border and background are CYAN (3), matching the original's help screen.
-# They were 0xF4/0xFF here — filler copied from the directory-header code, where
-# a comment says outright that border and bg are IGNORED because the client uses
-# the template's. Copied into a context that RENDERS them, that filler became a
-# purple border on a light-grey page: plausible enough to survive review, and
-# wrong against a photograph of the real thing.
-help_frame = (api.frame_to_cells(bytes([0x00, 0xF3, 0xF3, 0x0E]) + open(help_path, 'rb').read())
+# ⚠ EVERY .pet here is now the ORIGINAL frame, lifted whole out of the vintage
+# binaries — header and all — so all four are fed in RAW. Nothing is prepended.
+#
+#   help.pet         cnet.prg $BB0C   00 F3 F3 0E   cyan border, cyan bg
+#   editor-help.pet  ROM      $9589   00 F6 FC 0E   blue border, mid-grey bg
+#   courier.pet      cnet.prg $BDD6   00 F4 F1 8E
+#   courier-send.pet cnet.prg $BD77   00 F4 F1 8E
+#
+# The first two used to be hand-retyped bodies with a header invented here, and
+# both inventions were wrong: help got a purple border on a light grey page
+# where the original is cyan on cyan, editor-help the same. The retyped bodies
+# were no better — help.pet had 13 colour switches against the original's 3,
+# cyan where the original uses brown, "AT CONNECT" for "At Connect", and 113
+# extra bytes. Reconstructions look right until someone holds a photograph of
+# the real screen up next to them. Do not reconstruct these; extract them.
+help_frame = (api.frame_to_cells(open(help_path, 'rb').read())
               if os.path.exists(help_path) else None)
 
 # Editor help frame (§A.9) — a DIFFERENT asset from §A.8, shown by the editor's
-# own HELP command (§8.4.1). Body-only in exactly the same way; same header.
+# own HELP command (§8.4.1). Blue and brown ink, exactly as §A.8 uses.
 ehelp_path = os.path.join(ROOT, 'server', 'cfg', 'editor-help.pet')
-editor_help = (api.frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x0E]) + open(ehelp_path, 'rb').read())
+editor_help = (api.frame_to_cells(open(ehelp_path, 'rb').read())
                if os.path.exists(ehelp_path) else None)
 
 # COURIER frame (§A.10) — the mail screen the C64 embeds at $BDD6. Unlike §A.8

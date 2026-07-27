@@ -510,6 +510,13 @@ worked example — and reproduced the §A.8 body-only trap on demand, getting ex
 `—IRECTORY` corruption the appendix predicts. It called that "the single most useful thing the
 specification does for an implementer", noting it caught nothing *only because it was run first*.
 
+> **Later note.** The §A.8 trap was not real. The appendix carried a hand-retyped body, so it had
+> to tell clients to invent a header; the original frame has always had one. This run therefore
+> verified a decoder against a reconstruction and pronounced it correct — which is exactly how the
+> wrong bytes survived nine clean-room builds. Agreement between an implementation and a document
+> says nothing about either if the document was never checked against the artefact. §A.8 and §A.9
+> are now extracted from the vintage binaries.
+
 **Two server bugs, both the same root cause as UCAT (F9) — this binding inferring the reply
 type from session state instead of from what the command produced:**
 

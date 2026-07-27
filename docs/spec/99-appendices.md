@@ -10,9 +10,12 @@
 > help** frame (§A.9) and **COURIER** frame (§A.10) from the **C64 terminal**
 > (`client/c64/src/compunet.s`).
 >
-> **⚠ The four frame assets do not agree on headers.** §A.6 and §A.10 carry their own 4-byte
-> header and are parsed as-is; §A.8 and §A.9 are **body-only** and the client must supply one.
-> Each appendix states which it is — check, rather than assuming from the one you read first.
+> **⚠ Every frame asset here carries its own 4-byte header and is parsed as-is.** A client
+> supplies nothing and **MUST NOT** prepend a header of its own. Earlier revisions said §A.8 and
+> §A.9 were *body-only* — true of the hand-retyped files those revisions carried, not of the
+> originals, which are now extracted from the vintage binaries. (Directory **Part-1 headers**,
+> served from content files rather than embedded here, genuinely are body-only. Different asset,
+> different rule — don't carry one over to the other.)
 
 ## §A.1 — Command table
 
@@ -670,64 +673,82 @@ displays a help page the client carries itself, exactly as it carries the direct
 (§A.6). The original C64 client embeds this frame; the server does **not** send it, so a client
 that omits it leaves `HELP` doing nothing.
 
-**⚠ Load-bearing: the stored bytes are BODY-ONLY — the client supplies the 4-byte header.**
-The file below begins `93 0E 1F …` — *clear screen*, *select the lowercase/mixed charset*, *blue
-text* — i.e. it starts with body content, **not** a §6 header. A client **MUST** prepend its own
-`[flags][border][background][charset]` (§6.2) before rendering: `[$00][$F4][$FF][$0E]` — no more
-pages, purple border, light-grey background, lowercase/mixed set.
+**These are the original bytes, lifted whole from `cnet.prg` at `$BB0C`.** They are a complete
+§6 frame — header included — so a client renders the file **raw**, through the ordinary frame
+path, and **MUST NOT** prepend a header of its own. The leading `00 F3 F3 0E` is *no more pages*,
+**border 3 (cyan)**, **background 3 (cyan)**, *lowercase/mixed charset*. This page is one of the
+few frames that is genuinely **mixed case**, which is why the `$0E` matters here.
 
-Feed the file to a frame parser *raw* and the first four bytes are consumed as the header: the
-opening clear/charset/colour codes are lost, and the charset is taken from a text byte, so the
-whole page renders in **uppercase/graphics** — capitals appear as graphic glyphs (`DIRECTORY`
-becomes `—IRECTORY`) and the colours are wrong. This page is one of the few frames that is
-genuinely **mixed case**, which is why the `$0E` matters here more than anywhere else.
+The ink is **blue (`$1F`)** for headings and **brown (`$95`)** for body text — three colour
+switches in the whole frame. Spaces are compressed with the §6.4 space-run code `$06`.
 
-Once the header is supplied it is an ordinary **§6 frame** rendered by the normal path — no
-special casing. A client **SHOULD** display it in
-the reading context (so `FINISH` returns to where the user was) and **MUST NOT** send a command
-to obtain it.
+**⚠ Earlier revisions of this appendix carried a hand-retyped body instead, and every guess in
+it was wrong.** That version was transcribed from a *rendered screen* rather than the byte
+stream, so it lost the `$06` runs (583 bytes against the original's 470), spelled `At Connect` as
+`AT CONNECT`, and used **cyan** ink where the original uses **brown** — thirteen colour switches
+against three. Because it had no header, this appendix instructed clients to invent one, and the
+invented `$F4`/`$FF` gave a purple border on a light-grey page. Rendered against a photograph of
+the real screen the result was cyan text on a cyan background: invisible. Do not reconstruct
+these frames from a screenshot; extract them from the binary.
 
-Reproduced verbatim below (583 bytes) so this specification stays self-contained; it is also kept
+A client **SHOULD** display it in the reading context (so `FINISH` returns to where the user was)
+and **MUST NOT** send a command to obtain it.
+
+Reproduced verbatim below (470 bytes) so this specification stays self-contained; it is also kept
 in the repository as `server/cfg/help.pet`.
 
 ```
-  0000: 93 0E 1F C1 D4 20 C3 CF CE CE C5 C3 D4 20 20 20
-  0010: 20 20 20 20 20 20 20 20 20 20 20 C1 D4 20 C1 CE
-  0020: D9 20 D4 C9 CD C5 0D 9F 20 20 54 4F 20 41 43 43
-  0030: 45 53 53 20 54 48 45 20 20 20 20 20 20 20 20 20
-  0040: 54 4F 20 41 43 43 45 53 53 20 54 48 45 0D 20 20
-  0050: 4D 41 49 4E 20 1F C4 49 52 45 43 54 4F 52 59 9F
-  0060: 20 20 20 20 20 20 20 20 46 55 4C 4C 20 D5 53 45
-  0070: 52 20 C7 55 49 44 45 0D 0D 20 2A 20 53 45 4C 45
-  0080: 43 54 20 1F C4 C9 D2 9F 20 20 20 20 20 20 20 20
-  0090: 20 20 20 2A 20 53 45 4C 45 43 54 20 1F C7 CF D4
-  00A0: CF 9F 2C 0D 20 20 20 28 55 53 49 4E 47 20 43 55
-  00B0: 52 53 4F 52 20 20 20 20 20 20 20 20 20 20 4B 45
-  00C0: 59 20 1F D2 45 54 55 52 4E 9F 0D 20 20 20 20 20
-  00D0: 3C 3D 3E 20 4B 45 59 29 20 20 20 20 20 20 20 20
-  00E0: 20 2A 20 45 4E 54 45 52 20 31 32 30 2C 0D 20 2A
-  00F0: 20 4B 45 59 20 1F D2 45 54 55 52 4E 9F 20 20 20
-  0100: 20 20 20 20 20 20 20 20 20 20 4B 45 59 20 1F D2
-  0110: 45 54 55 52 4E 9F 0D 0D 0D 0D 20 20 20 20 20 20
-  0120: 20 20 1F C4 C9 D2 C5 C3 D4 CF D2 C9 C5 D3 9F 0D
-  0130: 0D D2 45 41 44 49 4E 47 20 3A 20 4B 45 59 20 1F
-  0140: C6 37 9F 20 4F 52 20 1F C6 38 9F 20 54 4F 20 52
-  0150: 4F 54 41 54 45 20 54 48 45 0D 20 20 57 49 4E 44
-  0160: 4F 57 20 46 4F 52 20 D0 52 49 43 45 2C C1 55 54
-  0170: 48 4F 52 2C 45 54 43 2E 0D 0D D3 45 4C 45 43 54
-  0180: 49 4E 47 20 3A 0D 20 20 C1 29 20 55 53 45 20 43
-  0190: 55 52 53 4F 52 20 55 50 2F 44 4F 57 4E 20 54 4F
-  01A0: 20 48 49 47 48 4C 49 47 48 54 0D 20 20 20 20 20
-  01B0: 49 54 45 4D 0D 20 20 C2 29 20 55 53 45 20 43 55
-  01C0: 52 53 4F 52 20 4C 45 46 54 2F 52 49 47 48 54 20
-  01D0: 3C 3D 3E 20 54 4F 0D 20 20 20 20 20 53 45 4C 45
-  01E0: 43 54 20 43 4F 4D 4D 41 4E 44 20 20 28 45 47 20
-  01F0: 1F C4 C9 D2 9F 3D 47 45 54 0D 20 20 20 20 20 C4
-  0200: 49 52 45 43 54 4F 52 59 20 46 4F 52 20 54 48 45
-  0210: 20 49 54 45 4D 2C 0D 20 20 20 20 20 1F D3 C8 CF
-  0220: D7 9F 3D 44 4F 57 4E 4C 4F 41 44 20 54 48 45 20
-  0230: 49 54 45 4D 29 0D 20 20 C3 29 20 4B 45 59 20 1F
-  0240: D2 45 54 55 52 4E 9F
+  0000: 00 F3 F3 0E 1F C1 54 20 C3 4F 4E 4E 45 43 54 06
+  0010: 0B C1 54 20 C1 4E 59 20 D4 49 4D 45 0D 95 54 4F
+  0020: 20 41 43 43 45 53 53 20 54 48 45 06 08 54 4F 20
+  0030: 41 43 43 45 53 53 20 54 48 45 20 46 55 4C 4C 0D
+  0040: 4D 41 49 4E 20 C4 49 52 45 43 54 4F 52 59 06 07
+  0050: D5 53 45 52 20 C7 55 49 44 45 0D 0D 20 2A 20 53
+  0060: 45 4C 45 43 54 20 C4 C9 D2 06 08 2A 20 53 45 4C
+  0070: 45 43 54 20 C7 CF D4 CF 2C 0D 06 02 28 55 53 49
+  0080: 4E 47 20 43 55 52 53 4F 52 06 08 4B 45 59 20 D2
+  0090: 45 54 55 52 4E 0D 06 04 3C 3D 3E 20 4B 45 59 29
+  00A0: 06 08 2A 20 45 4E 54 45 52 20 31 32 30 2C 0D 20
+  00B0: 2A 20 4B 45 59 20 D2 45 54 55 52 4E 06 0B 4B 45
+  00C0: 59 20 D2 45 54 55 52 4E 07 0D 04 1F C4 C9 D2 C5
+  00D0: C3 D4 CF D2 C9 C5 D3 0D 0D D2 45 41 44 49 4E 47
+  00E0: 20 95 3A 20 4B 45 59 20 46 37 20 4F 52 20 46 38
+  00F0: 20 54 4F 20 52 4F 54 41 54 45 20 54 48 45 0D 06
+  0100: 09 57 49 4E 44 4F 57 20 46 4F 52 20 D0 52 49 43
+  0110: 45 2C C1 55 54 48 4F 52 2C 45 54 43 2E 0D 0D 1F
+  0120: D3 45 4C 45 43 54 49 4E 47 20 95 3A 0D 20 C1 29
+  0130: 20 55 53 45 20 43 55 52 53 4F 52 20 55 50 2F 44
+  0140: 4F 57 4E 20 54 4F 20 48 49 47 48 4C 49 47 48 54
+  0150: 20 49 54 45 4D 0D 20 C2 29 20 55 53 45 20 43 55
+  0160: 52 53 4F 52 20 4C 45 46 54 2F 52 49 47 48 54 20
+  0170: 3C 3D 3E 20 54 4F 20 53 45 4C 45 43 54 0D 06 04
+  0180: 43 4F 4D 4D 41 4E 44 20 20 28 45 47 20 C4 C9 D2
+  0190: 3D 47 45 54 20 C4 49 52 45 43 54 4F 52 59 20 46
+  01A0: 4F 52 0D 06 04 54 48 45 20 49 54 45 4D 2C 20 D3
+  01B0: C8 CF D7 3D 44 4F 57 4E 4C 4F 41 44 20 54 48 45
+  01C0: 20 49 54 45 4D 29 0D 20 C3 29 20 4B 45 59 20 D2
+  01D0: 45 54 55 52 4E 00
+```
+
+Rendered, in the actual case the `$0E` produces (row numbers are 0-based grid rows):
+
+```
+   0 | At Connect            At Any Time
+   1 | to access the         to access the full
+   2 | main Directory        User Guide
+   4 |  * select DIR         * select GOTO,
+   5 |    (using cursor         key Return
+   6 |      <=> key)         * enter 120,
+   7 |  * key Return            key Return
+  12 | DIRECTORIES
+  14 | Reading : key f7 or f8 to rotate the
+  15 |           window for Price,Author,etc.
+  17 | Selecting :
+  18 |  A) use cursor up/down to highlight item
+  19 |  B) use cursor left/right <=> to select
+  20 |      command  (eg DIR=get Directory for
+  21 |      the item, SHOW=download the item)
+  22 |  C) key Return
 ```
 
 ## §A.9 — Editor help frame (client asset)
@@ -737,80 +758,74 @@ command row (§4.8). Like §A.8 it is a **client asset**: the server never sends
 inside the editor sends nothing.
 
 Unlike §A.8 this page is a **key reference**, not prose — it documents the editing keys
-(`f1`/`f3`, `f5`, `f6`, `f7`/`f8`, `SHIFT`-`C=`, `RUN/STOP`) rather than any wire behaviour. A
+(`f3`/`f4`, `f5`, `f6`, `f7`/`f8`, `SHIFT`-`C=`, `RUN/STOP`) rather than any wire behaviour. A
 client whose editor does not use the C64 key assignments (§8.4 permits any editing UX) **SHOULD**
-substitute its own key reference rather than display this one verbatim — showing a user `f1/f3 =
-STOP EDIT` when their editor has no `f1` is worse than showing nothing.
+substitute its own key reference rather than display this one verbatim — showing a user
+`STOP KEY = stop edit` when their editor has no `RUN/STOP` is worse than showing nothing.
 
-**⚠ Load-bearing: the stored bytes are BODY-ONLY — the client supplies the 4-byte header.**
-Exactly as in §A.8, and it is the **same trap**: the file below begins `93 0E 0D 1F …` — *clear
-screen*, *select the lowercase/mixed charset*, *carriage return*, *colour change* — i.e. body
-content, **not** a §6 header. A client **MUST** prepend its own
-`[flags][border][background][charset]` (§6.2) before rendering.
+**These are the original bytes, from the ROM at `$9589`**, and as in §A.8 they are a complete §6
+frame rendered **raw**. The header `00 F6 FC 0E` is *no more pages*, **border 6 (blue)**,
+**background 12 (mid grey)**, *lowercase/mixed charset* — a different surround from §A.8, which
+is worth noting because a previous revision of this appendix assumed the two shared one.
 
-Feed it to a frame parser *raw* and the first four bytes are eaten as a header: the opening
-clear/charset codes are lost and the charset is taken from a text byte, so the page renders in
-**uppercase/graphics**. This matters here for the same reason it matters in §A.8 — the page is
-genuinely **mixed case** (`Edit Keys`, `Stop Key`, `Screen/Border`), so the `$0E` is what makes it
-legible rather than a wall of graphic glyphs.
+Ink is **blue** and **brown**, the same pair §A.8 uses.
 
-Two of the four header bytes are determined by the content: **flags `$00`** (a single frame — no
-more pages) and **charset `$0E`** (lowercase/mixed, which the body's own leading `$0E` selects
-anyway). The **border and background are *not* recoverable from this file** — it stores no such
-codes. Pending verification against a running original client, use the §A.8 values `$F4`/`$FF`
-(purple border, light-grey background), giving a full header of `[$00][$F4][$FF][$0E]`. *This is
-the one unverified value in this appendix and is marked as such deliberately;* it affects only
-the surround, not the legibility of the text.
+**⚠ This section previously carried a retyped body (314 bytes) and told clients to prepend
+`[$00][$F4][$FF][$0E]`, flagging the border and background as “the one unverified value in this
+appendix”.** Both are now verified from the ROM and both were wrong. The retyped body also
+mis-paired the actions: it printed `overwrite` beneath `change case`, making `SHIFT`-`C=` a
+change-case-and-overwrite key. The original pairs them the other way — `SHIFT`-`C=` is
+*change case*, and `f6` is *On/Off colour overwrite*, one action wrapped across two lines.
 
-Reproduced verbatim below (314 bytes) so this specification stays self-contained; it is also kept
+Reproduced verbatim below (299 bytes) so this specification stays self-contained; it is also kept
 in the repository as `server/cfg/editor-help.pet`.
 
 ```
-  0000: 93 0E 0D 1F C5 44 49 54 20 CB 45 59 53 0D 0D 1F
-  0010: D3 D4 CF D0 20 CB C5 D9 20 20 20 20 20 20 20 20
-  0020: C6 33 2F 34 0D 95 20 20 53 54 4F 50 20 45 44 49
-  0030: 54 2C 20 20 20 20 C4 45 4C 45 54 45 2F C9 4E 53
-  0040: 45 52 54 0D 20 20 53 54 4F 52 45 20 46 52 41 4D
-  0050: 45 20 20 20 4C 49 4E 45 20 41 42 4F 56 45 20 43
-  0060: 55 52 53 4F 52 0D 0D 1F D2 D5 CE 20 CB C5 D9 20
-  0070: 20 20 20 20 20 20 20 20 C6 35 0D 95 20 20 52 45
-  0080: 53 54 4F 52 45 20 20 20 20 20 20 20 CF 4E 2F CF
-  0090: 46 46 20 41 55 54 4F 2D 52 45 50 45 41 54 0D 20
-  00A0: 20 4F 52 49 47 49 4E 41 4C 0D 0D 1F D3 C8 C9 C6
-  00B0: D4 2D C3 3D 20 20 20 20 20 20 20 20 C6 36 0D 95
-  00C0: 20 20 43 48 41 4E 47 45 20 43 41 53 45 20 20 20
-  00D0: CF 4E 2F CF 46 46 20 43 4F 4C 4F 55 52 0D 20 20
-  00E0: 4F 56 45 52 57 52 49 54 45 0D 0D 1F D3 43 52 45
-  00F0: 45 4E 2F C2 4F 52 44 45 52 20 20 20 C6 37 2F 38
-  0100: 0D 95 20 20 43 4F 4C 4F 55 52 20 43 48 41 4E 47
-  0110: 45 0D 0D 0D 1F D3 45 45 20 C8 CF D7 20 D4 CF 20
-  0120: C5 C4 C9 D4 0D 95 20 20 46 4F 52 20 46 55 4C 4C
-  0130: 45 52 20 44 45 54 41 49 4C 53
+  0000: 00 F6 FC 0E 0D 06 02 1F C5 44 49 54 20 CB 45 59
+  0010: 53 07 0D 03 06 02 D3 D4 CF D0 20 CB C5 D9 06 07
+  0020: 46 33 2F 34 0D 06 02 95 53 54 4F 50 20 45 44 49
+  0030: 54 2C 06 05 C4 45 4C 45 54 45 2F C9 4E 53 45 52
+  0040: 54 0D 06 02 53 54 4F 52 45 20 46 52 41 4D 45 06
+  0050: 04 4C 49 4E 45 20 41 42 4F 56 45 20 43 55 52 53
+  0060: 4F 52 0D 0D 06 02 1F D2 D5 CE 20 CB C5 D9 06 08
+  0070: 46 35 0D 06 02 95 52 45 53 54 4F 52 45 06 08 CF
+  0080: 4E 2F CF 46 46 20 41 55 54 4F 2D 52 45 50 45 41
+  0090: 54 0D 06 02 4F 52 49 47 49 4E 41 4C 0D 06 12 1F
+  00A0: 46 36 0D 06 02 D3 C8 C9 C6 D4 2D C3 3D 06 07 95
+  00B0: CF 4E 2F CF 46 46 20 43 4F 4C 4F 55 52 0D 06 02
+  00C0: 43 48 41 4E 47 45 20 43 41 53 45 06 04 4F 56 45
+  00D0: 52 57 52 49 54 45 0D 0D 06 12 1F 46 37 2F 38 0D
+  00E0: 06 12 95 D3 43 52 45 45 4E 2F C2 4F 52 44 45 52
+  00F0: 0D 06 12 43 4F 4C 4F 55 52 20 43 48 41 4E 47 45
+  0100: 07 0D 02 06 02 1F D3 45 45 20 C8 CF D7 20 D4 CF
+  0110: 20 C5 C4 C9 D4 0D 06 02 46 4F 52 20 46 55 4C 4C
+  0120: 45 52 20 44 45 54 41 49 4C 53 00
 ```
 
-Rendered with that header, it reads (row numbers are the 0-based grid rows, and the case shown
-is the **actual** case — this is the mixed-case evidence that the `$0E` took effect):
+Rendered, in the actual case the `$0E` produces:
 
 ```
-   1 | Edit Keys
-   3 | STOP KEY        F3/4
-   4 |   stop edit,    Delete/Insert
-   5 |   store frame   line above cursor
-   7 | RUN KEY         F5
-   8 |   restore       On/Off auto-repeat
-   9 |   original
-  11 | SHIFT-C=        F6
-  12 |   change case   On/Off colour
-  13 |   overwrite
-  15 | Screen/Border   F7/8
-  16 |   colour change
-  19 | See HOW TO EDIT
-  20 |   for fuller details
+   1 |    Edit Keys
+   5 |    STOP KEY        f3/4
+   6 |    stop edit,      Delete/Insert
+   7 |    store frame     line above cursor
+   9 |    RUN KEY         f5
+  10 |    restore         On/Off auto-repeat
+  11 |    original
+  12 |                    f6
+  13 |    SHIFT-C=        On/Off colour
+  14 |    change case     overwrite
+  16 |                    f7/8
+  17 |                    Screen/Border
+  18 |                    colour change
+  21 |    See HOW TO EDIT
+  22 |    for fuller details
 ```
 
-Each block is a **key** (uppercase heading) with its two actions indented beneath — the left
-action belongs to the heading key, the right to the function key beside it. If your render comes
-out entirely in capitals with graphic glyphs, the header was not supplied; see the ⚠ above.
+Each block is a **key** (uppercase heading) with its action indented beneath — the left column
+belongs to the named key, the right column to the function key beside it. If your render comes
+out entirely in capitals with graphic glyphs, the file was fed through a parser that ate its
+first four bytes as something other than the §6 header.
 
 ## §A.10 — COURIER frame (client asset)
 

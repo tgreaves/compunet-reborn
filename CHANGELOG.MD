@@ -32,6 +32,11 @@ Opens Compunet Reborn to modern clients, and pins down how to build one.
 	* Carries the C64 font, the palette and the embedded frames as data, so a
 	  client can be built from the document alone.
 	* Validated by nine independent clean-room builds that did exactly that.
+	* The two `HELP` frames (§A.8, §A.9) are now the **original bytes**, lifted
+	  from the C64 binaries rather than retyped from a screenshot. The retyped
+	  versions had invented borders and the wrong ink — cyan text on the
+	  original's cyan background, i.e. invisible — and the editor's had two keys'
+	  actions swapped.
 * **Website**:
 	* Links straight through to the browser client, which is now the quickest
 	  way in.

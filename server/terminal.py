@@ -3219,9 +3219,19 @@ class TerminalSession:
                 help_path = os.path.join(os.path.dirname(__file__), 'cfg', 'editor-help.pet')
             else:
                 help_path = os.path.join(os.path.dirname(__file__), 'cfg', 'help.pet')
+            # ⚠ Both help files are now the ORIGINAL frames, extracted from the
+            # vintage binaries (§A.8/§A.9), so they are proper §6 frames: a
+            # 4-byte header, and spaces compressed with the $06/$07 run codes.
+            # They MUST go through expand_frame. Sending them raw — which worked
+            # while these were hand-retyped bodies, because a retyped body has
+            # no header and no run codes — emits the header as text and leaves
+            # every run code unexpanded.
             if os.path.exists(help_path):
                 with open(help_path, 'rb') as f:
-                    await self.send(f.read())
+                    data = f.read()
+                await self.send(CLR)
+                await self.set_charset('lower' if data[3] == 0x0E else 'upper')
+                await self.send(expand_frame(data))
             else:
                 await self.send(CLR)
                 await self.send_text('HELP not available\r')

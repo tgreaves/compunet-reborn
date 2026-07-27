@@ -433,7 +433,10 @@ server then streams `partyline` events and accepts `partyline.*` commands until 
 > So implement §5.3 (screen codes), §5.6 (control codes), §6.3 (the processing loop) and §6.4
 > (RLE) regardless. The upside: §A.9, §A.10 and §A.11 each print their expected render in the
 > specification, so a decoder can be **verified against the document before it ever touches the
-> server** — including §A.8/§A.9's body-only header trap and §A.10's colon at column 12.
+> server** — including §A.10's colon at column 12. (Earlier revisions also advertised a
+> "body-only header trap" in §A.8/§A.9. There was no trap in the originals, only in the retyped
+> files this specification used to carry; both are now extracted from the vintage binaries and
+> are rendered raw like everything else.)
 >
 > *(A clean-room build called this "the single biggest thing this document gets wrong about its
 > own client's obligations" — VALIDATION.md, F24.)*

@@ -418,8 +418,7 @@ class FrameFidelity(unittest.TestCase):
     def test_raw_round_trips_byte_identically(self):
         """F26/§8.4.2: an unedited captured page republishes unchanged."""
         import base64
-        raw = bytes([0x00, 0xF4, 0xFF, 0x0E]) + open(
-            os.path.join(_SERVER, 'cfg', 'help.pet'), 'rb').read()
+        raw = open(os.path.join(_SERVER, 'cfg', 'help.pet'), 'rb').read()
         out = api._encode_frame({'raw': base64.b64encode(raw).decode('ascii')})
         self.assertEqual(out, raw)
 
@@ -436,25 +435,68 @@ class FrameFidelity(unittest.TestCase):
 class EmbeddedAssets(unittest.TestCase):
     """The client-carried frames of §A.6/§A.8–§A.11 (api §7)."""
 
-    def test_help_frame_is_body_only(self):
-        """§A.8's ⚠. Fed raw, the first four bytes are eaten as a header and the
-        page renders in the wrong charset — 'DIRECTORY' becomes '—IRECTORY'."""
-        body = open(os.path.join(_SERVER, 'cfg', 'help.pet'), 'rb').read()
-        self.assertEqual(body[:2], bytes([0x93, 0x0E]),
-                         'help.pet should open with clear + lowercase charset')
-        correct = api.frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x0E]) + body)
-        wrong = api.frame_to_cells(body)
-        self.assertNotEqual(correct['cells'], wrong['cells'])
-        self.assertTrue(any(c['g'] >= 128 for c in correct['cells']),
-                        'the correctly-headed render should use the lowercase set')
+    # ⚠ This class used to assert the OPPOSITE of what it now asserts: that
+    # help.pet and editor-help.pet were body-only and needed a header supplied.
+    # That was true only of the hand-retyped files they contained. All four
+    # assets are now the original frames, extracted from the vintage binaries,
+    # and all four carry their own §6 header. A test that pins a reconstruction
+    # in place is worse than no test — it makes the wrong bytes look verified.
+    ASSETS = {                        # file: (source, border, background, charset)
+        'help.pet':         ('cnet.prg $BB0C', 3, 3, 0x0E),
+        'editor-help.pet':  ('ROM $9589',      6, 12, 0x0E),
+        'courier.pet':      ('cnet.prg $BDD6', 4, 1, 0x8E),
+        'courier-send.pet': ('cnet.prg $BD77', 4, 1, 0x8E),
+    }
 
-    def test_courier_frames_carry_their_own_header(self):
-        """§A.10/§A.11 differ from §A.8/§A.9 — check, do not assume."""
-        for name in ('courier.pet', 'courier-send.pet'):
+    def test_every_asset_carries_its_own_header(self):
+        """§A.8–§A.11. Fed raw is the ONLY correct way to render these; a client
+        that prepends a header of its own eats the first four real bytes."""
+        for name, (src, border, bg, charset) in self.ASSETS.items():
             data = open(os.path.join(_SERVER, 'cfg', name), 'rb').read()
-            self.assertEqual(data[:4], bytes([0x00, 0xF4, 0xF1, 0x8E]), name)
+            self.assertEqual(data[0], 0x00, '%s (%s): flags' % (name, src))
+            self.assertEqual(data[3], charset, '%s (%s): charset' % (name, src))
             frame = api.frame_to_cells(data)
-            self.assertEqual((frame['border'], frame['background']), (4, 1), name)
+            self.assertEqual((frame['border'], frame['background']), (border, bg),
+                             '%s (%s)' % (name, src))
+
+    def test_help_frames_render_in_the_lowercase_set(self):
+        """§A.8/§A.9 are among the few genuinely mixed-case frames — the header's
+        $0E is what makes them legible rather than a wall of graphic glyphs."""
+        for name in ('help.pet', 'editor-help.pet'):
+            frame = api.frame_to_cells(
+                open(os.path.join(_SERVER, 'cfg', name), 'rb').read())
+            self.assertTrue(frame.get('lower'), name)
+            self.assertTrue(any(c['g'] >= 128 for c in frame['cells']), name)
+
+    def test_help_frames_ink_is_blue_and_brown(self):
+        """The retyped help.pet used CYAN ink on a cyan background — invisible.
+        Both originals use blue ($1F) headings and brown ($95) body text."""
+        for name in ('help.pet', 'editor-help.pet'):
+            data = open(os.path.join(_SERVER, 'cfg', name), 'rb').read()
+            self.assertIn(0x1F, data, '%s: blue' % name)
+            self.assertIn(0x95, data, '%s: brown' % name)
+            self.assertNotIn(0x9F, data, '%s: cyan ink is the reconstruction' % name)
+
+    def test_assets_match_the_vintage_binaries(self):
+        """The whole point: these files are EXTRACTED, not reconstructed. If a
+        binary is unavailable the check skips rather than silently passing."""
+        vintage = os.path.join(_SERVER, os.pardir, 'client', 'c64', 'vintage')
+        sources = {
+            'help.pet':         ('cnet.prg', 0x9FF0, 0xBB0C, 2),
+            'editor-help.pet':  ('chip0_bank0_8000.bin', 0x8000, 0x9589, 0),
+            'courier.pet':      ('cnet.prg', 0x9FF0, 0xBDD6, 2),
+            'courier-send.pet': ('cnet.prg', 0x9FF0, 0xBD77, 2),
+        }
+        for name, (binf, base, addr, skip) in sources.items():
+            path = os.path.join(vintage, binf)
+            if not os.path.exists(path):
+                self.skipTest('%s not present' % binf)
+            blob = open(path, 'rb').read()[skip:]
+            i = addr - base
+            original = blob[i:blob.index(b'\x00', i + 4) + 1]
+            ours = open(os.path.join(_SERVER, 'cfg', name), 'rb').read()
+            self.assertEqual(ours, original,
+                             '%s has drifted from %s $%04X' % (name, binf, addr))
 
 
 class PersistenceRoundTrip(unittest.TestCase):
