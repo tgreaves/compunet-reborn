@@ -59,6 +59,16 @@ Opens Compunet Reborn to modern clients, and pins down how to build one.
 	  its link — leaving its content on disk but unreachable.
 	* The admin API's audit endpoint now requires the API key, like every other
 	  admin route.
+	* **Uploading a program from a C64 works again.** In 1.1.0 the server read the
+	  body length from the wrong part of the upload header — the two bytes that
+	  hold a C64 program's load address — so it waited for roughly 17 MB that were
+	  never coming and the upload simply never finished. It also threw away the
+	  first part of the file when the header and body arrived together, which a
+	  C64 always does. Amiga uploads, which the 1.1.0 change was written for, are
+	  unaffected.
+	* An empty directory shows just `(EMPTY)`, with no page number and no type
+	  beside it. It used to claim page `0` and type `T` — a text page that does
+	  not exist, in a listing whose whole message is that it holds nothing.
 
 # 1.1.0 (2026-07-24)
 

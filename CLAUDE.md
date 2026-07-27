@@ -96,13 +96,26 @@ you rely on MUST be confirmed against ground truth before you write or change co
      shipped);
    - update [docs/spec/CONFORMANCE.md](docs/spec/CONFORMANCE.md) when the mistake is one
      another client would plausibly repeat.
-3. **NEVER create a git tag.** Not as housekeeping, not "to match VERSION", not as part of
+3. On any commit, ensure [CHANGELOG.md](CHANGELOG.md) reflects anything a **user** would
+   notice. **Its entries describe what differs from the LAST RELEASE — not what happened
+   during development.** Two consequences, and they are the ones that get this wrong:
+   - **A component shipping for the first time gets capabilities, never "fixes".** Bugs found
+     and fixed while building it never existed for anyone outside this repository; listing
+     them describes the development, not the release, and makes a new component read as
+     unreliable.
+   - **A fix only counts if the broken behaviour was RELEASED.** Check with
+     `git tag --contains <commit>`: if a tag contains the commit that introduced the bug,
+     users met it and the fix belongs here. If not, it was never theirs to notice.
+
+   Write for someone using Compunet, not for someone reading the diff: what changed on their
+   screen, and what it used to do instead.
+4. **NEVER create a git tag.** Not as housekeeping, not "to match VERSION", not as part of
    finishing a piece of work — only when a human explicitly asks for that tag. A tag is a
    production release: it is what people install and what the version numbers in the tree
    claim. **A human decides when a release happens.** Bumping `VERSION` or a `package.json`
    is not a release and does not imply one; leaving the tree at a version with no matching
    tag is a normal, intended state.
-4. **NEVER add a `Co-Authored-By:` trailer, or any other authorship credit, to a commit
+5. **NEVER add a `Co-Authored-By:` trailer, or any other authorship credit, to a commit
    message.** Not for Claude, not for any tool. The commit author is the human running the
    commit; the message describes the change and nothing else. This rule exists here in writing
    because assistants are instructed BY DEFAULT to append that trailer — an unwritten
