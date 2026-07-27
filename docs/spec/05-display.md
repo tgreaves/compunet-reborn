@@ -1,5 +1,7 @@
 # §5 — Display contract (PETSCII)
 
+**Layer — mixed** (§1.8). The abstract 40×24 screen model and the 16-colour palette are shared model; the PETSCII byte encoding (screen-code→glyph mapping, control codes, RLE) is Binding-A wire format.
+
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.
 >
@@ -17,6 +19,15 @@ that carries this content (headers, RLE, terminator) is defined in [§6](06-fram
 
 At **Tier 1** a client **MUST** implement this display contract: without it, frames and
 directories cannot be shown.
+
+> **What this means per binding (§1.8).** The *screen model* — the 40×24 grid, the glyphs
+> (§5.4), the 16-colour palette (§5.5), and reverse video (§5.7) — is **shared**: every client
+> renders the same thing, and Binding B is no exception (its clients draw from the same appendix
+> font and palette). What differs is who does the **decoding**: a **Binding A** client parses the
+> PETSCII byte stream itself — the screen-code conversion (§5.3), control codes (§5.6) and RLE
+> (§6.4); a **Binding B** client does **not**, because the server has already expanded all of
+> that into a per-cell grid. So a Binding-B implementer needs §5.1/§5.4/§5.5/§5.7 and can treat
+> §5.3/§5.6 as background.
 
 ## 5.1 The screen model
 
@@ -112,6 +123,45 @@ screen pens are not ordered in C64 index order; that remap is a platform detail 
 not change the palette a client must present — indices and colours are exactly the standard
 C64 set above.)*
 
+## 5.5.1 Line speed (optional)
+
+A client **MAY** offer to paint a frame **as if it were arriving down the original line**,
+rather than instantly. Compunet ran at **1200/75** (V.23 — 1200 bits per second inbound, 75
+out), and a page *arriving* was part of what the service felt like: you watched it paint, and a
+large picture cost real seconds of a metered call. Rendering instantly is correct and loses that.
+
+If offered:
+
+- **Fastest MUST be the default.** The pacing is an affordance for people who want the period
+  experience, not a tax on everyone else.
+- **Time it from the frame's OWN bytes**, not from a guess: at 8N1 a byte is 10 bits, so 1200
+  baud is **120 bytes per second** and a 1 KB frame takes about eight and a half seconds. Timing
+  it from the cell count instead would misreport every RLE-compressed frame (§6.4), which is most
+  of them.
+- **Only the DRAWING is paced.** The frame has already arrived: capture (§8.4.2), paging and the
+  command row all behave exactly as they would otherwise. This is presentation, not transport,
+  and it changes nothing on the wire.
+- **⚠ Pace what the SERVER sent; draw client assets instantly.** A page fetched from Compunet
+  paints; the embedded help, editor-help and COURIER frames (§A.8–§A.11) do not, because they
+  never crossed the line — the same reasoning §8.4.2 gives for not capturing them into the
+  editor. A local asset pretending to arrive over a modem is theatre rather than reconstruction.
+- **⚠ The WELCOME frame paces.** It is the first page anyone sees, which makes it the one where
+  watching it arrive matters most — and it is easy to miss, because it is delivered with the
+  session rather than as an ordinary frame (§3.5), so it takes a different path through a client
+  and quietly skips the pacing.
+- **⚠ No command row while the page is arriving (normative).** The original draws the duckshoot
+  and immediately blocks for a key (`$93D0`: `JSR $9436` to draw, then `JSR $9002`, which is
+  `GETIN` in a loop), so the row is on screen exactly when the client will accept input — never
+  during reception, when the C64 is inside its receive loop and the frame's own clear-screen has
+  wiped row 24 anyway. A client that paces the drawing **MUST** keep the row off screen until the
+  page lands, or it offers commands that do nothing: the row is inert until the frame completes,
+  so showing it invites a keypress the client cannot honour.
+- A client **SHOULD** let a keypress complete the frame immediately. The original had no such
+  escape, but a page that cannot be hurried reads as a hung client to anyone who did not realise
+  what they had switched on.
+- Where a client also paces multi-frame runs (§4.7), the two **MUST NOT** compound — at 1200 baud
+  the painting already provides the pause that the run pacing exists to give.
+
 ## 5.6 Control codes
 
 Bytes `$00`–`$1F` and `$80`–`$9F` in the content stream are PETSCII **control codes**, not
@@ -146,8 +196,8 @@ byte-for-byte against the original.
 | `$9D` | cursor left (wraps at column 0 back to column 39 of the previous row) |
 | `$13` | home — cursor to row 0, column 0 |
 | `$93` | clear — clear the 40×24 grid and home the cursor |
-| `$14` | delete |
-| `$94` | insert |
+| `$14` | delete — see below |
+| `$94` | insert — see below |
 | `$12` | reverse video on |
 | `$92` | reverse video off |
 | `$0E` | select lowercase/mixed character set |
@@ -156,6 +206,14 @@ byte-for-byte against the original.
 Cursor motion is bounded by the 40×24 grid: column wraps at 40, rows clamp at 0 and 23. A
 client **MUST** reproduce these bounds so that content laid out by cursor positioning
 lands in the same cells as on the reference clients.
+
+**`$14` delete and `$94` insert** are line-editing codes from the C64's screen editor: `$14`
+deletes the character to the *left* of the cursor and shifts the rest of the line left; `$94`
+inserts a space at the cursor and shifts the rest of the line right, discarding whatever falls
+off column 39. They exist because frames are authored on a C64, but **no frame in this system
+uses them** — a client **MAY** treat both as no-ops, and the reference renderers do. They are
+listed for completeness, not as an obligation. (VALIDATION.md, F34: previously listed by name
+with no behaviour at all, which reads as an unimplemented requirement.)
 
 ### 5.6.1 The auto-wrap guard (important)
 

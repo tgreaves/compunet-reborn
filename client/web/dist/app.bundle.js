@@ -1,0 +1,2340 @@
+// src/render.ts
+var COLS = 40;
+var ROWS = 24;
+var CELL = 8;
+var RED = 2;
+var BLUE = 6;
+var TEMPLATE_BG = 15;
+var CONTRAST = [1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0];
+var DIVIDER_COL = 30;
+var DUCK_CELL = {
+  HELP: " HELP ",
+  DIR: " DIR  ",
+  SHOW: " SHOW ",
+  BACK: " BACK ",
+  GOTO: " GOTO ",
+  UCAT: " UCAT ",
+  MAIL: " MAIL ",
+  ACCNT: "ACCNT ",
+  SAVE: " SAVE ",
+  EDITR: "EDITR ",
+  LEAVE: "LEAVE ",
+  PRINT: "PRINT ",
+  LIFE: " LIFE ",
+  BUY: " BUY  ",
+  UPLD: " UPLD ",
+  VOTE: " VOTE ",
+  MORE: " MORE ",
+  ALL: " ALL  ",
+  SEND: " SEND ",
+  FINISH: "FINISH",
+  ABORT: "ABORT ",
+  LOAD: " LOAD ",
+  LAST: " LAST ",
+  NEXT: " NEXT ",
+  GET: " GET  ",
+  DOS: " DOS  ",
+  ID: "  ID  ",
+  DONE: " DONE ",
+  COL: " COL  "
+};
+function petsciiToScreencode(b) {
+  if (b >= 32 && b <= 63) return b;
+  if (b >= 64 && b <= 95) return b & 31;
+  if (b >= 96 && b <= 127) return b & 31 | 64;
+  if (b >= 160 && b <= 191) return b & 31 | 96;
+  if (b >= 192 && b <= 222) return b & 127;
+  if (b === 255) return 94;
+  return b & 127;
+}
+function asciiGlyph(ch, lower = false) {
+  return petsciiToScreencode(ch.charCodeAt(0) & 255) + (lower ? 128 : 0);
+}
+function frameIsLower(f) {
+  const flag = f.lower;
+  return flag !== void 0 ? flag : f.cells.some((c) => c.g >= 128);
+}
+var Renderer = class {
+  constructor(canvas2, assets2, wrap2, scale = 2) {
+    this.canvas = canvas2;
+    this.assets = assets2;
+    this.wrap = wrap2;
+    this.scale = scale;
+    this.canvas.width = COLS * CELL * scale;
+    this.canvas.height = (ROWS + 1) * CELL * scale;
+    const ctx = canvas2.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    this.ctx = ctx;
+  }
+  drawGlyph(cell, col, row) {
+    const bmp = this.assets.font[cell.g] || this.assets.font[32];
+    const s = this.scale, px = col * CELL * s, py = row * CELL * s;
+    this.ctx.fillStyle = this.assets.palette[cell.bg];
+    this.ctx.fillRect(px, py, CELL * s, CELL * s);
+    this.ctx.fillStyle = this.assets.palette[cell.fg];
+    for (let y = 0; y < 8; y++) {
+      const byte = bmp[y];
+      for (let x = 0; x < 8; x++) {
+        let on = byte >> 7 - x & 1;
+        if (cell.rv) on ^= 1;
+        if (on) this.ctx.fillRect(px + x * s, py + y * s, s, s);
+      }
+    }
+  }
+  renderGrid(cells, background) {
+    this.ctx.fillStyle = this.assets.palette[background & 15];
+    this.ctx.fillRect(0, 0, this.canvas.width, ROWS * CELL * this.scale);
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) this.drawGlyph(cells[r * COLS + c], c, r);
+  }
+  setBorder(idx) {
+    this.wrap.style.background = this.assets.palette[idx & 15];
+  }
+  /** `reveal` draws only the first N cells, the rest left as bare background —
+   *  the frame arriving down a slow line (§5.5). Omit it to draw the lot. */
+  renderFrame(frame2, reveal) {
+    const cells = reveal === void 0 ? frame2.cells : frame2.cells.map((c, i) => i < reveal ? c : { g: 32, fg: c.fg, bg: frame2.background, rv: 0 });
+    this.renderGrid(cells, frame2.background);
+    this.setBorder(frame2.border);
+  }
+  put(grid, row, col, text, fg, bg, rv = 0) {
+    const t = (text || "").toUpperCase();
+    for (let i = 0; i < t.length && col + i < COLS; i++) {
+      if (col + i < 0) continue;
+      grid[row * COLS + (col + i)] = { g: asciiGlyph(t[i]), fg, bg, rv };
+    }
+  }
+  /** Compose the 40x24 directory screen: template chrome + overlaid entries. */
+  renderDirectory(dir2, sel2, colIdx2) {
+    const g = this.assets.template.cells.map((x) => ({ ...x }));
+    if (dir2.header) {
+      const h = dir2.header.cells;
+      for (let r = 0; r <= 6; r++)
+        for (let c = 0; c < COLS; c++) {
+          const cell = h[r * COLS + c];
+          if (cell.g !== 32 || cell.rv || cell.bg !== TEMPLATE_BG) g[r * COLS + c] = { ...cell };
+        }
+    }
+    if (dir2.breadcrumb[0]) this.put(g, 7, 1, dir2.breadcrumb[0], BLUE, TEMPLATE_BG);
+    if (dir2.breadcrumb[1]) this.put(g, 8, 1, dir2.breadcrumb[1], BLUE, TEMPLATE_BG);
+    if (dir2.mailWaiting) this.put(g, 8, 25, "MAIL", RED, TEMPLATE_BG);
+    this.put(g, 8, 31, dir2.columns[colIdx2] || "", BLUE, TEMPLATE_BG);
+    dir2.entries.forEach((e, i) => {
+      const row = 10 + i;
+      const colour = i === 0 ? RED : BLUE;
+      const selected = i === sel2;
+      const fg = colour;
+      const bg = TEMPLATE_BG;
+      const rv = selected ? 1 : 0;
+      if (selected)
+        for (let c = 1; c <= 38; c++) {
+          if (c === DIVIDER_COL) continue;
+          g[row * COLS + c] = { g: 32, fg, bg, rv: 1 };
+        }
+      if (selected && e.page) {
+        const ps = String(e.page);
+        this.put(g, row, 7 - ps.length, ps, fg, bg, rv);
+      }
+      this.put(g, row, 8, e.title, fg, bg, rv);
+      const type = e.type + (e.size ? String(e.size) : "") + (e.hasSubdir ? "+" : "");
+      this.put(g, row, 25, type, fg, bg, rv);
+      const val = e.values?.[colIdx2] || "";
+      if (val) this.put(g, row, 31, val, fg, bg, rv);
+    });
+    (dir2.advert || []).slice(0, 2).forEach((line, i) => {
+      const col = Math.max(0, Math.floor((COLS - line.length) / 2));
+      this.put(g, 22 + i, col, line, BLUE, TEMPLATE_BG);
+    });
+    this.renderGrid(g, TEMPLATE_BG);
+    this.setBorder(this.assets.template.border);
+  }
+  /** The Compunet pane before a session exists. Deliberately plain: with no
+   *  session there is no Compunet screen and no command row (§8.4). */
+  renderIdle() {
+    const g = Array.from({ length: COLS * ROWS }, () => ({ g: 32, fg: 6, bg: 0, rv: 0 }));
+    const put2 = (r, t, fg) => {
+      const c0 = Math.max(0, Math.floor((COLS - t.length) / 2));
+      for (let i = 0; i < t.length && c0 + i < COLS; i++)
+        g[r * COLS + c0 + i] = { g: asciiGlyph(t[i]), fg, bg: 0, rv: 0 };
+    };
+    put2(10, "COMPUNET REBORN", 14);
+    put2(12, "NOT CONNECTED", 11);
+    this.renderGrid(g, 0);
+    this.setBorder(6);
+  }
+  /** Draw the editor's current page (§8.4.1).
+   *  ⚠ The page is the FULL 40x24 grid — an editor page and a frame are the
+   *  same thing (§8.4.2), so nothing may be reserved here for chrome. The
+   *  buffer position ("page 2 of 5") belongs in the pane's own furniture, not
+   *  in a row stolen from the page. */
+  /** `cursor` carries the blink phase AND the colour chosen for this tick
+   *  (§8.4.3) — the original blinks the cursor in colour as well as in reverse
+   *  video, which is what keeps it visible over any background. Pass null when
+   *  not editing. */
+  renderEditorPage(cells, background, border, row, col, cursor) {
+    const g = cells.map((c) => ({ ...c }));
+    if (cursor) {
+      const i = row * COLS + col;
+      if (g[i]) g[i] = { ...g[i], fg: cursor.colour, rv: cursor.reverse ? 1 : 0 };
+    }
+    this.renderGrid(g, background);
+    this.setBorder(border);
+  }
+  /** Draw the duckshoot on the row below the content grid (§4.9).
+   *  The ROW scrolls and the CENTRE cell is the selection — words are laid out
+   *  around `centre`, which always lands in the middle of the screen. */
+  /** The single-frame case has no duckshoot at all — just a prompt (§4.8).
+   *  Printed in the contrast colour on the screen background, like any string
+   *  the client puts over a frame ($90A0 loads `$93A4[bg]` into `$0286`). */
+  renderPrompt(text, background = 0, lower = false) {
+    const s = this.scale, row = ROWS, ink = CONTRAST[background & 15];
+    this.ctx.fillStyle = this.assets.palette[background & 15];
+    this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
+    for (let i = 0; i < COLS; i++) {
+      const g = i < text.length ? asciiGlyph(text[i], lower) : lower ? 160 : 32;
+      this.drawGlyph({ g, fg: ink, bg: background, rv: 1 }, i, row);
+    }
+  }
+  /** ⚠ The row is a solid BAR with the words knocked out of it, and the centre
+   *  cell is the one that is NOT reversed (§4.9.3).
+   *
+   *  Verified in the original. `$938B` fills all forty cells of row 24 with
+   *  `$A0` — a reversed space, i.e. a solid block — coloured `$93A4[$D021]`.
+   *  `$945A` then writes each character with `ORA #$80`, EXCEPT columns 18-23
+   *  (`CPX #$12 / BCC + / CPX #$18 / BCC`), and gives every cell that same one
+   *  colour. So the selection is a HOLE in the bar, not a differently-coloured
+   *  cell, and the row's two colours are the contrast colour and the screen
+   *  background — never a fixed black and white.
+   *
+   *  That is what makes it invert: over a light page the bar is black, over a
+   *  dark one it is white. Hardcoding black-with-white-text looks right on a
+   *  directory (background 15) and is exactly inverted on a dark editor page. */
+  renderDuckshoot(words, centre, background = 0, lower = false) {
+    const s = this.scale, row = ROWS, WORD = 6, VISIBLE = 7, MID = 3;
+    const bar = CONTRAST[background & 15];
+    this.ctx.fillStyle = this.assets.palette[background & 15];
+    this.ctx.fillRect(0, row * CELL * s, this.canvas.width, CELL * s);
+    if (!words.length) return;
+    if (words.length === 1 && words[0] === "\0PRESSANYKEY") return;
+    const startCol = 0;
+    for (let slot = 0; slot < VISIBLE; slot++) {
+      const wi = ((centre + slot - MID) % words.length + words.length) % words.length;
+      const name = words[wi];
+      const text = (DUCK_CELL[name] ?? name.padEnd(WORD)).slice(0, WORD);
+      const selected = slot === MID;
+      for (let i = 0; i < WORD; i++) {
+        const col = startCol + slot * WORD + i;
+        if (col < 0 || col >= COLS) continue;
+        this.drawGlyph(
+          { g: asciiGlyph(text[i], lower), fg: bar, bg: background, rv: selected ? 0 : 1 },
+          col,
+          row
+        );
+      }
+    }
+  }
+};
+
+// src/gateway.ts
+var Gateway = class {
+  constructor() {
+    this.ws = null;
+  }
+  /** Exchange credentials for a bearer token (spec §2). */
+  async login(httpBase, user, pass) {
+    const r = await fetch(httpBase + "/v1/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user, pass })
+    });
+    if (!r.ok) throw new Error("login failed (" + r.status + ")");
+    return r.json();
+  }
+  /** Open the gateway and authenticate the socket with the token. */
+  connect(wsBase, token, onMessage2, onClose, onError) {
+    const ws = new WebSocket(wsBase + "/v1/gateway");
+    this.ws = ws;
+    ws.onopen = () => this.send({ type: "auth", token });
+    ws.onmessage = (ev) => onMessage2(JSON.parse(ev.data));
+    ws.onclose = onClose;
+    ws.onerror = onError;
+  }
+  send(msg) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+  }
+  close() {
+    this.ws?.close();
+  }
+};
+
+// src/editor.ts
+var PAGE_COLS = 40;
+var PAGE_ROWS = 24;
+var CELLS = PAGE_COLS * PAGE_ROWS;
+function blankCells(bg, fg) {
+  return Array.from({ length: CELLS }, () => ({ g: 32, fg, bg, rv: 0 }));
+}
+function blankPage() {
+  return { cells: blankCells(0, 1), border: 6, background: 0, colour: 1 };
+}
+var MIN_PAGES = 15;
+var DEFAULT_MAX_PAGES = 50;
+function charToGlyph(ch, lower) {
+  const c = ch.charCodeAt(0) & 255;
+  if (lower) {
+    if (c >= 97 && c <= 122) return 128 + (c - 96);
+    if (c >= 65 && c <= 90) return 128 + c;
+    if (c >= 32 && c <= 63) return 128 + c;
+    return 128 + 32;
+  }
+  const b = ch.toUpperCase().charCodeAt(0) & 255;
+  if (b >= 32 && b <= 63) return b;
+  if (b >= 64 && b <= 95) return b & 31;
+  return 32;
+}
+function frameToPage(f) {
+  return {
+    cells: f.cells.map((c) => ({ ...c })),
+    border: f.border,
+    background: f.background,
+    colour: 1,
+    raw: f.raw
+  };
+}
+function rleEncode(cells) {
+  const out = [];
+  for (const c of cells) {
+    const last = out[out.length - 1];
+    if (last && last[1] === c.g && last[2] === c.fg && last[3] === c.bg && last[4] === c.rv) last[0]++;
+    else out.push([1, c.g, c.fg, c.bg, c.rv]);
+  }
+  return out;
+}
+function rleDecode(runs, bg) {
+  const cells = [];
+  for (const [n, g, fg, b, rv] of runs)
+    for (let i = 0; i < n && cells.length < CELLS; i++)
+      cells.push({ g, fg, bg: b, rv: rv ? 1 : 0 });
+  while (cells.length < CELLS) cells.push({ g: 32, fg: 1, bg, rv: 0 });
+  return cells;
+}
+var EditorBuffer = class {
+  constructor() {
+    this.pages = [blankPage()];
+    this.cur = 0;
+    /** cursor within the current page, only meaningful in EDIT mode */
+    this.row = 0;
+    this.col = 0;
+    this.editing = false;
+    // --- editing modes, from the editor's own help frame (§A.9 / §8.4.3) ---
+    /** SHIFT-C= "change case overwrite": which set typed text goes into. */
+    this.lowerCase = false;
+    /** f6 "on/off colour": when off, typing keeps each cell's existing colour. */
+    this.colourOn = true;
+    /** f5 "on/off auto-repeat": when off, held keys do not repeat. */
+    this.autoRepeat = true;
+    /** The page as last STORED, for RUN ("restore original"). */
+    this.original = null;
+    // --- cursor blink (§8.4.3) -----------------------------------------------
+    //
+    // ⚠ The cursor blinks in COLOUR as well as in reverse video, and that is what
+    // stops it disappearing. Reconstructed from the original's blink routine at
+    // $87A0 in the cartridge ROM:
+    //
+    //   $87CC  LDA ($D1),Y / EOR #$80 / STA ($D1),Y   toggle reverse video
+    //   $87D2  LDX $0286                              intended cursor colour
+    //   $87D6  EOR ($F3),Y / AND #$0F                 XOR with the cell's colour
+    //   $87DA  BNE +                                    differ -> keep $0286
+    //   $87DC  LDX $C158                                SAME  -> use the alternate
+    //   $87E0  STA ($F3),Y                            write the choice back
+    //
+    // Because the choice is written back, the test flips on the next tick, so the
+    // colour oscillates between the two. A single "pick a contrasting colour"
+    // would give a statically-coloured cursor blinking only in reverse — visibly
+    // different, and it is why guessing this from first principles gets it wrong.
+    //
+    // The page is NEVER mutated by any of this: `cursorColour` is the colour-RAM
+    // cell, held here so the cell underneath is restored simply by not drawing.
+    /** ⚠ The OTHER half of the original's answer, and both are needed.
+     *
+     *  The blink routine only stops the cursor vanishing into the CHARACTER's
+     *  colour. What stops it vanishing into the BACKGROUND is that the colour it
+     *  uses ($0286) is itself derived from the background, through the CONTRAST
+     *  table ($93A4) that render.ts owns — the same table that colours the
+     *  duckshoot row (§4.9.3) and every string the client prints over a frame.
+     *
+     *  In the editor the user picks the drawing colour and can pick the
+     *  background's, so this is applied as the final guard: whatever the blink
+     *  chooses, it may not equal the cell's background. */
+    /** Reverse-video phase — the `EOR #$80` ($87CE). */
+    this.cursorReverse = false;
+    /** What is currently "written" in the cursor cell's colour RAM. */
+    this.cursorColour = 0;
+    /** $C158 — the colour to fall back on when the intended one clashes. */
+    this.cursorAlternate = 0;
+    /** Which cell the above describes; a move re-captures ($8B30). */
+    this.cursorCell = -1;
+    /** Any change to a page's content invalidates its captured bytes. */
+    /** ⚠ Fired whenever the buffer changes, so persistence cannot be forgotten.
+     *
+     *  Seventeen call sites mutate this buffer. Asking each to remember to save
+     *  is a rule that holds until someone adds the eighteenth — and the symptom
+     *  (pages quietly stop persisting) is invisible until a user loses work. The
+     *  buffer announces its own changes instead. */
+    this.onChange = null;
+    /** The buffer's page limit. Changing it takes effect on the next page added;
+     *  an over-limit buffer is trimmed by makeRoom() rather than truncated here,
+     *  so the eviction rule stays in one place. */
+    this.maxPages = DEFAULT_MAX_PAGES;
+  }
+  /** $87A1-$87AB — on arriving at a cell, remember its alternate colour.
+   *
+   *  Polarity VERIFIED: bit 7 of $C15B SET means colour ON (the cell takes the
+   *  pen), clear means OFF (it keeps its own). `BIT $C15B / BPL` at $87A3 skips
+   *  the `LDA $0286`, so only the set case picks up the pen. $C15B is f6's flag
+   *  — the editor's function-key table at $88BC, indexed by (key - $85) * 2,
+   *  sends f6 to the toggle at $88E8, with f5 toggling the KERNAL's RPTFLG
+   *  ($028A, auto-repeat) beside it.
+   *
+   *  ⚠ Note WHERE the flag acts: not on the typing path at all. $C15B is read
+   *  in exactly one place, this cursor routine, and the colour reaches the cell
+   *  through the cursor's restore ($87ED writes $C158 back). "Typing does not
+   *  change the colour under it" is a property of the CURSOR, which is why the
+   *  editor never writes colour RAM directly. */
+  captureCursorCell() {
+    const p = this.page();
+    const i = this.row * PAGE_COLS + this.col;
+    const own = p.cells[i]?.fg ?? p.colour;
+    this.cursorAlternate = this.colourOn ? p.colour : own;
+    this.cursorColour = own;
+    this.cursorCell = i;
+  }
+  /** One blink tick ($87CA-$87E0). Call on the blink interval while editing. */
+  tickCursor() {
+    const i = this.row * PAGE_COLS + this.col;
+    if (i !== this.cursorCell) this.captureCursorCell();
+    this.cursorReverse = !this.cursorReverse;
+    const draw = this.page().colour;
+    this.cursorColour = this.cursorColour === draw ? this.cursorAlternate : draw;
+  }
+  /** The cursor's current appearance, or null when not editing. */
+  cursorState() {
+    if (!this.editing) return null;
+    const i = this.row * PAGE_COLS + this.col;
+    if (i !== this.cursorCell) this.captureCursorCell();
+    const bg = this.page().cells[i]?.bg ?? this.page().background;
+    const colour = this.cursorColour === bg ? CONTRAST[bg & 15] : this.cursorColour;
+    return { colour, reverse: this.cursorReverse };
+  }
+  /** STOP — stop editing and store the frame (§A.9). */
+  stopEdit() {
+    this.editing = false;
+    this.original = this.page().cells.map((c) => ({ ...c }));
+  }
+  /** RUN — restore the frame to its last stored state (§A.9). */
+  restoreOriginal() {
+    if (!this.original) return false;
+    this.page().cells = this.original.map((c) => ({ ...c }));
+    delete this.page().raw;
+    this.changed();
+    return true;
+  }
+  /** Remember the starting state when an edit begins. */
+  beginEdit() {
+    this.editing = true;
+    if (!this.original) this.original = this.page().cells.map((c) => ({ ...c }));
+  }
+  page() {
+    return this.pages[this.cur];
+  }
+  changed() {
+    this.onChange?.();
+  }
+  touch() {
+    delete this.page().raw;
+    this.changed();
+  }
+  // --- page navigation (LAST / NEXT) ---
+  last() {
+    if (this.cur === 0) return false;
+    this.cur--;
+    this.home();
+    return true;
+  }
+  next() {
+    if (this.cur >= this.pages.length - 1) return false;
+    this.cur++;
+    this.home();
+    return true;
+  }
+  // --- page management (NEW / COPY / ERASE) ---
+  /** NEW — a fresh BLANK page after the current one. Not COPY. */
+  /** ⚠ NEW and COPY evict too. On the original they go through the SAME page
+   *  allocator as capture ($8495 and $84CB both reach $849B), so a full buffer
+   *  drops its oldest page for them exactly as it does for a page arriving from
+   *  Compunet. Enforcing the limit only on capture — as this did — let a user
+   *  walk past it by hand, which then became permanent once the buffer
+   *  persisted across restarts. */
+  newPage() {
+    const note = this.makeRoom();
+    this.pages.splice(++this.cur, 0, blankPage());
+    this.home();
+    this.changed();
+    return note;
+  }
+  /** COPY — a DUPLICATE of the current page after it. Not NEW. */
+  copyPage() {
+    const note = this.makeRoom();
+    const p = this.page();
+    this.pages.splice(++this.cur, 0, { ...p, cells: p.cells.map((c) => ({ ...c })) });
+    this.home();
+    this.changed();
+    return note;
+  }
+  /** ERASE — remove the current page. The buffer never becomes empty. */
+  erasePage() {
+    this.changed();
+    this.pages.splice(this.cur, 1);
+    if (!this.pages.length) this.pages.push(blankPage());
+    if (this.cur >= this.pages.length) this.cur = this.pages.length - 1;
+    this.home();
+  }
+  home() {
+    this.row = 0;
+    this.col = 0;
+  }
+  /** True while the buffer is just its initial untouched blank page. */
+  isPristine() {
+    return this.pages.length === 1 && this.isBlank(this.pages[0]);
+  }
+  isBlank(p) {
+    return p.cells.every((c) => (c.g & 127) === 32 && !c.rv);
+  }
+  /** ⚠ Make room by DELETING THE OLDEST PAGE — the original's behaviour.
+   *
+   *  Verified in the C64 ROM: the page allocator at $849B, on overflow, does
+   *  `JSR $8C40` and then `JMP $849B` — it calls a routine and RETRIES, so that
+   *  routine must free space. $8C40 takes the FIRST page in the buffer
+   *  ($8015/$8016), deletes it, compacts everything down over it, and adjusts
+   *  the current-page pointer so the user stays on the page they were looking
+   *  at — unless that was the page evicted.
+   *
+   *  So capture never fails and never asks: the buffer is a rolling window of
+   *  the most recent pages. NEW and COPY go through the same allocator, so they
+   *  evict too. A page the user COMPOSED can be evicted by pages they merely
+   *  read; the original drew no distinction between the two, and neither does
+   *  this. That is a real way to lose work, which is why STORE exists and why
+   *  the client says so on the way past. */
+  makeRoom() {
+    let dropped = 0;
+    while (this.pages.length >= Math.max(MIN_PAGES, this.maxPages)) {
+      this.pages.shift();
+      dropped++;
+      if (this.cur > 0) this.cur--;
+    }
+    if (!dropped) return null;
+    return `Buffer full \u2014 dropped the oldest page${dropped > 1 ? "s" : ""} (STORE keeps a copy)`;
+  }
+  /** Append a page viewed on Compunet (§8.4.2), and MOVE TO IT.
+   *
+   *  Always succeeds: the oldest page is evicted if need be. Returns a message
+   *  when that happened, so the client can say so — the original said nothing,
+   *  but it also could not persist a buffer or hold fifty pages, and silence
+   *  about discarded work is the one thing §8.4.2 is right to insist on.
+   *
+   *  ⚠ The captured page BECOMES THE CURRENT ONE. The original's allocator does
+   *  exactly this — `$849B` opens a page with `LDA $8017 / STA $8019`, writing
+   *  the newly allocated address straight into the current-page pointer — so
+   *  after reading, the editor is already on what you just read. §8.4.2 used to
+   *  say capture "MUST NOT move the current page position"; that was invented
+   *  for the two-pane case and is not what the C64 does.
+   *
+   *  The one exception is an edit IN PROGRESS. The original could not be in
+   *  that state — one screen, so you cannot read and edit at once — but a
+   *  client showing both at once can, and yanking the page out from under a
+   *  cursor loses the user's place for no gain. */
+  capture(p) {
+    if (this.isPristine()) {
+      this.pages[0] = p;
+      return null;
+    }
+    const note = this.makeRoom();
+    this.pages.push(p);
+    if (!this.editing) {
+      this.cur = this.pages.length - 1;
+      this.home();
+    }
+    this.changed();
+    return note;
+  }
+  /** FREE — PAGES remaining (§8.4.1).
+   *
+   *  ⚠ The original reported characters, against a memory ceiling this client
+   *  does not have. Reporting pages is honest about what actually limits us and
+   *  needs no invented constant; the previous character figure was derived from
+   *  a capacity that was never verified against the disassembly. */
+  free() {
+    return Math.max(0, Math.max(MIN_PAGES, this.maxPages) - this.pages.length);
+  }
+  // --- editing (EDIT mode) ---
+  /** Overwrite-at-cursor, as the original edits (its f6 toggles insert). */
+  typeChar(ch) {
+    const p = this.page();
+    this.touch();
+    const i = this.row * PAGE_COLS + this.col;
+    const fg = this.colourOn ? p.colour : p.cells[i].fg;
+    p.cells[i] = { g: charToGlyph(ch, this.lowerCase), fg, bg: p.background, rv: 0 };
+    if (++this.col >= PAGE_COLS) {
+      this.col = 0;
+      this.moveRow(1);
+    }
+  }
+  /** f7 / f8 — screen (background) and border colour (§A.9). */
+  /** f7 — screen colour. Each press steps one colour through the palette and
+   *  wraps (verified on the C64: yellow, orange, brown, light red, dark grey…).
+   *
+   *  ⚠ The screen background must be written to EVERY CELL, not just the page.
+   *  The C64 has one background register ($D021) for the whole screen and colour
+   *  RAM holds only a foreground, so a page where cells disagree with the page's
+   *  background cannot occur on hardware — the invariant is that they are all
+   *  equal. Our `Cell` carries `bg` per cell (the binding fills it in, api §5.4,
+   *  and the directory chrome uses it for the selection bar), so the renderer
+   *  paints from it and updating the page field alone changed nothing visible:
+   *  f7 looked completely dead while quietly working. Only freshly typed cells
+   *  picked the new colour up, because `typeChar` writes `bg: p.background`. */
+  cycleBackground(d) {
+    const p = this.page();
+    p.background = ((p.background + d) % 16 + 16) % 16;
+    for (const c of p.cells) c.bg = p.background;
+    this.touch();
+  }
+  cycleBorder(d) {
+    const p = this.page();
+    p.border = ((p.border + d) % 16 + 16) % 16;
+    this.changed();
+  }
+  backspace() {
+    if (this.col === 0) {
+      if (this.row > 0) {
+        this.row--;
+        this.col = PAGE_COLS - 1;
+      }
+      return;
+    }
+    this.col--;
+    const p = this.page();
+    this.touch();
+    p.cells[this.row * PAGE_COLS + this.col] = { g: 32, fg: p.colour, bg: p.background, rv: 0 };
+  }
+  newline() {
+    this.col = 0;
+    this.moveRow(1);
+  }
+  moveRow(d) {
+    this.row = Math.max(0, Math.min(PAGE_ROWS - 1, this.row + d));
+  }
+  moveCol(d) {
+    this.col = Math.max(0, Math.min(PAGE_COLS - 1, this.col + d));
+  }
+  /** Set the pen directly — the C64's CTRL+1-8 / C=+1-8 colour keys (§8.4.3).
+   *  ⚠ The pen is what the CURSOR is drawn in too, so changing it is visible
+   *  immediately even before anything is typed. */
+  setColour(c) {
+    this.page().colour = c & 15;
+    this.changed();
+  }
+  /** Set screen / border directly, for a picker (§8.4.3). Screen colour must
+   *  reach every cell — see cycleBackground for why. */
+  setBackground(c) {
+    const p = this.page();
+    p.background = c & 15;
+    for (const cell of p.cells) cell.bg = p.background;
+    this.touch();
+  }
+  setBorder(c) {
+    this.page().border = c & 15;
+    this.changed();
+  }
+  /** Write a raw SCREEN CODE at the cursor and advance — the route for glyphs
+   *  that have no letter to type: the graphics banks (§5.3).
+   *
+   *  ⚠ charToGlyph only maps letters, digits and punctuation, so before this
+   *  existed the editor could not produce a single graphics character — on a
+   *  client whose whole purpose is composing PETSCII pages. */
+  typeGlyph(code) {
+    const p = this.page();
+    const i = this.row * PAGE_COLS + this.col;
+    this.touch();
+    const fg = this.colourOn ? p.colour : p.cells[i].fg;
+    p.cells[i] = { g: code & 255, fg, bg: p.background, rv: 0 };
+    if (++this.col >= PAGE_COLS) {
+      this.col = 0;
+      this.moveRow(1);
+    }
+  }
+  /** DELETE/INSERT a line above the cursor (the original's f3/f4). */
+  insertLine() {
+    const p = this.page();
+    this.touch();
+    p.cells.splice(this.row * PAGE_COLS, 0, ...blankCells(p.background, p.colour).slice(0, PAGE_COLS));
+    p.cells.length = CELLS;
+  }
+  deleteLine() {
+    const p = this.page();
+    this.touch();
+    p.cells.splice(this.row * PAGE_COLS, PAGE_COLS);
+    p.cells.push(...blankCells(p.background, p.colour).slice(0, PAGE_COLS));
+  }
+  // --- serialisation (GET / PUT / STORE) ---
+  /** Wire form for upload / mail.send (§5.4 of the Binding-B spec).
+   *  ⚠ An unedited captured page goes back as its ORIGINAL BYTES; only pages
+   *  the user actually composed or altered are re-encoded from cells. */
+  toFrames() {
+    return this.pages.map((p) => p.raw ? { raw: p.raw } : { cells: p.cells, border: p.border, background: p.background });
+  }
+  /** True when nothing has been composed or captured — used to refuse an
+   *  upload of an empty buffer rather than send a blank page. */
+  isEmpty() {
+    return this.pages.every((p) => this.isBlank(p));
+  }
+  /** ⚠ Pages are stored RUN-LENGTH ENCODED (`compunet-editor-3`).
+   *
+   *  A page written cell-by-cell is 38.5 KB of JSON; fifty of them is 1.9 MB,
+   *  which is close enough to a browser's storage quota to be a gamble — some
+   *  count it in UTF-16 units, halving what looks like 5 MB. Runs take a
+   *  typical page to a few KB. This is the same format PUT and STORE write, so
+   *  a persisted buffer and a STOREd file stay interchangeable — one format,
+   *  one loader, and the version tag is the migration hook.
+   *
+   *  `raw` is kept beside the runs: it is small, and §8.4.2 needs it so an
+   *  unedited captured page re-uploads as the bytes it arrived as. */
+  toJSON(pagesOnly) {
+    const pages = (pagesOnly ?? this.pages).map((p) => ({
+      rle: rleEncode(p.cells),
+      border: p.border,
+      background: p.background,
+      colour: p.colour,
+      ...p.raw ? { raw: p.raw } : {}
+    }));
+    return JSON.stringify({ format: "compunet-editor-3", pages });
+  }
+  /** GET — replace the buffer from a previously PUT/STOREd file. */
+  /** Accepts both formats: `-3` (runs) and `-2` (cells), so files written by an
+   *  earlier build still load. */
+  load(text) {
+    const data = JSON.parse(text);
+    const known = data.format === "compunet-editor-3" || data.format === "compunet-editor-2";
+    if (!known || !Array.isArray(data.pages) || !data.pages.length)
+      throw new Error("not an editor file");
+    this.pages = data.pages.map((p) => {
+      const bg = p.background ?? 0;
+      const cells = p.rle ? rleDecode(p.rle, bg) : Array.from({ length: CELLS }, (_, i) => p.cells?.[i] ? { ...p.cells[i] } : { g: 32, fg: 1, bg, rv: 0 });
+      return { cells, border: p.border ?? 6, background: bg, colour: p.colour ?? 1, raw: p.raw };
+    });
+    this.cur = 0;
+    this.row = 0;
+    this.col = 0;
+    this.changed();
+    return this.pages.length;
+  }
+};
+
+// src/main.ts
+var $ = (id) => document.getElementById(id);
+var canvas = $("screen");
+var wrap = $("screenWrap");
+var edCanvas = $("edScreen");
+var edWrap = $("edWrap");
+var statusEl = $("status");
+var assets;
+var renderer;
+var edRenderer;
+var gw = new Gateway();
+var focusPane = "net";
+var mode = "idle";
+var dir = null;
+var frame = null;
+var sel = 0;
+var colIdx = 0;
+var account = null;
+var accountName = "";
+var isWelcome = false;
+var inMail = false;
+var connected = false;
+function status(s, bad = false) {
+  statusEl.textContent = s;
+  statusEl.classList.toggle("bad", bad);
+}
+function setFocus(p) {
+  if (p === "editor" && !inEditor) return;
+  focusPane = p;
+  $("paneNet").classList.toggle("focused", p === "net");
+  $("paneEditor").classList.toggle("focused", p === "editor");
+  updateBar();
+}
+function render() {
+  if (pendingMail && courier?.kind === "send" || pendingUpload) {
+    const p = buf.page();
+    renderer.renderEditorPage(p.cells, p.background, p.border, 0, 0, null);
+  } else if (courier) drawCourier();
+  else if (mode === "directory" && dir) renderer.renderDirectory(dir, sel, colIdx);
+  else if (mode === "frame" && frame) renderer.renderFrame(frame);
+  else renderer.renderIdle();
+  if (inEditor) renderEditor();
+  updateBar();
+}
+var baud = 0;
+var BYTES_PER_BIT = 1 / 10;
+var revealTimer;
+function stopReveal() {
+  clearInterval(revealTimer);
+  revealTimer = void 0;
+}
+function revealFrame(f) {
+  stopReveal();
+  if (!baud) return false;
+  const bytes = f.raw ? Math.ceil(f.raw.length * 3 / 4) : 960;
+  const seconds = bytes / (baud * BYTES_PER_BIT);
+  if (seconds < 0.25) return false;
+  const CELLS2 = 40 * 24;
+  const step = 40;
+  const tick = seconds * 1e3 / (CELLS2 / step);
+  let shown = 0;
+  renderer.renderFrame(f, 0);
+  revealTimer = setInterval(() => {
+    shown += step;
+    if (shown >= CELLS2) {
+      stopReveal();
+      renderer.renderFrame(f);
+      updateBar();
+      return;
+    }
+    renderer.renderFrame(f, shown);
+  }, tick);
+  return true;
+}
+function finishReveal() {
+  if (revealTimer === void 0) return false;
+  stopReveal();
+  if (frame) renderer.renderFrame(frame);
+  updateBar();
+  return true;
+}
+function onMessage(m) {
+  const rid = m.id;
+  if (typeof rid === "number" && pending.has(rid)) {
+    pending.get(rid)(m);
+    pending.delete(rid);
+    if (m.type === "idlookup") return;
+  }
+  switch (m.type) {
+    case "ready": {
+      const r = m;
+      account = r.account;
+      $("credit").textContent = `${account.user} \xB7 \xA3${account.credit.toFixed(2)}`;
+      connected = true;
+      const loginField = document.activeElement;
+      if (loginField && loginField.tagName === "INPUT") loginField.blur();
+      setFocus("net");
+      if (r.welcome) {
+        mode = "frame";
+        frame = r.welcome;
+        isWelcome = true;
+        inMail = false;
+        if (!revealFrame(r.welcome)) render();
+        else updateBar();
+      } else {
+        render();
+      }
+      status(`Welcome, ${account.user} \u2014 press DIR to enter the system`);
+      break;
+    }
+    case "directory":
+      if (mailDownloading) {
+        pendingMailListing = m;
+        break;
+      }
+      const nd = m;
+      const same = dir !== null && dir.page === nd.page && dir.entries.length === nd.entries.length && dir.entries.every((e, i) => e.page === nd.entries[i].page && e.title === nd.entries[i].title);
+      mode = "directory";
+      dir = nd;
+      if (same) sel = Math.min(sel, Math.max(0, nd.entries.length - 1));
+      else {
+        sel = 0;
+        colIdx = 0;
+      }
+      isWelcome = false;
+      const wasMail = inMail;
+      inMail = m.context === "mail";
+      if (wasMail && !inMail) {
+        delete lastCommand.mail;
+        delete lastCommand.mailFrame;
+      }
+      if (inMail) accountName = (m.breadcrumb[1] || "").trim();
+      courier = null;
+      render();
+      if (submitting) {
+        submitting = false;
+        setFocus("net");
+      }
+      status(`${m.title} \u2014 ${m.entries.length} entries`);
+      break;
+    case "frame": {
+      mode = "frame";
+      frame = m;
+      isWelcome = false;
+      if (!revealFrame(m)) render();
+      else updateBar();
+      if (m.goodbye) {
+        status("Goodbye \u2014 disconnected.");
+        gw.close();
+        return;
+      }
+      captureViewedFrame(m);
+      status("Reading page" + (m.morePages ? " \u2014 MORE follows" : ""));
+      break;
+    }
+    case "download": {
+      const d = m;
+      status(`Download: ${d.title} \u2014 ${d.size} bytes (${d.machine})`);
+      if (confirm(`Download "${d.title}" (${d.size} bytes)?`)) gw.send({ type: "download.fetch" });
+      break;
+    }
+    case "download.data": {
+      const d = m;
+      saveBase64(d.bytes, (d.title || "download").replace(/\s+/g, "_").toLowerCase() + ".prg");
+      status(`Saved ${d.title} (${d.size} bytes)`);
+      break;
+    }
+    case "account": {
+      const c = m.creditText.trim();
+      const debit = c.startsWith("-");
+      rowMessage.net = `YOU ARE ${debit ? c.slice(1) : c} IN ${debit ? "DEBIT" : "CREDIT"}`;
+      updateBar();
+      break;
+    }
+    case "idlookup": {
+      const u = m.users;
+      status(u.map((x) => `${x.id} = ${x.name ?? "(unknown)"}`).join(" \xB7 ") || "No such user");
+      break;
+    }
+    case "ack":
+      if (m.of === "mail.send" && sentTo) {
+        status(`Message sent to ${sentTo} \u2014 it is in THEIR mailbox, not yours.`);
+        sentTo = "";
+      } else status(`${m.of ?? "command"} accepted`);
+      if (submitting) {
+        submitting = false;
+        setFocus("net");
+      }
+      break;
+    case "partyline.entering":
+      status("Joining Partyline\u2026");
+      break;
+    case "partyline.entered":
+      setChatVisible(true);
+      updateBar();
+      chatLog("*** Partyline \u2014 room " + m.room + " ***");
+      status("In Partyline. *help for commands, *quit to leave.");
+      break;
+    case "partyline":
+      chatLog(m.line);
+      break;
+    case "partyline.left":
+      setChatVisible(false);
+      updateBar();
+      status("Left Partyline.");
+      break;
+    case "error": {
+      const err = m;
+      status("\u26A0 " + err.code + (err.message ? ": " + err.message : ""), true);
+      rowMessage.net = (err.message || err.code).toUpperCase().slice(0, 39);
+      submitting = false;
+      updateBar();
+      break;
+    }
+    default:
+      status("\xB7 " + m.type);
+  }
+}
+function curEntry() {
+  return dir ? dir.entries[sel] : void 0;
+}
+function curPrice() {
+  const e = curEntry();
+  if (!e || inMail) return "";
+  return (e.values?.[0] ?? "").trim();
+}
+var buf = new EditorBuffer();
+var inEditor = false;
+var editorReturn = null;
+var submitMode = null;
+var submitting = false;
+function enterEditor() {
+  inEditor = true;
+  buf.editing = false;
+  $("paneEditor").hidden = false;
+  setFocus("editor");
+  render();
+  status("Editor \u2014 EDIT types on the page, RETURN leaves. Page " + (buf.cur + 1) + " of " + buf.pages.length);
+}
+function leaveEditor() {
+  inEditor = false;
+  buf.editing = false;
+  $("paneEditor").hidden = true;
+  setFocus("net");
+  if (editorReturn) {
+    const f = editorReturn;
+    editorReturn = null;
+    f();
+  } else render();
+  status(mode === "idle" ? "Left the editor \u2014 the buffer is kept. Connect, then UPLD or SEND submits it." : "Left the editor. UPLD or SEND submits the buffer.");
+}
+function captureViewedFrame(f) {
+  const wasEmpty = buf.isEmpty();
+  const note = buf.capture(frameToPage(f));
+  if (note) status(note, true);
+  if (inEditor) renderEditor();
+  if (wasEmpty) $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}`;
+}
+var CURSOR_BLINK_MS = 300;
+var CTRL_COLOURS = [0, 1, 2, 3, 4, 5, 6, 7];
+var CTRL_COLOURS_ALT = [8, 9, 10, 11, 12, 13, 14, 15];
+setInterval(() => {
+  if (!inEditor || !buf.editing) return;
+  buf.tickCursor();
+  renderEditor();
+}, CURSOR_BLINK_MS);
+function renderEditor() {
+  const p = buf.page();
+  edRenderer.renderEditorPage(p.cells, p.background, p.border, buf.row, buf.col, buf.cursorState());
+  $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}` + (buf.editing ? ` \xB7 EDIT ${buf.row + 1},${buf.col + 1}` : "") + (p.raw ? " \xB7 captured" : "");
+}
+var pendingUpload = null;
+var outgoingUpload = [];
+function openSubmit(kind) {
+  submitMode = kind;
+  if (!inEditor) {
+    editorReturn = () => render();
+    enterEditor();
+  }
+  setFocus("editor");
+  $("submit").hidden = false;
+  $("submitTitle").textContent = kind === "upload" ? `Upload into "${dir?.title ?? "this directory"}"` : "Send as mail";
+  $("edContentFields").hidden = kind !== "upload";
+  $("edToField").hidden = kind !== "mail";
+  $("edHint").textContent = kind === "upload" ? "Type and price are required. The pages come from the editor." : "Recipients: up to five user IDs, comma-separated.";
+  $("edTitle").value = "";
+  $("edTitle").focus();
+}
+function closeSubmit() {
+  submitMode = null;
+  $("submit").hidden = true;
+}
+function doSubmit() {
+  const title = $("edTitle").value.trim();
+  if (!title) {
+    status("A title is required");
+    return;
+  }
+  const frames = buf.toFrames();
+  if (submitMode === "mail") {
+    const to = $("edTo").value.split(",").map((x) => x.trim()).filter(Boolean);
+    if (!to.length) {
+      status("At least one recipient is required");
+      return;
+    }
+    gw.send({ type: "mail.send", to, subject: title, frames });
+  } else {
+    const meta = {
+      title,
+      kind: $("edKind").value,
+      price: parseFloat($("edPrice").value) || 0,
+      life: parseInt($("edLife").value, 10) || 0
+    };
+    pendingUpload = meta;
+    outgoingUpload = [];
+    closeSubmit();
+    if (!inEditor) {
+      editorReturn = () => render();
+      enterEditor();
+    }
+    setFocus("net");
+    render();
+    status("SEND each page of the upload, then FINISH. EDITR to compose.");
+    return;
+  }
+  submitting = true;
+  status(`Sending ${frames.length} page(s)\u2026`);
+  closeSubmit();
+}
+function saveText(text, filename) {
+  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function loadFile() {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = ".json,application/json";
+  inp.onchange = () => {
+    const f = inp.files?.[0];
+    if (!f) return;
+    f.text().then((t) => {
+      try {
+        const n = buf.load(t);
+        status(`GET \u2014 loaded ${n} page(s)`);
+        render();
+      } catch (e) {
+        status("GET failed: " + e.message);
+      }
+    });
+  };
+  inp.click();
+}
+var editorActions = {
+  // ⚠ The EDITOR's help frame (§A.9) — a different asset from §A.8's.
+  HELP: () => {
+    if (!assets.editorHelp) {
+      status("No editor help frame embedded");
+      return;
+    }
+    edRenderer.renderFrame(assets.editorHelp);
+    edRenderer.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background, buf.lowerCase);
+    status("Editor help \u2014 any other editor command returns to the page");
+  },
+  EDIT: () => {
+    if (buf.editing) {
+      buf.stopEdit();
+      status("STOP \u2014 edit stopped, frame stored");
+    } else {
+      buf.beginEdit();
+      status("EDIT \u2014 ESC stops & stores \xB7 SHIFT+ESC restores \xB7 SHIFT+TAB case \xB7 f3/f4 line \xB7 f6 colour \xB7 f7/f8 screen/border");
+    }
+    render();
+  },
+  LAST: () => {
+    status(buf.last() ? `Page ${buf.cur + 1} of ${buf.pages.length}` : "Already at the first page");
+    render();
+  },
+  NEXT: () => {
+    status(buf.next() ? `Page ${buf.cur + 1} of ${buf.pages.length}` : "Already at the last page");
+    render();
+  },
+  // ⚠ NEW is a BLANK page; COPY duplicates. Not the same command (§8.4.1).
+  NEW: () => {
+    const note = buf.newPage();
+    status(note ?? `New blank page \u2014 ${buf.cur + 1} of ${buf.pages.length}`, !!note);
+    render();
+  },
+  COPY: () => {
+    const note = buf.copyPage();
+    status(note ?? `Copied \u2014 page ${buf.cur + 1} of ${buf.pages.length}`, !!note);
+    render();
+  },
+  ERASE: () => {
+    buf.erasePage();
+    status(`Erased \u2014 page ${buf.cur + 1} of ${buf.pages.length}`);
+    render();
+  },
+  GET: () => loadFile(),
+  // ⚠ PUT is ONE page, STORE is the WHOLE buffer — the editor's SHOW/BUY (§8.4.1).
+  PUT: () => {
+    saveText(buf.toJSON([buf.page()]), `page-${buf.cur + 1}.json`);
+    status("PUT \u2014 current page saved");
+  },
+  STORE: () => {
+    saveText(buf.toJSON(), "editor-buffer.json");
+    status(`STORE \u2014 all ${buf.pages.length} page(s) saved`);
+  },
+  PRINT: () => {
+    window.print();
+  },
+  FREE: () => {
+    rowMessage.editor = `${buf.free()} PAGES FREE, ${buf.pages.length} USED`;
+    updateBar();
+  },
+  RETURN: () => leaveEditor(),
+  // DOS names a local filesystem facility this environment does not have. §8.4.1
+  // permits disabling it; it does NOT permit renaming or removing it.
+  DOS: () => status("DOS is not available in a sandboxed browser client")
+};
+var inParty = false;
+function setChatVisible(on) {
+  inParty = on;
+  $("chat").hidden = !on;
+  $("screenWrap").hidden = on;
+  $("netTitle").textContent = on ? "Partyline" : "Compunet";
+  if (on) {
+    setFocus("net");
+    $("chatInput").value = "";
+    $("chatInput").focus();
+  } else {
+    $("chatLog").textContent = "";
+    render();
+  }
+}
+function chatLog(line) {
+  const log = $("chatLog");
+  log.textContent += (log.textContent ? "\n" : "") + line;
+  log.scrollTop = log.scrollHeight;
+}
+function ask(title, fields) {
+  return new Promise((resolve) => {
+    $("askTitle").textContent = title;
+    const host = $("askFields");
+    host.textContent = "";
+    const inputs = fields.map((f) => {
+      const el = document.createElement("input");
+      el.placeholder = f.label;
+      el.value = f.value ?? "";
+      if (f.maxlength) el.maxLength = f.maxlength;
+      if (f.type) el.type = f.type;
+      host.appendChild(el);
+      return el;
+    });
+    $("ask").hidden = false;
+    inputs[0]?.focus();
+    const done = (v) => {
+      $("ask").hidden = true;
+      $("askOk").onclick = null;
+      $("askCancel").onclick = null;
+      host.onkeydown = null;
+      resolve(v);
+    };
+    $("askOk").onclick = () => done(inputs.map((i) => i.value.trim()));
+    $("askCancel").onclick = () => done(null);
+    host.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        done(inputs.map((i) => i.value.trim()));
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        done(null);
+      }
+    };
+  });
+}
+async function askConfirm(title) {
+  return await ask(title, []) !== null;
+}
+var nextId = 1;
+var pending = /* @__PURE__ */ new Map();
+function request(msg) {
+  const id = nextId++;
+  return new Promise((resolve) => {
+    pending.set(id, resolve);
+    gw.send({ ...msg, id });
+    setTimeout(() => {
+      if (pending.delete(id)) resolve({ type: "error", code: "timeout" });
+    }, 1e4);
+  });
+}
+var courier = null;
+var C_BLUE = 6;
+var C_BLACK = 0;
+function put(cells, row, col, text, fg, bg) {
+  const t = text.toUpperCase();
+  for (let i = 0; i < t.length && col + i < 40; i++) {
+    const b = t.charCodeAt(i) & 255;
+    const sc = b >= 64 && b <= 95 ? b & 31 : b >= 32 && b <= 63 ? b : 32;
+    cells[row * 40 + col + i] = { g: sc, fg, bg, rv: 0 };
+  }
+}
+function drawCourier() {
+  if (!courier) return;
+  const f = courier.kind === "send" ? assets.courierSend : assets.courier;
+  if (!f) return;
+  const cells = f.cells.map((c) => ({ ...c }));
+  if (courier.kind === "id") {
+    courier.lines.slice(0, 5).forEach((l, i) => put(cells, 6 + i, 3, l.text, l.colour, f.background));
+  } else {
+    put(cells, 6, 10, account?.user ?? "", C_BLUE, f.background);
+    put(cells, 7, 10, accountName, C_BLUE, f.background);
+    const now = /* @__PURE__ */ new Date();
+    const p2 = (n) => String(n).padStart(2, "0");
+    put(cells, 9, 10, `${p2(now.getDate())}-${p2(now.getMonth() + 1)}-${p2(now.getFullYear() % 100)}`, C_BLUE, f.background);
+    put(cells, 10, 10, `${p2(now.getHours())}:${p2(now.getMinutes())}`, C_BLUE, f.background);
+    put(cells, 12, 13, courier.subject, C_BLUE, f.background);
+    courier.to.slice(0, 5).forEach((r, i) => {
+      put(cells, 16 + i, 3, r.id, C_BLUE, f.background);
+      if (r.name === null) put(cells, 16 + i, 14, "*** NO SUCH USER ***", C_BLACK, f.background);
+      else if (r.name) put(cells, 16 + i, 14, r.name, C_BLUE, f.background);
+    });
+  }
+  renderer.renderGrid(cells, f.background);
+  renderer.setBorder(f.border);
+}
+async function idCheck() {
+  courier = { kind: "id", lines: [] };
+  render();
+  const r = await ask("ID TO CHECK?", Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
+  if (!r) {
+    courier = null;
+    render();
+    return;
+  }
+  const ids = r.filter(Boolean);
+  if (!ids.length) {
+    courier = null;
+    render();
+    return;
+  }
+  const reply = await request({ type: "idlookup", ids });
+  const users = reply.users ?? [];
+  courier = {
+    kind: "id",
+    lines: ids.map((id) => {
+      const u = users.find((x) => x.id.trim().toUpperCase() === id.toUpperCase());
+      return u?.name ? { text: `${id.padEnd(8)} : ${u.name}`, colour: C_BLUE } : { text: `${id.padEnd(8)} : *** NO SUCH USER ***`, colour: C_BLACK };
+    })
+  };
+  awaitingKey = true;
+  render();
+  status(`${users.filter((u) => u.name).length} of ${ids.length} ID(s) known \u2014 press any key`);
+}
+var pendingMail = null;
+var outgoing = [];
+var awaitingKey = false;
+var helpReturn = null;
+var rowMessage = {};
+var mailDownloading = false;
+var pendingMailListing = null;
+var sentTo = "";
+var courierActions = {
+  // SEND transmits the frames one at a time, as the original does; FINISH ends
+  // the message. Two commands, two jobs — not one "send it all" button.
+  SEND: () => {
+    outgoing.push(buf.toFrames()[buf.cur]);
+    status(`Page ${buf.cur + 1} added \u2014 ${outgoing.length} frame(s) in the message. FINISH to send.`);
+  },
+  FINISH: () => {
+    if (!pendingMail) return;
+    if (!outgoing.length) {
+      status("Nothing sent yet \u2014 SEND at least one frame first", true);
+      return;
+    }
+    gw.send({ type: "mail.send", to: pendingMail.ids, subject: pendingMail.subject, frames: outgoing });
+    submitMode = "mail";
+    submitting = true;
+    sentTo = pendingMail.ids.join(", ");
+    status(`SENDING ${outgoing.length} frame(s) to ${sentTo}\u2026`);
+    pendingMail = null;
+    outgoing = [];
+    courier = null;
+    gw.send({ type: "mail.list" });
+  },
+  LAST: () => {
+    buf.last();
+    render();
+    status(`Frame ${buf.cur + 1} of ${buf.pages.length}`);
+  },
+  NEXT: () => {
+    buf.next();
+    render();
+    status(`Frame ${buf.cur + 1} of ${buf.pages.length}`);
+  },
+  EDITR: () => {
+    if (!inEditor) {
+      editorReturn = () => render();
+      enterEditor();
+    }
+    setFocus("editor");
+  }
+};
+function toBase64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 32768) {
+    s += String.fromCharCode(...bytes.subarray(i, i + 32768));
+  }
+  return btoa(s);
+}
+function sendProgram() {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.onchange = () => {
+    const f = inp.files?.[0];
+    if (!f) return;
+    void f.arrayBuffer().then((ab) => {
+      const file = new Uint8Array(ab);
+      const isC64 = /\.prg$/i.test(f.name);
+      const body = isC64 ? file.subarray(2) : file;
+      const load = isC64 ? file[0] | file[1] << 8 : 0;
+      if (isC64 && file.length < 3) {
+        status("That .prg is too small to be a program", true);
+        return;
+      }
+      const blob = new Uint8Array(8 + body.length);
+      blob[0] = isC64 ? 0 : 1;
+      blob[4] = load & 255;
+      blob[5] = load >> 8 & 255;
+      blob[6] = body.length & 255;
+      blob[7] = body.length >> 8 & 255;
+      blob.set(body, 8);
+      outgoingUpload.push(toBase64(blob));
+      const kb = Math.ceil(body.length / 1024);
+      rowMessage.net = `${f.name.toUpperCase().slice(0, 20)} ${kb}K ADDED`;
+      status(`${f.name} \u2014 ${body.length} bytes, ${isC64 ? `C64 load $${load.toString(16).toUpperCase().padStart(4, "0")}` : "Amiga"}. FINISH to commit.`);
+      updateBar();
+    });
+  };
+  inp.click();
+}
+var uploadActions = {
+  // One page per SEND, as the original streams one frame at a time. Not a
+  // "send everything" button — the buffer may hold pages this upload is not for.
+  //
+  // ⚠ A PROGRAM upload has no editor page to send (§8.3.2): the type byte
+  // decides the transfer, and `P` sends a FILE. Without this branch the client
+  // offered `P` in the dialog and then quietly uploaded the text buffer — the
+  // "a client that always uploads as T cannot upload software" failure §8.3.2
+  // names, presenting as "it just goes into the editor".
+  SEND: () => {
+    if (pendingUpload?.kind === "P") {
+      sendProgram();
+      return;
+    }
+    outgoingUpload.push(buf.toFrames()[buf.cur]);
+    status(`Page ${buf.cur + 1} added \u2014 ${outgoingUpload.length} page(s) in the upload. FINISH to commit.`);
+  },
+  FINISH: () => {
+    if (!pendingUpload) return;
+    if (!outgoingUpload.length) {
+      status("Nothing sent yet \u2014 SEND at least one page first", true);
+      return;
+    }
+    gw.send({ type: "upload", ...pendingUpload, frames: outgoingUpload });
+    submitMode = "upload";
+    submitting = true;
+    status(`Uploading ${outgoingUpload.length} page(s) as "${pendingUpload.title}" \u2014 check the listing`);
+    pendingUpload = null;
+    outgoingUpload = [];
+  },
+  GET: () => loadFile(),
+  LOAD: () => status("LOAD is a client feature \u2014 not implemented in this reference client")
+};
+async function sendMail() {
+  courier = { kind: "send", subject: "", to: [] };
+  render();
+  const subj = await ask("SUBJECT?", [{ label: "subject", maxlength: 16 }]);
+  if (!subj?.[0]) {
+    courier = null;
+    render();
+    return;
+  }
+  courier = { kind: "send", subject: subj[0], to: [] };
+  render();
+  const dest = await ask("DESTINATION ID?", Array.from({ length: 5 }, (_, i) => ({ label: `ID ${i + 1}`, maxlength: 8 })));
+  if (!dest) {
+    courier = null;
+    render();
+    return;
+  }
+  const ids = dest.filter(Boolean);
+  if (!ids.length) {
+    status("At least one recipient is required");
+    return;
+  }
+  const reply = await request({ type: "idlookup", ids });
+  const users = reply.users ?? [];
+  const resolved = ids.map((id) => ({
+    id,
+    name: users.find((u) => u.id.trim().toUpperCase() === id.toUpperCase())?.name ?? null
+  }));
+  const bad = resolved.filter((r) => !r.name);
+  courier = { kind: "send", subject: subj[0], to: resolved };
+  render();
+  if (bad.length) {
+    status(`Unknown ID(s): ${bad.map((b) => b.id).join(", ")} \u2014 nothing sent`, true);
+    return;
+  }
+  if (!await askConfirm("OKAY?")) {
+    courier = null;
+    render();
+    return;
+  }
+  pendingMail = { subject: subj[0], ids };
+  outgoing = [];
+  if (!inEditor) {
+    editorReturn = () => render();
+    enterEditor();
+  }
+  setFocus("net");
+  render();
+  status("SEND each frame of the message, then FINISH. EDITR to compose.");
+}
+function saveBase64(b64, filename) {
+  const bin = atob(b64);
+  const buf2 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf2[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([buf2], { type: "application/octet-stream" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+var FRAME_DWELL_MS = 500;
+var dwell = () => new Promise((resolve) => setTimeout(resolve, baud ? 0 : FRAME_DWELL_MS));
+async function readAll() {
+  let reply = await request({ type: "more" });
+  let frames = 1;
+  while (reply.type === "frame") {
+    frames++;
+    status(`ALL \u2014 frame ${frames}\u2026`);
+    await dwell();
+    reply = await request({ type: "more" });
+  }
+}
+async function showMail(index) {
+  mailDownloading = true;
+  let reply = await request({ type: "mail.read", index });
+  let frames = 0;
+  while (reply.type === "frame") {
+    frames++;
+    status(`Downloading frame ${frames}\u2026`);
+    await dwell();
+    reply = await request({ type: "more" });
+  }
+  mailDownloading = false;
+  if (reply.type === "error") {
+    render();
+    status(`Could not read the message: ${reply.message ?? ""}`, true);
+    return;
+  }
+  pendingMailListing = reply;
+  awaitingKey = true;
+  render();
+  status(`${frames} frame(s) \u2014 now in the editor, readable offline. Press any key.`);
+}
+var actions = {
+  // In the mailbox, SHOW reads the highlighted message (§8.2); otherwise it opens the entry.
+  // SHOW refuses a paid page — the user must go through BUY (§8.6.4).
+  SHOW: () => {
+    const e = curEntry();
+    if (!e) return;
+    if (dir?.context === "mail") {
+      void showMail(e.index);
+      return;
+    }
+    if (curPrice()) {
+      status("PLEASE USE BUY");
+      return;
+    }
+    gw.send({ type: "open", page: e.page });
+  },
+  // BUY is the same wire command as SHOW, plus the price confirmation (§8.6.4).
+  // The server deducts the credit and allows overdraft; we never check locally.
+  BUY: () => {
+    const e = curEntry();
+    if (!e) return;
+    const price = curPrice();
+    if (!price) {
+      gw.send({ type: "open", page: e.page });
+      return;
+    }
+    void askConfirm(`BUY FOR ${price} - SURE?`).then((ok) => {
+      if (ok) gw.send({ type: "open", page: e.page });
+    });
+  },
+  // In a directory: enter the highlighted entry. On the welcome frame (no directory
+  // context): DIR reaches the root — a bare `dir` (§4.7 / Binding-B schema).
+  DIR: () => {
+    if (inMail) {
+      gw.send({ type: "back" });
+      return;
+    }
+    if (mode === "directory" && curEntry()) gw.send({ type: "enter", page: curEntry().page });
+    else gw.send({ type: "dir" });
+  },
+  BACK: () => gw.send({ type: "back" }),
+  // DONE returns the user where they were before Courier. `back` unwinds one
+  // level at a time (message -> listing -> page -> out), so keep going until the
+  // session is actually out of mail (§4.8).
+  // DONE from the COURIER screen (ID / SEND) returns to the MAILBOX — that
+  // screen is client-side, so this is a redraw, not a wire command (§8.2.1).
+  // Only from the mailbox itself does DONE leave Courier.
+  DONE: () => {
+    if (courier) {
+      courier = null;
+      pendingMail = null;
+      outgoing = [];
+      render();
+      status("Back to the mailbox");
+      return;
+    }
+    delete lastCommand.mail;
+    delete lastCommand.mailFrame;
+    gw.send({ type: "mail.done" });
+  },
+  // HELP shows the embedded help frame (§A.8) — a client asset, nothing is sent.
+  //
+  // ⚠ And nothing is sent to DISMISS it either. This used to set `mode='frame'`
+  // and stop there, which drew the PRESS ANY KEY prompt (updateBar: a frame with
+  // no more pages) over a still-live frame row underneath. The dismissing key
+  // fell through to duckCommit and committed the centred word — MORE at index 0,
+  // since the frame context has nothing remembered on first use. Outside mail
+  // mode `more` is a bare `D`, and the core reads a `D` with no index as index
+  // 0 (api_binding's MORE comment says so outright, from the mail bug it caused
+  // there): one keypress left help AND opened the first entry in the listing.
+  //
+  // The user reads that as the key being accepted twice. It is one key doing
+  // one thing — a command they could not see, on a screen the server never knew
+  // was showing.
+  HELP: () => {
+    if (!assets.help) {
+      status("No help frame embedded");
+      return;
+    }
+    const wasMode = mode, wasFrame = frame, wasWelcome = isWelcome;
+    helpReturn = () => {
+      mode = wasMode;
+      frame = wasFrame;
+      isWelcome = wasWelcome;
+      render();
+    };
+    mode = "frame";
+    frame = assets.help;
+    isWelcome = false;
+    awaitingKey = true;
+    render();
+    status("Help \u2014 press any key to return");
+  },
+  SAVE: () => status("SAVE is a client feature \u2014 not implemented in this reference client"),
+  PRINT: () => status("PRINT is a client feature \u2014 not implemented in this reference client"),
+  LOAD: () => status("LOAD is a client feature \u2014 not implemented in this reference client"),
+  // EDITR enters the EDITOR context (§8.4.1) — it does not open an upload form.
+  EDITR: () => {
+    editorReturn = () => render();
+    enterEditor();
+  },
+  // ⚠ ALL is NOT MORE. It reads the REST of a multi-frame page in one gesture
+  // (§4.7) — repeat the paging command until the reply stops being a frame.
+  // Sending a single `more` here made ALL a synonym for MORE: same bytes, same
+  // one-frame advance, no way for the user to tell them apart. That is exactly
+  // the collapse §4.7's closed vocabulary forbids, and it is invisible because
+  // both "work".
+  ALL: () => {
+    void readAll();
+  },
+  MORE: () => gw.send({ type: "more" }),
+  FINISH: () => gw.send({ type: "finish" }),
+  GOTO: () => {
+    void ask("GOTO", [{ label: "page number or keyword" }]).then((r) => {
+      if (r?.[0]) gw.send({ type: "goto", target: r[0] });
+    });
+  },
+  // (column cycling is F7/F8, §7.7 — not a command)
+  ACCNT: () => gw.send({ type: "account" }),
+  MAIL: () => gw.send({ type: "mail.list" }),
+  UCAT: () => gw.send({ type: "ucat" }),
+  VOTE: () => {
+    const e = curEntry();
+    if (!e) {
+      status("Highlight an entry to vote on");
+      return;
+    }
+    void ask(`Vote on "${e.title}"`, [{ label: "score 1-9", type: "number" }]).then((r) => {
+      if (r?.[0]) gw.send({ type: "vote", page: e.page, score: parseInt(r[0], 10) });
+    });
+  },
+  LIFE: () => {
+    const e = curEntry();
+    if (!e) {
+      status("Highlight an entry to extend");
+      return;
+    }
+    void ask(`Extend life of "${e.title}"`, [{ label: "days", type: "number" }]).then((r) => {
+      if (r?.[0]) gw.send({ type: "life", page: e.page, days: parseInt(r[0], 10) });
+    });
+  },
+  // ID — "ID TO CHECK?" ($B0D9). Up to five, shown on the COURIER frame (§8.2).
+  ID: () => {
+    void idCheck();
+  },
+  UPLD: () => {
+    if (mode !== "directory" || !dir) {
+      status("Navigate to a directory first");
+      return;
+    }
+    if (dir.entries.length >= 11) {
+      status("This directory is full (11 entries max)");
+      return;
+    }
+    openSubmit("upload");
+  },
+  SEND: () => {
+    void sendMail();
+  },
+  // §3.8: read and render the goodbye frame BEFORE handling the close — do not
+  // close the socket here; the server closes after sending it.
+  LEAVE: () => {
+    gw.send({ type: "leave" });
+    status("Leaving\u2026");
+  }
+};
+var CONTEXT_COMMANDS = {
+  // ⚠ Empty, and NOT because the editor is unavailable offline. With no session
+  // there is no Compunet screen, so there is no duckshoot — the original sits at
+  // the BASIC prompt, where EDITOR is a BASIC command ($8249), not a row entry.
+  // Offline entry is a HOST-ENVIRONMENT affordance (our "Editor" button, beside
+  // Connect); the duckshoot reappears inside the editor with its own row (§8.4).
+  idle: [],
+  // The welcome screen carries the DIRECTORY row, with HELP centred by default (§4.8).
+  welcome: ["HELP", "DIR", "SHOW", "BACK", "GOTO", "UCAT", "MAIL", "ACCNT", "SAVE", "EDITR", "LEAVE"],
+  directory: [
+    "HELP",
+    "DIR",
+    "SHOW",
+    "BACK",
+    "GOTO",
+    "UCAT",
+    "MAIL",
+    "ACCNT",
+    "SAVE",
+    "EDITR",
+    "LEAVE",
+    "PRINT",
+    "LIFE",
+    "BUY",
+    "LOAD",
+    "UPLD",
+    "VOTE"
+  ],
+  frame: ["MORE", "ALL", "FINISH"],
+  // multi-frame only; single frame shows PRESS ANY KEY
+  mail: ["SEND", "SHOW", "MORE", "ID", "EDITR", "DONE"],
+  // ⚠ Empty, and NOT an oversight. Reading a mail message has NO duckshoot: in
+  // Courier, SHOW behaves like ALL — it pulls every frame of the message and
+  // ends on PRESS ANY KEY (§8.2), so there is nothing to choose while it runs
+  // and nothing to choose at the end. Any key returns to the mailbox. Offering
+  // the mail row here would imply the message can be paged command-by-command,
+  // which is not how Courier reads mail.
+  mailFrame: [],
+  // Message composition (§8.2.1), reached once subject and recipients are
+  // accepted. SEND adds a frame, FINISH transmits — distinct commands.
+  courierSend: ["SEND", "FINISH", "LAST", "NEXT", "EDITR"],
+  // The upload sub-context (§8.3.2), entered once the title/type/price/life are
+  // accepted. Same shape as composition: SEND adds a page, FINISH commits.
+  upload: ["SEND", "LOAD", "GET", "FINISH"],
+  // ⚠ §8.4.1 order — it ends FREE, RETURN, DOS. Storage order (…FREE DOS RETURN)
+  // is NOT display order: the C64 offset table is non-monotonic at the tail.
+  editor: [
+    "HELP",
+    "EDIT",
+    "LAST",
+    "NEXT",
+    "NEW",
+    "COPY",
+    "ERASE",
+    "GET",
+    "PUT",
+    "STORE",
+    "PRINT",
+    "FREE",
+    "RETURN",
+    "DOS"
+  ],
+  partyline: []
+};
+var NEEDS_SELECTION = /* @__PURE__ */ new Set(["SHOW", "DIR", "VOTE", "LIFE", "BUY"]);
+function netContext() {
+  if (!connected) return "idle";
+  if (inParty) return "partyline";
+  if (courier?.kind === "send" && pendingMail) return "courierSend";
+  if (pendingUpload) return "upload";
+  if (mode === "idle") return "idle";
+  if (mode === "frame") return isWelcome ? "welcome" : inMail ? "mailFrame" : "frame";
+  return inMail ? "mail" : "directory";
+}
+function hasSelection() {
+  const e = curEntry();
+  return !!e && e.title.trim() !== "(EMPTY)" && e.title.trim() !== "(NO MAIL)";
+}
+var rows = { net: { words: [], ix: 0 }, editor: { words: [], ix: 0 } };
+var lastCommand = {};
+function rowMemoryKey(ctx) {
+  return ctx === "welcome" ? "directory" : ctx;
+}
+function rememberRow(pane) {
+  const r = rows[pane];
+  const ctx = pane === "editor" ? "editor" : netContext();
+  if (r.words[r.ix]) lastCommand[rowMemoryKey(ctx)] = r.words[r.ix];
+}
+function tableFor(ctx) {
+  if (ctx === "editor") return editorActions;
+  if (ctx === "courierSend") return courierActions;
+  if (ctx === "upload") return uploadActions;
+  return actions;
+}
+function buildRow(ctx) {
+  const table = tableFor(ctx);
+  return CONTEXT_COMMANDS[ctx].filter((name) => {
+    if (!table[name]) return false;
+    if (NEEDS_SELECTION.has(name) && ctx === "directory" && !hasSelection()) return false;
+    return true;
+  });
+}
+var lastNetCtx = null;
+function updateBar() {
+  const nctx = netContext();
+  const arriving = revealTimer !== void 0;
+  const current = rows.net.words[rows.net.ix];
+  rows.net.words = buildRow(nctx);
+  const remembered = lastCommand[rowMemoryKey(nctx)];
+  const wanted = nctx === lastNetCtx ? current ?? remembered : remembered;
+  const keep = rows.net.words.indexOf(wanted ?? "");
+  rows.net.ix = rows.net.words.length ? keep >= 0 ? keep : 0 : 0;
+  lastNetCtx = nctx;
+  if (arriving) renderer?.renderDuckshoot([], 0, netBackground(), netLower());
+  else if (rowMessage.net) renderer?.renderPrompt(rowMessage.net, netBackground(), netLower());
+  else if (awaitingKey || nctx === "frame" && frame && !frame.morePages)
+    renderer?.renderPrompt("PRESS ANY KEY", netBackground(), netLower());
+  else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground(), netLower());
+  if (inEditor) {
+    rows.editor.words = buildRow("editor");
+    const keepE = rows.editor.words.indexOf(lastCommand.editor ?? "");
+    rows.editor.ix = keepE >= 0 ? keepE : rows.editor.ix;
+    if (rowMessage.editor) edRenderer?.renderPrompt(rowMessage.editor, buf.page().background, buf.lowerCase);
+    else edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background, buf.lowerCase);
+  }
+  $("netMeta").textContent = mode === "idle" ? "not connected" : nctx;
+  $("hint").textContent = focusPane === "editor" ? "Editor focused \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 EDIT then type \xB7 ESC stops editing" : "\u2191/\u2193 highlight an entry \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 F7/F8 cycle the right column";
+}
+function netBackground() {
+  if (mode === "frame" && frame) return frame.background;
+  return 15;
+}
+function netLower() {
+  return mode === "frame" && !!frame && frameIsLower(frame);
+}
+function duckScroll(delta) {
+  const r = rows[focusPane];
+  if (!r.words.length) return;
+  r.ix = ((r.ix + delta) % r.words.length + r.words.length) % r.words.length;
+  rememberRow(focusPane);
+  focusPane === "editor" ? edRenderer.renderDuckshoot(r.words, r.ix, buf.page().background, buf.lowerCase) : renderer.renderDuckshoot(r.words, r.ix, netBackground(), netLower());
+}
+function duckCommit() {
+  const r = rows[focusPane];
+  const name = r.words[r.ix];
+  const table = tableFor(focusPane === "editor" ? "editor" : netContext());
+  rememberRow(focusPane);
+  if (name && table[name]) table[name]();
+}
+function endSession(msg) {
+  connected = false;
+  account = null;
+  inMail = false;
+  courier = null;
+  pendingMail = null;
+  pendingUpload = null;
+  mailDownloading = false;
+  pendingMailListing = null;
+  setChatVisible(false);
+  inParty = false;
+  $("connect").disabled = false;
+  $("credit").textContent = "";
+  render();
+  status(msg + " Press Connect to log in again.");
+}
+function resolveServer(input, page) {
+  const loc = page ?? (typeof location !== "undefined" ? location : { protocol: "", host: "" });
+  const v = input.trim().replace(/\/+$/, "");
+  if (!v) {
+    if (loc.protocol === "https:" || loc.protocol === "http:") {
+      const secure = loc.protocol === "https:";
+      return { ws: `${secure ? "wss" : "ws"}://${loc.host}`, http: `${secure ? "https" : "http"}://${loc.host}` };
+    }
+    return resolveServer("localhost", page);
+  }
+  const m = /^([a-z][a-z0-9+.-]*):\/\//i.exec(v);
+  if (m) {
+    const scheme = m[1].toLowerCase();
+    const rest = v.slice(m[0].length);
+    const secure = scheme === "wss" || scheme === "https";
+    return { ws: `${secure ? "wss" : "ws"}://${rest}`, http: `${secure ? "https" : "http"}://${rest}` };
+  }
+  const host = v.split("/")[0].split(":")[0];
+  const local = host === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(host) || /\.(lan|local|internal|test)$/i.test(host) || !host.includes(".");
+  if (local) {
+    const withPort = /:\d+/.test(v) ? v : `${v}:6404`;
+    return { ws: `ws://${withPort}`, http: `http://${withPort}` };
+  }
+  return { ws: `wss://${v}`, http: `https://${v}` };
+}
+async function connect() {
+  const { ws: wsBase, http: httpBase } = resolveServer($("host").value);
+  try {
+    const { token } = await gw.login(httpBase, $("user").value, $("pass").value);
+    gw.connect(
+      wsBase,
+      token,
+      onMessage,
+      () => endSession("Disconnected."),
+      () => status("WebSocket error.")
+    );
+    saveSettings();
+    $("connect").disabled = true;
+    $("pass").classList.remove("bad");
+  } catch (e) {
+    const msg = e.message;
+    const bad = /401|403/.test(msg);
+    $("pass").classList.toggle("bad", bad);
+    if (bad) $("pass").focus();
+    status(bad ? "Login refused \u2014 check the user ID and password." : "Connect error: " + msg, true);
+  }
+}
+window.addEventListener("beforeunload", flushEditor);
+window.addEventListener("keydown", (e) => {
+  const el = e.target;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+  if (inParty) return;
+  if (finishReveal()) {
+    e.preventDefault();
+    return;
+  }
+  if (rowMessage.net || rowMessage.editor) {
+    rowMessage = {};
+    updateBar();
+    e.preventDefault();
+    return;
+  }
+  if (awaitingKey) {
+    awaitingKey = false;
+    courier = null;
+    const back = helpReturn;
+    helpReturn = null;
+    const held = pendingMailListing;
+    pendingMailListing = null;
+    if (back) back();
+    else if (held) onMessage(held);
+    else render();
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "Escape" && pendingUpload && focusPane === "net") {
+    pendingUpload = null;
+    outgoingUpload = [];
+    render();
+    status("ABORT \u2014 upload abandoned, nothing was sent");
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "Tab" && e.ctrlKey && inEditor) {
+    setFocus(focusPane === "net" ? "editor" : "net");
+    e.preventDefault();
+    return;
+  }
+  if (focusPane === "editor" && inEditor && buf.editing) {
+    if (e.repeat && !buf.autoRepeat) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Escape" && e.shiftKey) {
+      status(buf.restoreOriginal() ? "RUN \u2014 frame restored to its stored state" : "Nothing stored to restore");
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Escape") {
+      buf.stopEdit();
+      status("STOP \u2014 edit stopped, frame stored");
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Tab" && e.shiftKey) {
+      buf.lowerCase = !buf.lowerCase;
+      status(`Case: ${buf.lowerCase ? "lower/mixed" : "upper/graphics"}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F5") {
+      buf.autoRepeat = !buf.autoRepeat;
+      status(`Auto-repeat ${buf.autoRepeat ? "on" : "off"}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F6") {
+      buf.colourOn = !buf.colourOn;
+      status(`Colour ${buf.colourOn ? "on" : "off"}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F7") {
+      buf.cycleBackground(e.shiftKey ? -1 : 1);
+      render();
+      status(`Screen colour ${buf.page().background}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F8") {
+      buf.cycleBorder(e.shiftKey ? -1 : 1);
+      render();
+      status(`Border colour ${buf.page().border}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      buf.moveRow(-1);
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      buf.moveRow(1);
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowLeft") {
+      buf.moveCol(-1);
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowRight") {
+      buf.moveCol(1);
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Enter") {
+      buf.newline();
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Backspace") {
+      buf.backspace();
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F3") {
+      buf.deleteLine();
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "F4") {
+      buf.insertLine();
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.ctrlKey && !e.altKey && e.key >= "1" && e.key <= "8") {
+      const bank = e.shiftKey ? CTRL_COLOURS_ALT : CTRL_COLOURS;
+      buf.setColour(bank[Number(e.key) - 1]);
+      render();
+      status(`Pen colour ${bank[Number(e.key) - 1]}`);
+      e.preventDefault();
+      return;
+    }
+    if (e.shiftKey && !e.ctrlKey && !e.altKey && !buf.lowerCase && /^[A-Za-z]$/.test(e.key)) {
+      buf.typeGlyph(64 + (e.key.toUpperCase().charCodeAt(0) - 64));
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      buf.typeChar(e.key);
+      render();
+      e.preventDefault();
+      return;
+    }
+    return;
+  }
+  if (focusPane === "editor" && inEditor) {
+    if (e.key === "ArrowLeft") {
+      duckScroll(-1);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowRight") {
+      duckScroll(1);
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Enter") {
+      duckCommit();
+      e.preventDefault();
+      return;
+    }
+    return;
+  }
+  if (mode === "directory" && dir) {
+    if (e.key === "ArrowDown") {
+      sel = Math.min(sel + 1, dir.entries.length - 1);
+      render();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      sel = Math.max(sel - 1, 0);
+      render();
+      e.preventDefault();
+      return;
+    }
+  }
+  if (e.key === "F7" || e.key === "F8") {
+    if (dir) {
+      const n = dir.columns.length;
+      colIdx = ((colIdx + (e.key === "F8" ? 1 : -1)) % n + n) % n;
+      render();
+      status("Column: " + dir.columns[colIdx].trim());
+    }
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "ArrowLeft") {
+    duckScroll(-1);
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "ArrowRight") {
+    duckScroll(1);
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "Enter") {
+    duckCommit();
+    e.preventDefault();
+    return;
+  }
+});
+var KEY_SETTINGS = "compunet:settings";
+var KEY_EDITOR = "compunet:editor";
+var KEY_LIMIT = "compunet:pageLimit";
+var KEY_BAUD = "compunet:baud";
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(KEY_SETTINGS);
+    if (raw) {
+      const st = JSON.parse(raw);
+      if (st.host) $("host").value = st.host;
+      else if ("host" in st) $("host").value = "";
+      if (st.user) $("user").value = st.user;
+    }
+    const lim = parseInt(localStorage.getItem(KEY_LIMIT) ?? "", 10);
+    if (lim > 0) buf.maxPages = lim;
+    const b = parseInt(localStorage.getItem(KEY_BAUD) ?? "", 10);
+    if (b > 0) {
+      baud = b;
+      $("baud").value = String(b);
+    }
+  } catch {
+  }
+}
+function saveSettings() {
+  try {
+    localStorage.setItem(KEY_SETTINGS, JSON.stringify({
+      host: $("host").value.trim(),
+      user: $("user").value.trim()
+    }));
+  } catch {
+  }
+}
+var saveTimer;
+function persistEditor() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushEditor, 1e3);
+}
+function flushEditor() {
+  clearTimeout(saveTimer);
+  try {
+    localStorage.setItem(KEY_EDITOR, buf.toJSON());
+  } catch {
+    status("Editor could not be saved \u2014 storage is full. STORE to a file.", true);
+  }
+}
+function restoreEditor() {
+  const raw = localStorage.getItem(KEY_EDITOR);
+  if (!raw) return;
+  try {
+    const n = buf.load(raw);
+    status(`Editor restored \u2014 ${n} page(s). STORE keeps a copy as a file.`);
+  } catch {
+    localStorage.removeItem(KEY_EDITOR);
+    status("Saved editor pages could not be read \u2014 starting with a blank page.", true);
+  }
+}
+function buildEditorTools() {
+  const limitInput = $("edPageLimit");
+  const showBuffer = () => {
+    $("edBufferState").textContent = `${buf.pages.length} used \xB7 ${buf.free()} free`;
+  };
+  limitInput.value = String(buf.maxPages);
+  limitInput.onchange = () => {
+    const n = Math.max(MIN_PAGES, parseInt(limitInput.value, 10) || DEFAULT_MAX_PAGES);
+    limitInput.value = String(n);
+    buf.maxPages = n;
+    try {
+      localStorage.setItem(KEY_LIMIT, String(n));
+    } catch {
+    }
+    showBuffer();
+    status(`Editor holds ${n} pages`);
+  };
+  buf.onChange = () => {
+    persistEditor();
+    showBuffer();
+  };
+  showBuffer();
+  const swatches = $("edSwatches");
+  const target = () => $("edTarget").value;
+  const paint = () => {
+    const p = buf.page();
+    const cur = target() === "pen" ? p.colour : target() === "screen" ? p.background : p.border;
+    [...swatches.children].forEach((el, i) => el.classList.toggle("on", i === cur));
+  };
+  assets.palette.forEach((css, i) => {
+    const b = document.createElement("button");
+    b.className = "swatch";
+    b.style.background = css;
+    b.title = `Colour ${i}`;
+    b.onclick = () => {
+      if (target() === "pen") buf.setColour(i);
+      else if (target() === "screen") buf.setBackground(i);
+      else buf.setBorder(i);
+      paint();
+      renderEditor();
+      status(`${target()} colour ${i}`);
+    };
+    swatches.appendChild(b);
+  });
+  $("edTarget").onchange = paint;
+  const BANKS = {
+    shift: [65, 90],
+    // SHIFT + letter  (§5.3)
+    commodore: [97, 122],
+    // C= + letter — no key route here, picker only
+    upper: [1, 63],
+    // A-Z, digits and punctuation
+    lower: [129, 191]
+    // the lowercase/mixed set
+  };
+  const glyphs = $("edGlyphs");
+  const drawBank = () => {
+    const [lo, hi] = BANKS[$("edBank").value];
+    glyphs.replaceChildren();
+    for (let code = lo; code <= hi; code++) {
+      const b = document.createElement("button");
+      b.className = "glyph";
+      b.title = `Screen code $${code.toString(16).toUpperCase().padStart(2, "0")}`;
+      const c = document.createElement("canvas");
+      c.width = c.height = 8;
+      const cx = c.getContext("2d");
+      if (cx) {
+        const bmp = assets.font[code] || assets.font[32];
+        cx.fillStyle = "#000";
+        cx.fillRect(0, 0, 8, 8);
+        cx.fillStyle = "#fff";
+        bmp.forEach((byte, y) => {
+          for (let x = 0; x < 8; x++) if (byte >> 7 - x & 1) cx.fillRect(x, y, 1, 1);
+        });
+        b.style.backgroundImage = `url(${c.toDataURL()})`;
+        b.style.backgroundSize = "16px 16px";
+        b.style.backgroundRepeat = "no-repeat";
+        b.style.backgroundPosition = "center";
+      }
+      b.onclick = () => {
+        if (!buf.editing) {
+          status("Press EDIT first \u2014 the picker types onto the page");
+          return;
+        }
+        buf.typeGlyph(code);
+        renderEditor();
+        setFocus("editor");
+      };
+      glyphs.appendChild(b);
+    }
+  };
+  $("edBank").onchange = drawBank;
+  drawBank();
+  paint();
+}
+async function boot() {
+  assets = await (await fetch("./assets.json")).json();
+  renderer = new Renderer(canvas, assets, wrap);
+  edRenderer = new Renderer(edCanvas, assets, edWrap);
+  $("connect").onclick = connect;
+  for (const id of ["host", "user", "pass"]) {
+    $(id).addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (!$("connect").disabled) void connect();
+    });
+  }
+  $("paneNet").addEventListener("mousedown", () => setFocus("net"));
+  $("paneEditor").addEventListener("mousedown", () => setFocus("editor"));
+  $("edClose").onclick = () => leaveEditor();
+  const baudSel = $("baud");
+  baudSel.onchange = () => {
+    baud = parseInt(baudSel.value, 10) || 0;
+    try {
+      localStorage.setItem(KEY_BAUD, String(baud));
+    } catch {
+    }
+    finishReveal();
+    status(baud ? `Line speed ${baud} baud \u2014 pages paint as they arrive` : "Line speed: fastest");
+  };
+  loadSettings();
+  buildEditorTools();
+  $("openEditor").onclick = () => {
+    if (inEditor) return;
+    editorReturn = () => render();
+    enterEditor();
+  };
+  canvas.addEventListener("click", (ev) => {
+    if (mode !== "directory" || !dir) return;
+    const r = canvas.getBoundingClientRect();
+    const col = Math.floor((ev.clientX - r.left) / r.width * 40);
+    const row = Math.floor((ev.clientY - r.top) / r.height * 25);
+    if (row === 21 && col >= 30 && col <= 38) {
+      const n = dir.columns.length;
+      colIdx = ((colIdx + (col >= 34 ? 1 : -1)) % n + n) % n;
+      render();
+      status("Column: " + dir.columns[colIdx].trim());
+      return;
+    }
+    const i = row - 10;
+    if (i < 0 || i >= dir.entries.length) return;
+    sel = i;
+    render();
+  });
+  canvas.addEventListener("dblclick", (ev) => {
+    if (mode !== "directory" || !dir) return;
+    if (inMail) return;
+    const r = canvas.getBoundingClientRect();
+    const row = Math.floor((ev.clientY - r.top) / r.height * 25);
+    const i = row - 10;
+    if (i < 0 || i >= dir.entries.length) return;
+    sel = i;
+    render();
+    actions.DIR();
+  });
+  $("edSubmit").onclick = doSubmit;
+  $("edCancel").onclick = closeSubmit;
+  $("chatInput").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const input = $("chatInput");
+    const text = input.value.trim();
+    if (!text) return;
+    gw.send({ type: text.startsWith("*") ? "partyline.command" : "partyline.send", text });
+    input.value = "";
+  });
+  render();
+  status("Ready. Connect \u2014 or open the Editor now: it works offline.");
+  restoreEditor();
+}
+void boot();
+export {
+  resolveServer
+};
+//# sourceMappingURL=app.bundle.js.map

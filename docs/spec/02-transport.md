@@ -1,5 +1,7 @@
 # §2 — Transport
 
+**Layer — Binding-A wire format** (X.25-over-TCP). The service *semantics* these bytes carry are shared model; a modern binding replaces this section (§1.8).
+
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.
 >

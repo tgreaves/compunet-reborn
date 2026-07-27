@@ -1,5 +1,7 @@
 # §6 — Frame (SEQ) format
 
+**Layer — Binding-A wire format** (§1.8). The on-the-wire encoding of a page; a modern binding delivers the same frame content as structured JSON instead (see [`api/README.md`](api/README.md)).
+
 > Part of the [Compunet Client Specification](README.md). Normative unless a passage is
 > explicitly marked non-normative.
 >
@@ -99,7 +101,7 @@ characters:
 | space run | `$06 N` | space (`$20`) repeated `1 + N` times |
 | character run | `$07 c N` | the byte `c`, processed `1 + N` times |
 
-Example: `$06 $03` → four spaces; `$07 $2A $04` → `*****` (five asterisks). A client
+**⚠ Load-bearing: the `1 +` in the counts.** Example: `$06 $03` → four spaces; `$07 $2A $04` → `*****` (five asterisks). A client
 **MUST** decode both escapes with the `1 + N` semantics; an off-by-one corrupts every
 compressed run. `$06` and `$07` never appear as literal content — they are always RLE
 escapes.

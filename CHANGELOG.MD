@@ -1,35 +1,74 @@
-# 1.2.0 (2026-07-25)
+# 1.2.0 (2026-07-27)
 
-Adds a complete **Compunet Client Specification** (#111) — a normative, platform-agnostic
-single source of truth for building a Compunet client over TCP/IP, in `docs/spec/`. It pins
-down the wire protocol and the display contract in enough detail, with the font, palette, and
-directory template extracted as concrete data, that a client can be built from the spec alone.
-It has been validated by repeated source-isolated clean-room builds against the live server.
+Opens Compunet Reborn to modern clients, and pins down how to build one.
 
-* Client Specification (new, `docs/spec/`) (#111):
-	* Eight normative sections: transport (X.25-over-TCP framing, byte-stuffing, CRC-CCITT,
-	  sequencing, ACK pacing), session lifecycle (handshake, identification, login, LINKING,
-	  command loop), command protocol, display contract (40×24 PETSCII grid, charsets,
-	  16-colour palette), frame format (4-byte header, RLE), the six-part directory stream,
-	  and subsystems (mail, download, upload, editor, Partyline, UCAT/VOTE/LIFE).
-	* Self-contained appendix: the C64 character-ROM font (8×8 and 8×16), the palette RGB, and
-	  the built-in directory template — extracted as concrete data so a client can render an
-	  authentic screen with no access to the original binaries.
-	* Conformance tiers (Browse / Interact / Full) and a standard command vocabulary mapped to
-	  the wire commands, plus companion docs: an implementation cross-reference (spec → server
-	  source), a documentation audit, and a validation log.
-* Validation:
-	* Source-isolated clean-room process (`docs/spec/CLEANROOM.md`): a fresh agent builds a
-	  client from the spec alone — no server or client source — against the live server, logging
-	  every gap. Five independent builds (Tier 1 through full Tier 3) all produced working
-	  clients from the document alone.
-	* Corrections folded in from the runs: the DIR/SHOW/FINISH/MORE command model and
-	  server-side directory creation; the canonical directory layout (entry columns, PRICE
-	  header row, red-first/blue-rest entry colours, client-drawn selection bar); byte-boundary
-	  and ACK-timing details (Part 2 carries no terminator of its own; the Partyline link header
-	  and per-frame upload accepts must be ACKed); handshake-drain and bare-`P` FINISH semantics;
-	  and client obligations (surface `DIR` on the welcome screen, prompt for upload type and
-	  price, mandatory right-hand column cycling and full-directory checks).
+* **A modern Compunet client** (new, `client/web/`, `client/electron/`) (#91) —
+  **one client, two ways to run it.** The browser version and the desktop app
+  are the same code and behave identically; only the wrapper differs:
+	* **In your browser at [connect.compunet.live](https://connect.compunet.live)**
+	  — no download, no emulator, no setup. The quickest way in, and nothing to
+	  keep up to date.
+	* **As a desktop app** — a Windows installer that asks where to put it, or a
+	  **portable build** that keeps its settings and your editor pages beside the
+	  executable. macOS and Linux are configured but not yet published.
+	* Whichever you choose, you get: the authentic 40x24 PETSCII screen, the
+	  duckshoot, mail, Partyline and the frame editor.
+	* An **editor that works offline** — compose pages with no connection, and
+	  every page you read is kept so you can read your mail after hanging up.
+	  The buffer survives closing the client.
+	* An optional **1200 baud mode**: pages paint as they arrive, at the speed
+	  Compunet actually ran at.
+* **JSON API** (new, port 6404) (#91) — for anyone wanting to write their own
+  client:
+	* Reaching Compunet used to mean reimplementing X.25 framing, CRC,
+	  sequencing and PETSCII. That work now happens once, in the server.
+	* Directories arrive as entry lists and frames as a rendered cell grid, over
+	  WebSocket + REST.
+	* A second binding over the same core — the C64 and Amiga wire protocol is
+	  untouched.
+* **Client Specification** (new, `docs/spec/`) (#111) — a normative,
+  platform-agnostic guide to building a Compunet client:
+	* Transport, session, commands, the 40x24 PETSCII display contract, frame and
+	  directory formats, and the subsystems.
+	* Carries the C64 font, the palette and the embedded frames as data, so a
+	  client can be built from the document alone.
+	* Validated by nine independent clean-room builds that did exactly that.
+	* The two `HELP` frames (§A.8, §A.9) are now the **original bytes**, lifted
+	  from the C64 binaries rather than retyped from a screenshot. The retyped
+	  versions had invented borders and the wrong ink — cyan text on the
+	  original's cyan background, i.e. invisible — and the editor's had two keys'
+	  actions swapped.
+* **Website**:
+	* "Connect now" goes straight to
+	  [connect.compunet.live](https://connect.compunet.live), which is now the
+	  quickest way in — no client to choose, nothing to install.
+	* New **Extras** page carrying the printable logo.
+	* Refreshed look, built on the authentic Compunet red, blue and grey.
+* **3D-printed logo** (new, `3dprint/`) — a desk plaque of the Compunet logo for
+  multi-colour printers, in flush and raised variants. There is no source
+  artwork: it is generated from the PETSCII header frame the server sends.
+* **Server**:
+	* `SHOW` on an entry with no frames is now inert, as the original. It used to
+	  fall back to entering the sub-directory, collapsing `SHOW` and `DIR` into
+	  one command on exactly the entries where they differ.
+	* Uploads: The Jungle is open for uploads, inherited by its sub-directories,
+	  and a directory can opt out. The mail directory is created on demand,
+	  fixing a send failure on a fresh deployment.
+	* An empty sub-directory is no longer deleted when the tree is saved. Any
+	  upload rewrote the whole tree, and a directory with nothing in it yet lost
+	  its link — leaving its content on disk but unreachable.
+	* The admin API's audit endpoint now requires the API key, like every other
+	  admin route.
+	* **Uploading a program from a C64 works again.** In 1.1.0 the server read the
+	  body length from the wrong part of the upload header — the two bytes that
+	  hold a C64 program's load address — so it waited for roughly 17 MB that were
+	  never coming and the upload simply never finished. It also threw away the
+	  first part of the file when the header and body arrived together, which a
+	  C64 always does. Amiga uploads, which the 1.1.0 change was written for, are
+	  unaffected.
+	* An empty directory shows just `(EMPTY)`, with no page number and no type
+	  beside it. It used to claim page `0` and type `T` — a text page that does
+	  not exist, in a listing whose whole message is that it holds nothing.
 
 # 1.1.0 (2026-07-24)
 

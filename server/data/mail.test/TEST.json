@@ -1,0 +1,491 @@
+{
+  "messages": [
+    {
+      "id": "100002",
+      "from": "TEST",
+      "subject": "CLEANROOM PROBE",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100002-0.seq",
+        "100002-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100003",
+      "from": "TEST",
+      "subject": "FLOW TEST",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100003-0.seq",
+        "100003-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100004",
+      "from": "TEST",
+      "subject": "FLOW TEST",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100004-0.seq",
+        "100004-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100005",
+      "from": "TEST",
+      "subject": "FORM raw",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100005-0.seq",
+        "100005-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100006",
+      "from": "TEST",
+      "subject": "FORM cells",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100006-0.seq",
+        "100006-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100007",
+      "from": "TEST",
+      "subject": "FORM lines",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100007-0.seq",
+        "100007-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100008",
+      "from": "TEST",
+      "subject": "FORM both",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100008-0.seq",
+        "100008-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100009",
+      "from": "TEST",
+      "subject": "CELLS RT",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100009-0.seq",
+        "100009-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100010",
+      "from": "TEST",
+      "subject": "FLOW TEST",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100010-0.seq",
+        "100010-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100011",
+      "from": "TEST",
+      "subject": "P raw+cells+line",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100011-0.seq",
+        "100011-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100012",
+      "from": "TEST",
+      "subject": "P cells+lines",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100012-0.seq",
+        "100012-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100013",
+      "from": "TEST",
+      "subject": "P lines only",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100013-0.seq",
+        "100013-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100014",
+      "from": "TEST",
+      "subject": "P lines 30 rows ",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100014-0.seq",
+        "100014-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100015",
+      "from": "TEST",
+      "subject": "SIX",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100015-0.seq",
+        "100015-1.seq"
+      ]
+    },
+    {
+      "id": "100015",
+      "from": "TEST",
+      "subject": "SIX",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100015-0.seq",
+        "100015-1.seq"
+      ]
+    },
+    {
+      "id": "100015",
+      "from": "TEST",
+      "subject": "SIX",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100015-0.seq",
+        "100015-1.seq"
+      ]
+    },
+    {
+      "id": "100015",
+      "from": "TEST",
+      "subject": "SIX",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100015-0.seq",
+        "100015-1.seq"
+      ]
+    },
+    {
+      "id": "100015",
+      "from": "TEST",
+      "subject": "SIX",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100015-0.seq",
+        "100015-1.seq"
+      ]
+    },
+    {
+      "id": "100015",
+      "from": "TEST",
+      "subject": "SIX",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100015-0.seq",
+        "100015-1.seq"
+      ]
+    },
+    {
+      "id": "100016",
+      "from": "TEST",
+      "subject": "FIVE",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100016-0.seq",
+        "100016-1.seq"
+      ]
+    },
+    {
+      "id": "100016",
+      "from": "TEST",
+      "subject": "FIVE",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100016-0.seq",
+        "100016-1.seq"
+      ]
+    },
+    {
+      "id": "100016",
+      "from": "TEST",
+      "subject": "FIVE",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100016-0.seq",
+        "100016-1.seq"
+      ]
+    },
+    {
+      "id": "100017",
+      "from": "TEST",
+      "subject": "CLEANROOM RUN4",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100017-0.seq",
+        "100017-1.seq",
+        "100017-2.seq"
+      ]
+    },
+    {
+      "id": "100018",
+      "from": "TEST",
+      "subject": "CLEANROOM RUN4",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100018-0.seq",
+        "100018-1.seq",
+        "100018-2.seq"
+      ]
+    },
+    {
+      "id": "100019",
+      "from": "TEST",
+      "subject": "CLEANROOM RUN4",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100019-0.seq",
+        "100019-1.seq",
+        "100019-2.seq"
+      ]
+    },
+    {
+      "id": "100020",
+      "from": "TEST",
+      "subject": "RT4 BG",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100020-0.seq",
+        "100020-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100021",
+      "from": "TEST",
+      "subject": "RT4 LINES",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100021-0.seq",
+        "100021-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100022",
+      "from": "TEST",
+      "subject": "RT4 PREC",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100022-0.seq",
+        "100022-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100023",
+      "from": "TEST",
+      "subject": "P4 RAWCELL",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100023-0.seq",
+        "100023-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100024",
+      "from": "TEST",
+      "subject": "P4 RAWLINE",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100024-0.seq",
+        "100024-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100025",
+      "from": "TEST",
+      "subject": "P4 CELLLINE",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100025-0.seq",
+        "100025-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100026",
+      "from": "TEST",
+      "subject": "P5 ALL3",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100026-0.seq",
+        "100026-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100027",
+      "from": "TEST",
+      "subject": "P5 ALL3B",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100027-0.seq",
+        "100027-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100028",
+      "from": "TEST",
+      "subject": "P5 RCNOB",
+      "date": "2026-07-26",
+      "read": true,
+      "frames": [
+        "100028-0.seq",
+        "100028-1.seq"
+      ],
+      "read_date": "2026-07-26"
+    },
+    {
+      "id": "100029",
+      "from": "TEST",
+      "subject": "RUN4 SCREENSHOT",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100029-0.seq",
+        "100029-1.seq"
+      ]
+    },
+    {
+      "id": "100030",
+      "from": "TEST",
+      "subject": "RUN4 SCREENSHOT",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100030-0.seq",
+        "100030-1.seq"
+      ]
+    },
+    {
+      "id": "100031",
+      "from": "TEST",
+      "subject": "RUN4 SCREENSHOT",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100031-0.seq",
+        "100031-1.seq"
+      ]
+    },
+    {
+      "id": "100032",
+      "from": "TEST",
+      "subject": "RUN4 SCREENSHOT",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100032-0.seq",
+        "100032-1.seq"
+      ]
+    },
+    {
+      "id": "100033",
+      "from": "TEST",
+      "subject": "RUN4 SCREENSHOT",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100033-0.seq",
+        "100033-1.seq"
+      ]
+    },
+    {
+      "id": "100034",
+      "from": "TEST",
+      "subject": "RUN4 SCREENSHOT",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100034-0.seq",
+        "100034-1.seq"
+      ]
+    },
+    {
+      "id": "100035",
+      "from": "TEST",
+      "subject": "RUN4 SCREENSHOT",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100035-0.seq",
+        "100035-1.seq"
+      ]
+    },
+    {
+      "id": "100036",
+      "from": "TEST",
+      "subject": "RUN4 SCREENSHOT",
+      "date": "2026-07-26",
+      "read": false,
+      "frames": [
+        "100036-0.seq",
+        "100036-1.seq"
+      ]
+    }
+  ]
+}

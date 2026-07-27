@@ -15,6 +15,12 @@ the wire. The modern server implements it over TCP; TCP supplies the reliable tr
 the original phone line could not, while the X.25-derived framing (§2) supplies the packet
 boundaries and sequencing the protocol expects.
 
+This document is **Binding A** — the X.25-over-TCP wire protocol — one of two ways to carry
+the same underlying service. The modern **JSON API (Binding B)** is specified in
+[`api/README.md`](api/README.md), for capable clients; the constrained C64/Amiga ROM clients
+stay on Binding A permanently. §1.8 explains the model-and-bindings architecture and which
+sections here are shared model versus Binding-A wire format.
+
 ## 1.2 Authority and provenance
 
 The **server** (`server/compunet_server.py` and `server/x25_protocol.py`) is the
@@ -30,9 +36,11 @@ normative** — they record how a fact was established, not the requirement itse
 
 ## 1.3 Scope
 
-**In scope.** The Reborn protocol over TCP: transport framing (§2), session lifecycle
-(§3), the command protocol (§4), the PETSCII display contract (§5), the frame (§6) and
-directory (§7) formats, and the application subsystems (§8).
+**In scope.** The Reborn protocol over TCP — **Binding A**: transport framing (§2), session
+lifecycle (§3), the command protocol (§4), the PETSCII display contract (§5), the frame (§6)
+and directory (§7) formats, and the application subsystems (§8). The **JSON API binding
+(Binding B)** is a separate document ([`api/README.md`](api/README.md)), not specified here; it
+reuses this spec's model sections (§1.8) and replaces only the wire-format ones.
 
 **Out of scope.** These belong to platform notes, not this specification, and a client
 MAY implement them however its environment dictates:
@@ -79,6 +87,22 @@ Requirement language is used for the protocol (§§2–4, §§6–7) and for the
 constraints in §5 that a user-visible client must honour to look and behave like Compunet.
 Explanatory and background prose is non-normative.
 
+## 1.5.1 Load-bearing details (⚠)
+
+Some facts in this specification look **cosmetic but are structural**: change them and something
+visibly breaks, often somewhere else. They are marked **⚠ load-bearing**, and each says *what
+breaks* if it is altered. Examples already found the hard way: the leading space in the `" PRICE"`
+column header (it is the column's *position*, §7.3); the `1 + N` in RLE counts (§6.4); the
+divider column the selection bar must not overwrite (§7.7); the price gate that separates `BUY`
+from `SHOW` (§8.6.4).
+
+**Treat a ⚠ as "do not tidy".** The recurring failure mode is a *plausible edit* — a competent
+implementer sees a detail with no stated reason, concludes it is redundant or missing, and
+"improves" it. That produces a client that **works**, so no test objects; the divergence is only
+caught by someone who knows the original service. Where this spec states a decision, it also owes
+you the reason; if a reason is missing, treat that as a spec bug and ask, rather than inferring
+one.
+
 ## 1.6 Notation
 
 - Byte values are hexadecimal with a `$` or `0x` prefix (`$01`, `0x43`); the two forms are
@@ -101,3 +125,28 @@ Explanatory and background prose is non-normative.
 | 7 | [Directory format](07-directory-format.md) |
 | 8 | [Subsystems](08-subsystems.md) — mail, downloads, uploads, editor, Partyline, LIFE/VOTE |
 | A | [Appendices](99-appendices.md) — command & token tables, charset + palette, session trace |
+
+## 1.8 Transport bindings and the shared model
+
+Compunet Reborn is one **application model** carried by one or more **transport bindings**. The
+model is *what* the service is; a binding is *how* it is carried on the wire.
+
+- **Application model** (transport-agnostic): the content model (pages, directories, frames),
+  the command and navigation semantics, and the subsystems. In this document the model lives in
+  **§3** (session), **§4** (command semantics), **§8** (subsystems), and the abstract screen
+  model and palette of **§5**.
+- **Binding wire format** (this binding only): the concrete bytes. Here that is **§2** (X.25
+  framing), **§6** (frame bytes: header, RLE, control codes), **§7** (the six-part directory
+  stream), and the PETSCII byte encoding within **§5**.
+
+**This document is Binding A — X.25-over-TCP.** **Binding B — the modern JSON API** (web /
+desktop / mobile) reuses the model sections above verbatim and replaces only the wire-format
+sections with structured JSON. It is a **sibling document**, [`api/README.md`](api/README.md),
+not a change to this one; [`api/RATIONALE.md`](api/RATIONALE.md) records why it is shaped as it is.
+
+Bindings exist because clients differ in capability. The **C64 and Amiga ROM clients** cannot
+afford JSON or a WebSocket, so they remain on Binding A **permanently** — it is frozen, not
+deprecated. Because every binding projects the *same* model, a constrained client and a modern
+one see the same Compunet; Binding B must therefore never introduce content behaviour Binding A
+cannot express. **Conformance is stated per binding** — a client declares its binding *and* its
+tier (§1.4), e.g. "Binding A, Tier 1".

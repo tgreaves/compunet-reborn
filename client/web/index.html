@@ -1,28 +1,261 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compunet Terminal</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compunet Reborn — Web Client (Binding B)</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0d0d12; --panel: #16161f; --line: #2a2a3a; --ink: #cdd;
+    --dim: #667; --accent: #6c8cff; --ok: #7a8; --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+         display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* --- top bar ------------------------------------------------------- */
+  header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+           padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .brand { font-weight: 650; letter-spacing: .3px; color: #9ab; margin-right: 6px; white-space: nowrap; }
+  .brand span { color: var(--accent); }
+  input, select { background: #10101a; color: #eee; border: 1px solid var(--line);
+                  border-radius: 6px; padding: 6px 9px; font: inherit; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input.bad { border-color: var(--bad); }
+  button { background: #23233a; color: #dde; border: 1px solid #3a3a55; border-radius: 6px;
+           padding: 6px 12px; cursor: pointer; font: inherit; }
+  button:hover:not(:disabled) { background: #2e2e4d; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0b0b12; font-weight: 600; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.1); }
+  .spacer { flex: 1; }
+  .credit { font: 12px ui-monospace, monospace; color: var(--ok); }
+
+  /* --- workspace: fixed-size panes side by side ----------------------- */
+  #workspace { flex: 1; display: flex; gap: 16px; padding: 16px; align-items: flex-start;
+               justify-content: center; flex-wrap: wrap; }
+  .pane { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          overflow: hidden; box-shadow: 0 8px 28px #0006; transition: border-color .12s, box-shadow .12s; }
+  .pane.focused { border-color: var(--accent); box-shadow: 0 8px 28px #0008, 0 0 0 1px var(--accent); }
+  .paneHead { display: flex; align-items: center; gap: 8px; padding: 7px 11px;
+              border-bottom: 1px solid var(--line); background: #12121b; }
+  .paneTitle { font-size: 12px; font-weight: 650; letter-spacing: .6px; text-transform: uppercase; color: var(--dim); }
+  .pane.focused .paneTitle { color: var(--accent); }
+  .paneMeta { font: 11px ui-monospace, monospace; color: var(--dim); margin-left: auto; }
+  .paneHead button { padding: 1px 8px; font-size: 13px; line-height: 1.3; }
+  .screenWrap { padding: 18px; line-height: 0; }
+  canvas { image-rendering: pixelated; display: block; }
+  /* Unfocused panes recede — the focused one owns the keyboard (spec §4.8). */
+  .pane:not(.focused) .screenWrap { filter: saturate(.55) brightness(.72); }
+
+  /* --- editor tools: palette + glyph pickers (§8.4.3, affordance only) ----- */
+  #edTools { border-top: 1px solid var(--line); background: #12121b; padding: 8px 11px 10px;
+             display: flex; flex-direction: column; gap: 7px; }
+  .toolRow { display: flex; align-items: center; gap: 8px; }
+  .toolLabel { font-size: 11px; font-weight: 650; letter-spacing: .5px; text-transform: uppercase;
+               color: var(--dim); width: 46px; flex: none; }
+  #edTools select { font: 11px ui-monospace, monospace; padding: 2px 4px; flex: none; }
+  #edTools input[type=number] { font: 11px ui-monospace, monospace; width: 52px; padding: 2px 4px; }
+  .toolNote { font: 11px ui-monospace, monospace; color: var(--dim); display: flex;
+              align-items: center; gap: 5px; }
+  #edSwatches { display: flex; gap: 3px; flex-wrap: wrap; }
+  .swatch { width: 18px; height: 18px; border: 1px solid #0008; border-radius: 3px; cursor: pointer;
+            padding: 0; flex: none; }
+  .swatch.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+  /* The glyph strip scrolls rather than growing the pane — 64 cells a bank. */
+  #edGlyphs { display: flex; gap: 2px; flex-wrap: wrap; max-height: 76px; overflow-y: auto;
+              padding: 2px; background: #0a0a10; border: 1px solid var(--line); border-radius: 4px; }
+  .glyph { width: 18px; height: 18px; padding: 0; border: 1px solid transparent; border-radius: 2px;
+           background: #000; cursor: pointer; flex: none; image-rendering: pixelated; }
+  .glyph:hover { border-color: var(--accent); }
+
+  /* --- footer -------------------------------------------------------- */
+  footer { padding: 8px 16px 14px; display: flex; flex-direction: column; gap: 4px; }
+  #status { font: 12px ui-monospace, monospace; color: var(--ok); min-height: 16px; }
+  #status.bad { color: var(--bad); }
+  .hint { color: var(--dim); font-size: 12px; }
+
+  /* --- Partyline (§8.5): occupies the Compunet pane, same footprint ---- */
+  #chat { padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+  #chat[hidden] { display: none; }
+  #chatLog { width: 640px; height: 352px; overflow-y: auto; background: #000060; border: 2px solid #0000dd;
+             color: #9f9; font: 13px/1.35 ui-monospace, monospace; padding: 8px;
+             white-space: pre-wrap; word-break: break-word; }
+  #chatInput { width: 640px; background: #001000; border: 2px solid #0d0; color: #9f9;
+               font: 13px ui-monospace, monospace; caret-color: #0d0; }
+
+  /* --- submit dialog (metadata only; the body comes from the editor) -- */
+  #submit { position: fixed; inset: 0; background: #000a; display: flex;
+            align-items: center; justify-content: center; z-index: 10; }
+  /* ⚠ The prompt must NOT cover the screen it is asking about: OKAY? confirms
+     the envelope, so the envelope has to stay visible (§8.2.1). Anchored to the
+     bottom, with no dimming backdrop. */
+  #ask { position: fixed; inset: auto 0 0 0; display: flex; justify-content: center;
+         padding: 0 16px 16px; z-index: 10; pointer-events: none; }
+  #ask > * { pointer-events: auto; }
+  #submit[hidden], #ask[hidden] { display: none; }
+  #askBox { width: 420px; max-width: calc(100vw - 32px); background: var(--panel);
+            border: 1px solid var(--accent); border-radius: 10px; padding: 14px;
+            display: flex; flex-direction: column; gap: 10px; box-shadow: 0 12px 40px #000c; }
+  #askTitle { font-weight: 650; color: #9ab; }
+  #askFields { display: flex; flex-direction: column; gap: 6px; }
+  #askFields input { width: 100%; }
+  #submitBox { width: 520px; max-width: calc(100vw - 32px); background: var(--panel);
+               border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+               display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px #000a; }
+  #submitTitle { font-weight: 650; color: #9ab; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  /* Label above its control, so the two stay together when the row wraps and
+     the caption survives the field being filled in. */
+  .field { display: flex; flex-direction: column; gap: 3px; font-size: 12px;
+           color: var(--dim); }
+  /* ⚠ Required: `display: flex` beats the UA stylesheet's
+     `[hidden] { display: none }`, so any flex container the JS hides stays
+     visible without this. `.row` had the bug already — composing MAIL showed
+     the Type / Price / Life controls, which belong to an upload and mean
+     nothing on a message. */
+  .field[hidden], .row[hidden] { display: none; }
+  .field > input, .field > select { font-size: 13px; }
+</style>
 </head>
 <body>
-    <div id="terminal">
-        <canvas id="screen" width="384" height="264"></canvas>
+  <header>
+    <div class="brand">◆ COMPUNET <span>REBORN</span></div>
+    <input id="host" value="" size="18" placeholder="this server"
+           title="Compunet server. Leave blank to use the server that served this page. Otherwise the name is enough (localhost, docker.lan, connect.compunet.live) — local names get port 6404, public ones get TLS. A full ws:// or https:// URL is accepted too.">
+    <input id="user" value="TEST" size="8" placeholder="user" autocomplete="username">
+    <input id="pass" type="password" size="10" placeholder="password" autocomplete="current-password">
+    <button id="connect" class="primary">Connect</button>
+    <!-- Line speed. Compunet ran at 1200/75 (V.23), and watching a page arrive
+         was part of what it felt like — so this is offered, not assumed. -->
+    <select id="baud" title="Pretend the line is this fast. Compunet ran at 1200 baud, and pages painted as they arrived.">
+      <option value="0">Fastest</option>
+      <option value="1200">1200 baud</option>
+    </select>
+    <!-- Offline entry to the editor (§8.4). With no session there is no Compunet
+         screen and so no duckshoot: on the original this is the BASIC `EDITOR`
+         command, and here it is a host-environment button. EDITR in the
+         directory/mail rows is the in-session route to the same place. -->
+    <button id="openEditor" title="The editor works offline — compose now, connect later">Editor</button>
+    <div class="spacer"></div>
+    <div class="credit" id="credit"></div>
+  </header>
+
+  <main id="workspace">
+    <section class="pane focused" id="paneNet">
+      <div class="paneHead">
+        <span class="paneTitle" id="netTitle">Compunet</span>
+        <span class="paneMeta" id="netMeta">not connected</span>
+      </div>
+      <div class="screenWrap" id="screenWrap"><canvas id="screen"></canvas></div>
+      <!-- Partyline (§8.5) REPLACES the Compunet surface rather than tiling
+           beside it: on the C64 the link downloads a chat program that takes
+           over the screen, and the client restores it on exit. It is also the
+           one context with none of the normal commands (§4.8). -->
+      <div id="chat" hidden>
+        <div id="chatLog"></div>
+        <input id="chatInput" placeholder="Type a message, or *help for commands — Enter to send" autocomplete="off">
+      </div>
+    </section>
+
+    <section class="pane" id="paneEditor" hidden>
+      <div class="paneHead">
+        <span class="paneTitle">Editor</span>
+        <span class="paneMeta" id="edMeta"></span>
+        <button id="edClose" title="RETURN — leave the editor (the buffer is kept)">✕</button>
+      </div>
+      <div class="screenWrap" id="edWrap"><canvas id="edScreen"></canvas></div>
+      <!-- ⚠ Palette and glyph pickers are an AFFORDANCE, not commands (§8.4.3).
+           They live in the pane's furniture, never in the editor's command row —
+           its fourteen commands are a closed set (§8.4.1), and the keys below
+           remain the primary route. The original's user knew the palette and the
+           graphics keys by heart; a new one does not. -->
+      <div id="edTools">
+        <div class="toolRow">
+          <span class="toolLabel">Colour</span>
+          <select id="edTarget" title="What the swatches below set">
+            <option value="pen">pen · CTRL+1-8</option>
+            <option value="screen">screen · f7</option>
+            <option value="border">border · f8</option>
+          </select>
+          <div id="edSwatches"></div>
+        </div>
+        <div class="toolRow">
+          <span class="toolLabel">Buffer</span>
+          <label class="toolNote">pages
+            <input id="edPageLimit" type="number" min="15" max="200" step="1" value="50"
+                   title="How many pages the editor holds. The original held 10-15; 15 is the minimum. When full, the oldest page is dropped.">
+          </label>
+          <span class="toolNote" id="edBufferState"></span>
+        </div>
+        <div class="toolRow">
+          <span class="toolLabel">Glyphs</span>
+          <select id="edBank" title="Which character bank to show">
+            <option value="shift">SHIFT+key graphics</option>
+            <option value="commodore">C= key graphics</option>
+            <option value="upper">Letters &amp; digits</option>
+            <option value="lower">Lower / mixed case</option>
+          </select>
+          <div id="edGlyphs"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div id="status">Not connected.</div>
+    <div class="hint" id="hint"></div>
+  </footer>
+
+  <!-- ⚠ Electron does not implement window.prompt()/confirm() — they throw.
+       Any command needing input (ID, GOTO, VOTE, LIFE, BUY) must use this. -->
+  <div id="ask" hidden>
+    <div id="askBox">
+      <div id="askTitle"></div>
+      <div id="askFields"></div>
+      <div class="row">
+        <button id="askOk" class="primary">OK</button>
+        <button id="askCancel">Cancel</button>
+      </div>
     </div>
-    <div id="info">
-        <p>Compunet Terminal Emulator &mdash; Use &larr; &rarr; to scroll duckshoot, ENTER to select</p>
-        <p><label>Load SEQ file: <input type="file" id="seq-file"></label>
-           <button id="seq-prev">&larr; Prev</button>
-           <span id="seq-info"></span>
-           <button id="seq-next">Next &rarr;</button></p>
+  </div>
+
+  <div id="submit" hidden>
+    <div id="submitBox">
+      <div id="submitTitle">Compose</div>
+      <!-- ⚠ Every control carries a REAL label, not a placeholder. A placeholder
+           disappears the moment the box has a value, so "price" and "life" were
+           unidentifiable exactly when they were filled in — and both are bare
+           numbers, so nothing in the value itself says which is which. -->
+      <div class="row">
+        <label class="field" style="flex:1">Title
+          <input id="edTitle" placeholder="up to 16 characters" maxlength="16">
+        </label>
+        <span id="edContentFields" class="row">
+          <label class="field">Type
+            <select id="edKind"><option value="T">T — text</option><option value="P">P — program</option></select>
+          </label>
+          <label class="field">Price (£)
+            <input id="edPrice" type="number" step="0.01" min="0" value="0" style="width:6.5em">
+          </label>
+          <label class="field">Life (days)
+            <input id="edLife" type="number" min="0" value="30" style="width:5.5em">
+          </label>
+        </span>
+        <label class="field" id="edToField" style="flex:1">To
+          <input id="edTo" placeholder="up to five IDs, comma-separated">
+        </label>
+      </div>
+      <div class="row">
+        <button id="edSubmit" class="primary">Submit</button>
+        <button id="edCancel">Cancel</button>
+        <span class="hint" id="edHint"></span>
+      </div>
     </div>
-    <script src="charrom.js"></script>
-    <script src="help_data.js"></script>
-    <script src="petscii.js"></script>
-    <script src="seq_renderer.js"></script>
-    <script src="protocol.js"></script>
-    <script src="duckshoot.js"></script>
-    <script src="terminal.js"></script>
+  </div>
+
+  <script type="module" src="./dist/app.bundle.js"></script>
 </body>
 </html>

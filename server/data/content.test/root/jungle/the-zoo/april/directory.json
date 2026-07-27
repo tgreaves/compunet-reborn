@@ -1,0 +1,58 @@
+{
+  "pages": [
+    {
+      "page_num": 707,
+      "title": "APRIL TWO",
+      "type": "T",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "frames": [
+        "frame-1.seq",
+        "frame-2.seq",
+        "frame-3.seq",
+        "frame-4.seq",
+        "frame-5.seq",
+        "frame-6.seq",
+        "frame-7.seq",
+        "frame-8.seq"
+      ]
+    },
+    {
+      "page_num": 708,
+      "title": "APRIL FOUR",
+      "type": "T",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "frames": [
+        "frame-1.seq",
+        "frame-2.seq",
+        "frame-3.seq",
+        "frame-4.seq",
+        "frame-5.seq",
+        "frame-6.seq",
+        "frame-7.seq",
+        "frame-8.seq"
+      ]
+    },
+    {
+      "page_num": 709,
+      "title": "APRIL SIX",
+      "type": "T",
+      "author": "PIMAN",
+      "price": 0,
+      "life": 99,
+      "frames": [
+        "frame-1.seq",
+        "frame-2.seq",
+        "frame-3.seq",
+        "frame-4.seq",
+        "frame-5.seq",
+        "frame-6.seq",
+        "frame-7.seq",
+        "frame-8.seq"
+      ]
+    }
+  ]
+}

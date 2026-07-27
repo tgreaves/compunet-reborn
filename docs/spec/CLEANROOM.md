@@ -1,5 +1,40 @@
 # Clean-room validation brief
 
+> **Scope: this is the procedure for validating [Binding A](README.md)** (X.25-over-TCP), and it
+> has been run five times — see [VALIDATION.md](VALIDATION.md). For **[Binding B](api/README.md)**
+> (the JSON API), follow this document with the changes in *Validating Binding B* below.
+
+## Validating Binding B
+
+Same method, three differences:
+
+**The isolated set is different.** Copy `api/README.md` plus the **shared model** sections and
+the appendix — and **exclude `02-transport.md` and `03-session.md`**, which are Binding-A wire
+detail that a JSON client neither needs nor should be reading:
+
+```
+README.md  01-overview.md  04-commands.md  05-display.md  06-frame-format.md
+07-directory-format.md  08-subsystems.md  99-appendices.md  api/README.md
+```
+
+`05` and `06` stay in despite the API delivering rendered cell grids: the client still carries
+the **embedded frames** of §A.6/§A.8–§A.11 as raw PETSCII and must parse them itself.
+
+Sections will now reference §2/§3, which the builder does not have. That is intended — tell them
+a reference into a missing section is itself worth logging.
+
+**⚠ Do not point the builder at `run_api_dev.py`.** That launcher serves `client/web` on the same
+origin as the API, so the builder can fetch our reference implementation — `index.html`,
+`dist/app.bundle.js`, even `src/` — and the run is **void**. Use `server/run_api_only.py`
+(default port 6414), which exposes `/v1/*` and nothing else. Verify before starting:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:6414/dist/app.bundle.js   # must be 404
+```
+
+**Findings are tagged differently:** `[API]`, `[MODEL]`, `[UX]`, `[BUG]` — the API surface, the
+shared model beneath it, invented presentation, and outright faults.
+
 This document defines how to validate that the [Compunet Client Specification](README.md)
 is **sufficient to build a working client from the spec alone**. It exists because the spec
 author cannot validate their own spec: they carry the codebase and its assumptions in their
@@ -50,6 +85,36 @@ The copied set must be exactly: `README.md`, `01`–`08`, `99-appendices.md` (pl
 stamp). Then start a **brand-new** agent session (a fresh `claude` in that directory, or an
 otherwise isolated agent) — not a continuation of any session that has seen the codebase —
 and give it the brief below.
+
+## Test data the server must carry
+
+Live content (`server/data/content/`) is **not tracked in git**, so fixtures set up there do not
+travel with a checkout. Point the server at the tracked fixture tree instead:
+
+```bash
+COMPUNET_CONTENT_DIR=server/data/content.test python server/run_api_only.py
+```
+
+`server/data/content.test/` carries everything a run needs, and its README explains each fixture.
+Without them a builder cannot reach several normative obligations and — worse — **reports missing
+test data as protocol faults**: the seventh run listed six items as unverifiable, and five were
+fixtures rather than bugs.
+
+| Fixture | Exercises |
+|---|---|
+| `open_upload: true` on The Jungle | Uploads succeeding, `directory_full`, latent-directory creation (§8.3.2, §7.4) — all three fail *identically* without it |
+| `open_upload: false` on a child | That the inheritance can be stopped, and that the owner is still not locked out |
+| A listing of **more than 11** entries | Paging (§7.6); `hasMore` is otherwise never true |
+| A **paid, unbought** page | The paid half of the `SHOW`/`BUY` gate (§8.6.4) |
+| A paid page the account **owns** | The other half — blank price, no gate |
+
+Two things that quietly invalidate a run:
+
+- **Buying the paid page consumes the fixture.** Reset the account's `purchased` list and credit
+  afterwards, or the next run sees a free page and concludes there is no priced content — which
+  is exactly what happened on the seventh run.
+- **Run as a normal account.** Admins and editors bypass `_can_upload_here` entirely, so a run as
+  admin proves nothing about the permission rules.
 
 ## The brief (paste this to the fresh agent)
 

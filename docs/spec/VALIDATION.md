@@ -71,7 +71,7 @@ it draws; §3.5 states the server ignores the login system-info field.)*
 
 ## Test-client validation (Tier 1)
 
-A clean-room Tier-1 client (`client/pygame/`) was written **from `docs/spec/` alone** — not
+A clean-room Tier-1 client was written **from `docs/spec/` alone** — not
 referencing the server or the C64/Amiga source — and run against the live `docker.lan:6400`
 server. It successfully connected, identified (native handshake), logged in, rendered the
 welcome/personal-info frame, listed the top directory, selected an entry, and rendered the
@@ -116,9 +116,16 @@ A second round of testing (wiring up the commands) surfaced three more, all fixe
   the earlier "a client cannot create directories" was wrong — creation just isn't a dedicated
   command, it is the server's response to DIR + upload.
 
-*(Caveat: the `client/pygame/` build above and its findings were produced by the spec author,
-who carries the codebase in their head — so it is a contaminated test. Its value is real but
-weaker than an independent build. See the clean-room run below.)*
+*(Caveat: the build above and its findings were produced by the spec author, who carries the
+codebase in their head — so it is a contaminated test. Its value is real but weaker than an
+independent build. See the clean-room runs below.)*
+
+*(The client itself — `client/pygame/`, a Tier-1 Binding-A instrument that parsed Appendix A for
+its own font and palette — was removed once the isolated clean-room runs superseded it. It was
+last updated on 24 July and the spec has moved materially since: it still implemented `MORE` as a
+directory-paging command, a mechanism §7.6 now establishes never existed. An unmaintained
+reference implementation of a superseded spec teaches the wrong protocol to anyone who opens it.
+It remains in git history.)*
 
 ## Independent clean-room run
 
@@ -270,14 +277,26 @@ index, the latent-directory creation model). The genuine gaps folded in:
   "home"; it reaches the root only right after login (current dir = root). To ascend, use `B`
   (BACK). The §A.7 trace comment was clarified accordingly.
 
-**Layout corrections (maintainer screenshots).** Two off-by-one placement errors, corrected in
-§7 (this is the run-5 answer to the open geometry finding **F13**):
+**Layout corrections (maintainer screenshots).** Directory placement errors, the run-5 answer to
+the open geometry finding **F13**. §7.3/§7.7/§A.6 carry the authoritative numbers; this entry
+records only *why* they were wrong and how they were settled.
 
-- Entry rows sat one column too far left: the whole row (page number, title, type) renders from
-  **screen column 2**, so the type lands at **screen column 26** (was 25), and entry page
-  numbers line up with the Part-4 breadcrumb above. Updated §7.3, §7.4, §7.5, §7.7, §4.5.
-- The selected column header (`PRICE`) sat one row too high and flush-left: it belongs at
-  **row 8** (level with `100 WELCOME`), **indented one column** for centring. Updated §7.7.
+- **Vertical:** the selected column header (`PRICE`) sat one row too high — it belongs at
+  **row 8**, level with breadcrumb line 2 (`100 WELCOME`).
+- **Horizontal:** the entry rows and the right-hand pane were misplaced. This took two passes to
+  get right, and the reason is instructive: the first pass shifted the spec's *absolute* column
+  numbers to match a clean-room client, when that client's real fault was that **its own box**
+  was drawn a column off. Correcting the spec to the client compounded the error rather than
+  fixing it.
+
+  It was settled by **rendering the §A.6 template and reading the actual column indices** — the
+  box occupies `[0, 30, 39]` (left border, divider, right border). Content therefore sits at the
+  **box interior**: entry rows from **column 1**, type at **column 25**, right-pane header and
+  values from **column 31**.
+
+  **Lesson (now baked into §7.7):** the layout is defined **relative to the box**, not as
+  free-floating column numbers, so a client with a mispositioned box can no longer drag the spec
+  out of alignment. Verified by a per-column ink census on the rendered screen rather than by eye.
 
 The remaining run-5 findings (F5, F9–F12, F14–F19) were confirmations or UX choices the spec
 deliberately leaves open.
@@ -322,6 +341,256 @@ The under-specified decode points the agent flagged (P3 frame-vs-directory discr
 bare-ACK-by-timeout) are inherent to a protocol with no in-band type/length markers; the agent's
 structural + short-timeout heuristics worked, and the spec already prescribes them (§4.5/§4.2).
 
+## Seventh clean-room run — **Binding B** (Tier 3, Electron)
+
+The first clean-room validation of the **JSON API**. Isolated set: `api/README.md` plus the
+shared model sections and the appendix (§§1, 4–8, 99) — `02-transport` and `03-session` withheld
+as Binding-A wire detail. Server: an API-only listener with **no static file serving**, so the
+builder could not fetch the reference client (`run_api_only.py`; `run_api_dev.py` serves
+`client/web` on the same origin and would have voided the run). Account `TEST`, a normal GOLD
+account, not an administrator — so the permission rules were actually exercised.
+
+Result: a full Tier-3 Electron client, 22 screenshots, **41 findings**. Everything in Tiers 1–3
+was reached except the items it listed as unverifiable (below). All findings are folded in.
+
+**Server faults it found — all measured, not inferred:**
+
+- **The `cells` encoder silently dropped screen code `$5F`.** Found by submitting a real frame's
+  `cells` back through `mail.send` and **diffing the grids**: 14 of 960 cells differed, every one
+  glyph 95 → 32 (space), with colour, background and reverse all intact. `$5F` sits between the
+  `$40`–`$5D` graphics run and the `$60`–`$7F` one, and `$5E` (pi) had its own case, so it fell
+  through to a default. Exactly one screen code of 128 was wrong — and it falsified §5.4's claim
+  that "anything Binding A can display, Binding B can now author", breaking §1.8 in the direction
+  the documents do *not* worry about. The inverse is now total, and checked as such.
+- **`UCAT` returned the session's current listing** — the mailbox, if you had just opened mail.
+  Binding A was never affected: `_render_ucat` builds the listing as *bytes* and never sets
+  `current_page`, because a user catalogue is not a page in the content tree. Binding B discarded
+  those bytes and serialized model state. UCAT is a **synthetic** listing and now has its own
+  serializer. The general lesson is recorded in the code: any command whose reply is not "the
+  session's current page" needs one.
+- **An unknown `goto` target returned the current listing with no error** — the silent no-op this
+  binding explicitly rejects for `vote`/`life`. Now `not_found`.
+- **`mailWaiting` was never emitted**, so the unread-mail marker could only be derived by opening
+  the mailbox — defeating a marker that exists to tell you about mail you have *not* opened. Now
+  answered from the mailbox file with no session side-effects.
+- Smaller: `mail.read` with an out-of-range index returned a directory instead of an error;
+  mail entry `page` was a string where every other listing sends an integer; `advert` could be a
+  zero-length array where §7.2 requires exactly two lines.
+
+**Specification faults it found:**
+
+- **§4.7 declared the vocabulary "closed and exhaustive" while leaving `ALL`, `LOAD` and `ABORT`
+  undefined.** They had duckshoot cells and §4.8 context rows but no entry in §4.7's tables, so
+  the builder had to invent all three — the precise failure §4.7 exists to prevent. Now defined,
+  with a ⚠ that closing a vocabulary obliges the section to define everything it closes over.
+- **The api document was wrong about its own client's obligations.** §7 said "no PETSCII/RLE
+  logic in the client; the server did it" — true of server content, false of the **five** required
+  client assets (§A.6, §A.8–§A.11), which are raw §6 frames. The builder implemented the full §6.3
+  loop and verified it against the renders printed in §A.9/§A.10/§A.11 *before* touching the
+  server. Called "the single biggest thing this document gets wrong".
+- **`page` is scoped to the current listing, not a global address** — unstated, and it fails as a
+  plausible `not_found`. Called "the single most consequential thing the API spec does not say".
+- **§7.7 contradicted itself on the selection bar**: "columns 1–29 and 31–38" in one normative box
+  and "all 40 columns" in the next. The first is correct; the second was describing the
+  *technique* and has been reworded.
+- **The duckshoot's geometry never added up**: seven 6-character cells is 42 columns against a
+  40-column grid, and the visible cell count was only implied by a worked example. Both now
+  stated — the row starts one column left and the outer cells clip, which is also why the centre
+  cell lands dead centre.
+- **The duckshoot loop length was ambiguous** (eleven displayed vs seventeen reachable); an
+  eleven-long loop would make `VOTE` unreachable, which §4.9.4 forbids. Now stated as seventeen.
+- Also folded in: the more-pages flag *may* choose the command row even though it must not drive
+  paging (§4.5/§6.5 apply to paging, not to row selection); `SEND`/`FINISH` are a user-facing
+  requirement that Binding B satisfies client-side; Partyline renders in the lowercase set;
+  the `MAIL` marker's column; `HELP` returns by "press any key" rather than `FINISH`; and the
+  `account`, `goodbye`, `context` and `selected` fields the binding was carrying undocumented.
+
+**What it could not verify, and why** — recorded rather than glossed:
+
+| Obligation | Why |
+|---|---|
+| A content upload succeeding | `permission_denied` on every directory tried; only the refusal path is proven |
+| The `directory_full` error | The full directory also answered `permission_denied`, so the two are indistinguishable from outside |
+| Latent-directory creation by `DIR` | `enter` on a `+`-less entry returned the listing unchanged |
+| Directory paging | No listing on the test server exceeds 11 entries, so `hasMore` was never true |
+| The paid half of the `BUY`/`SHOW` gate | No content on the server carries a price |
+| Program **upload** | Behind the same `permission_denied`; program *download* works |
+
+**All six were resolved after the run, and five were test-data gaps rather than faults:**
+
+- The three write obligations were one question. `_can_upload_here` is correct — owner, or
+  admin/editor, or an inherited `open_upload` — but **`open_upload` was set on no directory in
+  the content tree**, and The Jungle's author is `JUNGLE`, not a real account, so neither branch
+  could fire. A code rule with no data to trigger it. With The Jungle opened, all three verified:
+  an upload lands and appears in the refreshed listing; the twelfth entry is refused with
+  `directory_full`; and `DIR` on a `+`-less entry opens a new empty directory, which is §7.4's
+  hierarchy-building mechanism.
+- Paging needed a listing longer than 11 — but see the ninth entry below: the premise was wrong,
+  and authored directories do not paginate at all.
+- The price gate was a **misreading, not missing data**. The paid page existed and cost £2.50 —
+  it showed blank because the test account had **already bought it**, and a purchased page
+  correctly has no price. Only the free half of the table was ever reachable. With an unbought
+  paid page the whole cycle checks out: the price appears right-justified in the PRICE column,
+  opening it deducts the credit, and the price then blanks because the page is owned.
+
+The fixtures are now listed in [CLEANROOM.md](CLEANROOM.md) — content is not tracked in git, so
+they must be set up per server or the next run hits the same walls and reports them as faults.
+
+While opening The Jungle, `open_upload` gained a proper inheritance model: it flows down, a child
+may set it explicitly to `false` to stop that, and an owner is never locked out of their own
+directory by an inherited `false`. That needed three changes, one of them latent and nasty — the
+tree-save path wrote the flag back only when truthy, so saving a directory would have **dropped a
+child's opt-out and silently reopened it**.
+
+## Eighth clean-room run — Binding B again, on the corrected spec
+
+A second isolated Tier-3 Electron build, on the spec as corrected by the seventh run, with the
+fixture tree in place so nothing was out of reach. **44 findings.** The brief added one
+instruction — *measure rather than infer* — and it changed the character of the results: this run
+diffed grids, swept colour spaces and counted cells rather than reasoning about them.
+
+**It cleared the previous run's headline fault, independently.** A grid exercising all 256 glyph
+codes in **both** character sets, again with reverse video, plus a 16×16 foreground/background
+sweep, uploaded and diffed over 960 cells: **glyphs 0 mismatches, reverse video 0, foreground 0**.
+The `$5F` hole is gone. Their §6 decoder also agreed with the server on **14,400 of 14,400** cells,
+and `raw` round-tripped byte-identically.
+
+**Three of the four worst findings were regressions from the seventh run's own fixes** — which is
+the honest lesson of this run:
+
+- **`dir.more` stranded the session.** Added to give `hasMore` something to act on; paging past
+  the last page returned a listing with **zero entries**, which then *became* the session's
+  current listing. Because `page` is listing-scoped, every subsequent `open`/`enter`/`vote` then
+  failed with a plausible `not_found` until the user escaped with `goto`. It also broke §7.3's
+  **MUST** that an empty directory still carries one placeholder row. Both fixed: paging is
+  clamped at both ends, and a listing is never serialized empty.
+- **`goto` reported "no such page" for pages that exist.** The seventh run's fix for silent
+  GOTO failure searched only the **visible** eleven entries, so any entry on page 2 or later
+  looked missing — while REST fetched it perfectly well, so the two lookups disagreed. Now the
+  whole listing is searched and the reply pages to the target.
+- **The API document told clients to page with a `MORE` command**, in a context where §4.8 says
+  there is no `MORE` and §4.7 declares the vocabulary closed. The builder resolved it better than
+  the original: page when the **selection moves past the last entry**, mirroring the gesture
+  Binding A uses on its synthetic pagination row — no word added to a closed vocabulary. Adopted,
+  and §4.8 now says so. They also spotted that paging had **no reverse**, which cost *n* round
+  trips to go back one page; `dir.back` added. **Both commands were later removed** — see below:
+  the model has no paging, so both were invented vocabulary.
+
+**Other faults, all measured:**
+
+- `finish` and `dir` returned a **frame** after `mail.read`, wedging the session — only `back`
+  recovered. `dir` is documented to always reply `directory`.
+- `leave` never closed the socket: the session stayed fully usable, so a client waiting for the
+  close to complete logout hangs. It cost the builder a two-minute timeout to notice.
+- `life` validated nothing — no `days`, or a negative `days` on a page the user does not own,
+  both returned `ack`, though §8.6 restricts shortening a page's life to its owner.
+- The five-recipient cap and `upload`'s "required" `price`/`life` were client-side only.
+- A stale build log in the API document still described an auto-directory after `ready` that §2
+  forbids and the server has never sent.
+
+**The one finding that was not a bug, and is the more interesting result.** Per-cell `bg` does not
+survive a `cells` round-trip — 240 mismatches in the colour sweep. The builder's diagnosis is
+right and better than the obvious one: the C64 has a single screen background, so §6 has nowhere
+to put a per-cell value and **Binding A cannot express one either**. §1.8 is intact; what is wrong
+is the *schema*, which carries a writable-looking `bg` on all 960 cells and silently discards it —
+the §8.3.2 silent-failure pattern living in a data shape rather than in code. Now documented as
+frame-level, with an editor obligation not to offer per-cell background painting.
+
+**One report did not reproduce.** The Partyline who-listing was said to arrive twice on entry;
+measured against the server it is pushed once. Recorded as probably client-side rather than
+"fixed", since changing working code to chase an unreproducible symptom is how faults get
+introduced.
+
+## Ninth clean-room run — Binding B, after the paging correction
+
+A third Tier-3 Electron build, on the spec with §7.6 corrected. The builder verified its decoder
+against the document **before writing any networking code** — §A.9 character-for-character, §A.10's
+colon at column 12, §A.11's field rows, §A.6's borders and divider, §6.4's RLE counts, §6.7's
+worked example — and reproduced the §A.8 body-only trap on demand, getting exactly the
+`—IRECTORY` corruption the appendix predicts. It called that "the single most useful thing the
+specification does for an implementer", noting it caught nothing *only because it was run first*.
+
+> **Later note.** The §A.8 trap was not real. The appendix carried a hand-retyped body, so it had
+> to tell clients to invent a header; the original frame has always had one. This run therefore
+> verified a decoder against a reconstruction and pronounced it correct — which is exactly how the
+> wrong bytes survived nine clean-room builds. Agreement between an implementation and a document
+> says nothing about either if the document was never checked against the artefact. §A.8 and §A.9
+> are now extracted from the vintage binaries.
+
+**Two server bugs, both the same root cause as UCAT (F9) — this binding inferring the reply
+type from session state instead of from what the command produced:**
+
+- **⚠ `goto` and `back` returned a FRAME while a frame was displayed, and stayed that way.** §4.4
+  says a GOTO reply is *always* a directory, and §4.5 warns that feeding frame data to a
+  reference client's GOTO handler **crashes it**. Any successful `open` left `show_page` set;
+  `back` and `goto` then serialized as whatever that state produced — a frame, or, after opening
+  a program entry, the **download descriptor** — and navigation silently died until something
+  else cleared it. The route in is ordinary: §4.8's mail row offers `DONE`, §4.8 maps `DONE` to
+  `B`, so *reading a message and pressing DONE* hits it. Binding A was never affected: it returns
+  the bytes the command actually produced. Commands whose reply is definitionally a directory now
+  clear the reading state first.
+- **Mail mode outlived mail.** `goto` was inert inside Courier and mail mode survived a `ucat`,
+  so a later `goto` still answered with the mailbox. §4.4 places no such restriction on GOTO.
+
+**Two more, found by measurement:**
+
+- A generated listing carrying the MORE row returned **12 rows** where only 11 exist on screen.
+  The row must *replace* the eleventh entry, as Binding A's UCAT does — it is not a twelfth.
+- `GET /v1/dir/{page}` returned the **root** for a target that names no page, instead of 404. The
+  builder read that as "the page argument is ignored", having tested only `1` and `100` — but
+  page 1 does not exist (their own F54), so both fell back. The argument was always honoured; the
+  silent fallback was the bug, and is the same silent-no-op the gateway's `goto` had.
+
+**A trap worth recording** (F54): the `1` in every breadcrumb's `"     1 *** COMPUNET ***"` is not
+a page number — `GOTO 1` fails. It is part of the fixed banner, sharing the page-number field's
+width so the two lines align. §7.2 now says so.
+
+**The one item reported unreachable across three runs turned out to work** — `DIR` on a `+`-less
+entry does create the latent directory where the user may write. What is true is that where they
+*may not*, the core returns the unchanged listing, which is indistinguishable from "nothing
+happened" — so the flow was undiagnosable from outside rather than absent. That is precisely what
+this binding exists to fix, and it now answers `permission_denied`. Three runs reported the
+symptom accurately; none could have told the difference without the source.
+
+## Root-cause correction: directories do not paginate
+
+Three findings across both Binding-B runs (F15, F26, F35) concerned directory paging, and the
+corrections made in response made things worse — culminating in `dir.more`/`dir.back`, two
+commands with no Binding-A counterpart. The premise underneath all of it was wrong, and was
+corrected by the project owner from knowledge of the original service.
+
+**An authored directory shows 11 entries and does not paginate.** Overflow is *authored*: the
+owner adds an ordinary `D` entry, conventionally titled `MORE`, whose sub-directory holds the
+next batch, and the user enters it with DIR like any other. Three independent confirmations:
+
+1. **The C64 client has no paging state.** No page offset, no scroll counter — nothing. A client
+   that cannot remember which page it is on cannot page.
+2. **§8.3.2's 11-entry upload cap only makes sense this way.** If the server paginated, refusing
+   a twelfth upload would be pointless — it would spill onto page 2. The cap *is* the display
+   limit, and the `MORE` entry is the user's answer to it.
+3. **The manual quote was misread.** "A dummy page; cannot be shown. Use DIR to access the
+   directory beneath" describes the **`D` entry type** — precisely the authored MORE entry. It
+   was cited in `docs/PROTOCOL.md` as evidence for automatic pagination, which is the opposite
+   of what it says. That section also claimed "12 entries per page" where the server uses 11 —
+   the usual signature of an assumed passage rather than a verified one.
+
+**Generated listings are the exception**, and the distinction is principled: the mailbox and UCAT
+are assembled by the server, so their owner *cannot* author a MORE entry into them. Those, and
+only those, carry a synthetic MORE row — which the client selects like any other entry, sending
+an index one past the real ones. No paging command, and no client-side page state, in either
+binding.
+
+**What this cost.** §7.6 described a server-side pager that never existed; two clean-room builders
+read it, found the server did not behave that way, and reported the discrepancy accurately. The
+corrections then built machinery on the false premise — including inventing vocabulary inside a
+specification whose §4.7 forbids exactly that. The clean rooms did their job; the spec was wrong
+at the root, and no amount of building against it would have revealed that. It took someone who
+knew the original service.
+
+The lesson for §1.5.1's list: a **plausible edit** can also be made by the specification's own
+author, in prose, years before anyone builds against it — and it will then be faithfully
+reproduced by every reader.
+
 ## Conclusion
 
 The spec explains the observed behaviour of the server and both reference clients across
@@ -333,3 +602,15 @@ run the protocol core was clean end-to-end; the remaining fixes were **client-ob
 tightenings (surface `DIR` on the welcome screen, prompt for upload type/price, make column
 cycling and the full-directory check mandatory) and one recurring **implementation** pitfall
 (the reverse-video selection bar) now explicitly guarded — not gaps in the wire protocol.
+
+**Binding B has now been clean-room validated too.** The seventh run built a full Tier-3 Electron
+client from `api/README.md` and the model sections alone, and found four server faults and six
+specification faults — including one, the `$5F` encoder hole, that no amount of reading would have
+caught and that falsified a claim the specification made about itself. Both bindings have now been
+built from the document by someone who had only the document.
+
+The eighth run's lesson is narrower and sharper than the seventh's: **the corrections were the
+most dangerous code in the project.** Three of its four worst findings were introduced by the
+previous round of fixes — each one plausible, reviewed, and shipped without a test that would
+have caught it. The protocol core, by contrast, has now been measured cell-by-cell and
+byte-by-byte by an independent implementation and holds up exactly as written.

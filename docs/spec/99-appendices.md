@@ -1,12 +1,21 @@
 # §A — Appendices
 
 > Part of the [Compunet Client Specification](README.md). These appendices consolidate the
-> reference tables and carry the concrete binary assets (font, palette, template) so the
-> specification is self-contained — a client can be built from this document alone.
+> reference tables and carry the concrete binary assets so the specification is self-contained —
+> a client can be built from this document alone.
 >
-> All assets are extracted verbatim from the reference clients: the font and palette from the
-> **Amiga client** (its embedded C64 character ROM and its `LoadRGB4` colour table), and the
-> directory template from the **C64 terminal** (`client/c64/src/compunet.s`).
+> All assets are extracted verbatim from the reference clients: the **font** (§A.5) and
+> **palette** (§A.3) from the **Amiga client** (its embedded C64 character ROM and its
+> `LoadRGB4` colour table); the **directory template** (§A.6), **HELP** frame (§A.8), **editor
+> help** frame (§A.9) and **COURIER** frame (§A.10) from the **C64 terminal**
+> (`client/c64/src/compunet.s`).
+>
+> **⚠ Every frame asset here carries its own 4-byte header and is parsed as-is.** A client
+> supplies nothing and **MUST NOT** prepend a header of its own. Earlier revisions said §A.8 and
+> §A.9 were *body-only* — true of the hand-retyped files those revisions carried, not of the
+> originals, which are now extracted from the vintage binaries. (Directory **Part-1 headers**,
+> served from content files rather than embedded here, genuinely are body-only. Different asset,
+> different rule — don't carry one over to the other.)
 
 ## §A.1 — Command table
 
@@ -584,7 +593,8 @@ The directory chrome a client draws when Part 1 of a directory response is empty
 (§7.5), extracted verbatim from the C64 terminal at `$BCE1`–`$BD77` (151 bytes). It is
 an ordinary frame (§6): header `[flags=$00][border=$F4][background=$FF]`, charset `$8E`
 (uppercase), then an RLE/PETSCII body, terminated by `$00`. Rendered (verified), it draws the
-bordered content box with its **vertical column dividers** (near columns 30 and 39) and a
+bordered content box with its **left border at column 0**, the **vertical divider at column 30**
+and the **right border at column 39**, and a
 mid-height separator line carrying the **`<F7)(F8>` column-cycle indicator**. The title, path
 (§7 Part 4), entry list (Part 6) and footer (Part 2) are **overlaid** onto this frame from the
 directory response (§7.7) — they are not part of the template.
@@ -655,3 +665,261 @@ Notes:
   and immediately after login the current directory **is** the root. Bare `P` is **not** a
   "go home" command: issued from inside a sub-directory it returns *that* directory, not the
   root. To ascend, use `B` (BACK) — repeated `B` walks up to the root (§4.4).
+
+## §A.8 — HELP frame (client asset)
+
+`HELP` (§4.7) is a **client-side** command — it sends nothing — but it is **not a no-op**: it
+displays a help page the client carries itself, exactly as it carries the directory template
+(§A.6). The original C64 client embeds this frame; the server does **not** send it, so a client
+that omits it leaves `HELP` doing nothing.
+
+**These are the original bytes, lifted whole from `cnet.prg` at `$BB0C`.** They are a complete
+§6 frame — header included — so a client renders the file **raw**, through the ordinary frame
+path, and **MUST NOT** prepend a header of its own. The leading `00 F3 F3 0E` is *no more pages*,
+**border 3 (cyan)**, **background 3 (cyan)**, *lowercase/mixed charset*. This page is one of the
+few frames that is genuinely **mixed case**, which is why the `$0E` matters here.
+
+The ink is **blue (`$1F`)** for headings and **brown (`$95`)** for body text — three colour
+switches in the whole frame. Spaces are compressed with the §6.4 space-run code `$06`.
+
+**⚠ Earlier revisions of this appendix carried a hand-retyped body instead, and every guess in
+it was wrong.** That version was transcribed from a *rendered screen* rather than the byte
+stream, so it lost the `$06` runs (583 bytes against the original's 470), spelled `At Connect` as
+`AT CONNECT`, and used **cyan** ink where the original uses **brown** — thirteen colour switches
+against three. Because it had no header, this appendix instructed clients to invent one, and the
+invented `$F4`/`$FF` gave a purple border on a light-grey page. Rendered against a photograph of
+the real screen the result was cyan text on a cyan background: invisible. Do not reconstruct
+these frames from a screenshot; extract them from the binary.
+
+A client **SHOULD** display it in the reading context, and **MUST NOT** send a command either to
+obtain it **or to leave it**. It is a single frame with no further pages, so §4.8's rule for that
+applies unchanged: the row is replaced by `PRESS ANY KEY`, and any key returns to whatever was on
+screen before. Nothing reaches the server in either direction — the server was never told the
+page appeared.
+
+**⚠ Do not leave the frame row live underneath that prompt.** §4.8 offers no commands while a
+single frame is up, and a client that draws the prompt but keeps the row armed will have the
+dismissing key commit whatever word the row happens to be centred on. In the reference client
+that was `MORE`, which outside the mailbox is a bare `D`, which the core reads as *entry index
+0* — so one key dismissed help **and** opened the first item in the listing. An earlier revision
+of this appendix said `FINISH` returns the user, which contradicted §4.8 and is wrong twice over:
+`FINISH` is not offered in this context, and it is a **wire command**, which this page must not
+send.
+
+Reproduced verbatim below (470 bytes) so this specification stays self-contained; it is also kept
+in the repository as `server/cfg/help.pet`.
+
+```
+  0000: 00 F3 F3 0E 1F C1 54 20 C3 4F 4E 4E 45 43 54 06
+  0010: 0B C1 54 20 C1 4E 59 20 D4 49 4D 45 0D 95 54 4F
+  0020: 20 41 43 43 45 53 53 20 54 48 45 06 08 54 4F 20
+  0030: 41 43 43 45 53 53 20 54 48 45 20 46 55 4C 4C 0D
+  0040: 4D 41 49 4E 20 C4 49 52 45 43 54 4F 52 59 06 07
+  0050: D5 53 45 52 20 C7 55 49 44 45 0D 0D 20 2A 20 53
+  0060: 45 4C 45 43 54 20 C4 C9 D2 06 08 2A 20 53 45 4C
+  0070: 45 43 54 20 C7 CF D4 CF 2C 0D 06 02 28 55 53 49
+  0080: 4E 47 20 43 55 52 53 4F 52 06 08 4B 45 59 20 D2
+  0090: 45 54 55 52 4E 0D 06 04 3C 3D 3E 20 4B 45 59 29
+  00A0: 06 08 2A 20 45 4E 54 45 52 20 31 32 30 2C 0D 20
+  00B0: 2A 20 4B 45 59 20 D2 45 54 55 52 4E 06 0B 4B 45
+  00C0: 59 20 D2 45 54 55 52 4E 07 0D 04 1F C4 C9 D2 C5
+  00D0: C3 D4 CF D2 C9 C5 D3 0D 0D D2 45 41 44 49 4E 47
+  00E0: 20 95 3A 20 4B 45 59 20 46 37 20 4F 52 20 46 38
+  00F0: 20 54 4F 20 52 4F 54 41 54 45 20 54 48 45 0D 06
+  0100: 09 57 49 4E 44 4F 57 20 46 4F 52 20 D0 52 49 43
+  0110: 45 2C C1 55 54 48 4F 52 2C 45 54 43 2E 0D 0D 1F
+  0120: D3 45 4C 45 43 54 49 4E 47 20 95 3A 0D 20 C1 29
+  0130: 20 55 53 45 20 43 55 52 53 4F 52 20 55 50 2F 44
+  0140: 4F 57 4E 20 54 4F 20 48 49 47 48 4C 49 47 48 54
+  0150: 20 49 54 45 4D 0D 20 C2 29 20 55 53 45 20 43 55
+  0160: 52 53 4F 52 20 4C 45 46 54 2F 52 49 47 48 54 20
+  0170: 3C 3D 3E 20 54 4F 20 53 45 4C 45 43 54 0D 06 04
+  0180: 43 4F 4D 4D 41 4E 44 20 20 28 45 47 20 C4 C9 D2
+  0190: 3D 47 45 54 20 C4 49 52 45 43 54 4F 52 59 20 46
+  01A0: 4F 52 0D 06 04 54 48 45 20 49 54 45 4D 2C 20 D3
+  01B0: C8 CF D7 3D 44 4F 57 4E 4C 4F 41 44 20 54 48 45
+  01C0: 20 49 54 45 4D 29 0D 20 C3 29 20 4B 45 59 20 D2
+  01D0: 45 54 55 52 4E 00
+```
+
+Rendered, in the actual case the `$0E` produces (row numbers are 0-based grid rows):
+
+```
+   0 | At Connect            At Any Time
+   1 | to access the         to access the full
+   2 | main Directory        User Guide
+   4 |  * select DIR         * select GOTO,
+   5 |    (using cursor         key Return
+   6 |      <=> key)         * enter 120,
+   7 |  * key Return            key Return
+  12 | DIRECTORIES
+  14 | Reading : key f7 or f8 to rotate the
+  15 |           window for Price,Author,etc.
+  17 | Selecting :
+  18 |  A) use cursor up/down to highlight item
+  19 |  B) use cursor left/right <=> to select
+  20 |      command  (eg DIR=get Directory for
+  21 |      the item, SHOW=download the item)
+  22 |  C) key Return
+```
+
+## §A.9 — Editor help frame (client asset)
+
+The editor (§8.4) carries its **own** help frame, shown by the `HELP` command of the editor
+command row (§4.8). Like §A.8 it is a **client asset**: the server never sends it, and `HELP`
+inside the editor sends nothing.
+
+Unlike §A.8 this page is a **key reference**, not prose — it documents the editing keys
+(`f3`/`f4`, `f5`, `f6`, `f7`/`f8`, `SHIFT`-`C=`, `RUN/STOP`) rather than any wire behaviour. A
+client whose editor does not use the C64 key assignments (§8.4 permits any editing UX) **SHOULD**
+substitute its own key reference rather than display this one verbatim — showing a user
+`STOP KEY = stop edit` when their editor has no `RUN/STOP` is worse than showing nothing.
+
+**These are the original bytes, from the ROM at `$9589`**, and as in §A.8 they are a complete §6
+frame rendered **raw**. The header `00 F6 FC 0E` is *no more pages*, **border 6 (blue)**,
+**background 12 (mid grey)**, *lowercase/mixed charset* — a different surround from §A.8, which
+is worth noting because a previous revision of this appendix assumed the two shared one.
+
+Ink is **blue** and **brown**, the same pair §A.8 uses.
+
+**⚠ This section previously carried a retyped body (314 bytes) and told clients to prepend
+`[$00][$F4][$FF][$0E]`, flagging the border and background as “the one unverified value in this
+appendix”.** Both are now verified from the ROM and both were wrong. The retyped body also
+mis-paired the actions: it printed `overwrite` beneath `change case`, making `SHIFT`-`C=` a
+change-case-and-overwrite key. The original pairs them the other way — `SHIFT`-`C=` is
+*change case*, and `f6` is *On/Off colour overwrite*, one action wrapped across two lines.
+
+Reproduced verbatim below (299 bytes) so this specification stays self-contained; it is also kept
+in the repository as `server/cfg/editor-help.pet`.
+
+```
+  0000: 00 F6 FC 0E 0D 06 02 1F C5 44 49 54 20 CB 45 59
+  0010: 53 07 0D 03 06 02 D3 D4 CF D0 20 CB C5 D9 06 07
+  0020: 46 33 2F 34 0D 06 02 95 53 54 4F 50 20 45 44 49
+  0030: 54 2C 06 05 C4 45 4C 45 54 45 2F C9 4E 53 45 52
+  0040: 54 0D 06 02 53 54 4F 52 45 20 46 52 41 4D 45 06
+  0050: 04 4C 49 4E 45 20 41 42 4F 56 45 20 43 55 52 53
+  0060: 4F 52 0D 0D 06 02 1F D2 D5 CE 20 CB C5 D9 06 08
+  0070: 46 35 0D 06 02 95 52 45 53 54 4F 52 45 06 08 CF
+  0080: 4E 2F CF 46 46 20 41 55 54 4F 2D 52 45 50 45 41
+  0090: 54 0D 06 02 4F 52 49 47 49 4E 41 4C 0D 06 12 1F
+  00A0: 46 36 0D 06 02 D3 C8 C9 C6 D4 2D C3 3D 06 07 95
+  00B0: CF 4E 2F CF 46 46 20 43 4F 4C 4F 55 52 0D 06 02
+  00C0: 43 48 41 4E 47 45 20 43 41 53 45 06 04 4F 56 45
+  00D0: 52 57 52 49 54 45 0D 0D 06 12 1F 46 37 2F 38 0D
+  00E0: 06 12 95 D3 43 52 45 45 4E 2F C2 4F 52 44 45 52
+  00F0: 0D 06 12 43 4F 4C 4F 55 52 20 43 48 41 4E 47 45
+  0100: 07 0D 02 06 02 1F D3 45 45 20 C8 CF D7 20 D4 CF
+  0110: 20 C5 C4 C9 D4 0D 06 02 46 4F 52 20 46 55 4C 4C
+  0120: 45 52 20 44 45 54 41 49 4C 53 00
+```
+
+Rendered, in the actual case the `$0E` produces:
+
+```
+   1 |    Edit Keys
+   5 |    STOP KEY        f3/4
+   6 |    stop edit,      Delete/Insert
+   7 |    store frame     line above cursor
+   9 |    RUN KEY         f5
+  10 |    restore         On/Off auto-repeat
+  11 |    original
+  12 |                    f6
+  13 |    SHIFT-C=        On/Off colour
+  14 |    change case     overwrite
+  16 |                    f7/8
+  17 |                    Screen/Border
+  18 |                    colour change
+  21 |    See HOW TO EDIT
+  22 |    for fuller details
+```
+
+Each block is a **key** (uppercase heading) with its action indented beneath — the left column
+belongs to the named key, the right column to the function key beside it. If your render comes
+out entirely in capitals with graphic glyphs, the file was fed through a parser that ate its
+first four bytes as something other than the §6 header.
+
+## §A.10 — COURIER frame (client asset)
+
+The mail screen, embedded in the C64 client at **`$BDD6`** and shown by both `SEND` and `ID`
+(§8.2) before either asks for anything — so the user is *in* Courier before they start typing.
+Like §A.6/§A.8/§A.9 it is a **client asset**: the server never sends it.
+
+**Unlike §A.8 and §A.9, this one carries its own 4-byte header** — `00 F4 F1 8E`: no more pages,
+**border 4** (purple), **background 1** (white), uppercase/graphics set. Feed it to a frame
+parser as-is; do **not** synthesise a header for it. (The three embedded frames differ on this
+point, which is why each says so explicitly.)
+
+44 bytes, reproduced verbatim; also kept as `server/cfg/courier.pet`:
+
+```
+  0000: 00 F4 F1 8E 07 0D 02 06 02 1C 43 4F 55 52 49 45
+  0010: 52 0D 06 02 07 A3 06 0D 0D 06 0B 3A 0D 06 0B 3A
+  0020: 0D 06 0B 3A 0D 06 0B 3A 0D 06 0B 3A
+```
+
+It renders as a title and **five empty slots**:
+
+```
+   3 |    COURIER            (red, fg 2)
+   4 |    ▔▔▔▔▔▔▔            (7 x $A3, red)
+   6 |             :
+   7 |             :
+   8 |             :
+   9 |             :
+  10 |             :
+```
+
+**⚠ The five slots are the point.** Compunet mail takes **up to five recipients** (§8.2), and the
+frame has exactly five rows for them — the `:` sits at **column 12**, with the ID written from
+**column 3**. A client filling these in should use those columns, and **MUST NOT** offer a sixth.
+
+Note the body is almost all run-length codes (`07 0D 02` = three CRs; `06 02` = three spaces;
+`07 A3 06` = seven `$A3`; `06 0B 3A` = twelve spaces then `:`), so it is also a compact worked
+example of §6.4's `1 + N` counts.
+
+**⚠ This is the `ID` screen only.** `SEND` uses a **different, larger** frame — §A.11 — which
+carries the `FROM` / `DATE` / `TIME` / `SUBJECT` / `TO` labels above the same five slots. They
+look alike at a glance (both open `COURIER` in red with the `$A3` underline) and reusing this one
+for `SEND` loses every field of the message header.
+
+## §A.11 — COURIER SEND frame (client asset)
+
+The mail **composition** screen, embedded in the C64 client at **`$BD77`** — immediately before
+§A.10 — and shown by `SEND` (§8.2.1). It carries its **own 4-byte header** `00 F4 F1 8E`
+(border 4, background 1, uppercase/graphics), like §A.6 and §A.10.
+
+96 bytes, reproduced verbatim; also kept as `server/cfg/courier-send.pet`:
+
+```
+  0000: 00 F4 F1 8E 07 0D 02 06 02 1C 43 4F 55 52 49 45
+  0010: 52 0D 06 02 07 A3 06 0D 0D 06 02 46 52 4F 4D 20
+  0020: 3A 07 0D 02 06 02 44 41 54 45 20 3A 0D 06 02 54
+  0030: 49 4D 45 20 3A 0D 0D 06 02 53 55 42 4A 45 43 54
+  0040: 20 3A 0D 0D 06 02 54 4F 20 3A 0D 0D 06 0B 3A 0D
+  0050: 06 0B 3A 0D 06 0B 3A 0D 06 0B 3A 0D 06 0B 3A 00
+```
+
+It renders as a message header above the five recipient slots:
+
+```
+   3 |    COURIER              (red)
+   4 |    ▔▔▔▔▔▔▔
+   6 |    FROM :    <user id>
+   7 |              <real name>
+   9 |    DATE :    <dd-mm-yy>
+  10 |    TIME :    <hh:mm>
+  12 |    SUBJECT : <subject>
+  14 |    TO :
+  16 |    <id>     :
+  17 |    <id>     :          (up to five)
+  …
+```
+
+**Field positions.** Labels are drawn from **column 3**. Values go at **column 10** for `FROM`,
+`DATE` and `TIME`, and at **column 13** for `SUBJECT` (one space past the longer label). The
+sender's **real name** goes on the line *below* the ID, at column 10 — the `FROM` block is two
+lines. Recipient IDs are written from **column 3** against the frame's `:` at column 12.
+
+*(The frames are chained in memory: each one's `$00` terminator doubles as the next one's
+`flags` byte, which is why §A.6 ends at `$BD77` where this frame begins.)*
