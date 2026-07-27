@@ -25,10 +25,12 @@ The official live instance is running at [https://compunet.live/](https://compun
 - WHO IS ONLINE (live user list)
 - WHAT'S NEW (most recent uploads)
 - GOTO keyword navigation
-- Frame editor (on-line and off-line)
+- Frame editor (on-line and off-line), whose buffer survives closing the client
 - PETSCII terminal mode (server-rendered, any terminal program)
 - 8K cartridge ROM — boots directly like the original hardware
 - Native Amiga client — the recovered 1989 Amiga client, reconstructed over TCP/IP
+- Modern client in a browser or as a desktop app — same codebase, same behaviour
+- Optional 1200 baud mode: pages paint as they arrive, at the original's speed
 
 ## Connection Methods
 
@@ -42,7 +44,16 @@ The official live instance is running at [https://compunet.live/](https://compun
 
 ## Quick Start
 
-### Option 1: CRT Cartridge (Recommended)
+### Option 1: Browser (Quickest)
+
+1. Go to [compunet.live/connect](https://compunet.live/connect) and follow the link to the client
+2. Log in with your registered account
+
+Nothing to download, no emulator, no configuration. The same client is also available as a
+Windows desktop app — an installer, or a portable build that keeps its settings and your editor
+pages beside the executable.
+
+### Option 2: CRT Cartridge (the real thing)
 
 1. Download `compunet-reborn-live.crt` from [compunet.live/connect](https://compunet.live/connect)
 2. VICE: File → Attach cartridge image → Reset
@@ -50,7 +61,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 4. Type `CONNECT` — LINKING downloads terminal software (~3 sec first time)
 5. Login with your registered account
 
-### Option 2: PETSCII Terminal
+### Option 3: PETSCII Terminal
 
 Connect with SyncTerm or any PETSCII terminal:
 - Address: `vme.compunet.live:6401`
@@ -58,14 +69,14 @@ Connect with SyncTerm or any PETSCII terminal:
 - Screen Mode: C64
 - Font: Commodore 64 (LOWER)
 
-### Option 3: PRG (Real Hardware)
+### Option 4: PRG (Real Hardware)
 
 1. `LOAD "COMPUNET-REBORN-LIVE",8` then `RUN`
 2. Type `CONNECT`
 3. LINKING downloads terminal software
 4. Login
 
-### Option 4: Amiga
+### Option 5: Amiga
 
 1. Download `compunet-reborn-amiga.lha` from [compunet.live/connect](https://compunet.live/connect)
 2. Un-archive it (`lha x compunet-reborn-amiga.lha`) — you get a **Compunet** drawer
@@ -84,8 +95,17 @@ docker compose up -d --build
 ```
 
 This starts:
-- **compunet-server** — Protocol server (6400) + PETSCII terminal (6401) + REST API (6403) + client API (6404)
+- **compunet-server** — Protocol server (6400) + PETSCII terminal (6401) + REST API (6403) +
+  client API (6404). The client API also **serves the web client itself**, so one hostname
+  pointed at 6404 gives a working client with nothing for the user to configure.
 - **compunet-web** — Registration website (6464)
+
+Set `COMPUNET_CLIENT_URL` on **compunet-web** to the address your client API is published at
+(e.g. `https://connect.example.com`) and the website links through to it. Leave it unset and the
+site simply omits the link — which is correct for a deployment that does not host a client.
+
+⚠ The **REST API on 6403 is for the website only** and reaches it over the internal network.
+It does not need publishing, and should not be exposed.
 
 See `.env.example` for required configuration variables.
 
@@ -119,6 +139,28 @@ Compiles the reconstructed client (`client/amiga/src/`) with vbcc, stages a moun
 
 Requires: [vbcc](http://sun.hasenbraten.de/vbcc/) (m68k-amigaos) + vasm, and `xdftool` from [amitools](https://github.com/cnvogelg/amitools) for the ADF/icon steps. See [docs/amiga-client.md](docs/amiga-client.md) for the reverse-engineering and reconstruction details.
 
+### Web / desktop client
+
+```bash
+cd client/web && npm install && npm run build      # the client itself
+cd ../electron && npm install && npm start         # run it as a desktop app
+```
+
+`client/web` builds `dist/app.bundle.js`, which is what both the browser and the desktop app
+run — one codebase, two wrappers. To package the desktop app:
+
+```bash
+cd client/electron
+npm run pack:win     # fast: dist/win-unpacked/, for testing
+npm run dist:win     # installer + portable exe
+npm run dist:mac     # dmg — must be run ON macOS
+```
+
+Every script rebuilds the web client first, so a package can never ship a stale bundle. See
+[client/electron/README.md](client/electron/README.md) for the artifacts and the platform notes.
+
+Requires: Node.js.
+
 ### Server (local, without Docker)
 
 ```bash
@@ -128,6 +170,13 @@ source venv/bin/activate
 pip install -r requirements.txt
 cd ..
 ./server.sh start
+```
+
+To run the client API and serve the web client together for development — the same pairing a
+deployment gets on one hostname:
+
+```bash
+python server/run_api_dev.py      # client + API on http://localhost:6404
 ```
 
 ## Architecture

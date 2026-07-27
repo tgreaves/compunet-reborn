@@ -65,7 +65,13 @@ Neither is signed. macOS Gatekeeper will refuse an unsigned app until the user r
 
 ## How it works
 
-`main.js` serves `../web` from an ephemeral `127.0.0.1` port and loads that URL, rather than
-using `file://`, where `fetch()` of `assets.json` is blocked. The renderer runs with
+`main.js` serves `../web` from a custom **`compunet://`** scheme, registered as `standard`,
+`secure` and `supportFetchAPI`. `file://` is not an option — it blocks the `fetch()` of
+`assets.json` — and the obvious alternative, an ephemeral `127.0.0.1` port, is a trap: browser
+storage is keyed by **origin**, so a port that changes each launch gives every launch its own
+empty storage. Settings and the editor buffer then work perfectly within a session and vanish
+between them, which reads as broken persistence rather than a moved origin. A fixed scheme has
+a constant origin, so §8.4's requirement that the buffer survive a restart actually holds.
+The renderer runs with
 `nodeIntegration: false` and `contextIsolation: true` — it only speaks to the Compunet API
 over the network and needs no Node access. External links open in the system browser.

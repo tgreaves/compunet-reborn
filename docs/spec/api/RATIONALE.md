@@ -116,9 +116,13 @@ Two things only surfaced once a *faithful* client existed, and both are now norm
 binding spec:
 
 - **CORS is not optional.** The API is consumed cross-origin by definition — a web client on its
-  own host, and the Electron shell serving its page from an ephemeral port. Serving client and
+  own host, and a desktop shell serving its page from a scheme of its own. Serving client and
   API from one origin in development hid this until the desktop build failed with a bare
   "failed to fetch", which looks exactly like a dead server.
+
+  *(The reference deployment has since gone the other way and serves the client from the API's
+  own origin — §1. That does not make CORS optional: it removes the requirement for THAT
+  deployment while leaving it for every client hosted anywhere else, including the desktop app.)*
 - **Building a real renderer found genuine errors in Binding A's spec** — directory geometry that
   five clean-room runs had not caught, because those clients silently compensated with their own
   offsets. Recorded in [VALIDATION.md](../VALIDATION.md). A second, independent implementation is

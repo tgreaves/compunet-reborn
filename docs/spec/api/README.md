@@ -43,6 +43,29 @@ Everything below reuses the server's existing content/session core
 Dedicated listener on **6404**, with two surfaces — the gateway for the interactive session,
 REST for cacheable reads:
 
+**⚠ The listener MAY also serve the client itself, and there are good reasons to.** Publishing
+one hostname at 6404 that answers both `/` (the client) and `/v1/*` (this API) makes them
+**same-origin**, and that removes three problems at once rather than solving them:
+
+- **Nothing to configure.** The client defaults to the origin that served it, so the URL you
+  give someone is the entire instruction.
+- **No CORS.** Not even a permissive policy to get wrong.
+- **No mixed content.** One hostname, one certificate — a page served over `https` cannot open a
+  `ws://` socket, which is the failure a split deployment hits first.
+
+It also suits how such a service is usually published: a tunnel or reverse proxy needs a single
+route, and a CDN will typically only proxy a fixed set of ports — 6404 rarely among them, so the
+port has to be translated somewhere regardless.
+
+Two rules if the client is served this way:
+
+- **Register the API routes BEFORE the static ones.** A static handler mounted at `/` will
+  otherwise shadow `/v1/*` and answer API calls with 404s.
+- **Do not let a cache pin the client.** Version the bundle's URL (a content hash or its mtime)
+  and serve the page carrying that reference as `no-cache`. Otherwise a deployed fix can appear
+  not to work for as long as the cache lives — a CDN default of several hours is common, and the
+  only symptom is that a hard reload cures it.
+
 | Method | Path | Purpose | Phase |
 |---|---|---|---|
 | `POST` | `/v1/session` | log in with credentials → bearer token | 1 |
@@ -58,8 +81,10 @@ server is reachable *before* asking the user to log in, and so deployments have 
 probe. It reveals nothing about the service beyond that it is running.
 
 **CORS is required (normative).** This binding exists to be called by clients served from a
-**different origin** — a web client on its own host, and the Electron shell, which serves its
-page from an ephemeral `127.0.0.1` port. The server therefore **MUST** send
+**different origin** — a web client on its own host, and a desktop shell, which serves its page
+from somewhere that is not this server (the reference shell uses a custom `compunet://` scheme;
+an ephemeral `http://127.0.0.1` port also works, but see §8.4's warning about storage keyed to
+an origin that changes each launch). The server therefore **MUST** send
 `Access-Control-Allow-Origin` (plus `Allow-Methods: GET, POST, OPTIONS` and
 `Allow-Headers: Content-Type, Authorization`) on `/v1/*` responses, and **MUST** answer the
 `OPTIONS` preflight that `POST /v1/session` triggers. Without it a browser blocks the very
