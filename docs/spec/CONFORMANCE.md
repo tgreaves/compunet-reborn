@@ -188,6 +188,11 @@ The server does not report these; a client that ignores them looks fine and lose
       ~500 ms. Unpaced, the run completes in a single flash and the user sees only the last
       frame; count the pages in the **editor buffer** to see that the rest did arrive. This one
       cannot be caught by reading the code — the loop is correct either way.
+- [ ] **If you offer a line speed (§5.5.1):** Fastest is the **default**; the duration comes
+      from the frame's **bytes**, so a sparse page paints faster than a dense one (time two of
+      each — equal times mean it is counting cells, and every RLE'd frame is mistimed); a
+      keypress completes the frame; and the §4.7 run pacing **stands down** while it is on —
+      a multi-frame download must not pay both.
 - [ ] **⚠ `ALL` is not `MORE`** (§4.7) — `MORE` advances one frame, `ALL` runs to the end. If
       pressing `ALL` moves a single page, the client has issued one paging command instead of
       looping, collapsing two commands onto one.

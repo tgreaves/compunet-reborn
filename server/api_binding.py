@@ -1551,9 +1551,24 @@ def make_app(server_module, web_client_dir=None):
 
     if web_client_dir and os.path.isdir(web_client_dir):
         index = os.path.join(web_client_dir, 'index.html')
+        bundle = os.path.join(web_client_dir, 'dist', 'app.bundle.js')
 
         async def _index(_request):
-            return web.FileResponse(index)
+            # ⚠ Stamp the bundle URL with its mtime, and never cache the page
+            # that carries the stamp.
+            #
+            # A CDN or browser holding the old bundle makes a deployed fix look
+            # like a fix that does not work — Cloudflare's default browser TTL
+            # is FOUR HOURS, so a client update would silently not arrive for
+            # half a day and the only clue is that a hard reload cures it. A
+            # changing query string sidesteps every cache between here and the
+            # user without depending on anyone's CDN configuration.
+            html = open(index, encoding='utf-8').read()
+            if os.path.exists(bundle):
+                html = html.replace('dist/app.bundle.js',
+                                    'dist/app.bundle.js?v=%d' % int(os.path.getmtime(bundle)))
+            return web.Response(text=html, content_type='text/html',
+                                headers={'Cache-Control': 'no-cache, must-revalidate'})
 
         app.router.add_get('/', _index)
         # ⚠ Registered LAST. aiohttp matches in order, and a static route on '/'

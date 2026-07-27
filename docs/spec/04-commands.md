@@ -448,6 +448,12 @@ editor (§8.4.2), but nothing on screen says so, and the feature the download ex
 to be legible. A client **MAY** offer a key to skip the remaining dwell, but **MUST NOT** make
 "no pause" the default.
 
+**⚠ Do NOT compound this with a line-speed option (§5.5.1).** A client that also paints frames at
+a simulated 1200 baud is already pausing — for seconds, computed from the frame's own byte count
+— and adding this dwell on top makes a multi-frame download crawl without becoming any more
+legible. When a line speed is selected, this pacing **MUST** stand down. The two exist for the
+same reason, and only one of them should be doing the job at a time.
+
 **⚠ `PRESS ANY KEY` is LEFT JUSTIFIED (normative).** It occupies the same row the duckshoot
 would, and that row is written from the **left edge** — so the prompt starts at column 0, not
 centred. Centring it is an easy and invisible mistake: the text looks fine on its own, but the
