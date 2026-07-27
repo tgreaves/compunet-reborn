@@ -3,16 +3,6 @@
 {% block content %}
 <h1>HOW TO CONNECT</h1>
 
-<div class="flash flash-info" style="font-size: 1.1em; padding: 1.2em;">
-{% if client_url %}
-    <strong>Quickest start:</strong> <a href="{{ client_url }}">open Compunet in your browser</a> &mdash;
-    nothing to download, nothing to configure. <a href="{{ url_for('register') }}">Register</a>
-    first if you haven't already.
-{% else %}
-    <strong>Quickest start:</strong> Download <a href="{{ url_for('static', filename='compunet-reborn-live.crt') }}">compunet-reborn-live.crt</a>, attach in VICE or C64 Ultimate, power on. <a href="{{ url_for('register') }}">Register</a> first if you haven't already.
-{% endif %}
-</div>
-
 <h2>STEP 1: REGISTER</h2>
 <p>You need a registered account to connect. Registration is free.</p>
 <p><a href="{{ url_for('register') }}" class="btn">Register for an account</a></p>
@@ -26,7 +16,7 @@
     <h3>&#127760; Your browser &mdash; nothing to install</h3>
     <p>The full 40&times;24 screen, the duckshoot, mail, Partyline and the frame editor,
        running in a tab. Works on any modern machine.</p>
-    <p><a class="cta" href="{{ client_url }}">CONNECT NOW &rarr;</a></p>
+    <p><a class="cta" href="{{ client_url }}">CONNECT NOW &raquo;</a></p>
 </div>
 {% endif %}
 

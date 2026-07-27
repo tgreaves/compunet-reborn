@@ -248,7 +248,7 @@ input.mixed-case {
 }
 
 /* Buttons */
-button, .btn {
+button, .btn, .cta {
     display: inline-block;
     padding: 12px 28px;
     background-color: var(--cnet-blue);
@@ -265,7 +265,7 @@ button, .btn {
     transition: background-color 0.2s, transform 0.1s;
 }
 
-button:hover, .btn:hover {
+button:hover, .btn:hover, .cta:hover {
     background-color: var(--c64-dark-blue);
     transform: translateY(-1px);
 }
@@ -344,22 +344,17 @@ pre {
     text-transform: uppercase;
 }
 
-/* Connect-now call to action — the shortest path from "curious" to "online".
-   Uses the authentic Compunet red, so it reads as part of the identity rather
-   than a generic web button. */
+/* ⚠ .cta is the PRIMARY variant of .btn, not a second button design. It shares
+   the base rule above — same geometry, same motion — and changes only the
+   colour: red for "do the thing", blue for everything else. Defining it
+   separately gave the site two unrelated buttons, which is how a site starts
+   looking unmaintained. */
 .cta {
-    display: inline-block;
-    background: var(--cnet-red);
-    color: #fff !important;
-    border: 2px solid var(--cnet-red);
-    border-radius: var(--radius);
-    padding: 10px 22px;
-    font-weight: bold;
-    letter-spacing: 2px;
-    text-decoration: none !important;
-    text-transform: uppercase;
+    background-color: var(--cnet-red);
+    font-size: 16px;
+    letter-spacing: 1.5px;
 }
-.cta:hover { background: #fff; color: var(--cnet-red) !important; }
+.cta:hover { background-color: #aa0000; }
 
 .hero-cta { margin-top: 18px; }
 .hero-note { font-size: 12px !important; letter-spacing: 1px; }
