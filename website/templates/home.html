@@ -4,6 +4,10 @@
 <div class="hero">
     <h1>COMPUNET REBORN</h1>
     <p class="hero-slogan">THE LIVE ONE LIVES ON!</p>
+    {% if client_url %}
+    <p class="hero-cta"><a class="cta" href="{{ client_url }}">CONNECT NOW &rarr;</a></p>
+    <p class="hero-note">In your browser. Nothing to install.</p>
+    {% endif %}
 </div>
 
 <p>Compunet was a UK-based interactive online service that ran from 1984 to 1993, serving the Commodore 64 community. It featured user-generated content, electronic mail (Courier), telesoftware downloads, a page editor, multi-user partyline chat, and the iconic horizontally-scrolling "duckshoot" menu.</p>

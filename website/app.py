@@ -21,9 +21,17 @@ if not os.path.exists(_version_file):
 APP_VERSION = open(_version_file).read().strip() if os.path.exists(_version_file) else 'unknown'
 
 
+# ⚠ Per-deployment, NOT hardcoded. dev.compunet.live must point at the dev
+# client (connect-dev.compunet.live) and production at its own, or the dev site
+# quietly sends testers to the live service. Unset means "no hosted client
+# here", and the templates simply omit the link — which is the correct state
+# for a deployment that has not published one yet.
+CLIENT_URL = config.get('COMPUNET_CLIENT_URL', '').strip().rstrip('/')
+
+
 @app.context_processor
 def inject_version():
-    return {'version': APP_VERSION}
+    return {'version': APP_VERSION, 'client_url': CLIENT_URL}
 
 USERID_RE = re.compile(r'^[A-Z0-9]{1,8}$')
 PASSWORD_RE = re.compile(r'^[A-Z0-9]{1,6}$')

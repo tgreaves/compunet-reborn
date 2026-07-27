@@ -15,6 +15,18 @@
 
 <h2>STEP 2: CHOOSE YOUR CLIENT</h2>
 
+{% if client_url %}
+<div class="browser-client">
+    <h3>&#127760; In your browser &mdash; nothing to install</h3>
+    <p>The full 40&times;24 Compunet screen, the duckshoot, mail, Partyline and the frame
+       editor &mdash; running in a tab. The quickest way in, and the same client the desktop
+       app uses.</p>
+    <p><a class="cta" href="{{ client_url }}">CONNECT NOW &rarr;</a></p>
+    <p><small>You still need an account &mdash; <a href="{{ url_for('register') }}">register</a>
+       first if you haven't.</small></p>
+</div>
+{% endif %}
+
 <div class="setup-columns">
     <div class="setup-col">
         <h3>&#128190; VICE / C64 Ultimate</h3>

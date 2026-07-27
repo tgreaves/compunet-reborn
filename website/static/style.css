@@ -344,6 +344,34 @@ pre {
     text-transform: uppercase;
 }
 
+/* Connect-now call to action — the shortest path from "curious" to "online".
+   Uses the authentic Compunet red, so it reads as part of the identity rather
+   than a generic web button. */
+.cta {
+    display: inline-block;
+    background: var(--cnet-red);
+    color: #fff !important;
+    border: 2px solid var(--cnet-red);
+    border-radius: var(--radius);
+    padding: 10px 22px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-decoration: none !important;
+    text-transform: uppercase;
+}
+.cta:hover { background: #fff; color: var(--cnet-red) !important; }
+
+.hero-cta { margin-top: 18px; }
+.hero-note { font-size: 12px !important; letter-spacing: 1px; }
+
+.browser-client {
+    border: 2px solid var(--cnet-red);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 22px;
+}
+.browser-client h3 { margin-top: 0; }
+
 /* Info boxes */
 .info-box {
     border: 2px solid var(--c64-surface-light);
