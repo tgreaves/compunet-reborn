@@ -50,8 +50,9 @@ function petsciiToScreencode(b) {
 function asciiGlyph(ch, lower = false) {
   return petsciiToScreencode(ch.charCodeAt(0) & 255) + (lower ? 128 : 0);
 }
-function frameIsLower(cells) {
-  return (cells[cells.length - 1]?.g ?? 0) >= 128;
+function frameIsLower(f) {
+  const flag = f.lower;
+  return flag !== void 0 ? flag : f.cells.some((c) => c.g >= 128);
 }
 var Renderer = class {
   constructor(canvas2, assets2, wrap2, scale = 2) {
@@ -850,10 +851,15 @@ function onMessage(m) {
         pendingMailListing = m;
         break;
       }
+      const nd = m;
+      const same = dir !== null && dir.page === nd.page && dir.entries.length === nd.entries.length && dir.entries.every((e, i) => e.page === nd.entries[i].page && e.title === nd.entries[i].title);
       mode = "directory";
-      dir = m;
-      sel = 0;
-      colIdx = 0;
+      dir = nd;
+      if (same) sel = Math.min(sel, Math.max(0, nd.entries.length - 1));
+      else {
+        sel = 0;
+        colIdx = 0;
+      }
       isWelcome = false;
       const wasMail = inMail;
       inMail = m.context === "mail";
@@ -1287,6 +1293,7 @@ async function idCheck() {
 var pendingMail = null;
 var outgoing = [];
 var awaitingKey = false;
+var helpReturn = null;
 var rowMessage = {};
 var mailDownloading = false;
 var pendingMailListing = null;
@@ -1510,16 +1517,37 @@ var actions = {
     gw.send({ type: "mail.done" });
   },
   // HELP shows the embedded help frame (§A.8) — a client asset, nothing is sent.
+  //
+  // ⚠ And nothing is sent to DISMISS it either. This used to set `mode='frame'`
+  // and stop there, which drew the PRESS ANY KEY prompt (updateBar: a frame with
+  // no more pages) over a still-live frame row underneath. The dismissing key
+  // fell through to duckCommit and committed the centred word — MORE at index 0,
+  // since the frame context has nothing remembered on first use. Outside mail
+  // mode `more` is a bare `D`, and the core reads a `D` with no index as index
+  // 0 (api_binding's MORE comment says so outright, from the mail bug it caused
+  // there): one keypress left help AND opened the first entry in the listing.
+  //
+  // The user reads that as the key being accepted twice. It is one key doing
+  // one thing — a command they could not see, on a screen the server never knew
+  // was showing.
   HELP: () => {
     if (!assets.help) {
       status("No help frame embedded");
       return;
     }
+    const wasMode = mode, wasFrame = frame, wasWelcome = isWelcome;
+    helpReturn = () => {
+      mode = wasMode;
+      frame = wasFrame;
+      isWelcome = wasWelcome;
+      render();
+    };
     mode = "frame";
     frame = assets.help;
     isWelcome = false;
+    awaitingKey = true;
     render();
-    status("Help \u2014 FINISH returns");
+    status("Help \u2014 press any key to return");
   },
   SAVE: () => status("SAVE is a client feature \u2014 not implemented in this reference client"),
   PRINT: () => status("PRINT is a client feature \u2014 not implemented in this reference client"),
@@ -1727,7 +1755,7 @@ function netBackground() {
   return 15;
 }
 function netLower() {
-  return mode === "frame" && !!frame && frameIsLower(frame.cells);
+  return mode === "frame" && !!frame && frameIsLower(frame);
 }
 function duckScroll(delta) {
   const r = rows[focusPane];
@@ -1824,9 +1852,12 @@ window.addEventListener("keydown", (e) => {
   if (awaitingKey) {
     awaitingKey = false;
     courier = null;
+    const back = helpReturn;
+    helpReturn = null;
     const held = pendingMailListing;
     pendingMailListing = null;
-    if (held) onMessage(held);
+    if (back) back();
+    else if (held) onMessage(held);
     else render();
     e.preventDefault();
     return;

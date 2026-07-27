@@ -167,5 +167,62 @@ class ContextCoverage(unittest.TestCase):
             self.assertEqual(client[ctx], [], '%s must offer no commands' % ctx)
 
 
+class LocalScreens(unittest.TestCase):
+    """Screens the client puts up by itself. The server is not told they appeared,
+    so it must not be told anything to take them down either — and while one is
+    up, §4.8 offers no commands, so the command row must not still be armed."""
+
+    def test_help_disarms_the_command_row(self):
+        """§A.8/§4.8. HELP draws PRESS ANY KEY over a single frame. It used to
+        leave the frame row live underneath, so the dismissing key fell through
+        to duckCommit and committed the centred word — MORE, i.e. a bare `D`,
+        which the core reads as entry index 0. One key dismissed help AND opened
+        the first entry in the listing.
+
+        `awaitingKey` is what makes the row a prompt rather than a duckshoot, so
+        HELP must set it."""
+        ts = open(CLIENT, encoding='utf-8').read()
+        # ⚠ The NET table's HELP (§A.8), not the editor's (§A.9). The editor
+        # paints its help into the editor pane and any other editor command
+        # returns — no prompt, no wire command, nothing to disarm.
+        start = ts.index('const actions: Record<string, () => void> = {')
+        table = ts[start:ts.index('\n};', start)]
+        m = re.search(r'^  HELP: \(\) => \{(.*?)^  \},', table, re.S | re.M)
+        self.assertIsNotNone(m, 'HELP action not found in main.ts')
+        body = m.group(1)
+        self.assertIn('awaitingKey = true', body,
+                      'HELP must disarm the command row, or the key that '
+                      'dismisses it commits the centred command')
+        self.assertNotIn('gw.send', body, 'HELP is a client asset — it sends nothing')
+
+    def test_dismissing_a_local_screen_sends_nothing(self):
+        """The awaitingKey branch handles every PRESS ANY KEY screen. Whatever it
+        does to get back, it must not put a command on the wire."""
+        ts = open(CLIENT, encoding='utf-8').read()
+        m = re.search(r'if \(awaitingKey\) \{(.*?)\n  \}', ts, re.S)
+        self.assertIsNotNone(m, 'awaitingKey branch not found in main.ts')
+        self.assertNotIn('gw.send', m.group(1))
+
+
+class SelectionPersistence(unittest.TestCase):
+    """§7.7: the highlight survives a return to the same listing."""
+
+    def test_selection_is_not_reset_unconditionally(self):
+        """The original never reloads a directory to return to it, so its
+        highlight is never touched. Binding B re-sends the listing, so a client
+        that resets on every arrival throws the user to the top of the directory
+        every time they read an entry."""
+        ts = open(CLIENT, encoding='utf-8').read()
+        m = re.search(r"case 'directory':(.*?)\n    case ", ts, re.S)
+        self.assertIsNotNone(m, "the 'directory' message case was not found")
+        body = m.group(1)
+        self.assertNotRegex(
+            body, r'dir = m as DirectoryMsg; sel = 0',
+            'the selection is being reset for every arriving listing (§7.7)')
+        # It must still reset for a DIFFERENT listing, or the bar lands on an
+        # unrelated row after navigating.
+        self.assertIn('sel = 0', body, '§7.7: a different listing starts at the top')
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

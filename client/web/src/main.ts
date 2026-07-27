@@ -173,7 +173,26 @@ function onMessage(m: ServerMsg): void {
       // would replace the message on screen with the listing before the user has
       // read a word of it; showMail holds it until they press a key.
       if (mailDownloading) { pendingMailListing = m; break; }
-      mode = 'directory'; dir = m as DirectoryMsg; sel = 0; colIdx = 0;
+      // ⚠ The highlight and the chosen column survive a RETURN to the listing
+      // you were already on. The original never reloads a directory to get back
+      // to it: the listing lives in client RAM ($D500 names / $D600 details) and
+      // returning from a page re-renders that cache, so the highlight index is
+      // simply never touched (PROTOCOL.md — "no automatic directory reload").
+      // Binding B does re-send the listing, so this client has to reproduce
+      // deliberately what the original got for free. Resetting unconditionally
+      // threw the user back to the top of the list every time they read an item
+      // — worst on a long directory, where it costs the most to get back.
+      //
+      // "The same listing" means the same page AND the same entries: a mailbox
+      // MORE keeps the page number while replacing every row, and that is a new
+      // set of things to choose from, so it starts at the top.
+      const nd = m as DirectoryMsg;
+      const same = dir !== null && dir.page === nd.page
+        && dir.entries.length === nd.entries.length
+        && dir.entries.every((e, i) => e.page === nd.entries[i].page && e.title === nd.entries[i].title);
+      mode = 'directory'; dir = nd;
+      if (same) sel = Math.min(sel, Math.max(0, nd.entries.length - 1));
+      else { sel = 0; colIdx = 0; }
       isWelcome = false;
       const wasMail = inMail;
       inMail = (m as DirectoryMsg).context === 'mail';
@@ -686,6 +705,11 @@ let outgoing: ReturnType<EditorBuffer['toFrames']> = [];
 /** A PRESS ANY KEY screen is showing; the next key dismisses it (§4.8). */
 let awaitingKey = false;
 
+/** Restores the view HELP (§A.8) covered up, if that is what is being dismissed.
+ *  HELP is a client asset: the server was never told it appeared, so it must not
+ *  be told anything to make it go away. Returning is purely local. */
+let helpReturn: (() => void) | null = null;
+
 /** ⚠ A command's reply goes ON THE COMMAND ROW, not into the client's own
  *  furniture. The original clears row 24 and prints there ($9097: JSR $938B to
  *  clear, plot to row 24 column 0, REVERSE ON, print) — so FREE and ACCOUNT
@@ -932,10 +956,27 @@ const actions: Record<string, () => void> = {
     gw.send({ type: 'mail.done' });
   },
   // HELP shows the embedded help frame (§A.8) — a client asset, nothing is sent.
+  //
+  // ⚠ And nothing is sent to DISMISS it either. This used to set `mode='frame'`
+  // and stop there, which drew the PRESS ANY KEY prompt (updateBar: a frame with
+  // no more pages) over a still-live frame row underneath. The dismissing key
+  // fell through to duckCommit and committed the centred word — MORE at index 0,
+  // since the frame context has nothing remembered on first use. Outside mail
+  // mode `more` is a bare `D`, and the core reads a `D` with no index as index
+  // 0 (api_binding's MORE comment says so outright, from the mail bug it caused
+  // there): one keypress left help AND opened the first entry in the listing.
+  //
+  // The user reads that as the key being accepted twice. It is one key doing
+  // one thing — a command they could not see, on a screen the server never knew
+  // was showing.
   HELP: () => {
     if (!assets.help) { status('No help frame embedded'); return; }
-    mode = 'frame'; frame = assets.help; isWelcome = false; render();
-    status('Help — FINISH returns');
+    const wasMode = mode, wasFrame = frame, wasWelcome = isWelcome;
+    helpReturn = () => { mode = wasMode; frame = wasFrame; isWelcome = wasWelcome; render(); };
+    mode = 'frame'; frame = assets.help; isWelcome = false;
+    awaitingKey = true;                  // the row is a PROMPT now, not a duckshoot
+    render();
+    status('Help — press any key to return');
   },
   SAVE: () => status('SAVE is a client feature — not implemented in this reference client'),
   PRINT: () => status('PRINT is a client feature — not implemented in this reference client'),
@@ -1314,9 +1355,11 @@ window.addEventListener('keydown', (e) => {
   // mailbox is already behind the COURIER frame.
   if (awaitingKey) {
     awaitingKey = false; courier = null;
+    const back = helpReturn;                 // HELP: purely local, sends nothing
+    helpReturn = null;
     const held = pendingMailListing;
     pendingMailListing = null;
-    if (held) onMessage(held); else render();
+    if (back) back(); else if (held) onMessage(held); else render();
     e.preventDefault(); return;
   }
 

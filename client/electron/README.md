@@ -21,11 +21,16 @@ deployed.
 ## Package
 
 ```bash
-npm run pack:win     # fast: dist/win-unpacked/ only, for testing
-npm run dist:win     # installer + portable exe
+npm run dist:win     # win-unpacked + installer + portable exe  <- use this one
 npm run dist:mac     # dmg  (must run ON macOS — the dmg target needs hdiutil)
 npm run dist         # every target configured for the current platform
+npm run pack:win     # dist/win-unpacked/ ONLY — see the warning below
 ```
+
+**Use `dist:win` after any client change.** `pack:win` rebuilds only `dist/win-unpacked/` and
+leaves `Compunet Reborn Setup <version>.exe` and `Compunet Reborn <version> (portable).exe` at
+the previous build. Those two are exactly what a tester picks up, so packaging the "fast" way
+is how someone runs old code while believing they are testing the fix.
 
 Every script rebuilds the web client first. The shell only *copies*
 `../web/dist/app.bundle.js` into its resources, so without that it packages whatever

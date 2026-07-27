@@ -332,6 +332,21 @@ highlighted", so the client draws the highlight itself. It is a **bar spanning t
 both panes** — the entry columns **and** the right-hand value column — in **the entry's own
 positional colour** (a **red** bar for the first entry, a **blue** bar for the others).
 
+**⚠ The highlight SURVIVES a return to the same listing (normative).** Read an entry and come
+back — by `FINISH`, by paging off the end of a multi-frame page, or by any route that lands on
+the listing you were already on — and the bar **MUST** still be on the entry you read. It moves
+only when the user moves it, or when a **different** listing is displayed, which starts at the
+first entry. The chosen right-hand column (§7.7, `f7`/`f8`) persists on the same terms.
+
+This is free in the original and easy to lose elsewhere. The C64 never reloads a directory to
+return to it: the listing sits in client RAM (`$D500` names, `$D600` details) and returning
+re-renders that cache, so the highlight index is simply never touched — "no automatic directory
+reload". A binding that **re-sends** the listing on the way back (as Binding B does) has no such
+cache, and a client that resets its selection whenever a listing arrives will throw the user to
+the top of the directory every time they read anything. Judge "the same listing" by its **page
+number and its entries**, not the page number alone: a mailbox `MORE` keeps the page number while
+replacing every row, and that is a new set of things to choose from.
+
 **⚠ The bar is REVERSE VIDEO, and the text in it is the SCREEN BACKGROUND colour — not white
 (normative).** Verified in the original client at `$A6DC`, which walks the row doing
 `LDA ($D1),Y / ORA #$80 / STA ($D1),Y` — setting bit 7 of each screen code — and writes the bar

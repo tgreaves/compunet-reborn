@@ -691,8 +691,20 @@ invented `$F4`/`$FF` gave a purple border on a light-grey page. Rendered against
 the real screen the result was cyan text on a cyan background: invisible. Do not reconstruct
 these frames from a screenshot; extract them from the binary.
 
-A client **SHOULD** display it in the reading context (so `FINISH` returns to where the user was)
-and **MUST NOT** send a command to obtain it.
+A client **SHOULD** display it in the reading context, and **MUST NOT** send a command either to
+obtain it **or to leave it**. It is a single frame with no further pages, so §4.8's rule for that
+applies unchanged: the row is replaced by `PRESS ANY KEY`, and any key returns to whatever was on
+screen before. Nothing reaches the server in either direction — the server was never told the
+page appeared.
+
+**⚠ Do not leave the frame row live underneath that prompt.** §4.8 offers no commands while a
+single frame is up, and a client that draws the prompt but keeps the row armed will have the
+dismissing key commit whatever word the row happens to be centred on. In the reference client
+that was `MORE`, which outside the mailbox is a bare `D`, which the core reads as *entry index
+0* — so one key dismissed help **and** opened the first item in the listing. An earlier revision
+of this appendix said `FINISH` returns the user, which contradicted §4.8 and is wrong twice over:
+`FINISH` is not offered in this context, and it is a **wire command**, which this page must not
+send.
 
 Reproduced verbatim below (470 bytes) so this specification stays self-contained; it is also kept
 in the repository as `server/cfg/help.pet`.

@@ -151,10 +151,14 @@ run — one codebase, two wrappers. To package the desktop app:
 
 ```bash
 cd client/electron
-npm run pack:win     # fast: dist/win-unpacked/, for testing
-npm run dist:win     # installer + portable exe
+npm run dist:win     # win-unpacked + installer + portable exe
 npm run dist:mac     # dmg — must be run ON macOS
 ```
+
+Use `dist:win` after any client change. There is also a `pack:win` that writes only
+`dist/win-unpacked/`, but it leaves the installer and the portable exe at the previous build —
+and those are what people reach for, so a "quick" package is how someone ends up testing old
+code.
 
 Every script rebuilds the web client first, so a package can never ship a stale bundle. See
 [client/electron/README.md](client/electron/README.md) for the artifacts and the platform notes.

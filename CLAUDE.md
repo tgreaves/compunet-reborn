@@ -51,23 +51,31 @@ you rely on MUST be confirmed against ground truth before you write or change co
 1. The client must ALWAYS be rebuilt after any change to `client/c64/src/compunet.s`. Build with `make` in `client/c64/src/`. The output is `client/c64/compunet-reborn.prg`.
 2. The client embeds a hash of `compunet.s` at build time and the server verifies it matches `server/cfg/client_version.txt`. The build script (`gen_version.py`) derives both from the source file content, so they stay in sync automatically. The hash only changes when the client source changes — server-only commits don't require a client rebuild. When client code changes: `make clean && make` in `client/c64/src/`, then commit source + binaries + `server/cfg/client_version.txt` together.
 3. To test a development client against a production server without deploying, override the hash: `make HASH=6fc715` (use the hash from the production `server/cfg/client_version.txt`).
-4. **The Electron app must ALWAYS be repackaged after any change under `client/web/src/`**, so
-   there is always a current executable to test. Run in `client/electron/`:
+4. **The Electron app must ALWAYS be rebuilt IN FULL after any change under `client/web/src/`**,
+   so every artefact anyone might pick up is current. Run in `client/electron/`:
 
    ```bash
-   npm run pack:win     # fast: rebuilds the web bundle, writes dist/win-unpacked/
-   npm run dist:win     # full: also builds the installer and the portable exe
+   npm run dist:win
    ```
+
+   **Always `dist:win`, never `pack:win`.** `pack:win` writes only `dist/win-unpacked/` and
+   leaves `Compunet Reborn Setup <version>.exe` and `Compunet Reborn <version> (portable).exe`
+   sitting at the previous build. Whoever tests next reaches for the installer or the portable
+   exe — the two things `pack:win` does not touch — and runs old code while believing they are
+   testing the fix. Rebuilding all three costs about a minute; a stale artefact costs a whole
+   round of "the fix didn't work".
 
    Every script there (`start`, `pack:win`, `dist*`) rebuilds the web bundle first, because the
    shell only *copies* `client/web/dist/app.bundle.js`. Without that it packages whatever bundle
    is lying on disk: it builds cleanly, launches cleanly, and runs stale code — which has
    already happened once, and reads as "the fix didn't work" rather than "the artifact is old".
    Committing a client change without repackaging leaves the same trap for the next test.
-5. **`Compunet Reborn Setup <version>.exe` is an INSTALLER, not the app.** It is a one-click
-   NSIS installer, so running it reinstalls every time (hence "Installing…"). To simply run the
-   client, use `dist/win-unpacked/Compunet Reborn.exe` or the portable build,
-   `Compunet Reborn <version> (portable).exe`.
+5. **`Compunet Reborn Setup <version>.exe` is an INSTALLER, not the app.** Running it installs
+   the client rather than starting it. It is no longer one-click (`oneClick: false`): it asks
+   where to install and can go on any drive. To simply RUN the client, use
+   `dist/win-unpacked/Compunet Reborn.exe`, or the portable build,
+   `Compunet Reborn <version> (portable).exe`, which keeps its settings and editor pages in
+   `Compunet Reborn Data` beside the exe.
 
 ## Server Rules
 
@@ -83,3 +91,9 @@ you rely on MUST be confirmed against ground truth before you write or change co
    claim. **A human decides when a release happens.** Bumping `VERSION` or a `package.json`
    is not a release and does not imply one; leaving the tree at a version with no matching
    tag is a normal, intended state.
+4. **NEVER add a `Co-Authored-By:` trailer, or any other authorship credit, to a commit
+   message.** Not for Claude, not for any tool. The commit author is the human running the
+   commit; the message describes the change and nothing else. This rule exists here in writing
+   because assistants are instructed BY DEFAULT to append that trailer — an unwritten
+   preference loses to a default every time, which is how 132 commits acquired one before
+   anybody noticed.
