@@ -561,6 +561,24 @@ Bindings are the client's to choose (§8.4.3), but the **first eight MUST be rea
 key that cannot be chorded with a digit — `Tab`, in the reference client — the second bank needs
 somewhere else to live; the reference client uses `CTRL`+`SHIFT`+digit.
 
+**A client MAY add its own way of choosing colours.** A palette swatch, a colour picker, a
+dropdown for pen / screen / border — any of these are permitted **in addition to** the key
+bindings above, and on a host where sixteen numbered colours are otherwise invisible they are a
+real improvement: the original's user knew the palette by heart, and a new one does not. Two
+conditions:
+
+- **Additional, not instead of.** The keys remain the primary route and **MUST** still work, so a
+  user who knows the original is never stranded looking for a button.
+- **⚠ It is an affordance, not a command.** Colour selection **MUST NOT** be added to the editor's
+  command row: §8.4.1's fourteen commands are closed by the same rule as §4.7's, and a fifteenth
+  cell reading `COLOUR` is exactly the invention that rule exists to prevent. Put it in the
+  surrounding interface — a toolbar, a menu, a panel beside the page — the same place §4.10 puts
+  the client's own furniture, and the same reasoning that keeps the buffer position out of the
+  40×24 page (§8.4.2).
+
+This is the general principle of §4.6 applied to the editor: *how* something is invoked is the
+client's business, *what exists to be invoked* is not.
+
 **⚠ The screen background is GLOBAL, not per-cell (normative).** The C64 has one background
 register (`$D021`) for the whole screen and colour RAM holds only a foreground per cell, so a page
 whose cells disagree about the background **cannot occur on hardware**. A client whose model
