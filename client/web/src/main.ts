@@ -234,15 +234,19 @@ function leaveEditor(): void {
 /** Store a page the user has just viewed into the editor buffer, VERBATIM
  *  (§8.4.2) — the cells exactly as rendered, plus the bytes they came from.
  *  Silent on success — this happens on every page and must not chatter — but
- *  NOT silent when the buffer is full, because that is data not being kept. */
+ *  NOT silent when the buffer is full, because that is data not being kept.
+ *  The editor follows along to the captured page (§8.4.2), unless an edit is in
+ *  progress. */
 function captureViewedFrame(f: FrameMsg): void {
   const wasEmpty = buf.isEmpty();
   // Always stored — the oldest page is evicted if the buffer is full, as on the
   // original ($849B/$8C40). `note` is set when that happened.
   const note = buf.capture(frameToPage(f));
   if (note) status(note, true);
-  // Redraw only if the editor is on screen; capture never steals focus or moves
-  // the user's current page.
+  // ⚠ Redraw but do NOT take focus. The editor now MOVES to the captured page
+  // (the original's allocator makes the new page current), so the pane must
+  // repaint to show it — but focus stays with Compunet, where the user is
+  // reading. Following the reading is the point; interrupting it is not.
   if (inEditor) renderEditor();
   if (wasEmpty) $('edMeta').textContent = `page ${buf.cur + 1}/${buf.pages.length}`;
 }
@@ -965,10 +969,18 @@ const rows: Record<Pane, Row> = { net: { words: [], ix: 0 }, editor: { words: []
  *  index would drift onto a different command. */
 const lastCommand: Partial<Record<Context, string>> = {};
 
+/** ⚠ `welcome` and `directory` share one remembered position, because §4.8
+ *  gives them the SAME row — the welcome frame "carries the directory row". A
+ *  user who centres SHOW on the welcome screen and then enters a directory has
+ *  not changed rows, so the row must not jump back to HELP under them. */
+function rowMemoryKey(ctx: Context): Context {
+  return ctx === 'welcome' ? 'directory' : ctx;
+}
+
 function rememberRow(pane: Pane): void {
   const r = rows[pane];
   const ctx = pane === 'editor' ? 'editor' : netContext();
-  if (r.words[r.ix]) lastCommand[ctx] = r.words[r.ix];
+  if (r.words[r.ix]) lastCommand[rowMemoryKey(ctx)] = r.words[r.ix];
 }
 
 function tableFor(ctx: Context): Record<string, () => void> {
@@ -991,13 +1003,28 @@ function buildRow(ctx: Context): string[] {
 /** Rebuild BOTH rows and redraw them (§4.9.4). Inapplicable commands are
  *  ABSENT, not disabled — the duckshoot is the documented exception to §4.8's
  *  disable-rather-than-hide (§4.9.5). */
+/** The context the net row was last built for, so a REBUILD can be told apart
+ *  from a context CHANGE. */
+let lastNetCtx: Context | null = null;
+
 function updateBar(): void {
   const nctx = netContext();
+  // ⚠ The word the row is currently on, captured BEFORE the rebuild.
+  //
+  // updateBar runs on every render, and a command that leaves the context
+  // unchanged — SHOW on a `D+` entry, which is inert and answers with the same
+  // listing (§4.7) — still triggers one. Consulting only `lastCommand` was not
+  // enough: any path that rebuilds without having gone through duckCommit lost
+  // the position and snapped back to HELP. Within a context the row simply
+  // stays where it is; `lastCommand` is for RETURNING to a context later
+  // (§4.9.4), which is a different question.
+  const current = rows.net.words[rows.net.ix];
   rows.net.words = buildRow(nctx);
-  // Restore this context's remembered position; the first command is the
-  // default only the FIRST time a context is entered (§4.9.4).
-  const keep = rows.net.words.indexOf(lastCommand[nctx] ?? '');
+  const remembered = lastCommand[rowMemoryKey(nctx)];
+  const wanted = nctx === lastNetCtx ? (current ?? remembered) : remembered;
+  const keep = rows.net.words.indexOf(wanted ?? '');
   rows.net.ix = rows.net.words.length ? (keep >= 0 ? keep : 0) : 0;
+  lastNetCtx = nctx;
 
   // A single-frame page has NO duckshoot — just a prompt (§4.8/§4.9). The ID
   // results screen is the same shape: something to read, nothing to choose.

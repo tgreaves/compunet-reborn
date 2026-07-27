@@ -526,15 +526,24 @@ var EditorBuffer = class {
     if (!dropped) return null;
     return `Buffer full \u2014 dropped the oldest page${dropped > 1 ? "s" : ""} (STORE keeps a copy)`;
   }
-  /** Append a page viewed on Compunet (§8.4.2).
+  /** Append a page viewed on Compunet (§8.4.2), and MOVE TO IT.
    *
    *  Always succeeds: the oldest page is evicted if need be. Returns a message
    *  when that happened, so the client can say so — the original said nothing,
    *  but it also could not persist a buffer or hold fifty pages, and silence
    *  about discarded work is the one thing §8.4.2 is right to insist on.
    *
-   *  The user's current position is NOT disturbed by the capture itself:
-   *  it happens while they may be editing something else entirely. */
+   *  ⚠ The captured page BECOMES THE CURRENT ONE. The original's allocator does
+   *  exactly this — `$849B` opens a page with `LDA $8017 / STA $8019`, writing
+   *  the newly allocated address straight into the current-page pointer — so
+   *  after reading, the editor is already on what you just read. §8.4.2 used to
+   *  say capture "MUST NOT move the current page position"; that was invented
+   *  for the two-pane case and is not what the C64 does.
+   *
+   *  The one exception is an edit IN PROGRESS. The original could not be in
+   *  that state — one screen, so you cannot read and edit at once — but a
+   *  client showing both at once can, and yanking the page out from under a
+   *  cursor loses the user's place for no gain. */
   capture(p) {
     if (this.isPristine()) {
       this.pages[0] = p;
@@ -542,6 +551,10 @@ var EditorBuffer = class {
     }
     const note = this.makeRoom();
     this.pages.push(p);
+    if (!this.editing) {
+      this.cur = this.pages.length - 1;
+      this.home();
+    }
     this.changed();
     return note;
   }
@@ -1604,10 +1617,13 @@ function hasSelection() {
 }
 var rows = { net: { words: [], ix: 0 }, editor: { words: [], ix: 0 } };
 var lastCommand = {};
+function rowMemoryKey(ctx) {
+  return ctx === "welcome" ? "directory" : ctx;
+}
 function rememberRow(pane) {
   const r = rows[pane];
   const ctx = pane === "editor" ? "editor" : netContext();
-  if (r.words[r.ix]) lastCommand[ctx] = r.words[r.ix];
+  if (r.words[r.ix]) lastCommand[rowMemoryKey(ctx)] = r.words[r.ix];
 }
 function tableFor(ctx) {
   if (ctx === "editor") return editorActions;
@@ -1623,11 +1639,16 @@ function buildRow(ctx) {
     return true;
   });
 }
+var lastNetCtx = null;
 function updateBar() {
   const nctx = netContext();
+  const current = rows.net.words[rows.net.ix];
   rows.net.words = buildRow(nctx);
-  const keep = rows.net.words.indexOf(lastCommand[nctx] ?? "");
+  const remembered = lastCommand[rowMemoryKey(nctx)];
+  const wanted = nctx === lastNetCtx ? current ?? remembered : remembered;
+  const keep = rows.net.words.indexOf(wanted ?? "");
   rows.net.ix = rows.net.words.length ? keep >= 0 ? keep : 0 : 0;
+  lastNetCtx = nctx;
   if (awaitingKey || nctx === "frame" && frame && !frame.morePages)
     renderer?.renderPrompt("PRESS ANY KEY", netBackground());
   else renderer?.renderDuckshoot(rows.net.words, rows.net.ix, netBackground());

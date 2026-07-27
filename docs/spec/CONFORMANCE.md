@@ -52,9 +52,14 @@ marked **⚠** are the ones known to have been got wrong in practice.
       server responds; on refusal focus **stays** with the editor and the buffer is intact.
 - [ ] **⚠ Rows return where you left them** (§4.9.4). From a directory, centre `SHOW`, run it,
       then `FINISH`. Is the row still on `SHOW`? Resetting to `HELP` is the known failure.
+      Also try a command that changes **nothing** — `SHOW` on a `D+` entry is inert (§4.7) and
+      answers with the same listing. The row must not move: a client that restores its position
+      only when the context *changes* still snaps back to `HELP` on every redraw within one.
       Check mail and the editor keep their **own** positions, not one shared one.
-- [ ] **⚠ Viewed pages land in the editor buffer** (§8.4.2), without moving the user's current
-      page or stealing focus.
+- [ ] **⚠ Viewed pages land in the editor buffer AND become the current page** (§8.4.2). Read a
+      page, then look at the editor: it should be showing what you just read, not whatever was
+      there before. It must **not** steal focus, and must not move the page during an edit in
+      progress.
 - [ ] **⚠ Capture is verbatim** (§8.4.2). View a page with **several colours** and some
       **graphics characters**, then look at it in the editor: it must be identical, colour for
       colour. A monochrome or text-only rendering means the page model is lines, not cells.

@@ -435,8 +435,20 @@ is how the original kept call charges down.
 
 A client implementing the editor **SHOULD** capture viewed frames into the buffer, subject to:
 
-- **Capture must not disturb the user.** It happens while they may be editing something else, so
-  it **MUST NOT** move the current page position, steal focus, or interrupt an edit in progress.
+- **⚠ The captured page BECOMES the current one (normative).** After reading, the editor is
+  already on what you just read — which is what makes "read it, then keep it" a single gesture
+  rather than a hunt through the buffer. Verified in the original: its page allocator opens a
+  page with `LDA $8017 / STA $8019` (`$849B`), writing the newly allocated address straight into
+  the **current-page pointer**.
+
+  *(An earlier version of this passage said capture "**MUST NOT** move the current page
+  position". That was written for the two-pane case and is not what the C64 does; the reference
+  client followed it and left the user reading one page while the editor showed another.)*
+- **Capture must not INTERRUPT.** It **MUST NOT** steal focus — the user is reading, and the
+  editor following along is the point — and it **MUST NOT** disturb an **edit in progress**. The
+  original could not be in that state, having one screen: you cannot read and edit at once. A
+  client that shows both at once can, and moving the page under a live cursor loses the user's
+  place for nothing.
 - **⚠ A full buffer EVICTS THE OLDEST PAGE — capture never fails (normative).** This is the
   original's behaviour, and it is not what an implementer would guess. Its page allocator, on
   overflow, calls a routine and then **retries** (`$849B`: `BCC` → `JSR $8C40` → `JMP $849B`);
