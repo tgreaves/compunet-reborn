@@ -543,7 +543,31 @@ keys, and a client implementing the editor **SHOULD** provide all seven function
 | **f3 / f4** | delete / insert a line above the cursor |
 | **f5** | auto-repeat on / off |
 | **f6** | colour on / off — when off, typing changes the character but not the colour under it |
-| **f7 / f8** | screen and border colour |
+| **f7 / f8** | screen and border colour — **each press steps one colour forward** through the palette and wraps; they are not a forward/back pair (verified on the C64: yellow → orange → brown → light red → dark grey…) |
+| **`CTRL`+`1`–`8`** | set the **pen** colour — the colour typed text takes (`CTRL`+`4` is cyan). ⚠ See below |
+
+**⚠ The pen colour is set with `CTRL`+`1`–`8`, and it is NOT in the help frame (normative).**
+A client offering the editor **MUST** provide a way to set the colour typed text takes. On the
+C64 this is the machine's own colour keys — `CTRL`+`1`–`8` for the first eight colours and
+`C=`+`1`–`8` for the second eight — handled by the KERNAL, which is precisely why §A.9 does not
+list them: they are not editor commands, and the editor merely reads the current colour. A client
+that implements only the keys the help frame names ends up **unable to author colour at all**, on
+a page model that is per-cell colour from top to bottom — the editor can then only produce white
+text, and the one route to a coloured page is capturing someone else's and typing over it with
+f6 off.
+
+Bindings are the client's to choose (§8.4.3), but the **first eight MUST be reachable** and
+`CTRL`+digit is **RECOMMENDED** since it matches the original exactly. Where `C=` is mapped to a
+key that cannot be chorded with a digit — `Tab`, in the reference client — the second bank needs
+somewhere else to live; the reference client uses `CTRL`+`SHIFT`+digit.
+
+**⚠ The screen background is GLOBAL, not per-cell (normative).** The C64 has one background
+register (`$D021`) for the whole screen and colour RAM holds only a foreground per cell, so a page
+whose cells disagree about the background **cannot occur on hardware**. A client whose model
+carries a background per cell — a reasonable way to hold §6's cells — **MUST** keep every cell in
+step with the page's background, or changing the screen colour will appear to do nothing at all:
+the screen fill is overpainted cell by cell with the old value, and only newly written cells take
+the new colour. The bug reads as "f7 is dead" while f7 is in fact working perfectly.
 
 **⚠ The cursor BLINKS, and it blinks in colour as well as in reverse video (normative).**
 A client offering the editor **MUST** show a blinking cursor, and it **MUST NOT** be possible for

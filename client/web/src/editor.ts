@@ -276,7 +276,24 @@ export class EditorBuffer {
   }
 
   /** f7 / f8 — screen (background) and border colour (§A.9). */
-  cycleBackground(d: number): void { const p = this.page(); p.background = ((p.background + d) % 16 + 16) % 16; this.touch(); }
+  /** f7 — screen colour. Each press steps one colour through the palette and
+   *  wraps (verified on the C64: yellow, orange, brown, light red, dark grey…).
+   *
+   *  ⚠ The screen background must be written to EVERY CELL, not just the page.
+   *  The C64 has one background register ($D021) for the whole screen and colour
+   *  RAM holds only a foreground, so a page where cells disagree with the page's
+   *  background cannot occur on hardware — the invariant is that they are all
+   *  equal. Our `Cell` carries `bg` per cell (the binding fills it in, api §5.4,
+   *  and the directory chrome uses it for the selection bar), so the renderer
+   *  paints from it and updating the page field alone changed nothing visible:
+   *  f7 looked completely dead while quietly working. Only freshly typed cells
+   *  picked the new colour up, because `typeChar` writes `bg: p.background`. */
+  cycleBackground(d: number): void {
+    const p = this.page();
+    p.background = ((p.background + d) % 16 + 16) % 16;
+    for (const c of p.cells) c.bg = p.background;
+    this.touch();
+  }
   cycleBorder(d: number): void { const p = this.page(); p.border = ((p.border + d) % 16 + 16) % 16; }
 
   backspace(): void {
@@ -297,6 +314,11 @@ export class EditorBuffer {
     const p = this.page();
     p.colour = ((p.colour + d) % 16 + 16) % 16;
   }
+
+  /** Set the pen directly — the C64's CTRL+1-8 / C=+1-8 colour keys (§8.4.3).
+   *  ⚠ The pen is what the CURSOR is drawn in too, so changing it is visible
+   *  immediately even before anything is typed. */
+  setColour(c: number): void { this.page().colour = c & 0x0F; }
 
   /** DELETE/INSERT a line above the cursor (the original's f3/f4). */
   insertLine(): void {

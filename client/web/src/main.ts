@@ -251,6 +251,12 @@ function captureViewedFrame(f: FrameMsg): void {
  *  ~300 ms a phase matches the observed rate closely enough. */
 const CURSOR_BLINK_MS = 300;
 
+/** The C64's `CTRL`+1-8 colour bank, in key order (§8.4.3). */
+const CTRL_COLOURS = [0, 1, 2, 3, 4, 5, 6, 7];
+/** The second bank. On the C64 it is `C=`+1-8; `C=` maps to Tab here (§8.4.3),
+ *  which cannot be chorded with a digit in a browser, so it takes SHIFT. */
+const CTRL_COLOURS_ALT = [8, 9, 10, 11, 12, 13, 14, 15];
+
 setInterval(() => {
   // Only while actually editing, and only when the editor is on screen: a
   // timer redrawing a hidden pane is wasted work, and capture (§8.4.2) must
@@ -1108,6 +1114,19 @@ window.addEventListener('keydown', (e) => {
     // f3 / f4 — delete / insert a line above the cursor (§A.9, in that order)
     if (e.key === 'F3')         { buf.deleteLine(); render(); e.preventDefault(); return; }
     if (e.key === 'F4')         { buf.insertLine(); render(); e.preventDefault(); return; }
+    // ⚠ CTRL + 1-8 sets the PEN colour, as on the C64 (CTRL+4 is cyan). This is
+    // not an editor command — it is the machine's own colour-key mechanism, which
+    // is why it appears nowhere in the editor's help frame (§A.9): the KERNAL
+    // handles it and the editor simply reads the current colour. Without it the
+    // editor cannot author colour at all, on a page model that is per-cell
+    // colour throughout.
+    if (e.ctrlKey && !e.altKey && e.key >= '1' && e.key <= '8') {
+      const bank = e.shiftKey ? CTRL_COLOURS_ALT : CTRL_COLOURS;
+      buf.setColour(bank[Number(e.key) - 1]);
+      render();
+      status(`Pen colour ${bank[Number(e.key) - 1]}`);
+      e.preventDefault(); return;
+    }
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
       buf.typeChar(e.key); render(); e.preventDefault(); return;
     }

@@ -62,6 +62,15 @@ marked **⚠** are the ones known to have been got wrong in practice.
       counter (§8.4.2). Capture a page that uses all 24 rows and check the last one survives.
 - [ ] **Unedited captured pages re-upload unchanged** — as their original bytes, not re-encoded
       (§8.4.2). Edit one character and the client must switch to sending the grid.
+- [ ] **⚠ The pen colour can be set** (§8.4.3) — `CTRL`+`1`–`8` on the C64, `CTRL`+`4` giving
+      cyan. Type a character, change the pen, type another: they must differ. A client that
+      implements only the help frame's keys can produce **white text and nothing else**, which
+      looks like a working editor until you try to author a coloured page.
+- [ ] **⚠ Changing the screen colour actually changes the screen** (§8.4.3). Press f7 and watch
+      the whole 40×24 area, not the status line: if the model holds a background per cell, the
+      page field and the cells will disagree and only newly typed cells change. f8 (border) is
+      not affected, since there is only one border — so "border works, screen doesn't" is the
+      signature of this bug.
 - [ ] **⚠ The editor cursor blinks, and cannot become invisible** (§8.4.3). Two things to check
       separately, because each has its own mechanism and one can be present without the other:
       put the cursor on a cell whose colour **differs** from the drawing colour — it should
