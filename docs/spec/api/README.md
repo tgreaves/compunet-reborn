@@ -157,6 +157,7 @@ acts on rather than a highlighted index (spec §4.5).
 | `idlookup` | `ids` (array of 8-char) | §4.4 | user-ID → real-name lookup |
 | `mail.list` | — | §8.2 | mailbox as a directory |
 | `mail.read` | `index` (row in the current listing) | §8.2 | read a message |
+| `mail.done` | — | §4.8 | **leave Courier** — the `DONE` command; replies with the directory the user came from. Valid only inside mail; an `error` (`invalid`) elsewhere |
 | `mail.send` | `to` (array), `subject`, `frames` (editor pages, §5.4) | §8.3.2 | send mail |
 | `upload` | `title`, `kind` (`"T"`\|`"P"`), `price`, `life`, `frames` | §8.3.2 | content upload; **`kind` and `price` are required** (§8.3.2) |
 | `download.fetch` | — | §8.3.1 | after a `download` descriptor, pull the payload (the ROM's `$40` proceed) |
@@ -263,9 +264,17 @@ the draft fixes the logical shape first.)*
 - `account` → `{ "type":"account", "creditText":"999.00", "credit": 999.0 }` (§4.4).
 - **Mail** (§8.2) reuses the shapes above: `mail.list` → a `directory` carrying
   `"context":"mail"`, its own Part-5 set `[" SENDER"," DATE"," STATUS"]`, and entries whose
-  `page` is the message id; `mail.read` → a `frame`. An empty mailbox still returns one
-  `(NO MAIL)` placeholder entry (§7.3). A client **MUST** take the columns from the response —
-  they differ from a content directory's (§7.2).
+  `page` is the message id; `mail.read` → a `frame`; `mail.done` → a `directory`, the one the
+  user was in before entering Courier. An empty mailbox still returns one `(NO MAIL)` placeholder
+  entry (§7.3). A client **MUST** take the columns from the response — they differ from a content
+  directory's (§7.2).
+
+  **⚠ `mail.done` exists because `DONE` is a real command, not a sequence of `back`s.** §4.8's
+  `DONE` is `N` on the wire and leaves Courier in one step; a binding without an equivalent
+  forces its clients to emulate it by repeating `back` until mail mode happens to clear, which
+  reaches the same state but is a workaround, and one that has to *watch* for the end condition.
+  This is the §1.8 rule in practice: every command of the shared model needs a way to be
+  expressed, or the binding pushes the difference into every client.
 - `idlookup` → `{ "type":"idlookup", "users":[{"id":"ADMIN","name":"MR SYSTEM ADMIN"}, …] }`;
   `name` is `null` when the user does not exist (§4.4).
 - **Download** (§8.3.1) is two steps, mirroring the ROM's proceed token: selecting a

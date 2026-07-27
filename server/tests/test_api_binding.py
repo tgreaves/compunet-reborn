@@ -180,6 +180,39 @@ class ReplyTypeInference(unittest.TestCase):
         self.assertIsNone(getattr(s, 'mail_show_msg', None),
                           'the message must be closed once its frames run out')
 
+    def test_done_leaves_courier_in_one_command(self):
+        """§4.8: DONE is `N` and exits Courier outright, returning the directory
+        the user came from. It used to be emulated by repeating `back` until
+        mail mode cleared — same destination, but the client had to watch for
+        the end condition."""
+        s = session()
+        send(s, type='goto', target=str(JUNGLE))
+        send(s, type='mail.list')
+        self.assertTrue(getattr(s, 'mail_mode', False))
+        reply = send(s, type='mail.done')
+        self.assertEqual(reply['type'], 'directory')
+        self.assertNotEqual(reply.get('context'), 'mail')
+        self.assertFalse(getattr(s, 'mail_mode', True), 'DONE must leave mail mode')
+
+    def test_done_outside_mail_is_refused(self):
+        """⚠ The guard matters more than it looks. Outside Courier `N` is MORE,
+        and with an upload pending _cmd_more COMPLETES it — so an unguarded
+        mail.done would publish a half-composed page instead of doing nothing."""
+        s = session()
+        send(s, type='dir')
+        reply = send(s, type='mail.done')
+        self.assertEqual(reply['type'], 'error')
+        self.assertEqual(reply.get('code'), 'invalid')
+
+    def test_done_after_reading_a_message_still_exits(self):
+        """DONE from inside a message, not just from the listing."""
+        s = session()
+        send(s, type='mail.list')
+        send(s, type='mail.read', index=0)
+        reply = send(s, type='mail.done')
+        self.assertEqual(reply['type'], 'directory')
+        self.assertNotEqual(reply.get('context'), 'mail')
+
     def test_mail_mode_does_not_outlive_mail(self):
         """F18. `goto` was inert in Courier, and mail mode survived `ucat`."""
         s = session()

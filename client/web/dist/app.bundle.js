@@ -633,7 +633,6 @@ var account = null;
 var accountName = "";
 var isWelcome = false;
 var inMail = false;
-var exitingMail = false;
 function status(s, bad = false) {
   statusEl.textContent = s;
   statusEl.classList.toggle("bad", bad);
@@ -701,10 +700,6 @@ function onMessage(m) {
         submitting = false;
         setFocus("net");
       }
-      if (exitingMail) {
-        if (inMail) gw.send({ type: "back" });
-        else exitingMail = false;
-      }
       status(`${m.title} \u2014 ${m.entries.length} entries`);
       break;
     case "frame": {
@@ -718,7 +713,6 @@ function onMessage(m) {
         return;
       }
       captureViewedFrame(m);
-      if (exitingMail && inMail) gw.send({ type: "back" });
       status("Reading page" + (m.morePages ? " \u2014 MORE follows" : ""));
       break;
     }
@@ -1338,8 +1332,7 @@ var actions = {
     }
     delete lastCommand.mail;
     delete lastCommand.mailFrame;
-    exitingMail = true;
-    gw.send({ type: "back" });
+    gw.send({ type: "mail.done" });
   },
   // HELP shows the embedded help frame (§A.8) — a client asset, nothing is sent.
   HELP: () => {

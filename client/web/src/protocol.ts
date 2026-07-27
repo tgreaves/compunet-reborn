@@ -98,6 +98,8 @@ export type ClientMsg =
   // Tier 2
   | { type: 'ucat'; id?: number }
   | { type: 'mail.list'; id?: number }
+  /** DONE — leave Courier (§4.8). One command, not a run of `back`s. */
+  | { type: 'mail.done'; id?: number }
   | { type: 'mail.read'; id_?: number; index?: number; id?: number }
   | { type: 'idlookup'; ids: string[]; id?: number }
   | { type: 'vote'; page: number; score: number; id?: number }

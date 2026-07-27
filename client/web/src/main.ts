@@ -43,7 +43,6 @@ let accountName = '';
 // "reading" context, and mail has its own command set.
 let isWelcome = false;
 let inMail = false;
-let exitingMail = false;   // DONE in progress — keep unwinding until out of mail
 
 function status(s: string, bad = false): void {
   statusEl.textContent = s;
@@ -114,7 +113,6 @@ function onMessage(m: ServerMsg): void {
       // An upload's result is the refreshed listing (§8.3.2) — the pages have
       // landed, so the Compunet pane takes focus back.
       if (submitting) { submitting = false; setFocus('net'); }
-      if (exitingMail) { if (inMail) gw.send({ type: 'back' }); else exitingMail = false; }
       status(`${(m as DirectoryMsg).title} — ${(m as DirectoryMsg).entries.length} entries`);
       break;
     case 'frame': {
@@ -124,7 +122,6 @@ function onMessage(m: ServerMsg): void {
       // (§8.4). This is what makes the editor a reading tool as well as a
       // writing one — you can leave, and still have what you read.
       captureViewedFrame(m as FrameMsg);
-      if (exitingMail && inMail) gw.send({ type: 'back' });
       status('Reading page' + ((m as FrameMsg).morePages ? ' — MORE follows' : ''));
       break;
     }
@@ -819,7 +816,12 @@ const actions: Record<string, () => void> = {
     // ⚠ Leaving Courier forgets the mail row's position, so re-entering starts
     // on SEND again (§4.9.4) — mail is entered to do something, not resumed.
     delete lastCommand.mail; delete lastCommand.mailFrame;
-    exitingMail = true; gw.send({ type: 'back' });
+    // ⚠ ONE command, not a sequence. DONE is `N` on the wire (§4.8): the
+    // server clears mail mode and returns the directory the user came from.
+    // This used to fire `back` repeatedly and watch for mail mode to clear —
+    // which reaches the same place, because `B` unwinds one level per press,
+    // but it is a workaround for a command that already exists.
+    gw.send({ type: 'mail.done' });
   },
   // HELP shows the embedded help frame (§A.8) — a client asset, nothing is sent.
   HELP: () => {

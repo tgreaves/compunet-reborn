@@ -1192,6 +1192,20 @@ def handle_message(session, msg):
         session.handle_command(b'M')
         return mail_to_json(session, mid)
 
+    if t == "mail.done":
+        # DONE leaves Courier in ONE command: `N` (§4.8). The core clears mail
+        # mode and answers with the directory the user came from.
+        #
+        # ⚠ Only inside Courier. `N` outside mail mode is MORE — and worse, with
+        # an upload pending it COMPLETES the upload (_cmd_more's first branch),
+        # so a stray `mail.done` would publish a half-composed page rather than
+        # do nothing. DONE is a mail-row command (§4.8); refuse it elsewhere
+        # rather than let the wire byte's other meanings through.
+        if not getattr(session, 'mail_mode', False):
+            return {"type": "error", "id": mid, "code": "invalid",
+                    "message": "not in mail"}
+        return _drive(session, b'N', mid, expect='directory')
+
     if t == "mail.read":
         i = _find_index(session, msg.get("id_"))
         if i is None:
