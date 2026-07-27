@@ -2,20 +2,21 @@
 
 Opens Compunet Reborn to modern clients, and pins down how to build one.
 
-* **Compunet in your browser** (new) (#91) — no download, no emulator, no setup.
-  The service as it was, in a tab:
-	* The authentic 40x24 PETSCII screen, the duckshoot, mail, Partyline and the
-	  frame editor.
+* **A modern Compunet client** (new, `client/web/`, `client/electron/`) (#91) —
+  **one client, two ways to run it.** The browser version and the desktop app
+  are the same code and behave identically; only the wrapper differs:
+	* **In your browser** — no download, no emulator, no setup. The quickest way
+	  in, and nothing to keep up to date.
+	* **As a desktop app** — a Windows installer that asks where to put it, or a
+	  **portable build** that keeps its settings and your editor pages beside the
+	  executable. macOS and Linux are configured but not yet published.
+	* Whichever you choose, you get: the authentic 40x24 PETSCII screen, the
+	  duckshoot, mail, Partyline and the frame editor.
 	* An **editor that works offline** — compose pages with no connection, and
 	  every page you read is kept so you can read your mail after hanging up.
 	  The buffer survives closing the client.
 	* An optional **1200 baud mode**: pages paint as they arrive, at the speed
 	  Compunet actually ran at.
-* **Desktop app** (new, `client/electron/`) (#91) — the same client as a Windows
-  application, from one codebase:
-	* An installer that asks where to put it, or a **portable build** that keeps
-	  its settings and your editor pages beside the executable.
-	* macOS and Linux builds are configured but not yet published.
 * **JSON API** (new, port 6404) (#91) — for anyone wanting to write their own
   client:
 	* Reaching Compunet used to mean reimplementing X.25 framing, CRC,
