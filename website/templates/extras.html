@@ -22,8 +22,12 @@
 
 <table class="download-table">
     <tr>
+        <td><a href="{{ url_for('static', filename='compunet-logo-prepared.3mf') }}">compunet-logo-prepared.3mf</a></td>
+        <td>Print-ready Bambu Studio project. <strong>Use this one.</strong> Plated, coloured and set up &mdash; open it and print</td>
+    </tr>
+    <tr>
         <td><a href="{{ url_for('static', filename='compunet-logo.3mf') }}">compunet-logo.3mf</a></td>
-        <td>Multi-colour. <strong>Use this one.</strong> Contains both variants side by side &mdash; delete whichever you don't want</td>
+        <td>The plain generated model, with no printer settings &mdash; for a different slicer, or to change the design</td>
     </tr>
     <tr>
         <td><a href="{{ url_for('static', filename='compunet-logo.stl') }}">compunet-logo.stl</a></td>
@@ -33,15 +37,17 @@
 
 <h3>Printing it</h3>
 
-<p>Two variants are in the 3MF. <strong>Raised</strong> stands the lettering 2.5&nbsp;mm proud of the plate (pictured); <strong>flush</strong> inlays the colour into the top face so the surface is one continuous plane.</p>
+<p>Both files carry two variants. <strong>Raised</strong> stands the lettering 2.5&nbsp;mm proud of the plate (pictured); <strong>flush</strong> inlays the colour into the top face so the surface is one continuous plane. Delete whichever you don't want before slicing.</p>
+
+<p>The prepared project already has everything below set. It's here so you know what you're getting, and for anyone slicing the plain model themselves.</p>
 
 <table class="download-table">
     <tr><td>Size</td><td>212 &times; 42&nbsp;mm, 15&nbsp;mm thick &mdash; heavy enough to stand on its long edge</td></tr>
     <tr><td>Filaments</td><td>Three: light grey, red, blue (the authentic C64 palette values)</td></tr>
     <tr><td>Supports</td><td>None. It's a flat slab &mdash; print face-up</td></tr>
-    <tr><td>Infill</td><td>Drop it to ~10%. Nothing structural happens below the top layer</td></tr>
+    <tr><td>Infill</td><td>15% &mdash; nothing structural happens below the top layer</td></tr>
     <tr><td>Colour changes</td><td>One, near the top. All three colours share the final layers, so the AMS purges four times, not throughout</td></tr>
 </table>
 
-<p><small>Bambu Studio will warn that the file isn't a Bambu Lab project and load "geometry and colour data only" &mdash; that's expected and the colours still come through. The generator and full printing notes are <a href="https://github.com/tgreaves/compunet-reborn/tree/main/3dprint">in the repository</a>.</small></p>
+<p><small>Slicing <code>compunet-logo.3mf</code> instead? Bambu Studio will warn that it isn't a Bambu Lab project and load "geometry and colour data only" &mdash; that's expected, and the colours still come through. The prepared project opens without the warning. The generator and full printing notes are <a href="https://github.com/tgreaves/compunet-reborn/tree/main/3dprint">in the repository</a>.</small></p>
 {% endblock %}

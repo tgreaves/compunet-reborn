@@ -116,13 +116,16 @@ individually. (`parts/` holds the **flush** variant; for raised, run
 
 ## The website copy
 
-`compunet-logo.3mf` and `compunet-logo.stl` are also served from the site's Extras page, as
-copies in `website/static/`. **They are copies, not links** — after regenerating here, re-copy
-them or the download will drift from the generator:
+All three downloads are served from the site's Extras page, as copies in `website/static/`.
+**They are copies, not links** — after regenerating here, re-copy them or the download will drift
+from the generator:
 
 ```bash
-cp 3dprint/compunet-logo.3mf 3dprint/compunet-logo.stl website/static/
+cp 3dprint/compunet-logo-prepared.3mf 3dprint/compunet-logo.3mf 3dprint/compunet-logo.stl website/static/
 ```
+
+The Extras page recommends `compunet-logo-prepared.3mf` and offers the other two as the
+plain-model and single-colour alternatives.
 
 ## Regenerating
 
