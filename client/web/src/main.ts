@@ -4,7 +4,7 @@
 import type { Account, Assets, Cell, DirectoryMsg, FrameMsg, ServerMsg } from './protocol';
 import { Renderer } from './render';
 import { Gateway } from './gateway';
-import { EditorBuffer, frameToPage } from './editor';
+import { EditorBuffer, frameToPage, MIN_PAGES, DEFAULT_MAX_PAGES } from './editor';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -237,10 +237,10 @@ function leaveEditor(): void {
  *  NOT silent when the buffer is full, because that is data not being kept. */
 function captureViewedFrame(f: FrameMsg): void {
   const wasEmpty = buf.isEmpty();
-  if (!buf.capture(frameToPage(f))) {
-    status('Editor buffer full — this page was not stored (use STORE, then ERASE)', true);
-    return;
-  }
+  // Always stored — the oldest page is evicted if the buffer is full, as on the
+  // original ($849B/$8C40). `note` is set when that happened.
+  const note = buf.capture(frameToPage(f));
+  if (note) status(note, true);
   // Redraw only if the editor is on screen; capture never steals focus or moves
   // the user's current page.
   if (inEditor) renderEditor();
@@ -390,15 +390,23 @@ const editorActions: Record<string, () => void> = {
   LAST: () => { status(buf.last() ? `Page ${buf.cur + 1} of ${buf.pages.length}` : 'Already at the first page'); render(); },
   NEXT: () => { status(buf.next() ? `Page ${buf.cur + 1} of ${buf.pages.length}` : 'Already at the last page'); render(); },
   // ⚠ NEW is a BLANK page; COPY duplicates. Not the same command (§8.4.1).
-  NEW: () => { buf.newPage(); status(`New blank page — ${buf.cur + 1} of ${buf.pages.length}`); render(); },
-  COPY: () => { buf.copyPage(); status(`Copied — page ${buf.cur + 1} of ${buf.pages.length}`); render(); },
+  NEW: () => {
+    const note = buf.newPage();
+    status(note ?? `New blank page — ${buf.cur + 1} of ${buf.pages.length}`, !!note);
+    render();
+  },
+  COPY: () => {
+    const note = buf.copyPage();
+    status(note ?? `Copied — page ${buf.cur + 1} of ${buf.pages.length}`, !!note);
+    render();
+  },
   ERASE: () => { buf.erasePage(); status(`Erased — page ${buf.cur + 1} of ${buf.pages.length}`); render(); },
   GET: () => loadFile(),
   // ⚠ PUT is ONE page, STORE is the WHOLE buffer — the editor's SHOW/BUY (§8.4.1).
   PUT: () => { saveText(buf.toJSON([buf.page()]), `page-${buf.cur + 1}.json`); status('PUT — current page saved'); },
   STORE: () => { saveText(buf.toJSON(), 'editor-buffer.json'); status(`STORE — all ${buf.pages.length} page(s) saved`); },
   PRINT: () => { window.print(); },
-  FREE: () => status(`${buf.free()} CHARS FREE — ${buf.pages.length} page(s) in the buffer`),
+  FREE: () => status(`${buf.free()} PAGES FREE — ${buf.pages.length} of ${buf.maxPages} used`),
   RETURN: () => leaveEditor(),
   // DOS names a local filesystem facility this environment does not have. §8.4.1
   // permits disabling it; it does NOT permit renaming or removing it.
@@ -1076,6 +1084,7 @@ async function connect(): Promise<void> {
       () => endSession('Disconnected.'),
       () => status('WebSocket error.'),
     );
+    saveSettings();          // only once the host and id are known good
     $<HTMLButtonElement>('connect').disabled = true;
     $<HTMLInputElement>('pass').classList.remove('bad');
   } catch (e) {
@@ -1088,6 +1097,8 @@ async function connect(): Promise<void> {
     status(bad ? 'Login refused — check the user ID and password.' : 'Connect error: ' + msg, true);
   }
 }
+
+window.addEventListener('beforeunload', flushEditor);
 
 window.addEventListener('keydown', (e) => {
   // Don't hijack keys while the user is typing (chat, login, editor).
@@ -1214,6 +1225,85 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Enter')      { duckCommit();   e.preventDefault(); return; }
 });
 
+
+// --- Persistence (§8.4.2) ---------------------------------------------------
+//
+// ⚠ The editor buffer MUST survive the client closing, not merely the
+// connection. §8.4 requires the editor to work offline so a user can compose,
+// hang up and upload later; if the buffer died with the window that would only
+// hold WITHIN a session, which is not the feature. The original did not do this
+// — a C64's RAM went with the power, which is what PUT and STORE were for — so
+// this is a deliberate modern requirement, not reconstructed behaviour.
+//
+// Settings are a convenience by comparison: losing them costs retyping, not
+// work, so they persist on a successful connect only. A host or user id that
+// failed is not worth remembering.
+
+const KEY_SETTINGS = 'compunet:settings';
+const KEY_EDITOR = 'compunet:editor';
+const KEY_LIMIT = 'compunet:pageLimit';
+
+/** Never store the password. Plaintext in localStorage is readable by anything
+ *  running in the renderer; "remember me" wants a server-issued token with an
+ *  expiry, which is a different piece of work. */
+interface Settings { host?: string; user?: string }
+
+function loadSettings(): void {
+  try {
+    const raw = localStorage.getItem(KEY_SETTINGS);
+    if (raw) {
+      const st = JSON.parse(raw) as Settings;
+      if (st.host) $<HTMLInputElement>('host').value = st.host;
+      if (st.user) $<HTMLInputElement>('user').value = st.user;
+    }
+    const lim = parseInt(localStorage.getItem(KEY_LIMIT) ?? '', 10);
+    if (lim > 0) buf.maxPages = lim;
+  } catch { /* unreadable settings are not worth failing over */ }
+}
+
+function saveSettings(): void {
+  try {
+    localStorage.setItem(KEY_SETTINGS, JSON.stringify({
+      host: $<HTMLInputElement>('host').value.trim(),
+      user: $<HTMLInputElement>('user').value.trim(),
+    }));
+  } catch { /* quota or private mode — the session still works */ }
+}
+
+/** ⚠ Debounced, and also flushed on unload. Capture during a mail download can
+ *  add pages faster than a user types, and a crash mid-read should not lose the
+ *  message — the download exists precisely so mail survives hanging up. */
+let saveTimer: number | undefined;
+function persistEditor(): void {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushEditor, 1000) as unknown as number;
+}
+
+function flushEditor(): void {
+  clearTimeout(saveTimer);
+  try {
+    localStorage.setItem(KEY_EDITOR, buf.toJSON());
+  } catch {
+    // ⚠ Do NOT fail silently. §8.4.2's point is that a user believing their
+    // pages are kept when they are not is the failure worth preventing.
+    status('Editor could not be saved — storage is full. STORE to a file.', true);
+  }
+}
+
+function restoreEditor(): void {
+  const raw = localStorage.getItem(KEY_EDITOR);
+  if (!raw) return;
+  try {
+    const n = buf.load(raw);
+    status(`Editor restored — ${n} page(s). STORE keeps a copy as a file.`);
+  } catch {
+    // Corrupt or from an incompatible build: start clean rather than refuse to
+    // boot, but say so, because the pages are gone.
+    localStorage.removeItem(KEY_EDITOR);
+    status('Saved editor pages could not be read — starting with a blank page.', true);
+  }
+}
+
 /** The colour and glyph pickers (§8.4.3).
  *
  *  ⚠ These are ADDITIONAL, never a replacement: every colour here is also on
@@ -1226,6 +1316,29 @@ window.addEventListener('keydown', (e) => {
  *  They are pane furniture, NOT commands: §8.4.1's fourteen are a closed set, so
  *  nothing here may appear in the editor's row. */
 function buildEditorTools(): void {
+  // --- buffer size (§8.4.2) -------------------------------------------------
+  // ⚠ Clamped at MIN_PAGES. The limit is the user's to choose, but below the
+  // original's 15 the client would fail work a C64 could do, so that floor is
+  // not offered. 50 is the default because this client captures every page
+  // viewed: fifteen is six mail messages, and past that the oldest is dropped.
+  const limitInput = $<HTMLInputElement>('edPageLimit');
+  const showBuffer = (): void => {
+    $('edBufferState').textContent = `${buf.pages.length} used · ${buf.free()} free`;
+  };
+  limitInput.value = String(buf.maxPages);
+  limitInput.onchange = () => {
+    const n = Math.max(MIN_PAGES, parseInt(limitInput.value, 10) || DEFAULT_MAX_PAGES);
+    limitInput.value = String(n);
+    buf.maxPages = n;
+    try { localStorage.setItem(KEY_LIMIT, String(n)); } catch { /* not fatal */ }
+    // Lowering the limit does not discard anything now — the buffer trims
+    // itself as pages are added, so nothing is lost by changing your mind.
+    showBuffer();
+    status(`Editor holds ${n} pages`);
+  };
+  buf.onChange = () => { persistEditor(); showBuffer(); };
+  showBuffer();
+
   const swatches = $('edSwatches');
   const target = () => $<HTMLSelectElement>('edTarget').value;
 
@@ -1309,6 +1422,14 @@ async function boot(): Promise<void> {
   $('paneNet').addEventListener('mousedown', () => setFocus('net'));
   $('paneEditor').addEventListener('mousedown', () => setFocus('editor'));
   $<HTMLButtonElement>('edClose').onclick = () => leaveEditor();
+  // Persistence is driven by the buffer's own change hook, so no edit path
+  // has to remember to save. Subscribe BEFORE restoring, so a restore that
+  // normalises anything is itself written back.
+  // ⚠ Order matters. loadSettings sets the page limit; buildEditorTools reads it
+  // into the control and subscribes to the buffer; restoreEditor then fires that
+  // subscription, so the page count is right and its status line is the last
+  // thing the user sees on a cold start.
+  loadSettings();
   buildEditorTools();
   // Host-environment route into the editor — the only way in with no session,
   // and harmless with one (it returns wherever the user was).
@@ -1363,6 +1484,11 @@ async function boot(): Promise<void> {
   });
   render();
   status('Ready. Connect — or open the Editor now: it works offline.');
+  // ⚠ LAST, so its message survives. Restoring — or failing to restore — is the
+  // most important thing the user can be told at startup, and boot's own
+  // "Ready" line was overwriting it. A silent failure here is precisely the
+  // case §8.4.2 exists to prevent: the user believes their pages are kept.
+  restoreEditor();
 }
 
 void boot();

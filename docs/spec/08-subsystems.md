@@ -390,6 +390,17 @@ A client **MAY** implement editing in any way its environment allows; the only w
 requirement is that what it submits is a valid frame (§6) delivered via §8.3.2. The editor
 is therefore Tier 3 by virtue of depending on uploads, but imposes no protocol of its own.
 
+**⚠ Buffer size: at least 15 pages, ideally 50 (normative).** A client **MUST** hold at least
+**15** — the top of the original's quoted range, so nothing a C64 could do fails here — and
+**SHOULD** hold at least **50**. The larger figure is not ambition: the original's ceiling was
+RAM, and its user captured a handful of pages deliberately, whereas a client that captures
+**every page viewed** (§8.4.2) fills fifteen in about six mail messages and then starts evicting
+work. Storage is not the constraint — held run-length encoded, fifty realistic pages measure
+under 200 KB.
+
+The limit **SHOULD** be a user setting, with 15 as the floor: below it the client would refuse
+work the original managed.
+
 **The buffer is never empty.** It holds **at least one page** at all times — a blank one before
 anything is composed or captured. `LAST` and `NEXT` clamp at the ends rather than running off
 them (verified in the C64 client: both compare the current pointer against the buffer bounds and
@@ -426,10 +437,23 @@ A client implementing the editor **SHOULD** capture viewed frames into the buffe
 
 - **Capture must not disturb the user.** It happens while they may be editing something else, so
   it **MUST NOT** move the current page position, steal focus, or interrupt an edit in progress.
-- **A full buffer must be reported.** The original's limit was **memory** — it held "10–15 pages
-  simultaneously", a range because pages compress differently (§6.4). When a page cannot be
-  stored the client **MUST** say so; silently dropping it is the §8.3.2 failure pattern again,
-  where the user believes something was kept and it was not.
+- **⚠ A full buffer EVICTS THE OLDEST PAGE — capture never fails (normative).** This is the
+  original's behaviour, and it is not what an implementer would guess. Its page allocator, on
+  overflow, calls a routine and then **retries** (`$849B`: `BCC` → `JSR $8C40` → `JMP $849B`);
+  that routine (`$8C40`) takes the **first** page in the buffer, deletes it, compacts everything
+  down over it, and adjusts the current-page pointer so the user stays on the page they were
+  looking at — unless that was the page evicted. So the buffer is a **rolling window** of the
+  most recent pages: a long mail download never stalls, and nothing refuses.
+
+  `NEW` and `COPY` go through the **same allocator** (`$8495`, `$84CB` → `$849B`), so they evict
+  on the same rule. A client that enforces its limit only on capture lets the user walk past it
+  by hand.
+
+  ⚠ A page the user **composed** can be evicted by pages they merely **read**. The original drew
+  no distinction and neither should a client — but it **MUST** say when eviction happens. The
+  original said nothing, because a C64 user had a disk drive and the habit of `STORE`; a client
+  that captures automatically and holds tens of pages owes the user that much, and §8.3.2's
+  silent-failure pattern is exactly what saying nothing produces.
 - **Directory listings are not frames** and are not captured; nor are client-side assets such as
   the help pages (§A.8, §A.9), which the user did not fetch.
 
@@ -483,6 +507,27 @@ This has two consequences a client is likely to get wrong:
   uploading is a normal sequence, not an edge case; the buffer **MUST NOT** be cleared on
   disconnect. `RETURN` from an offline editor returns to the host environment (the original's
   BASIC prompt), not to a connection attempt.
+- **⚠ The buffer MUST also outlive the CLIENT (normative).** It **MUST** be persisted and
+  restored across restarts. The reasoning is the one above carried to its end: the editor exists
+  so a user can compose, hang up and upload later, and if closing the window discarded the buffer
+  that would hold only *within a session* — which is not the feature. Nothing warns a user that
+  quitting destroys their work, and on a modern host quitting is casual and sometimes involuntary
+  (a crash, an update).
+
+  **⚠ This is a deliberate deviation, not reconstructed behaviour.** The original did not persist:
+  a C64's RAM went with the power, which is precisely what `PUT` and `STORE` were for. Persistence
+  **MUST NOT** replace them (§8.4.1) — it is crash insurance, invisible and silently overwritten,
+  while `STORE` is how a user *keeps* something. A client **SHOULD** say so when it restores.
+
+  Two failure paths are normative, because both end with a user believing their pages are safe:
+  - stored data that is **corrupt or from an incompatible version** **MUST NOT** prevent startup —
+    begin with a blank page, and **say** the pages could not be read;
+  - if the store is **full**, the client **MUST** keep working and **MUST** report it.
+
+  Settings — server address, user id — **SHOULD** persist too. That is convenience, not data
+  loss, so it is a weaker requirement. A client **MUST NOT** persist the **password**: at rest in
+  a browser or desktop store it is readable by anything running in the client, and "remember me"
+  belongs to the server as a token with an expiry.
 - **`GET`/`PUT`/`STORE` are what make offline work useful.** They are local storage, so they
   **MUST** function with no session. A client that implements them as server-side storage has
   misread §8.4.1 and has broken offline use.
@@ -516,7 +561,7 @@ this specification and `docs/PROTOCOL.md` both previously carried.
 | 9 | `PUT` | Save the **current page** to local storage |
 | 10 | `STORE` | Save the **entire buffer** to local storage |
 | 11 | `PRINT` | Print the current frame |
-| 12 | `FREE` | Report remaining editor space |
+| 12 | `FREE` | Report remaining editor space. The original counted **characters** against a memory ceiling; a client without that ceiling **SHOULD** report **pages remaining** against its own limit, which is what actually constrains it — an invented character budget reports a limit the client does not have |
 | 13 | `RETURN` | Leave the editor (to Compunet if online, to the host environment if not) |
 | 14 | `DOS` | Local storage / filesystem commands |
 

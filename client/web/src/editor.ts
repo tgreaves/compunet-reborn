@@ -40,15 +40,19 @@ function blankPage(): Page {
   return { cells: blankCells(0, 1), border: 6, background: 0, colour: 1 };
 }
 
-/** The C64 editor reported free space in characters; keep the same units so
- *  FREE means the same thing to a user who knows the original (§8.4.1).
- *  The original held "10-15 pages simultaneously" (docs/PROTOCOL.md) — a range,
- *  because its limit was MEMORY and pages compress differently (RLE, §6.4).
- *  ⚠ The exact byte figure is NOT verified against the disassembly; 12 pages is
- *  an approximation of the right magnitude, not a reconstructed constant. */
-const CAPACITY = 12 * CELLS;
-/** Hard stop matching the top of the original's quoted range. */
-export const MAX_PAGES = 15;
+/** ⚠ The page limit is a SETTING, with a conforming floor (§8.4.2).
+ *
+ *  The original's ceiling was RAM — "10-15 pages simultaneously", a range
+ *  because pages compress differently (RLE, §6.4). 15 is therefore the floor: a
+ *  buffer smaller than the original's would fail work a C64 could do.
+ *
+ *  The default is higher because the failure mode changed. On the original a
+ *  user captured a handful of pages deliberately; this client captures EVERY
+ *  page viewed (§8.4.2), so reading six mail messages fills fifteen and starts
+ *  evicting. Storage is not the constraint — 50 pages costs ~0.1 MB once
+ *  unedited captures are held as their original bytes. */
+export const MIN_PAGES = 15;
+export const DEFAULT_MAX_PAGES = 50;
 
 /** ASCII -> glyph index, in whichever character set the editor is in (§5.3).
  *  ⚠ The sets index letters DIFFERENTLY: in the lowercase/mixed set a-z are
@@ -80,6 +84,29 @@ export function frameToPage(f: FrameMsg): Page {
     colour: 1,
     raw: (f as FrameMsg & { raw?: string }).raw,
   };
+}
+
+/** A run of identical cells: [count, glyph, fg, bg, rv]. */
+type Run = [number, number, number, number, number];
+
+function rleEncode(cells: Cell[]): Run[] {
+  const out: Run[] = [];
+  for (const c of cells) {
+    const last = out[out.length - 1];
+    if (last && last[1] === c.g && last[2] === c.fg && last[3] === c.bg && last[4] === c.rv) last[0]++;
+    else out.push([1, c.g, c.fg, c.bg, c.rv]);
+  }
+  return out;
+}
+
+function rleDecode(runs: Run[], bg: number): Cell[] {
+  const cells: Cell[] = [];
+  for (const [n, g, fg, b, rv] of runs)
+    for (let i = 0; i < n && cells.length < CELLS; i++)
+      cells.push({ g, fg, bg: b, rv: (rv ? 1 : 0) as 0 | 1 });
+  // A short or damaged run list must not yield a short page.
+  while (cells.length < CELLS) cells.push({ g: 0x20, fg: 1, bg, rv: 0 });
+  return cells;
 }
 
 export class EditorBuffer {
@@ -198,6 +225,7 @@ export class EditorBuffer {
     if (!this.original) return false;
     this.page().cells = this.original.map((c) => ({ ...c }));
     delete this.page().raw;
+    this.changed();
     return true;
   }
 
@@ -210,7 +238,16 @@ export class EditorBuffer {
   page(): Page { return this.pages[this.cur]; }
 
   /** Any change to a page's content invalidates its captured bytes. */
-  private touch(): void { delete this.page().raw; }
+  /** ⚠ Fired whenever the buffer changes, so persistence cannot be forgotten.
+   *
+   *  Seventeen call sites mutate this buffer. Asking each to remember to save
+   *  is a rule that holds until someone adds the eighteenth — and the symptom
+   *  (pages quietly stop persisting) is invisible until a user loses work. The
+   *  buffer announces its own changes instead. */
+  onChange: (() => void) | null = null;
+  private changed(): void { this.onChange?.(); }
+
+  private touch(): void { delete this.page().raw; this.changed(); }
 
   // --- page navigation (LAST / NEXT) ---
   last(): boolean { if (this.cur === 0) return false; this.cur--; this.home(); return true; }
@@ -218,15 +255,31 @@ export class EditorBuffer {
 
   // --- page management (NEW / COPY / ERASE) ---
   /** NEW — a fresh BLANK page after the current one. Not COPY. */
-  newPage(): void { this.pages.splice(++this.cur, 0, blankPage()); this.home(); }
+  /** ⚠ NEW and COPY evict too. On the original they go through the SAME page
+   *  allocator as capture ($8495 and $84CB both reach $849B), so a full buffer
+   *  drops its oldest page for them exactly as it does for a page arriving from
+   *  Compunet. Enforcing the limit only on capture — as this did — let a user
+   *  walk past it by hand, which then became permanent once the buffer
+   *  persisted across restarts. */
+  newPage(): string | null {
+    const note = this.makeRoom();
+    this.pages.splice(++this.cur, 0, blankPage());
+    this.home();
+    this.changed();
+    return note;
+  }
   /** COPY — a DUPLICATE of the current page after it. Not NEW. */
-  copyPage(): void {
+  copyPage(): string | null {
+    const note = this.makeRoom();
     const p = this.page();
     this.pages.splice(++this.cur, 0, { ...p, cells: p.cells.map((c) => ({ ...c })) });
     this.home();
+    this.changed();
+    return note;
   }
   /** ERASE — remove the current page. The buffer never becomes empty. */
   erasePage(): void {
+    this.changed();
     this.pages.splice(this.cur, 1);
     if (!this.pages.length) this.pages.push(blankPage());
     if (this.cur >= this.pages.length) this.cur = this.pages.length - 1;
@@ -242,24 +295,64 @@ export class EditorBuffer {
     return p.cells.every((c) => (c.g & 0x7F) === 0x20 && !c.rv);
   }
 
-  /** Append a page viewed on Compunet (§8.4.2). Returns false when the buffer
-   *  is full — the original's limit was memory, and it does not silently
-   *  discard. The user's current position is NOT disturbed: capture happens
-   *  while they may be editing something else entirely. */
-  capture(p: Page): boolean {
-    if (this.isPristine()) { this.pages[0] = p; return true; }
-    if (this.pages.length >= MAX_PAGES || this.free() < this.cost(p)) return false;
+  /** The buffer's page limit. Changing it takes effect on the next page added;
+   *  an over-limit buffer is trimmed by makeRoom() rather than truncated here,
+   *  so the eviction rule stays in one place. */
+  maxPages = DEFAULT_MAX_PAGES;
+
+  /** ⚠ Make room by DELETING THE OLDEST PAGE — the original's behaviour.
+   *
+   *  Verified in the C64 ROM: the page allocator at $849B, on overflow, does
+   *  `JSR $8C40` and then `JMP $849B` — it calls a routine and RETRIES, so that
+   *  routine must free space. $8C40 takes the FIRST page in the buffer
+   *  ($8015/$8016), deletes it, compacts everything down over it, and adjusts
+   *  the current-page pointer so the user stays on the page they were looking
+   *  at — unless that was the page evicted.
+   *
+   *  So capture never fails and never asks: the buffer is a rolling window of
+   *  the most recent pages. NEW and COPY go through the same allocator, so they
+   *  evict too. A page the user COMPOSED can be evicted by pages they merely
+   *  read; the original drew no distinction between the two, and neither does
+   *  this. That is a real way to lose work, which is why STORE exists and why
+   *  the client says so on the way past. */
+  private makeRoom(): string | null {
+    let dropped = 0;
+    while (this.pages.length >= Math.max(MIN_PAGES, this.maxPages)) {
+      this.pages.shift();
+      dropped++;
+      // Follow the user's position down, as $8C40 does. If their page was the
+      // one evicted, cur stays put and lands on what is now the oldest.
+      if (this.cur > 0) this.cur--;
+    }
+    if (!dropped) return null;
+    return `Buffer full — dropped the oldest page${dropped > 1 ? 's' : ''} (STORE keeps a copy)`;
+  }
+
+  /** Append a page viewed on Compunet (§8.4.2).
+   *
+   *  Always succeeds: the oldest page is evicted if need be. Returns a message
+   *  when that happened, so the client can say so — the original said nothing,
+   *  but it also could not persist a buffer or hold fifty pages, and silence
+   *  about discarded work is the one thing §8.4.2 is right to insist on.
+   *
+   *  The user's current position is NOT disturbed by the capture itself:
+   *  it happens while they may be editing something else entirely. */
+  capture(p: Page): string | null {
+    if (this.isPristine()) { this.pages[0] = p; return null; }
+    const note = this.makeRoom();
     this.pages.push(p);
-    return true;
+    this.changed();
+    return note;
   }
 
-  private cost(p: Page): number {
-    return p.cells.filter((c) => (c.g & 0x7F) !== 0x20 || c.rv).length;
-  }
-
-  /** FREE — characters remaining, in the original's units. */
+  /** FREE — PAGES remaining (§8.4.1).
+   *
+   *  ⚠ The original reported characters, against a memory ceiling this client
+   *  does not have. Reporting pages is honest about what actually limits us and
+   *  needs no invented constant; the previous character figure was derived from
+   *  a capacity that was never verified against the disassembly. */
   free(): number {
-    return Math.max(0, CAPACITY - this.pages.reduce((n, p) => n + this.cost(p), 0));
+    return Math.max(0, Math.max(MIN_PAGES, this.maxPages) - this.pages.length);
   }
 
   // --- editing (EDIT mode) ---
@@ -293,7 +386,7 @@ export class EditorBuffer {
     for (const c of p.cells) c.bg = p.background;
     this.touch();
   }
-  cycleBorder(d: number): void { const p = this.page(); p.border = ((p.border + d) % 16 + 16) % 16; }
+  cycleBorder(d: number): void { const p = this.page(); p.border = ((p.border + d) % 16 + 16) % 16; this.changed(); }
 
   backspace(): void {
     if (this.col === 0) { if (this.row > 0) { this.row--; this.col = PAGE_COLS - 1; } return; }
@@ -312,7 +405,7 @@ export class EditorBuffer {
   /** Set the pen directly — the C64's CTRL+1-8 / C=+1-8 colour keys (§8.4.3).
    *  ⚠ The pen is what the CURSOR is drawn in too, so changing it is visible
    *  immediately even before anything is typed. */
-  setColour(c: number): void { this.page().colour = c & 0x0F; }
+  setColour(c: number): void { this.page().colour = c & 0x0F; this.changed(); }
 
   /** Set screen / border directly, for a picker (§8.4.3). Screen colour must
    *  reach every cell — see cycleBackground for why. */
@@ -322,7 +415,7 @@ export class EditorBuffer {
     for (const cell of p.cells) cell.bg = p.background;
     this.touch();
   }
-  setBorder(c: number): void { this.page().border = c & 0x0F; }
+  setBorder(c: number): void { this.page().border = c & 0x0F; this.changed(); }
 
   /** Write a raw SCREEN CODE at the cursor and advance — the route for glyphs
    *  that have no letter to type: the graphics banks (§5.3).
@@ -367,21 +460,45 @@ export class EditorBuffer {
    *  upload of an empty buffer rather than send a blank page. */
   isEmpty(): boolean { return this.pages.every((p) => this.isBlank(p)); }
 
+  /** ⚠ Pages are stored RUN-LENGTH ENCODED (`compunet-editor-3`).
+   *
+   *  A page written cell-by-cell is 38.5 KB of JSON; fifty of them is 1.9 MB,
+   *  which is close enough to a browser's storage quota to be a gamble — some
+   *  count it in UTF-16 units, halving what looks like 5 MB. Runs take a
+   *  typical page to a few KB. This is the same format PUT and STORE write, so
+   *  a persisted buffer and a STOREd file stay interchangeable — one format,
+   *  one loader, and the version tag is the migration hook.
+   *
+   *  `raw` is kept beside the runs: it is small, and §8.4.2 needs it so an
+   *  unedited captured page re-uploads as the bytes it arrived as. */
   toJSON(pagesOnly?: Page[]): string {
-    return JSON.stringify({ format: 'compunet-editor-2', pages: pagesOnly ?? this.pages });
+    const pages = (pagesOnly ?? this.pages).map((p) => ({
+      rle: rleEncode(p.cells),
+      border: p.border, background: p.background, colour: p.colour,
+      ...(p.raw ? { raw: p.raw } : {}),
+    }));
+    return JSON.stringify({ format: 'compunet-editor-3', pages });
   }
 
   /** GET — replace the buffer from a previously PUT/STOREd file. */
+  /** Accepts both formats: `-3` (runs) and `-2` (cells), so files written by an
+   *  earlier build still load. */
   load(text: string): number {
-    const data = JSON.parse(text) as { format?: string; pages?: Page[] };
-    if (data.format !== 'compunet-editor-2' || !Array.isArray(data.pages) || !data.pages.length)
+    const data = JSON.parse(text) as
+      { format?: string; pages?: (Partial<Page> & { rle?: Run[] })[] };
+    const known = data.format === 'compunet-editor-3' || data.format === 'compunet-editor-2';
+    if (!known || !Array.isArray(data.pages) || !data.pages.length)
       throw new Error('not an editor file');
     this.pages = data.pages.map((p) => {
-      const cells = Array.from({ length: CELLS }, (_, i) =>
-        p.cells?.[i] ? { ...p.cells[i] } : { g: 0x20, fg: 1, bg: p.background ?? 0, rv: 0 as 0 | 1 });
-      return { cells, border: p.border ?? 6, background: p.background ?? 0, colour: p.colour ?? 1, raw: p.raw };
+      const bg = p.background ?? 0;
+      const cells = p.rle
+        ? rleDecode(p.rle, bg)
+        : Array.from({ length: CELLS }, (_, i) =>
+            p.cells?.[i] ? { ...p.cells[i] } : { g: 0x20, fg: 1, bg, rv: 0 as 0 | 1 });
+      return { cells, border: p.border ?? 6, background: bg, colour: p.colour ?? 1, raw: p.raw };
     });
     this.cur = 0; this.row = 0; this.col = 0;
+    this.changed();
     return this.pages.length;
   }
 }

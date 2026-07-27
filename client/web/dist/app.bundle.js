@@ -268,8 +268,8 @@ function blankCells(bg, fg) {
 function blankPage() {
   return { cells: blankCells(0, 1), border: 6, background: 0, colour: 1 };
 }
-var CAPACITY = 12 * CELLS;
-var MAX_PAGES = 15;
+var MIN_PAGES = 15;
+var DEFAULT_MAX_PAGES = 50;
 function charToGlyph(ch, lower) {
   const c = ch.charCodeAt(0) & 255;
   if (lower) {
@@ -291,6 +291,23 @@ function frameToPage(f) {
     colour: 1,
     raw: f.raw
   };
+}
+function rleEncode(cells) {
+  const out = [];
+  for (const c of cells) {
+    const last = out[out.length - 1];
+    if (last && last[1] === c.g && last[2] === c.fg && last[3] === c.bg && last[4] === c.rv) last[0]++;
+    else out.push([1, c.g, c.fg, c.bg, c.rv]);
+  }
+  return out;
+}
+function rleDecode(runs, bg) {
+  const cells = [];
+  for (const [n, g, fg, b, rv] of runs)
+    for (let i = 0; i < n && cells.length < CELLS; i++)
+      cells.push({ g, fg, bg: b, rv: rv ? 1 : 0 });
+  while (cells.length < CELLS) cells.push({ g: 32, fg: 1, bg, rv: 0 });
+  return cells;
 }
 var EditorBuffer = class {
   constructor() {
@@ -348,6 +365,18 @@ var EditorBuffer = class {
     this.cursorAlternate = 0;
     /** Which cell the above describes; a move re-captures ($8B30). */
     this.cursorCell = -1;
+    /** Any change to a page's content invalidates its captured bytes. */
+    /** ⚠ Fired whenever the buffer changes, so persistence cannot be forgotten.
+     *
+     *  Seventeen call sites mutate this buffer. Asking each to remember to save
+     *  is a rule that holds until someone adds the eighteenth — and the symptom
+     *  (pages quietly stop persisting) is invisible until a user loses work. The
+     *  buffer announces its own changes instead. */
+    this.onChange = null;
+    /** The buffer's page limit. Changing it takes effect on the next page added;
+     *  an over-limit buffer is trimmed by makeRoom() rather than truncated here,
+     *  so the eviction rule stays in one place. */
+    this.maxPages = DEFAULT_MAX_PAGES;
   }
   /** $87A1-$87AB — on arriving at a cell, remember its alternate colour.
    *
@@ -398,6 +427,7 @@ var EditorBuffer = class {
     if (!this.original) return false;
     this.page().cells = this.original.map((c) => ({ ...c }));
     delete this.page().raw;
+    this.changed();
     return true;
   }
   /** Remember the starting state when an edit begins. */
@@ -408,9 +438,12 @@ var EditorBuffer = class {
   page() {
     return this.pages[this.cur];
   }
-  /** Any change to a page's content invalidates its captured bytes. */
+  changed() {
+    this.onChange?.();
+  }
   touch() {
     delete this.page().raw;
+    this.changed();
   }
   // --- page navigation (LAST / NEXT) ---
   last() {
@@ -427,18 +460,31 @@ var EditorBuffer = class {
   }
   // --- page management (NEW / COPY / ERASE) ---
   /** NEW — a fresh BLANK page after the current one. Not COPY. */
+  /** ⚠ NEW and COPY evict too. On the original they go through the SAME page
+   *  allocator as capture ($8495 and $84CB both reach $849B), so a full buffer
+   *  drops its oldest page for them exactly as it does for a page arriving from
+   *  Compunet. Enforcing the limit only on capture — as this did — let a user
+   *  walk past it by hand, which then became permanent once the buffer
+   *  persisted across restarts. */
   newPage() {
+    const note = this.makeRoom();
     this.pages.splice(++this.cur, 0, blankPage());
     this.home();
+    this.changed();
+    return note;
   }
   /** COPY — a DUPLICATE of the current page after it. Not NEW. */
   copyPage() {
+    const note = this.makeRoom();
     const p = this.page();
     this.pages.splice(++this.cur, 0, { ...p, cells: p.cells.map((c) => ({ ...c })) });
     this.home();
+    this.changed();
+    return note;
   }
   /** ERASE — remove the current page. The buffer never becomes empty. */
   erasePage() {
+    this.changed();
     this.pages.splice(this.cur, 1);
     if (!this.pages.length) this.pages.push(blankPage());
     if (this.cur >= this.pages.length) this.cur = this.pages.length - 1;
@@ -455,25 +501,58 @@ var EditorBuffer = class {
   isBlank(p) {
     return p.cells.every((c) => (c.g & 127) === 32 && !c.rv);
   }
-  /** Append a page viewed on Compunet (§8.4.2). Returns false when the buffer
-   *  is full — the original's limit was memory, and it does not silently
-   *  discard. The user's current position is NOT disturbed: capture happens
-   *  while they may be editing something else entirely. */
+  /** ⚠ Make room by DELETING THE OLDEST PAGE — the original's behaviour.
+   *
+   *  Verified in the C64 ROM: the page allocator at $849B, on overflow, does
+   *  `JSR $8C40` and then `JMP $849B` — it calls a routine and RETRIES, so that
+   *  routine must free space. $8C40 takes the FIRST page in the buffer
+   *  ($8015/$8016), deletes it, compacts everything down over it, and adjusts
+   *  the current-page pointer so the user stays on the page they were looking
+   *  at — unless that was the page evicted.
+   *
+   *  So capture never fails and never asks: the buffer is a rolling window of
+   *  the most recent pages. NEW and COPY go through the same allocator, so they
+   *  evict too. A page the user COMPOSED can be evicted by pages they merely
+   *  read; the original drew no distinction between the two, and neither does
+   *  this. That is a real way to lose work, which is why STORE exists and why
+   *  the client says so on the way past. */
+  makeRoom() {
+    let dropped = 0;
+    while (this.pages.length >= Math.max(MIN_PAGES, this.maxPages)) {
+      this.pages.shift();
+      dropped++;
+      if (this.cur > 0) this.cur--;
+    }
+    if (!dropped) return null;
+    return `Buffer full \u2014 dropped the oldest page${dropped > 1 ? "s" : ""} (STORE keeps a copy)`;
+  }
+  /** Append a page viewed on Compunet (§8.4.2).
+   *
+   *  Always succeeds: the oldest page is evicted if need be. Returns a message
+   *  when that happened, so the client can say so — the original said nothing,
+   *  but it also could not persist a buffer or hold fifty pages, and silence
+   *  about discarded work is the one thing §8.4.2 is right to insist on.
+   *
+   *  The user's current position is NOT disturbed by the capture itself:
+   *  it happens while they may be editing something else entirely. */
   capture(p) {
     if (this.isPristine()) {
       this.pages[0] = p;
-      return true;
+      return null;
     }
-    if (this.pages.length >= MAX_PAGES || this.free() < this.cost(p)) return false;
+    const note = this.makeRoom();
     this.pages.push(p);
-    return true;
+    this.changed();
+    return note;
   }
-  cost(p) {
-    return p.cells.filter((c) => (c.g & 127) !== 32 || c.rv).length;
-  }
-  /** FREE — characters remaining, in the original's units. */
+  /** FREE — PAGES remaining (§8.4.1).
+   *
+   *  ⚠ The original reported characters, against a memory ceiling this client
+   *  does not have. Reporting pages is honest about what actually limits us and
+   *  needs no invented constant; the previous character figure was derived from
+   *  a capacity that was never verified against the disassembly. */
   free() {
-    return Math.max(0, CAPACITY - this.pages.reduce((n, p) => n + this.cost(p), 0));
+    return Math.max(0, Math.max(MIN_PAGES, this.maxPages) - this.pages.length);
   }
   // --- editing (EDIT mode) ---
   /** Overwrite-at-cursor, as the original edits (its f6 toggles insert). */
@@ -510,6 +589,7 @@ var EditorBuffer = class {
   cycleBorder(d) {
     const p = this.page();
     p.border = ((p.border + d) % 16 + 16) % 16;
+    this.changed();
   }
   backspace() {
     if (this.col === 0) {
@@ -539,6 +619,7 @@ var EditorBuffer = class {
    *  immediately even before anything is typed. */
   setColour(c) {
     this.page().colour = c & 15;
+    this.changed();
   }
   /** Set screen / border directly, for a picker (§8.4.3). Screen colour must
    *  reach every cell — see cycleBackground for why. */
@@ -550,6 +631,7 @@ var EditorBuffer = class {
   }
   setBorder(c) {
     this.page().border = c & 15;
+    this.changed();
   }
   /** Write a raw SCREEN CODE at the cursor and advance — the route for glyphs
    *  that have no letter to type: the graphics banks (§5.3).
@@ -593,21 +675,44 @@ var EditorBuffer = class {
   isEmpty() {
     return this.pages.every((p) => this.isBlank(p));
   }
+  /** ⚠ Pages are stored RUN-LENGTH ENCODED (`compunet-editor-3`).
+   *
+   *  A page written cell-by-cell is 38.5 KB of JSON; fifty of them is 1.9 MB,
+   *  which is close enough to a browser's storage quota to be a gamble — some
+   *  count it in UTF-16 units, halving what looks like 5 MB. Runs take a
+   *  typical page to a few KB. This is the same format PUT and STORE write, so
+   *  a persisted buffer and a STOREd file stay interchangeable — one format,
+   *  one loader, and the version tag is the migration hook.
+   *
+   *  `raw` is kept beside the runs: it is small, and §8.4.2 needs it so an
+   *  unedited captured page re-uploads as the bytes it arrived as. */
   toJSON(pagesOnly) {
-    return JSON.stringify({ format: "compunet-editor-2", pages: pagesOnly ?? this.pages });
+    const pages = (pagesOnly ?? this.pages).map((p) => ({
+      rle: rleEncode(p.cells),
+      border: p.border,
+      background: p.background,
+      colour: p.colour,
+      ...p.raw ? { raw: p.raw } : {}
+    }));
+    return JSON.stringify({ format: "compunet-editor-3", pages });
   }
   /** GET — replace the buffer from a previously PUT/STOREd file. */
+  /** Accepts both formats: `-3` (runs) and `-2` (cells), so files written by an
+   *  earlier build still load. */
   load(text) {
     const data = JSON.parse(text);
-    if (data.format !== "compunet-editor-2" || !Array.isArray(data.pages) || !data.pages.length)
+    const known = data.format === "compunet-editor-3" || data.format === "compunet-editor-2";
+    if (!known || !Array.isArray(data.pages) || !data.pages.length)
       throw new Error("not an editor file");
     this.pages = data.pages.map((p) => {
-      const cells = Array.from({ length: CELLS }, (_, i) => p.cells?.[i] ? { ...p.cells[i] } : { g: 32, fg: 1, bg: p.background ?? 0, rv: 0 });
-      return { cells, border: p.border ?? 6, background: p.background ?? 0, colour: p.colour ?? 1, raw: p.raw };
+      const bg = p.background ?? 0;
+      const cells = p.rle ? rleDecode(p.rle, bg) : Array.from({ length: CELLS }, (_, i) => p.cells?.[i] ? { ...p.cells[i] } : { g: 32, fg: 1, bg, rv: 0 });
+      return { cells, border: p.border ?? 6, background: bg, colour: p.colour ?? 1, raw: p.raw };
     });
     this.cur = 0;
     this.row = 0;
     this.col = 0;
+    this.changed();
     return this.pages.length;
   }
 };
@@ -808,10 +913,8 @@ function leaveEditor() {
 }
 function captureViewedFrame(f) {
   const wasEmpty = buf.isEmpty();
-  if (!buf.capture(frameToPage(f))) {
-    status("Editor buffer full \u2014 this page was not stored (use STORE, then ERASE)", true);
-    return;
-  }
+  const note = buf.capture(frameToPage(f));
+  if (note) status(note, true);
   if (inEditor) renderEditor();
   if (wasEmpty) $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}`;
 }
@@ -944,13 +1047,13 @@ var editorActions = {
   },
   // ⚠ NEW is a BLANK page; COPY duplicates. Not the same command (§8.4.1).
   NEW: () => {
-    buf.newPage();
-    status(`New blank page \u2014 ${buf.cur + 1} of ${buf.pages.length}`);
+    const note = buf.newPage();
+    status(note ?? `New blank page \u2014 ${buf.cur + 1} of ${buf.pages.length}`, !!note);
     render();
   },
   COPY: () => {
-    buf.copyPage();
-    status(`Copied \u2014 page ${buf.cur + 1} of ${buf.pages.length}`);
+    const note = buf.copyPage();
+    status(note ?? `Copied \u2014 page ${buf.cur + 1} of ${buf.pages.length}`, !!note);
     render();
   },
   ERASE: () => {
@@ -971,7 +1074,7 @@ var editorActions = {
   PRINT: () => {
     window.print();
   },
-  FREE: () => status(`${buf.free()} CHARS FREE \u2014 ${buf.pages.length} page(s) in the buffer`),
+  FREE: () => status(`${buf.free()} PAGES FREE \u2014 ${buf.pages.length} of ${buf.maxPages} used`),
   RETURN: () => leaveEditor(),
   // DOS names a local filesystem facility this environment does not have. §8.4.1
   // permits disabling it; it does NOT permit renaming or removing it.
@@ -1583,6 +1686,7 @@ async function connect() {
       () => endSession("Disconnected."),
       () => status("WebSocket error.")
     );
+    saveSettings();
     $("connect").disabled = true;
     $("pass").classList.remove("bad");
   } catch (e) {
@@ -1593,6 +1697,7 @@ async function connect() {
     status(bad ? "Login refused \u2014 check the user ID and password." : "Connect error: " + msg, true);
   }
 }
+window.addEventListener("beforeunload", flushEditor);
 window.addEventListener("keydown", (e) => {
   const el = e.target;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
@@ -1798,7 +1903,77 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 });
+var KEY_SETTINGS = "compunet:settings";
+var KEY_EDITOR = "compunet:editor";
+var KEY_LIMIT = "compunet:pageLimit";
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(KEY_SETTINGS);
+    if (raw) {
+      const st = JSON.parse(raw);
+      if (st.host) $("host").value = st.host;
+      if (st.user) $("user").value = st.user;
+    }
+    const lim = parseInt(localStorage.getItem(KEY_LIMIT) ?? "", 10);
+    if (lim > 0) buf.maxPages = lim;
+  } catch {
+  }
+}
+function saveSettings() {
+  try {
+    localStorage.setItem(KEY_SETTINGS, JSON.stringify({
+      host: $("host").value.trim(),
+      user: $("user").value.trim()
+    }));
+  } catch {
+  }
+}
+var saveTimer;
+function persistEditor() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushEditor, 1e3);
+}
+function flushEditor() {
+  clearTimeout(saveTimer);
+  try {
+    localStorage.setItem(KEY_EDITOR, buf.toJSON());
+  } catch {
+    status("Editor could not be saved \u2014 storage is full. STORE to a file.", true);
+  }
+}
+function restoreEditor() {
+  const raw = localStorage.getItem(KEY_EDITOR);
+  if (!raw) return;
+  try {
+    const n = buf.load(raw);
+    status(`Editor restored \u2014 ${n} page(s). STORE keeps a copy as a file.`);
+  } catch {
+    localStorage.removeItem(KEY_EDITOR);
+    status("Saved editor pages could not be read \u2014 starting with a blank page.", true);
+  }
+}
 function buildEditorTools() {
+  const limitInput = $("edPageLimit");
+  const showBuffer = () => {
+    $("edBufferState").textContent = `${buf.pages.length} used \xB7 ${buf.free()} free`;
+  };
+  limitInput.value = String(buf.maxPages);
+  limitInput.onchange = () => {
+    const n = Math.max(MIN_PAGES, parseInt(limitInput.value, 10) || DEFAULT_MAX_PAGES);
+    limitInput.value = String(n);
+    buf.maxPages = n;
+    try {
+      localStorage.setItem(KEY_LIMIT, String(n));
+    } catch {
+    }
+    showBuffer();
+    status(`Editor holds ${n} pages`);
+  };
+  buf.onChange = () => {
+    persistEditor();
+    showBuffer();
+  };
+  showBuffer();
   const swatches = $("edSwatches");
   const target = () => $("edTarget").value;
   const paint = () => {
@@ -1880,6 +2055,7 @@ async function boot() {
   $("paneNet").addEventListener("mousedown", () => setFocus("net"));
   $("paneEditor").addEventListener("mousedown", () => setFocus("editor"));
   $("edClose").onclick = () => leaveEditor();
+  loadSettings();
   buildEditorTools();
   $("openEditor").onclick = () => {
     if (inEditor) return;
@@ -1926,6 +2102,7 @@ async function boot() {
   });
   render();
   status("Ready. Connect \u2014 or open the Editor now: it works offline.");
+  restoreEditor();
 }
 void boot();
 //# sourceMappingURL=app.bundle.js.map

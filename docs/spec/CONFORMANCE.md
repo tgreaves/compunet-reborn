@@ -54,12 +54,27 @@ marked **⚠** are the ones known to have been got wrong in practice.
       then `FINISH`. Is the row still on `SHOW`? Resetting to `HELP` is the known failure.
       Check mail and the editor keep their **own** positions, not one shared one.
 - [ ] **⚠ Viewed pages land in the editor buffer** (§8.4.2), without moving the user's current
-      page or stealing focus — and a **full** buffer is reported, not silently dropped.
+      page or stealing focus.
 - [ ] **⚠ Capture is verbatim** (§8.4.2). View a page with **several colours** and some
       **graphics characters**, then look at it in the editor: it must be identical, colour for
       colour. A monochrome or text-only rendering means the page model is lines, not cells.
 - [ ] **⚠ An editor page is the full 40×24** — no row reserved for a status line or page
       counter (§8.4.2). Capture a page that uses all 24 rows and check the last one survives.
+- [ ] **⚠ The buffer survives restarting the client** (§8.4). Compose a page, close the client
+      completely, reopen it: the page must be there, colours and all. This is the single most
+      consequential editor check — the editor exists so work can be composed offline and uploaded
+      later, and a buffer that dies with the window only delivers that within one session.
+- [ ] **⚠ Corrupt stored pages do not prevent startup** (§8.4). Damage the stored data and
+      reopen: the client must start with a blank page **and say the pages could not be read**.
+      Silently starting blank is worse than crashing — the user assumes their work is still
+      there.
+- [ ] **⚠ A full buffer EVICTS the oldest page rather than refusing** (§8.4.2). Fill it past the
+      limit and watch: capture must keep working, the oldest page must go, and the client must
+      say so. A client that refuses looks safer and is wrong — on the original a long mail
+      download never stalls. Check `NEW` and `COPY` behave the same way; enforcing the limit only
+      on capture lets the user walk past it by hand.
+- [ ] **The buffer holds at least 15 pages** (§8.4), ideally 50, and the limit is a setting with
+      15 as its floor.
 - [ ] **Unedited captured pages re-upload unchanged** — as their original bytes, not re-encoded
       (§8.4.2). Edit one character and the client must switch to sending the grid.
 - [ ] **⚠ Graphics characters can be typed at all** (§8.4.3). Try to draw a box: `SHIFT`+letter

@@ -57,6 +57,9 @@
   .toolLabel { font-size: 11px; font-weight: 650; letter-spacing: .5px; text-transform: uppercase;
                color: var(--dim); width: 46px; flex: none; }
   #edTools select { font: 11px ui-monospace, monospace; padding: 2px 4px; flex: none; }
+  #edTools input[type=number] { font: 11px ui-monospace, monospace; width: 52px; padding: 2px 4px; }
+  .toolNote { font: 11px ui-monospace, monospace; color: var(--dim); display: flex;
+              align-items: center; gap: 5px; }
   #edSwatches { display: flex; gap: 3px; flex-wrap: wrap; }
   .swatch { width: 18px; height: 18px; border: 1px solid #0008; border-radius: 3px; cursor: pointer;
             padding: 0; flex: none; }
@@ -160,6 +163,14 @@
             <option value="border">border · f8</option>
           </select>
           <div id="edSwatches"></div>
+        </div>
+        <div class="toolRow">
+          <span class="toolLabel">Buffer</span>
+          <label class="toolNote">pages
+            <input id="edPageLimit" type="number" min="15" max="200" step="1" value="50"
+                   title="How many pages the editor holds. The original held 10-15; 15 is the minimum. When full, the oldest page is dropped.">
+          </label>
+          <span class="toolNote" id="edBufferState"></span>
         </div>
         <div class="toolRow">
           <span class="toolLabel">Glyphs</span>
