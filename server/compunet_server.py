@@ -3494,7 +3494,18 @@ async def api_ws_partyline(request):
 
 
 async def api_get_audit(request):
-    """GET /api/audit — return audit log entries with pagination."""
+    """GET /api/audit — return audit log entries with pagination.
+
+    ⚠ Every other /api route guards itself and this one did not. The audit log
+    records `user` and `ip` against connects, page reads, purchases, uploads,
+    mail sends and password resets — who read what, from where, and when. On a
+    deployment that publishes 6403 (the Cloudflare tunnel exposes it as
+    api.compunet.live) an unguarded handler served all of that to anyone who
+    guessed the path. It was missed because the endpoint only READS, and a
+    read-only endpoint feels harmless right up until you notice what it reads.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
     page = int(request.query.get('page', '1'))
     per_page = int(request.query.get('per_page', '50'))
     if not os.path.exists(AUDIT_LOG_PATH):
