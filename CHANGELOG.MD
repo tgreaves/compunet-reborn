@@ -2,32 +2,44 @@
 
 Opens Compunet Reborn to modern clients, and pins down how to build one.
 
+* **Compunet in your browser** (new) (#91) — no download, no emulator, no setup.
+  The service as it was, in a tab:
+	* The authentic 40x24 PETSCII screen, the duckshoot, mail, Partyline and the
+	  frame editor.
+	* An **editor that works offline** — compose pages with no connection, and
+	  every page you read is kept so you can read your mail after hanging up.
+	  The buffer survives closing the client.
+	* An optional **1200 baud mode**: pages paint as they arrive, at the speed
+	  Compunet actually ran at.
+* **Desktop app** (new, `client/electron/`) (#91) — the same client as a Windows
+  application, from one codebase:
+	* An installer that asks where to put it, or a **portable build** that keeps
+	  its settings and your editor pages beside the executable.
+	* macOS and Linux builds are configured but not yet published.
+* **JSON API** (new, port 6404) (#91) — for anyone wanting to write their own
+  client:
+	* Reaching Compunet used to mean reimplementing X.25 framing, CRC,
+	  sequencing and PETSCII. That work now happens once, in the server.
+	* Directories arrive as entry lists and frames as a rendered cell grid, over
+	  WebSocket + REST.
+	* A second binding over the same core — the C64 and Amiga wire protocol is
+	  untouched.
 * **Client Specification** (new, `docs/spec/`) (#111) — a normative,
-  platform-agnostic guide to building a Compunet client: transport, session,
-  commands, the 40x24 PETSCII display contract, frame and directory formats, and
-  the subsystems. It carries the C64 font, the palette and the embedded frames as
-  data, so a client can be built from the document alone — validated by nine
-  independent clean-room builds that did exactly that.
-* **JSON API** (new, port 6404) (#91) — reaching Compunet from a modern platform
-  used to mean reimplementing X.25 framing, CRC, sequencing and PETSCII in every
-  client. That work now happens once, in the server: directories arrive as entry
-  lists and frames as a rendered cell grid, over WebSocket + REST. It is a second
-  binding over the same core, so the C64 and Amiga wire protocol is untouched.
-* **Web and desktop client** (new, `client/web/`, `client/electron/`) (#91) —
-  the authentic 40x24 screen in a browser or as an Electron app, from one
-  codebase. Duckshoot, mail, Partyline, and a full frame editor: a multi-page
-  buffer that works offline and captures every page you view, verbatim. Uploading
-  is the original's sub-context — SEND a page at a time, then FINISH — so a page
-  can hold more than one frame. The editor draws in all sixteen colours and the
-  PETSCII graphics set, by the C64's own keys (`CTRL`+1-8 for the pen, `SHIFT`
-  +letter for graphics) or by clicking a swatch or glyph — the desktop app also
-  ships as a **portable exe** that runs without installing.
+  platform-agnostic guide to building a Compunet client:
+	* Transport, session, commands, the 40x24 PETSCII display contract, frame and
+	  directory formats, and the subsystems.
+	* Carries the C64 font, the palette and the embedded frames as data, so a
+	  client can be built from the document alone.
+	* Validated by nine independent clean-room builds that did exactly that.
+* **Website**:
+	* Links straight through to the browser client, which is now the quickest
+	  way in.
+	* New **Extras** page carrying the printable logo.
+	* Refreshed look, built on the authentic Compunet red, blue and grey.
 * **3D-printed logo** (new, `3dprint/`) — a desk plaque of the Compunet logo for
   multi-colour printers, in flush and raised variants. There is no source
   artwork: it is generated from the PETSCII header frame the server sends.
-* **Website** — new Extras page carrying the printable logo, and a refreshed look
-  built on the authentic Compunet red, blue and grey.
-* Server:
+* **Server**:
 	* `SHOW` on an entry with no frames is now inert, as the original. It used to
 	  fall back to entering the sub-directory, collapsing `SHOW` and `DIR` into
 	  one command on exactly the entries where they differ.
@@ -37,6 +49,8 @@ Opens Compunet Reborn to modern clients, and pins down how to build one.
 	* An empty sub-directory is no longer deleted when the tree is saved. Any
 	  upload rewrote the whole tree, and a directory with nothing in it yet lost
 	  its link — leaving its content on disk but unreachable.
+	* The admin API's audit endpoint now requires the API key, like every other
+	  admin route.
 
 # 1.1.0 (2026-07-24)
 
