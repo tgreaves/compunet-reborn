@@ -107,6 +107,17 @@
                display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px #000a; }
   #submitTitle { font-weight: 650; color: #9ab; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  /* Label above its control, so the two stay together when the row wraps and
+     the caption survives the field being filled in. */
+  .field { display: flex; flex-direction: column; gap: 3px; font-size: 12px;
+           color: var(--dim); }
+  /* ⚠ Required: `display: flex` beats the UA stylesheet's
+     `[hidden] { display: none }`, so any flex container the JS hides stays
+     visible without this. `.row` had the bug already — composing MAIL showed
+     the Type / Price / Life controls, which belong to an upload and mean
+     nothing on a message. */
+  .field[hidden], .row[hidden] { display: none; }
+  .field > input, .field > select { font-size: 13px; }
 </style>
 </head>
 <body>
@@ -214,14 +225,28 @@
   <div id="submit" hidden>
     <div id="submitBox">
       <div id="submitTitle">Compose</div>
+      <!-- ⚠ Every control carries a REAL label, not a placeholder. A placeholder
+           disappears the moment the box has a value, so "price" and "life" were
+           unidentifiable exactly when they were filled in — and both are bare
+           numbers, so nothing in the value itself says which is which. -->
       <div class="row">
-        <input id="edTitle" placeholder="title (16 chars)" maxlength="16" style="flex:1">
+        <label class="field" style="flex:1">Title
+          <input id="edTitle" placeholder="up to 16 characters" maxlength="16">
+        </label>
         <span id="edContentFields" class="row">
-          <select id="edKind"><option value="T">T — text</option><option value="P">P — program</option></select>
-          <input id="edPrice" type="number" step="0.01" min="0" value="0" title="price" style="width:6.5em">
-          <input id="edLife" type="number" min="0" value="30" title="life (days)" style="width:5.5em">
+          <label class="field">Type
+            <select id="edKind"><option value="T">T — text</option><option value="P">P — program</option></select>
+          </label>
+          <label class="field">Price (£)
+            <input id="edPrice" type="number" step="0.01" min="0" value="0" style="width:6.5em">
+          </label>
+          <label class="field">Life (days)
+            <input id="edLife" type="number" min="0" value="30" style="width:5.5em">
+          </label>
         </span>
-        <input id="edTo" placeholder="to: ID,ID" hidden style="flex:1">
+        <label class="field" id="edToField" style="flex:1">To
+          <input id="edTo" placeholder="up to five IDs, comma-separated">
+        </label>
       </div>
       <div class="row">
         <button id="edSubmit" class="primary">Submit</button>

@@ -216,9 +216,7 @@ def ucat_to_json(session, msg_id=None):
     } for i, p in enumerate(visible)]
 
     if not entries:
-        entries.append({"index": 0, "page": 0, "title": "(EMPTY)", "type": "T",
-                        "size": None, "hasSubdir": False,
-                        "values": ["" for _ in _DIR_COLUMNS]})
+        entries.append(_empty_row())
     elif len(pages) > offset + 11:
         # UCAT is GENERATED, so a user cannot author a MORE entry into it —
         # the server supplies one, as Binding A does (§7.6).
@@ -267,9 +265,7 @@ def directory_to_json(session, msg_id=None):
     # is scoped to the current listing and an empty listing makes every
     # open/enter/vote fail with a plausible `not_found` (F7/F8).
     if not entries:
-        entries.append({"index": 0, "page": 0, "title": "(EMPTY)", "type": "T",
-                        "size": None, "hasSubdir": False,
-                        "values": ["" for _ in _DIR_COLUMNS]})
+        entries.append(_empty_row())
 
     advert = []
     try:
@@ -998,6 +994,25 @@ def _more_row(index):
     """The MORE row a generated listing carries when it overflows (§7.6)."""
     return {"index": index, "page": MORE_PAGE, "title": "MORE        >>>>",
             "type": "D", "size": None, "hasSubdir": True,
+            "values": ["" for _ in _DIR_COLUMNS]}
+
+
+def _empty_row():
+    """The placeholder an empty listing carries so the row is not blank.
+
+    ⚠ It is a LABEL, not an entry: no page number and NO TYPE. This used to
+    claim `type: "T"`, which drew a stray `T` in the type column beside
+    "(EMPTY)" — announcing a text page that does not exist, in a directory
+    whose whole message is that it holds nothing. Binding A never did this: its
+    placeholder writes three SPACES where a real entry's type goes
+    (_make_page_response), so the `T` was also a §1.8 divergence between two
+    bindings that must project the same model.
+
+    `page` stays 0 as the sentinel for "not a real page" — clients skip drawing
+    a page number of 0, since no real page is numbered 0.
+    """
+    return {"index": 0, "page": 0, "title": "(EMPTY)", "type": "",
+            "size": None, "hasSubdir": False,
             "values": ["" for _ in _DIR_COLUMNS]}
 
 

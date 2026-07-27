@@ -282,6 +282,17 @@ again):
 | `GET` | Load editor frames from local storage (§8.4.1) — the same local facility the editor offers |
 | `FINISH` | Complete the upload — step 3's `P`, which commits the page and returns the directory |
 
+**⚠ The Compunet surface shows the PAGE BEING UPLOADED, not the directory it came from.**
+Exactly as in mail composition (§8.2.2), and for the same reason: `SEND` transmits *the page on
+screen*, one per press, so the user **MUST** be able to see which that is. Accepting the metadata
+therefore changes what is displayed, not merely which commands are offered. Leaving the listing
+up makes `SEND` a blind command — and it reads as though nothing happened at all, because the
+only visible change is four different words in a row beneath an unchanged screen.
+
+A client that shows both the Compunet surface and the editor at once (§4.10) still **MUST** do
+this: the Compunet pane is where the sub-context lives, and "the editor is visible over there"
+does not tell the user which page `SEND` will take.
+
 **⚠ `SEND` and `FINISH` are two commands doing two jobs**, exactly as in mail composition
 (§8.2.2): one adds a frame, the other ends the exchange. A client that collapses them into a
 single "upload" button has implemented a form, not this context — and has no way to send a
@@ -308,10 +319,44 @@ non-COM packet during an upload as frame data:
   DAT packet whose payload is `@` (`$40`) + padding — a "clean accept" ack. (It is `@`, not
   `A`/`$41`, because a native client reads this byte and treats `A` as a host error.) One ack
   per frame; repeat for further frames.
-- **Program** (`type P`): the client first sends an **8-byte header** DAT — byte 0 = machine
-  type (`1` = Amiga, `0` = C64), bytes 4–7 = body size, **big-endian** — then the raw file as
-  DAT chunks. The server reads the size, accumulates exactly that many bytes, and sends a
-  single final `@`-ack. There is **no per-chunk ack** for a program body.
+- **Program** (`type P`): the client sends an **8-byte header** followed by the raw file as DAT
+  chunks, and the server answers with a single final `@`-ack. There is **no per-chunk ack** for
+  a program body. **Both the header and the way the body ENDS depend on the machine** (byte 0):
+
+  | | byte 0 | bytes 4–5 | bytes 6–7 | how the body ends |
+  |---|---|---|---|---|
+  | **C64** | `0` | **load address**, little-endian | size | a DAT chunk **shorter than 100 bytes**, as for a text frame |
+  | **Amiga** | `1` | *(unused — no load address)* | | the **body size** in bytes 4–7, **big-endian** |
+
+  A C64 program **cannot** put its size in bytes 4–7: those hold the load address, which is not
+  recoverable from the body, and the server rebuilds the stored `.prg` as `header[4:6] + body`.
+  An Amiga executable has no load address, so it uses all four bytes — which it needs, because a
+  HUNK body rarely ends on a short chunk and so cannot be chunk-terminated.
+
+  The C64 also streams its header and body **continuously**, so the first packet carries body
+  bytes after the header; the Amiga sends the header as its **own** packet. A server **MUST**
+  keep any body bytes that arrive alongside the header, or it truncates the start of every C64
+  program.
+
+> **⚠ Do not collapse the two machines onto one rule — that was a real regression.** From
+> 2026-07-22 to 2026-07-27 the reference server sized *every* body with
+> `int.from_bytes(header[4:8], 'big')`. For Amiga that is right; for C64 it reads the load
+> address as the top half of a size, so `$0801` became a demand for roughly 17 MB and the
+> transfer never completed. It arrived in the commit that fixed *Amiga* program upload — the
+> accumulator it replaced was chunk-terminated, which handled the C64 correctly and truncated
+> the Amiga to 2 bytes — and the C64 half was out of that change's scope and had no test.
+>
+> **Evidence for the table above.** A C64 program uploaded 2026-06-05 (`mission-monday.prg`,
+> 18,381 bytes) is stored correctly and opens `01 08` = `$0801`, which is only possible if
+> bytes 4–5 carried the load address. The regression is now fixed and covered by
+> `ProgramUploadAccumulator` (both machines, plus the exact-chunk-boundary case) and
+> `ProgramUpload` (a byte-for-byte Binding-B round trip) in
+> `server/tests/test_api_binding.py`.
+>
+> **Still unverified:** whether a C64 client populates bytes 6–7 with the size on *upload*. The
+> server does not rely on it — it uses the chunk rule, which the working uploads prove — and a
+> client **SHOULD** fill the field in regardless, since §8.3.1 defines it for the download
+> direction.
 
 **Completion (step 3).** The client finishes the session with a different command per mode:
 

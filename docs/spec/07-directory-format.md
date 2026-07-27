@@ -130,6 +130,23 @@ A directory with no entries **MUST** still be represented by one placeholder ent
 full fixed layout (e.g. an `(EMPTY)` line), for the same reason — an empty Part 6 hangs the
 Amiga parser and leaves the C64 entry count uninitialised.
 
+**⚠ The placeholder is a LABEL, not an entry: its page-number and type columns are BLANK.**
+It pads to the full 27 characters like any other row — the widths are what keep the parsers
+alive — but it fills the page column with **spaces**, not `0`, and the type column with
+**spaces**, not a base type. A `0` there advertises a page that does not exist, and a `T`
+announces a text page, in a listing whose entire content is the statement that it holds
+nothing. Only the title column carries anything.
+
+The same holds for a listing rendered from a structured binding: the placeholder's page
+number is the sentinel **0** ("not a real page", since no real page is numbered 0) and its
+type is the **empty string**. A client **MUST NOT** draw a page number of 0, and **MUST NOT**
+substitute a default type for an absent one. Getting this wrong is a §1.8 divergence in
+miniature — one binding blanked both columns while the other sent `type: "T"`, so the same
+empty directory read differently depending on which binding the user reached it through.
+
+Placeholder rows are also **not selectable** for the entry-acting commands (§4.8): there is
+nothing at that row to `SHOW`, `DIR`, `VOTE`, `LIFE` or `BUY`.
+
 ## 7.4 Entry types
 
 The type indicator (first-field chars 24–26, from screen column 25) is **compound**, not a

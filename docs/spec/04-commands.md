@@ -671,6 +671,13 @@ word its leading character. The original's write loop begins `LDX #$00` (`$9458`
 - The duckshoot is one invocation path among several (§4.6). If a client also offers keys or
   clicks, those **MUST** obey the same §4.8 availability rules — a shortcut is not a way around
   the context.
+- **The row MUST be operable the moment a session begins**, with no further pointer input. On the
+  originals this was automatic — there was nowhere else for the keyboard to be. A client with
+  other focusable furniture (a login form, a chat box, an address field) **MUST** hand the
+  keyboard to the Compunet display once the session is established, or the user logs in to a
+  command row that ignores every key until they click it. Note that this is about **keyboard
+  focus**, not about which pane looks active: highlighting the display while a login field still
+  holds focus changes nothing, because the keys keep going to the field.
 
 ## 4.10 Showing more than one context at once (optional)
 

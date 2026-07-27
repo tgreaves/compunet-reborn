@@ -137,7 +137,20 @@ marked **⚠** are the ones known to have been got wrong in practice.
       (§8.4.3). Both look plausible; only one matches.
 - [ ] **⚠ Right-pane content rendered verbatim** from column 31 — the server's leading spaces and
       right-justification are the positioning; do not re-justify (§7.3).
-- [ ] **Page number shown only on the selected row**, right-justified to column 6 (§7.7).
+- [ ] **Page number shown only on the selected row**, right-justified to column 6 (§7.7) — and
+      **never for the `(EMPTY)` placeholder**, whose page and type columns are both blank (§7.3).
+      A `0` there advertises a page that does not exist; a `T` announces a text page, in a listing
+      whose whole message is that it holds nothing.
+- [ ] **The highlight survives a return to the same listing** (§7.7) — read an entry, come back,
+      and the bar is still on it. Easy to lose in a binding that re-sends the listing, where the
+      obvious "reset selection on arrival" throws the user to the top every time they read
+      anything.
+- [ ] **The command row answers the keyboard as soon as the session starts** (§4.9.6), with no
+      click needed. Check the *focus*, not the styling: a highlighted display with a login field
+      still holding focus is still dead.
+- [ ] **No spec section numbers in user-visible text.** `§8.3.2` in a dialog or status line means
+      nothing to the person using the client and makes it read as a debug build. Cite the spec in
+      source comments, where implementers will actually see it.
 - [ ] **Column cycling works** through the whole Part-5 set, header and values together (§7.7).
 - [ ] **Part-5 columns read from each response**, not hard-coded — mail's set differs from a
       content directory's (§7.2).

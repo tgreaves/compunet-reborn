@@ -1330,6 +1330,41 @@ Key differences from MAIL SEND:
 - Validation response must NOT have EOS (client proceeds immediately)
 - Metadata sent with EACH frame (not just once at the start)
 
+#### Program ('P') Upload Header — MACHINE-DEPENDENT
+
+A type-'P' upload sends an 8-byte header followed by the raw file as DAT chunks.
+**Byte 0 selects both the header layout and how the body ends**, because a C64
+program carries a load address and an Amiga executable does not:
+
+```
+Byte 0:   machine type (0 = C64, 1 = Amiga)
+Bytes 1-3: reserved (0)
+
+C64 (byte 0 = 0):
+  Bytes 4-5: LOAD ADDRESS (lo, hi)     <- not a size
+  Bytes 6-7: size
+  Body ends: a DAT chunk shorter than 100 bytes, as for a PETSCII frame.
+  The client streams header and body CONTINUOUSLY — the first packet carries
+  body bytes after the header, and a server that discards them truncates the
+  start of every program.
+
+Amiga (byte 0 = 1):
+  Bytes 4-7: body size, BIG-ENDIAN     <- no load address to store
+  Body ends: when that many bytes have arrived. A HUNK body rarely ends on a
+  short chunk, so it cannot be chunk-terminated.
+```
+
+The server stores a C64 program as `header[4:6] + body` (reconstructing the .prg)
+and an Amiga executable as the body alone.
+
+**Regression, 2026-07-22 to 2026-07-27:** the server sized *every* body from
+bytes 4-7 big-endian. Correct for Amiga; for C64 it read the load address as the
+top half of a size, so $0801 became a demand for ~17 MB and the upload never
+completed. Introduced while fixing Amiga upload (the accumulator it replaced was
+chunk-terminated: right for C64, truncating Amiga to 2 bytes). Evidence for the
+layout above: `mission-monday.prg`, uploaded 2026-06-05, 18381 bytes, stored
+opening `01 08` = $0801 — only possible if bytes 4-5 held the load address.
+
 #### Frame Upload Mechanism ($B175)
 
 **Important:** The frame upload at $B175 does NOT use ACIA_SEND_PACKET.

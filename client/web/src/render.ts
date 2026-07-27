@@ -173,7 +173,11 @@ export class Renderer {
           if (c === DIVIDER_COL) continue;
           g[row * COLS + c] = { g: 0x20, fg, bg, rv: 1 };
         }
-      if (selected) {                                // page number only on selected row
+      // Page number only on the selected row — and never for page 0, which is
+      // the "not a real page" sentinel the (EMPTY) placeholder carries. No real
+      // page is numbered 0, so drawing it announced a page that does not exist
+      // in a listing whose entire message is that it holds nothing.
+      if (selected && e.page) {
         const ps = String(e.page);
         this.put(g, row, 7 - ps.length, ps, fg, bg, rv);  // right-justified, ending at col 6
       }

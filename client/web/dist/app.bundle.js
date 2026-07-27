@@ -131,7 +131,7 @@ var Renderer = class {
           if (c === DIVIDER_COL) continue;
           g[row * COLS + c] = { g: 32, fg, bg, rv: 1 };
         }
-      if (selected) {
+      if (selected && e.page) {
         const ps = String(e.page);
         this.put(g, row, 7 - ps.length, ps, fg, bg, rv);
       }
@@ -773,7 +773,7 @@ function setFocus(p) {
   updateBar();
 }
 function render() {
-  if (pendingMail && courier?.kind === "send") {
+  if (pendingMail && courier?.kind === "send" || pendingUpload) {
     const p = buf.page();
     renderer.renderEditorPage(p.cells, p.background, p.border, 0, 0, null);
   } else if (courier) drawCourier();
@@ -833,6 +833,9 @@ function onMessage(m) {
       account = r.account;
       $("credit").textContent = `${account.user} \xB7 \xA3${account.credit.toFixed(2)}`;
       connected = true;
+      const loginField = document.activeElement;
+      if (loginField && loginField.tagName === "INPUT") loginField.blur();
+      setFocus("net");
       if (r.welcome) {
         mode = "frame";
         frame = r.welcome;
@@ -942,10 +945,14 @@ function onMessage(m) {
       updateBar();
       status("Left Partyline.");
       break;
-    case "error":
-      status("\u26A0 " + m.code + (m.message ? ": " + m.message : ""), true);
+    case "error": {
+      const err = m;
+      status("\u26A0 " + err.code + (err.message ? ": " + err.message : ""), true);
+      rowMessage.net = (err.message || err.code).toUpperCase().slice(0, 39);
       submitting = false;
+      updateBar();
       break;
+    }
     default:
       status("\xB7 " + m.type);
   }
@@ -1013,10 +1020,10 @@ function openSubmit(kind) {
   }
   setFocus("editor");
   $("submit").hidden = false;
-  $("submitTitle").textContent = kind === "upload" ? `Upload ${buf.pages.length} page(s) into "${dir?.title ?? "this directory"}"` : `Send ${buf.pages.length} page(s) as mail`;
+  $("submitTitle").textContent = kind === "upload" ? `Upload into "${dir?.title ?? "this directory"}"` : "Send as mail";
   $("edContentFields").hidden = kind !== "upload";
-  $("edTo").hidden = kind !== "mail";
-  $("edHint").textContent = kind === "upload" ? "Type and price are required (\xA78.3.2). Body comes from the editor buffer." : "Recipients: up to five user IDs, comma-separated.";
+  $("edToField").hidden = kind !== "mail";
+  $("edHint").textContent = kind === "upload" ? "Type and price are required. The pages come from the editor." : "Recipients: up to five user IDs, comma-separated.";
   $("edTitle").value = "";
   $("edTitle").focus();
 }
@@ -1339,10 +1346,58 @@ var courierActions = {
     setFocus("editor");
   }
 };
+function toBase64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 32768) {
+    s += String.fromCharCode(...bytes.subarray(i, i + 32768));
+  }
+  return btoa(s);
+}
+function sendProgram() {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.onchange = () => {
+    const f = inp.files?.[0];
+    if (!f) return;
+    void f.arrayBuffer().then((ab) => {
+      const file = new Uint8Array(ab);
+      const isC64 = /\.prg$/i.test(f.name);
+      const body = isC64 ? file.subarray(2) : file;
+      const load = isC64 ? file[0] | file[1] << 8 : 0;
+      if (isC64 && file.length < 3) {
+        status("That .prg is too small to be a program", true);
+        return;
+      }
+      const blob = new Uint8Array(8 + body.length);
+      blob[0] = isC64 ? 0 : 1;
+      blob[4] = load & 255;
+      blob[5] = load >> 8 & 255;
+      blob[6] = body.length & 255;
+      blob[7] = body.length >> 8 & 255;
+      blob.set(body, 8);
+      outgoingUpload.push(toBase64(blob));
+      const kb = Math.ceil(body.length / 1024);
+      rowMessage.net = `${f.name.toUpperCase().slice(0, 20)} ${kb}K ADDED`;
+      status(`${f.name} \u2014 ${body.length} bytes, ${isC64 ? `C64 load $${load.toString(16).toUpperCase().padStart(4, "0")}` : "Amiga"}. FINISH to commit.`);
+      updateBar();
+    });
+  };
+  inp.click();
+}
 var uploadActions = {
   // One page per SEND, as the original streams one frame at a time. Not a
   // "send everything" button — the buffer may hold pages this upload is not for.
+  //
+  // ⚠ A PROGRAM upload has no editor page to send (§8.3.2): the type byte
+  // decides the transfer, and `P` sends a FILE. Without this branch the client
+  // offered `P` in the dialog and then quietly uploaded the text buffer — the
+  // "a client that always uploads as T cannot upload software" failure §8.3.2
+  // names, presenting as "it just goes into the editor".
   SEND: () => {
+    if (pendingUpload?.kind === "P") {
+      sendProgram();
+      return;
+    }
     outgoingUpload.push(buf.toFrames()[buf.cur]);
     status(`Page ${buf.cur + 1} added \u2014 ${outgoingUpload.length} page(s) in the upload. FINISH to commit.`);
   },
@@ -2209,6 +2264,13 @@ async function boot() {
   renderer = new Renderer(canvas, assets, wrap);
   edRenderer = new Renderer(edCanvas, assets, edWrap);
   $("connect").onclick = connect;
+  for (const id of ["host", "user", "pass"]) {
+    $(id).addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (!$("connect").disabled) void connect();
+    });
+  }
   $("paneNet").addEventListener("mousedown", () => setFocus("net"));
   $("paneEditor").addEventListener("mousedown", () => setFocus("editor"));
   $("edClose").onclick = () => leaveEditor();

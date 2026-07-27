@@ -381,7 +381,28 @@ editor exists to produce.)*
 Unlike Binding A's multi-step wire dance (`U` → validation → frame DATs → finishing `P`), it is
 **one message**: the server performs the same commit through the same core routine and replies
 with the **refreshed directory** (the equivalent of the finishing `P`). For `kind: "P"` the
-frames are base64 program blobs rather than editor pages. The checks Binding A applies silently
+frames are base64 program blobs rather than editor pages.
+
+> **The program blob, precisely** (this was previously left undefined, and it is not guessable).
+> Each element of `frames` is a **bare base64 string**, not a `{raw}` page object — the server
+> discriminates on the JSON type, so an object takes the editor-page path and never reaches the
+> program writer. Decoded, the blob is an **8-byte header followed by the body**:
+>
+> | Byte | Meaning |
+> |---|---|
+> | 0 | machine type — `0` = C64, `1` = Amiga |
+> | 1–3 | reserved, `0` |
+> | 4–5 | **C64 load address**, little-endian (`0` for Amiga) |
+> | 6–7 | body size, little-endian — informational here, since the blob's length is known |
+>
+> For a **C64** `.prg`, bytes 4–5 are the file's own first two bytes and the body is the file
+> **from offset 2**: the server rebuilds the stored program as `header[4:6] + blob[8:]`, so this
+> reproduces the original file exactly. For an **Amiga** executable the body is the whole file
+> and the load field is `0`; the server stores `blob[8:]` verbatim.
+>
+> ⚠ This follows §8.3.1's field map. §8.3.2 describes bytes 4–7 as a big-endian body size for
+> Binding A's streamed transfer — see the unresolved-conflict note there before changing
+> anything here. Binding B does not stream, so it needs no size to know where the body ends. The checks Binding A applies silently
 become **typed errors** — `permission_denied` (not your directory / not your page to replace)
 and `directory_full` (11-entry cap, §8.3.2) — so a client learns *why* an upload was refused
 instead of discovering a missing entry afterwards.

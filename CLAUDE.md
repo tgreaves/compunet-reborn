@@ -84,7 +84,18 @@ you rely on MUST be confirmed against ground truth before you write or change co
 ## Git Rules
 
 1. Only ever commit when instructed to do so by a human.
-2. On any commit, ensure [README.md](README.md) and [docs/PROTOCOL.md](docs/PROTOCOL.md) are fully up to date and reflect any changes made.
+2. On any commit, ensure [README.md](README.md), [docs/PROTOCOL.md](docs/PROTOCOL.md) **and the
+   client specification under [docs/spec/](docs/spec/)** are fully up to date and reflect any
+   changes made. The spec is normative — people build clients from it without reading this
+   code, so a behaviour that exists only in the implementation is a behaviour they cannot
+   reproduce, and a spec that still describes the old behaviour actively misleads them.
+   In particular:
+   - a fix to observable behaviour usually means a spec section was **wrong**, not merely
+     silent — say so where it was wrong, rather than quietly editing the text;
+   - if the fix revealed something the spec never defined, add it (that gap is why the bug
+     shipped);
+   - update [docs/spec/CONFORMANCE.md](docs/spec/CONFORMANCE.md) when the mistake is one
+     another client would plausibly repeat.
 3. **NEVER create a git tag.** Not as housekeeping, not "to match VERSION", not as part of
    finishing a piece of work — only when a human explicitly asks for that tag. A tag is a
    production release: it is what people install and what the version numbers in the tree

@@ -69,7 +69,13 @@ function render(): void {
   // In message composition the Compunet surface shows the FRAME BEING SENT, not
   // the envelope: LAST/NEXT page through the editor's frames and SEND adds the
   // one on screen, so the user must be able to see which that is (§8.2.2).
-  if (pendingMail && courier?.kind === 'send') {
+  // ⚠ The UPLOAD sub-context needs this too, for exactly the same reason
+  // (§8.3.2): SEND transmits THE PAGE ON SCREEN, one per press, so the user has
+  // to see which one. This branch used to test mail composition only, so
+  // accepting the upload metadata left the DIRECTORY on screen — the row
+  // correctly changed to SEND/LOAD/GET/FINISH over a listing that had nothing
+  // to do with it, and SEND became the blind command §8.2.2 warns about.
+  if ((pendingMail && courier?.kind === 'send') || pendingUpload) {
     const p = buf.page();
     renderer.renderEditorPage(p.cells, p.background, p.border, 0, 0, null);
   } else if (courier) drawCourier();
@@ -153,6 +159,18 @@ function onMessage(m: ServerMsg): void {
       account = r.account;
       $('credit').textContent = `${account.user} · £${account.credit.toFixed(2)}`;
       connected = true;
+      // The session exists, so hand the keyboard to Compunet: the user just
+      // logged in to use the duckshoot, and should not have to click the screen
+      // to make the arrow keys do anything.
+      //
+      // ⚠ BLURRING is the part that matters, not setFocus. The window keydown
+      // handler ignores INPUT targets — it has to, or typing a password would
+      // scroll the command row — so while the login field keeps DOM focus the
+      // duckshoot stays dead no matter which pane is highlighted. setFocus alone
+      // would move the highlight and change nothing about the keyboard.
+      const loginField = document.activeElement as HTMLElement | null;
+      if (loginField && loginField.tagName === 'INPUT') loginField.blur();
+      setFocus('net');
       // ⚠ The welcome frame paces like any other page (§5.5.1). It arrives in
       // `ready` rather than as a `frame` message, so it bypassed the reveal —
       // and it is the FIRST thing anyone sees, which makes it the one page
@@ -269,12 +287,25 @@ function onMessage(m: ServerMsg): void {
       setChatVisible(false); updateBar();
       status('Left Partyline.');
       break;
-    case 'error':
-      status('⚠ ' + (m as { code: string }).code + ((m as { message?: string }).message ? ': ' + (m as { message?: string }).message : ''), true);
+    case 'error': {
+      const err = m as { code: string; message?: string };
+      status('⚠ ' + err.code + (err.message ? ': ' + err.message : ''), true);
+      // ⚠ A REFUSAL MUST BE VISIBLE WHERE THE COMMAND WAS GIVEN. The status line
+      // is client furniture in a corner; the user is looking at the Compunet
+      // screen, so an error that only goes there reads as "nothing happened".
+      // That is exactly how `permission_denied: you may not upload into this
+      // directory` presented — as a dead FINISH — and it is the same reasoning
+      // that put FREE and ACCOUNT on the row (§4.9.3).
+      //
+      // Uppercase because the row draws in PETSCII, and trimmed to the 40-column
+      // screen so a long message cannot overrun the line.
+      rowMessage.net = (err.message || err.code).toUpperCase().slice(0, 39);
       // A refused upload leaves the buffer intact and the editor in front of the
       // user, so they can fix it and retry rather than hunt for their pages.
       submitting = false;
+      updateBar();
       break;
+    }
     default:
       status('· ' + m.type);
   }
@@ -386,7 +417,11 @@ function renderEditor(): void {
  *  presence IS the upload sub-context (§4.8) — see netContext(). */
 let pendingUpload: { title: string; kind: string; price: number; life: number } | null = null;
 /** Frames the user has SENT into the upload, awaiting FINISH (§8.3.2 step 2). */
-let outgoingUpload: ReturnType<EditorBuffer['toFrames']> = [];
+/** Frames staged by SEND, awaiting FINISH. A `kind: 'P'` upload stages base64
+ *  PROGRAM BLOBS (bare strings, §8.3.2) rather than editor pages — the server
+ *  discriminates on the type, decoding a string with base64 and an object as a
+ *  page. */
+let outgoingUpload: (ReturnType<EditorBuffer['toFrames']>[number] | string)[] = [];
 
 function openSubmit(kind: 'upload' | 'mail'): void {
   // ⚠ An empty buffer does NOT block this (see sendMail) — the metadata can be
@@ -399,13 +434,22 @@ function openSubmit(kind: 'upload' | 'mail'): void {
   if (!inEditor) { editorReturn = () => render(); enterEditor(); }
   setFocus('editor');
   $('submit').hidden = false;
+  // The page count is not part of the decision being made here — the editor is
+  // open beside this dialog showing the pages themselves, and the count changes
+  // nothing about what to type. Say where it is going instead.
   $('submitTitle').textContent = kind === 'upload'
-    ? `Upload ${buf.pages.length} page(s) into "${dir?.title ?? 'this directory'}"`
-    : `Send ${buf.pages.length} page(s) as mail`;
+    ? `Upload into "${dir?.title ?? 'this directory'}"`
+    : 'Send as mail';
   $('edContentFields').hidden = kind !== 'upload';
-  $<HTMLInputElement>('edTo').hidden = kind !== 'mail';
+  // ⚠ Hide the LABEL WRAPPER, not the input: hiding the bare field would leave
+  // its caption behind, so mail composition would show a stray "To" over
+  // nothing.
+  $('edToField').hidden = kind !== 'mail';
   $('edHint').textContent = kind === 'upload'
-    ? 'Type and price are required (§8.3.2). Body comes from the editor buffer.'
+    // ⚠ No spec section numbers in text the USER reads. They mean nothing to
+    // someone uploading a page, and they make the client look like a debug
+    // build. Cite the spec in comments, where implementers will see it.
+    ? 'Type and price are required. The pages come from the editor.'
     : 'Recipients: up to five user IDs, comma-separated.';
   $<HTMLInputElement>('edTitle').value = '';
   $<HTMLInputElement>('edTitle').focus();
@@ -760,10 +804,74 @@ const courierActions: Record<string, () => void> = {
  *  inventions: `GET` loads editor frames from local storage (§8.4.1) and `LOAD`
  *  reads a saved page back into view (`SAVE`'s inverse). They are offered here
  *  because an upload is where a user reaches for stored material. */
+/** Base64 of a byte array, chunked — `String.fromCharCode(...bytes)` blows the
+ *  argument limit on anything but a toy file, and a program upload is the one
+ *  case that is routinely tens of kilobytes. */
+function toBase64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s);
+}
+
+/** SEND for a PROGRAM upload (§8.3.2): pick a file, wrap it in the 8-byte
+ *  header, and add it to the upload.
+ *
+ *  ⚠ HEADER LAYOUT — this follows §8.3.1's field map (byte 0 machine type,
+ *  4-5 load address, 6-7 size), NOT §8.3.2's "bytes 4-7 = body size,
+ *  big-endian". The two sections of the specification disagree, and only this
+ *  reading round-trips: the server rebuilds a C64 program as
+ *  `header[4:6] + blob[8:]` (_complete_content_upload), so bytes 4-5 MUST be
+ *  the load address or the stored .prg starts $0000 and will not run.
+ *
+ *  §8.3.2's size field exists for Binding A, which streams the body and needs
+ *  to know when it ends. Binding B sends one blob whose length is already
+ *  known, so the size here is informational. See the note added to §8.3.2.
+ */
+function sendProgram(): void {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.onchange = () => {
+    const f = inp.files?.[0];
+    if (!f) return;
+    void f.arrayBuffer().then((ab) => {
+      const file = new Uint8Array(ab);
+      // A .prg opens with its 2-byte load address; anything else is treated as
+      // an Amiga HUNK executable, which carries no load address at all.
+      const isC64 = /\.prg$/i.test(f.name);
+      const body = isC64 ? file.subarray(2) : file;
+      const load = isC64 ? file[0] | (file[1] << 8) : 0;
+      if (isC64 && file.length < 3) { status('That .prg is too small to be a program', true); return; }
+      const blob = new Uint8Array(8 + body.length);
+      blob[0] = isC64 ? 0 : 1;                       // machine type
+      blob[4] = load & 0xFF; blob[5] = (load >> 8) & 0xFF;
+      blob[6] = body.length & 0xFF; blob[7] = (body.length >> 8) & 0xFF;
+      blob.set(body, 8);
+      // ⚠ A BARE base64 string, not `{raw: …}`. The server decodes a string as a
+      // program blob and an object as an editor page (upload_content); wrapping
+      // it would take the page branch and never reach the program writer.
+      outgoingUpload.push(toBase64(blob));
+      const kb = Math.ceil(body.length / 1024);
+      rowMessage.net = `${f.name.toUpperCase().slice(0, 20)} ${kb}K ADDED`;
+      status(`${f.name} — ${body.length} bytes, ${isC64 ? `C64 load $${load.toString(16).toUpperCase().padStart(4, '0')}` : 'Amiga'}. FINISH to commit.`);
+      updateBar();
+    });
+  };
+  inp.click();
+}
+
 const uploadActions: Record<string, () => void> = {
   // One page per SEND, as the original streams one frame at a time. Not a
   // "send everything" button — the buffer may hold pages this upload is not for.
+  //
+  // ⚠ A PROGRAM upload has no editor page to send (§8.3.2): the type byte
+  // decides the transfer, and `P` sends a FILE. Without this branch the client
+  // offered `P` in the dialog and then quietly uploaded the text buffer — the
+  // "a client that always uploads as T cannot upload software" failure §8.3.2
+  // names, presenting as "it just goes into the editor".
   SEND: () => {
+    if (pendingUpload?.kind === 'P') { sendProgram(); return; }
     outgoingUpload.push(buf.toFrames()[buf.cur]);
     status(`Page ${buf.cur + 1} added — ${outgoingUpload.length} page(s) in the upload. FINISH to commit.`);
   },
@@ -1669,6 +1777,19 @@ async function boot(): Promise<void> {
   renderer = new Renderer(canvas, assets, wrap);
   edRenderer = new Renderer(edCanvas, assets, edWrap);
   $<HTMLButtonElement>('connect').onclick = connect;
+  // Enter in any login field connects. These are loose inputs rather than a
+  // <form>, so nothing submits them by default — and the window keydown handler
+  // deliberately ignores INPUT targets (it must, or typing a password would
+  // drive the duckshoot), which left Enter dead exactly where a login form is
+  // expected to accept it. Guarded on the button's own disabled state, so a
+  // second Enter mid-connect does not fire a second session.
+  for (const id of ['host', 'user', 'pass']) {
+    $<HTMLInputElement>(id).addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (!$<HTMLButtonElement>('connect').disabled) void connect();
+    });
+  }
   // Clicking a pane focuses it — the standard WIMP gesture (Tab also toggles).
   $('paneNet').addEventListener('mousedown', () => setFocus('net'));
   $('paneEditor').addEventListener('mousedown', () => setFocus('editor'));

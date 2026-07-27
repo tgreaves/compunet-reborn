@@ -2225,7 +2225,12 @@ class CompunetSession:
             # field: page_num(6)+space + title(17)+type(3), then the 5 comma columns + CR.
             # Safe for the C64 too: its parser (L_A5F3) reads the title until a comma and
             # pads to 30, so a 27-char field is length-tolerant there.
-            first_field = '0'.rjust(6) + ' ' + '(EMPTY)'.ljust(17) + '   '   # 27 chars
+            # ⚠ The page column is BLANK, not '0'. "(EMPTY)" is a label, not an
+            # entry, and a page number beside it invites the user to think there
+            # is something at page 0. The type column was already blank (the
+            # three spaces below) — the number was the odd one out.
+            # The WIDTHS are load-bearing, so this pads rather than shortens.
+            first_field = ''.rjust(6) + ' ' + '(EMPTY)'.ljust(17) + '   '   # 27 chars
             data.extend(ascii_to_petscii(first_field))
             data.append(0x2C)
             data.append(0x2C)
@@ -2978,35 +2983,66 @@ async def tcp_handler(reader, writer):
 
                 elif (session.pending_send is not None and token != 0x43
                         and session.pending_send.get('type') == 'P'):
-                    # PROGRAM upload (Amiga/C64 binary). The client sends an 8-byte header
-                    # DAT first (byte0 = machine type: 1=Amiga, 0=C64; bytes 4-7 = body size,
-                    # big-endian), then the raw file as DAT chunks. We can't use the PETSCII
-                    # "<100 bytes ends the frame" heuristic here (the 8-byte header would end a
-                    # frame, and a binary body rarely ends on a short chunk). Instead: read the
-                    # size from the header, accumulate exactly that many body bytes, then store
-                    # ONE frame (header + body) and send a single final ACK. No per-chunk ACK,
-                    # so the client — which blasts every chunk before reading — never stalls.
+                    # PROGRAM upload (Amiga/C64 binary), 8-byte header then the file.
+                    #
+                    # ⚠ THE HEADER IS MACHINE-DEPENDENT, and so is how the body ENDS.
+                    # Byte 0 selects (§8.3.2):
+                    #
+                    #   Amiga (1): no load address, so bytes 4-7 are a big-endian body
+                    #              SIZE. The client sends the header as its own DAT and
+                    #              then blasts the body; a HUNK body rarely ends on a
+                    #              short chunk, so the size is what terminates it.
+                    #   C64   (0): bytes 4-5 are the LOAD ADDRESS (4-7 is therefore NOT a
+                    #              size). The client streams header and body continuously
+                    #              and a chunk < 100 bytes ends the transfer, exactly as a
+                    #              PETSCII frame does.
+                    #
+                    # Reading 4-7 as a size for BOTH machines is a regression introduced
+                    # 2026-07-22 while fixing the Amiga path: a C64 load address of $0801
+                    # reads as a demand for ~17 MB, so the upload never completes. C64
+                    # program upload worked before that date (mission-monday.prg,
+                    # 2026-06-05, 18381 bytes, stored opening 01 08) and was not exercised
+                    # afterwards, so nothing caught it.
+                    #
+                    # The C64 terminator is deliberately the ORIGINAL chunk rule rather
+                    # than a size read from bytes 6-7: that the C64 client populates 6-7
+                    # on UPLOAD is unverified, whereas chunk-termination is proven by the
+                    # uploads that worked.
                     ps = session.pending_send
                     if '_prog_header' not in ps:
-                        ps['_prog_header'] = bytes(payload[:8])
-                        ps['_prog_size'] = int.from_bytes(ps['_prog_header'][4:8], 'big')
-                        ps['_prog_body'] = bytearray()
-                        log.info('UPLOAD: program header machine=%d body_size=%d',
-                                 ps['_prog_header'][0], ps['_prog_size'])
+                        hdr = bytes(payload[:8])
+                        ps['_prog_header'] = hdr
+                        ps['_prog_amiga'] = (hdr[0] == 1)
+                        ps['_prog_size'] = int.from_bytes(hdr[4:8], 'big') if ps['_prog_amiga'] else None
+                        # ⚠ Keep body bytes that arrived in the SAME packet as the header.
+                        # The C64 streams them together, so discarding the remainder here
+                        # silently truncated the first ~92 bytes of every C64 program.
+                        ps['_prog_body'] = bytearray(payload[8:])
+                        log.info('UPLOAD: program header machine=%d (%s) body_size=%s carried=%d',
+                                 hdr[0], 'amiga' if ps['_prog_amiga'] else 'c64',
+                                 ps['_prog_size'] if ps['_prog_amiga'] else 'chunk-terminated',
+                                 len(ps['_prog_body']))
+                        complete = (not ps['_prog_amiga']) and len(payload) < 100
                     else:
                         ps['_prog_body'].extend(payload)
-                        log.info('TCP: program body +%d (%d/%d)', len(payload),
-                                 len(ps['_prog_body']), ps['_prog_size'])
-                        if len(ps['_prog_body']) >= ps['_prog_size']:
-                            frame_data = ps['_prog_header'] + bytes(ps['_prog_body'][:ps['_prog_size']])
-                            ps['frames'].append(frame_data)
-                            log.info('UPLOAD: program complete (%d bytes = 8 header + %d body)',
-                                     len(frame_data), ps['_prog_size'])
-                            ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
-                            ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
-                            await send_pkt_with_ack(ack_pkt)
-                            await writer.drain()
-                            log.info('UPLOAD: sent final program ACK (%d wire)', len(ack_pkt))
+                        log.info('TCP: program body +%d (%d/%s)', len(payload),
+                                 len(ps['_prog_body']),
+                                 ps['_prog_size'] if ps['_prog_amiga'] else '?')
+                        complete = (len(ps['_prog_body']) >= ps['_prog_size']
+                                    if ps['_prog_amiga'] else len(payload) < 100)
+
+                    if complete:
+                        body = (bytes(ps['_prog_body'][:ps['_prog_size']]) if ps['_prog_amiga']
+                                else bytes(ps['_prog_body']))
+                        frame_data = ps['_prog_header'] + body
+                        ps['frames'].append(frame_data)
+                        log.info('UPLOAD: program complete (%d bytes = 8 header + %d body)',
+                                 len(frame_data), len(body))
+                        ack_data = bytes([0x40]) + b'\x00' * 10  # '@' clean accept (not 'A'=host-error on Amiga)
+                        ack_pkt = x25.make_data_packet(ack_data, TOKEN_DAT)
+                        await send_pkt_with_ack(ack_pkt)
+                        await writer.drain()
+                        log.info('UPLOAD: sent final program ACK (%d wire)', len(ack_pkt))
 
                 elif session.pending_send is not None and token != 0x43:
                     # Any non-COM packet during a NON-program upload = PETSCII frame chunk

@@ -108,7 +108,11 @@ export type ClientMsg =
   | { type: 'life'; page: number; days: number; id?: number }
   | { type: 'download.fetch'; id?: number }
   // Tier 3
-  | { type: 'upload'; title: string; kind: string; price: number; life: number; frames: EditorPage[]; id?: number }
+  /** `frames` are editor pages for `kind: 'T'`, and base64 PROGRAM BLOBS —
+   *  bare strings — for `kind: 'P'` (§8.3.2). Each blob is an 8-byte header
+   *  followed by the body: byte 0 machine type (0 C64 / 1 Amiga), bytes 4-5 the
+   *  C64 load address, 6-7 the body size. */
+  | { type: 'upload'; title: string; kind: string; price: number; life: number; frames: (EditorPage | string)[]; id?: number }
   | { type: 'mail.send'; to: string[]; subject: string; frames: EditorPage[]; id?: number }
   | { type: 'partyline.send'; text: string; id?: number }
   | { type: 'partyline.command'; text: string; id?: number }

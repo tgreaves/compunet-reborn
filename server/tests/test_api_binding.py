@@ -432,6 +432,202 @@ class FrameFidelity(unittest.TestCase):
         self.assertEqual(api._encode_frame(both), raw)
 
 
+class ProgramUpload(unittest.TestCase):
+    """§8.3.2 `kind: "P"` — a program upload must land byte-identical.
+
+    ⚠ THE HEADER IS MACHINE-DEPENDENT (§8.3.2). For a C64 program, bytes 4-5 are
+    the LOAD ADDRESS and 6-7 the size; only an Amiga executable — which has no
+    load address — sizes its body across 4-7 big-endian.
+
+    _complete_content_upload rebuilds a C64 program as `header[4:6] + blob[8:]`,
+    so bytes 4-5 MUST be the load address. Encode a 4-byte size there and the
+    stored .prg opens $0000 and will not run — the second test below shows it.
+    Confirmed against live data: a C64 program uploaded 2026-06-05
+    (mission-monday.prg, 18381 bytes) is stored opening 01 08 = $0801.
+
+    Writes go to a temp COPY of the fixtures."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp(prefix='compunet-prog-')
+        shutil.copytree(os.path.join(_SERVER, 'data', 'content.test', 'root'),
+                        os.path.join(self._tmp, 'root'))
+        self._saved_root = srv.ROOT_DIR
+        srv.ROOT_DIR = os.path.join(self._tmp, 'root')
+
+    def tearDown(self):
+        srv.ROOT_DIR = self._saved_root
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    @staticmethod
+    def _blob(prg, is_c64=True):
+        """The client's header construction (main.ts sendProgram), mirrored."""
+        body = prg[2:] if is_c64 else prg
+        load = (prg[0] | (prg[1] << 8)) if is_c64 else 0
+        blob = bytearray(8 + len(body))
+        blob[0] = 0 if is_c64 else 1
+        blob[4] = load & 0xFF
+        blob[5] = (load >> 8) & 0xFF
+        blob[6] = len(body) & 0xFF
+        blob[7] = (len(body) >> 8) & 0xFF
+        blob[8:] = body
+        return bytes(blob)
+
+    def test_a_c64_prg_round_trips_byte_for_byte(self):
+        import base64
+        import glob
+        prg = bytes([0x01, 0x08]) + bytes(range(256)) * 4      # load $0801 + body
+        s = session()
+        # ⚠ GRAPHICS, not the Jungle root: the root fixture already holds its
+        # 11-entry maximum, and a full directory refuses the upload (§8.3.2).
+        # GRAPHICS is an empty sub-directory and inherits the Jungle's
+        # open-upload permission.
+        send(s, type='goto', target=str(JUNGLE))
+        entered = send(s, type='enter', page=GRAPHICS)
+        self.assertEqual(entered.get('type'), 'directory',
+                         'could not enter GRAPHICS: %r' % (entered.get('message'),))
+        reply = send(s, type='upload', title='PRGTEST', kind='P', price=0, life=30,
+                     frames=[base64.b64encode(self._blob(prg)).decode('ascii')])
+        self.assertEqual(reply.get('type'), 'directory',
+                         'upload refused: %r' % (reply.get('message'),))
+        hits = glob.glob(os.path.join(srv.ROOT_DIR, '**', 'prgtest*', '*.prg'),
+                         recursive=True)
+        self.assertTrue(hits, 'no .prg was written')
+        stored = open(hits[0], 'rb').read()
+        self.assertEqual(stored, prg,
+                         'stored program differs from the source file')
+        self.assertEqual(stored[:2], bytes([0x01, 0x08]),
+                         'the load address must survive — $0000 will not run')
+
+    def test_a_four_byte_size_would_corrupt_the_c64_load_address(self):
+        """Demonstrates WHY a C64 program cannot use the Amiga's 4-byte size
+        field, so nobody 'simplifies' the two machines onto one layout: it puts
+        00 00 exactly where the load address belongs."""
+        prg = bytes([0x01, 0x08]) + b'X' * 100
+        body = prg[2:]
+        wrong = bytearray(8 + len(body))
+        wrong[0] = 0
+        wrong[4:8] = len(body).to_bytes(4, 'big')      # §8.3.2's wording
+        wrong[8:] = body
+        rebuilt = bytes(wrong[4:6]) + bytes(wrong[8:])  # what the server does
+        self.assertNotEqual(rebuilt[:2], bytes([0x01, 0x08]))
+        self.assertEqual(rebuilt[:2], b'\x00\x00', 'load address lost, as predicted')
+
+
+class ProgramUploadAccumulator(unittest.TestCase):
+    """Binding A's program-upload receive loop (§8.3.2), which had no test — the
+    reason a C64 regression shipped on 2026-07-22 and sat unnoticed.
+
+    The loop lives inside the TCP handler, so this reimplements its state machine
+    exactly and drives it with the packet pattern each client produces. If the
+    handler changes, this must change with it — which is the point: it pins the
+    two DIFFERENT termination rules that the single 'read a size from bytes 4-7'
+    reading destroyed."""
+
+    CHUNK = 100
+
+    @staticmethod
+    def _feed(packets):
+        """Mirror of the handler's accumulator. Returns the stored frame, or None
+        if the transfer never completed."""
+        ps = {}
+        for payload in packets:
+            if '_prog_header' not in ps:
+                hdr = bytes(payload[:8])
+                ps['_prog_header'] = hdr
+                ps['_prog_amiga'] = (hdr[0] == 1)
+                ps['_prog_size'] = int.from_bytes(hdr[4:8], 'big') if ps['_prog_amiga'] else None
+                ps['_prog_body'] = bytearray(payload[8:])
+                complete = (not ps['_prog_amiga']) and len(payload) < 100
+            else:
+                ps['_prog_body'].extend(payload)
+                complete = (len(ps['_prog_body']) >= ps['_prog_size']
+                            if ps['_prog_amiga'] else len(payload) < 100)
+            if complete:
+                body = (bytes(ps['_prog_body'][:ps['_prog_size']]) if ps['_prog_amiga']
+                        else bytes(ps['_prog_body']))
+                return ps['_prog_header'] + body
+        return None
+
+    def _c64_packets(self, prg):
+        """The C64 client streams header and body continuously, in 100-byte
+        chunks, and a short chunk ends it."""
+        hdr = bytes([0, 0, 0, 0, prg[0], prg[1], 0, 0])   # 4-5 = load address
+        stream = hdr + prg[2:]
+        return [stream[i:i + self.CHUNK] for i in range(0, len(stream), self.CHUNK)]
+
+    def _amiga_packets(self, exe):
+        """The Amiga client sends the header as its OWN packet, then the body."""
+        hdr = bytes([1, 0, 0, 0]) + len(exe).to_bytes(4, 'big')
+        return [hdr] + [exe[i:i + self.CHUNK] for i in range(0, len(exe), self.CHUNK)]
+
+    def test_a_c64_program_completes_and_keeps_its_load_address(self):
+        prg = bytes([0x01, 0x08]) + bytes(range(256)) * 3 + b'END'
+        frame = self._feed(self._c64_packets(prg))
+        self.assertIsNotNone(frame, 'C64 upload never completed — the regression')
+        # _complete_content_upload rebuilds the stored file this way.
+        rebuilt = frame[4:6] + frame[8:]
+        self.assertEqual(rebuilt, prg, 'stored .prg differs from the source')
+        self.assertEqual(rebuilt[:2], bytes([0x01, 0x08]))
+
+    def test_a_c64_program_ending_on_an_exact_chunk_boundary(self):
+        """⚠ The chunk rule needs a short final chunk. A body that lands exactly
+        on the boundary relies on the client sending a final short/empty one —
+        record the behaviour rather than pretend it cannot happen."""
+        # stream = 8-byte header + prg[2:], so prg[2:] must be 3*CHUNK - 8.
+        prg = bytes([0x01, 0x08]) + bytes(self.CHUNK * 3 - 8)
+        packets = self._c64_packets(prg)
+        self.assertTrue(all(len(p) == self.CHUNK for p in packets))
+        self.assertIsNone(self._feed(packets),
+                          'exact-boundary body cannot self-terminate; the client '
+                          'must send a short or empty final chunk')
+        self.assertIsNotNone(self._feed(packets + [b'']), 'empty final chunk ends it')
+
+    def test_an_amiga_program_is_sized_not_chunk_terminated(self):
+        """A HUNK body rarely ends on a short chunk, which is why it carries a
+        size. Body deliberately ends on an exact boundary."""
+        exe = bytes([0x00, 0x00, 0x03, 0xF3]) + bytes(self.CHUNK * 2 - 4)
+        frame = self._feed(self._amiga_packets(exe))
+        self.assertIsNotNone(frame, 'Amiga upload never completed')
+        self.assertEqual(frame[8:], exe, 'stored HUNK differs from the source')
+
+    def test_the_old_single_reading_broke_the_c64(self):
+        """The regression itself: sizing every machine from bytes 4-7 big-endian
+        reads a C64 load address of $0801 as a ~17 MB body."""
+        hdr = bytes([0, 0, 0, 0, 0x01, 0x08, 0x00, 0x00])
+        self.assertGreater(int.from_bytes(hdr[4:8], 'big'), 17_000_000)
+
+
+class EmptyListingPlaceholder(unittest.TestCase):
+    """§7.3: the (EMPTY) row is a LABEL — blank page number, blank type."""
+
+    def test_binding_b_placeholder_has_no_type(self):
+        """It claimed `type: "T"`, drawing a stray T beside "(EMPTY)" — a text
+        page announced in a directory that holds nothing."""
+        row = api._empty_row()
+        self.assertEqual(row['type'], '')
+        self.assertEqual(row['page'], 0, 'page 0 is the not-a-real-page sentinel')
+        self.assertEqual(row['title'], '(EMPTY)')
+
+    def test_binding_a_placeholder_blanks_both_columns_at_full_width(self):
+        """⚠ The widths are load-bearing: the Amiga parser reads fixed-width
+        columns with no EOF guard, so a short field hangs it. Blank the columns
+        by PADDING, never by shortening."""
+        first_field = ''.rjust(6) + ' ' + '(EMPTY)'.ljust(17) + '   '
+        self.assertEqual(len(first_field), 27, 'the Amiga parser needs all 27')
+        self.assertTrue(first_field[:6].isspace(), 'page column must be blank, not 0')
+        self.assertTrue(first_field[24:27].isspace(), 'type column must be blank')
+        self.assertIn('(EMPTY)', first_field)
+
+    def test_the_two_bindings_agree(self):
+        """§1.8. One binding blanked both columns while the other sent "T", so
+        the same empty directory read differently depending on how you reached
+        it. That is the divergence this pair of tests exists to prevent."""
+        row = api._empty_row()
+        first_field = ''.rjust(6) + ' ' + '(EMPTY)'.ljust(17) + '   '
+        self.assertEqual(bool(row['type']), bool(first_field[24:27].strip()))
+        self.assertEqual(bool(row['page']), bool(first_field[:6].strip()))
+
+
 class EmbeddedAssets(unittest.TestCase):
     """The client-carried frames of §A.6/§A.8–§A.11 (api §7)."""
 
