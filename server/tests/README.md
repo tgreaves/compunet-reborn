@@ -41,9 +41,20 @@ around them rather than around functions:
 that only appears in a *sequence* — a shared session lets one test mask the
 next, which is how they shipped in the first place.
 
-**The suite is read-only.** It exercises the validation paths that reject before
-writing, not the success paths that create content, so running it does not dirty
-the fixture tree or consume the paid-page fixture.
+**The suite leaves the fixtures untouched — but only the content tree is
+read-only.** It exercises the validation paths that reject before writing rather
+than the success paths that create content, so `content.test/` is never dirtied
+and the paid-page fixture is never consumed.
+
+`mail.test/` is different and cannot be: reading a message marks it read and
+rewrites the mailbox JSON. So the suite **copies the mail tree to a temp
+directory** at import and points the server at the copy. Both trees are tracked
+— they are the fixtures, and a clone without them has nothing to test against —
+and the two tests that need to write (`PersistenceRoundTrip`) copy the content
+tree the same way.
+
+Set `COMPUNET_MAIL_DIR` or `COMPUNET_CONTENT_DIR` to override either, e.g. to
+run the suite against a real deployment's data.
 
 ## Adding to it
 

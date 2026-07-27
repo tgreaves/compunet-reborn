@@ -28,8 +28,11 @@ The suite is read-only against the fixture tree: it exercises the validation
 paths that reject before writing, not the success paths that create content.
 """
 
+import atexit
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -39,7 +42,23 @@ _ROOT = os.path.dirname(_SERVER)
 # Point at the tracked fixture tree BEFORE importing the server: its data paths
 # are module-level constants (see server/data/content.test/README.md).
 os.environ.setdefault('COMPUNET_CONTENT_DIR', os.path.join(_SERVER, 'data', 'content.test'))
-os.environ.setdefault('COMPUNET_MAIL_DIR', os.path.join(_SERVER, 'data', 'mail.test'))
+
+# ⚠ MAIL fixtures are copied to a temp directory and the server pointed at the
+# COPY. Unlike the content tree, the mail tree cannot be exercised read-only:
+# reading a message marks it read and unconditionally rewrites the mailbox JSON
+# (_save_mail). Measured: pointed at the tracked tree the suite leaves the file's
+# mtime changed but its bytes identical, because the message it happens to read
+# is already read. That is luck, not safety — 20 of the fixture messages are
+# unread, so the first test that opens one would leave a real diff behind, and
+# `git status` noise after an ordinary test run is how someone eventually
+# `git checkout`s away a change they meant to keep. The copy makes it structural.
+if 'COMPUNET_MAIL_DIR' not in os.environ:
+    _mail_tmp = tempfile.mkdtemp(prefix='compunet-mail-')
+    _mail_copy = os.path.join(_mail_tmp, 'mail')
+    shutil.copytree(os.path.join(_SERVER, 'data', 'mail.test'), _mail_copy)
+    os.environ['COMPUNET_MAIL_DIR'] = _mail_copy
+    atexit.register(shutil.rmtree, _mail_tmp, True)
+
 sys.path.insert(0, _SERVER)
 
 import compunet_server as srv          # noqa: E402
