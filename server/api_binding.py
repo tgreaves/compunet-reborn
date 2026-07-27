@@ -1524,8 +1524,22 @@ async def _cors_middleware(request, handler):
     return response
 
 
-def make_app(server_module):
-    """Build the isolated aiohttp app for the client API (port 6404)."""
+def make_app(server_module, web_client_dir=None):
+    """Build the isolated aiohttp app for the client API (port 6404).
+
+    `web_client_dir` optionally serves the reference web client from the SAME
+    origin as the API.
+
+    ⚠ Same origin is the point, not a convenience. Served this way the client
+    needs no address typed — it defaults to whatever served it — so a URL is
+    the entire instruction you give someone. It also removes CORS from the
+    picture and makes mixed content impossible: one hostname, one certificate.
+    A tunnel or proxy then needs a single route, which matters because
+    Cloudflare will only proxy a fixed set of ports and 6404 is not among them.
+
+    Absent the directory, the API runs alone exactly as before — deployments
+    that serve the client elsewhere are unaffected.
+    """
     _bind_server(server_module)
     app = web.Application(middlewares=[_cors_middleware])
     app.router.add_post('/v1/session', http_session)
@@ -1534,4 +1548,16 @@ def make_app(server_module):
     app.router.add_get('/v1/dir/{page}', http_dir)
     app.router.add_get('/v1/frame/{page}', http_frame)
     app.router.add_get('/v1/health', lambda r: web.json_response({"ok": True}))
+
+    if web_client_dir and os.path.isdir(web_client_dir):
+        index = os.path.join(web_client_dir, 'index.html')
+
+        async def _index(_request):
+            return web.FileResponse(index)
+
+        app.router.add_get('/', _index)
+        # ⚠ Registered LAST. aiohttp matches in order, and a static route on '/'
+        # would otherwise shadow /v1/* and answer API calls with 404s.
+        app.router.add_static('/', web_client_dir)
+        log.info('Serving the web client from %s', web_client_dir)
     return app

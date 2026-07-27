@@ -1103,21 +1103,55 @@ function endSession(msg: string): void {
 
 /** Turn whatever the user typed into the two base URLs the client needs.
  *
- *  ⚠ The field asks for a SERVER, not a URL. `ws://` is transport trivia that
- *  the user has no reason to know, and a missing scheme or port is the obvious
- *  mistake — so accept the lot: `compunet.live`, `docker.lan:6404`,
- *  `http://host`, `ws://host:6404`. The default port is Binding B's (§api).
+ *  ⚠ The field asks for a SERVER, not a URL. `ws://` is transport trivia the
+ *  user has no reason to know, and a missing scheme or port is the obvious
+ *  mistake — so accept the lot: `connect.compunet.live`, `docker.lan`,
+ *  `localhost:6404`, `https://host/api`, `ws://host:6404`.
  *
- *  Scheme mapping is not cosmetic: `https`/`wss` must stay secure, or a client
- *  told to use TLS would silently fall back to a plaintext socket. */
-export function resolveServer(input: string): { ws: string; http: string } {
-  let v = input.trim().replace(/\/+$/, '');
+ *  Three rules, in order:
+ *
+ *  1. EMPTY means "the server that served this page". A hosted client should
+ *     need nothing typed at all — the URL you give someone is the whole
+ *     instruction — and same-origin means no CORS and no mixed content. Only
+ *     applies when the page came over http(s); the desktop build is served
+ *     from `compunet://`, which is not a server, so it falls back to (3).
+ *  2. An EXPLICIT scheme is honoured exactly, port and path included.
+ *     `https`/`wss` stay secure: quietly downgrading a TLS request to a
+ *     plaintext socket is the one place being lenient could do real harm.
+ *  3. A BARE host is guessed from its shape. Anything local — `localhost`,
+ *     an IP, `.lan`/`.local`, or a name with no dot — gets the direct port
+ *     6404 over plaintext, because that is what a dev or LAN server is. A
+ *     public name gets TLS on the default port, because it will be behind a
+ *     proxy or tunnel (Cloudflare only proxies a fixed set of ports, and 6404
+ *     is not among them). Typing a full URL overrides the guess. */
+export function resolveServer(input: string, page?: { protocol: string; host: string }): { ws: string; http: string } {
+  const loc = page ?? (typeof location !== 'undefined' ? location : { protocol: '', host: '' });
+  const v = input.trim().replace(/\/+$/, '');
+
+  if (!v) {
+    if (loc.protocol === 'https:' || loc.protocol === 'http:') {
+      const secure = loc.protocol === 'https:';
+      return { ws: `${secure ? 'wss' : 'ws'}://${loc.host}`, http: `${secure ? 'https' : 'http'}://${loc.host}` };
+    }
+    return resolveServer('localhost', page);      // desktop build: no page origin to borrow
+  }
+
   const m = /^([a-z][a-z0-9+.-]*):\/\//i.exec(v);
-  const scheme = m ? m[1].toLowerCase() : '';
-  if (m) v = v.slice(m[0].length);
-  const secure = scheme === 'wss' || scheme === 'https';
-  if (!/:\d+$/.test(v)) v += ':6404';        // Binding B's port
-  return { ws: `${secure ? 'wss' : 'ws'}://${v}`, http: `${secure ? 'https' : 'http'}://${v}` };
+  if (m) {
+    const scheme = m[1].toLowerCase();
+    const rest = v.slice(m[0].length);
+    const secure = scheme === 'wss' || scheme === 'https';
+    return { ws: `${secure ? 'wss' : 'ws'}://${rest}`, http: `${secure ? 'https' : 'http'}://${rest}` };
+  }
+
+  const host = v.split('/')[0].split(':')[0];
+  const local = host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)
+    || /\.(lan|local|internal|test)$/i.test(host) || !host.includes('.');
+  if (local) {
+    const withPort = /:\d+/.test(v) ? v : `${v}:6404`;
+    return { ws: `ws://${withPort}`, http: `http://${withPort}` };
+  }
+  return { ws: `wss://${v}`, http: `https://${v}` };
 }
 
 async function connect(): Promise<void> {
@@ -1299,6 +1333,9 @@ function loadSettings(): void {
     if (raw) {
       const st = JSON.parse(raw) as Settings;
       if (st.host) $<HTMLInputElement>('host').value = st.host;
+      // ⚠ A BLANK host is meaningful — "the server that served this page" — so
+      // a stored blank is honoured rather than treated as "nothing saved".
+      else if ('host' in st) $<HTMLInputElement>('host').value = '';
       if (st.user) $<HTMLInputElement>('user').value = st.user;
     }
     const lim = parseInt(localStorage.getItem(KEY_LIMIT) ?? '', 10);

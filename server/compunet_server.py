@@ -100,6 +100,10 @@ CFG_DIR = os.path.join(SERVER_DIR, 'cfg')
 DATA_DIR = os.environ.get('COMPUNET_DATA_DIR') or os.path.join(SERVER_DIR, 'data')
 CONTENT_DIR = os.environ.get('COMPUNET_CONTENT_DIR') or os.path.join(DATA_DIR, 'content')
 ROOT_DIR = os.path.join(CONTENT_DIR, 'root')
+#: The reference web client, served from the client API's own origin when built
+#: into the image (see server/Dockerfile). Empty in a source checkout, where
+#: run_api_dev.py serves it instead.
+WEB_CLIENT_DIR = os.environ.get('COMPUNET_WEB_CLIENT_DIR') or os.path.join(SERVER_DIR, 'web')
 MAIL_DIR = os.environ.get('COMPUNET_MAIL_DIR') or os.path.join(DATA_DIR, 'mail')
 VOTES_PATH = os.path.join(DATA_DIR, 'votes.json')
 
@@ -3572,7 +3576,13 @@ async def main():
         try:
             import sys as _sys
             import api_binding
-            client_api = api_binding.make_app(_sys.modules[__name__])
+            # ⚠ Serve the web client from the SAME origin as the API when it is
+            # present. That is what lets a tunnel publish ONE hostname
+            # (connect.compunet.live -> compunet-server:6404): the client needs
+            # no address typed, there is no CORS, and mixed content cannot
+            # arise. Absent the directory the API runs alone, exactly as before.
+            client_api = api_binding.make_app(_sys.modules[__name__],
+                                              web_client_dir=WEB_CLIENT_DIR)
             client_runner = aiohttp_web.AppRunner(client_api)
             await client_runner.setup()
             client_site = aiohttp_web.TCPSite(client_runner, '0.0.0.0', CLIENT_API_PORT)

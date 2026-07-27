@@ -12,6 +12,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # and partyline, both of which are present.
 COPY server/compunet_server.py server/x25_protocol.py server/partyline.py \
      server/terminal.py server/api_binding.py ./
+# ⚠ The web client ships INSIDE the server image so the client API can serve it
+# from its own origin (see make_app's web_client_dir). One hostname through the
+# tunnel, nothing for the user to type, no CORS. It also means the hosted client
+# is always the build that matches this server.
+COPY client/web/index.html client/web/assets.json ./web/
+COPY client/web/dist/app.bundle.js ./web/dist/
+
 COPY VERSION ./
 
 EXPOSE 6400 6401 6403 6404

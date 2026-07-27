@@ -1695,14 +1695,30 @@ function endSession(msg) {
   render();
   status(msg + " Press Connect to log in again.");
 }
-function resolveServer(input) {
-  let v = input.trim().replace(/\/+$/, "");
+function resolveServer(input, page) {
+  const loc = page ?? (typeof location !== "undefined" ? location : { protocol: "", host: "" });
+  const v = input.trim().replace(/\/+$/, "");
+  if (!v) {
+    if (loc.protocol === "https:" || loc.protocol === "http:") {
+      const secure = loc.protocol === "https:";
+      return { ws: `${secure ? "wss" : "ws"}://${loc.host}`, http: `${secure ? "https" : "http"}://${loc.host}` };
+    }
+    return resolveServer("localhost", page);
+  }
   const m = /^([a-z][a-z0-9+.-]*):\/\//i.exec(v);
-  const scheme = m ? m[1].toLowerCase() : "";
-  if (m) v = v.slice(m[0].length);
-  const secure = scheme === "wss" || scheme === "https";
-  if (!/:\d+$/.test(v)) v += ":6404";
-  return { ws: `${secure ? "wss" : "ws"}://${v}`, http: `${secure ? "https" : "http"}://${v}` };
+  if (m) {
+    const scheme = m[1].toLowerCase();
+    const rest = v.slice(m[0].length);
+    const secure = scheme === "wss" || scheme === "https";
+    return { ws: `${secure ? "wss" : "ws"}://${rest}`, http: `${secure ? "https" : "http"}://${rest}` };
+  }
+  const host = v.split("/")[0].split(":")[0];
+  const local = host === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(host) || /\.(lan|local|internal|test)$/i.test(host) || !host.includes(".");
+  if (local) {
+    const withPort = /:\d+/.test(v) ? v : `${v}:6404`;
+    return { ws: `ws://${withPort}`, http: `http://${withPort}` };
+  }
+  return { ws: `wss://${v}`, http: `https://${v}` };
 }
 async function connect() {
   const { ws: wsBase, http: httpBase } = resolveServer($("host").value);
@@ -1941,6 +1957,7 @@ function loadSettings() {
     if (raw) {
       const st = JSON.parse(raw);
       if (st.host) $("host").value = st.host;
+      else if ("host" in st) $("host").value = "";
       if (st.user) $("user").value = st.user;
     }
     const lim = parseInt(localStorage.getItem(KEY_LIMIT) ?? "", 10);
