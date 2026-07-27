@@ -151,12 +151,18 @@ export class EditorBuffer {
 
   /** $87A1-$87AB — on arriving at a cell, remember its alternate colour.
    *
-   *  ⚠ UNVERIFIED POLARITY: the original selects between the cell's own colour
-   *  and $0286 on bit 7 of $C15B, which `EOR #$80` at $88E8 toggles — the f6
-   *  colour on/off flag. Which polarity is "on" is not established from a
-   *  static read. Mapped here so that colour OFF (typing preserves the cell's
-   *  colour) makes the cursor alternate with that colour, and colour ON pins it
-   *  to the drawing colour, which is the reading consistent with §8.4.3. */
+   *  Polarity VERIFIED: bit 7 of $C15B SET means colour ON (the cell takes the
+   *  pen), clear means OFF (it keeps its own). `BIT $C15B / BPL` at $87A3 skips
+   *  the `LDA $0286`, so only the set case picks up the pen. $C15B is f6's flag
+   *  — the editor's function-key table at $88BC, indexed by (key - $85) * 2,
+   *  sends f6 to the toggle at $88E8, with f5 toggling the KERNAL's RPTFLG
+   *  ($028A, auto-repeat) beside it.
+   *
+   *  ⚠ Note WHERE the flag acts: not on the typing path at all. $C15B is read
+   *  in exactly one place, this cursor routine, and the colour reaches the cell
+   *  through the cursor's restore ($87ED writes $C158 back). "Typing does not
+   *  change the colour under it" is a property of the CURSOR, which is why the
+   *  editor never writes colour RAM directly. */
   private captureCursorCell(): void {
     const p = this.page();
     const i = this.row * PAGE_COLS + this.col;

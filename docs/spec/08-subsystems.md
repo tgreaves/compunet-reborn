@@ -634,8 +634,26 @@ code, then `LDX $0286 / EOR ($F3),Y / AND #$0F / BNE +` and, on equality, `LDX $
 is at `$93A4`, read as `LDA $D021 / AND #$0F / TAX / LDA $93A4,X / STA $0286` at `$90A0`; the
 same table colours the duckshoot row at `$938B`, which is why that row stays readable over any
 frame. The blink period is a software delay loop around `GETIN`, so no exact interval is
-specified — the reference client uses 300 ms a phase. Unverified: which polarity of the f6
-colour flag at `$C15B` selects which alternate; both readings blink correctly.)*
+specified — the reference client uses 300 ms a phase.)*
+
+**⚠ `f6` colour on/off acts through the CURSOR, not through typing (normative).** This is the
+one editing control whose mechanism is not where you would look for it. The editor **never
+writes colour RAM directly**: characters go out through the KERNAL, which colours them from the
+current colour, and the *cell's* final colour is written by the cursor routine when the user
+moves on (`$87ED`). `f6`'s flag is read in exactly **one** place — the cursor's entry at
+`$87A3` — where it chooses what the cursor leaves behind: the **pen** when colour is on, the
+cell's **existing colour** when it is off. So "typing changes the character but not the colour
+under it" is a property of the cursor, and a client that implements it on the typing path
+instead will get the same result for typing and the wrong one everywhere the cursor moves
+without typing.
+
+*(Verified from the editor's function-key table at `$88BC`, indexed by `(key - $85) * 2`: `f6`
+dispatches to the toggle at `$88E8` (`LDA $C15B / EOR #$80 / STA $C15B`), and bit 7 **set** is
+colour **on** — `BIT $C15B / BPL` at `$87A3` skips the `LDA $0286`, so only the set case picks
+up the pen. The same table corroborates the rest of §A.9: `f5` toggles the KERNAL's `RPTFLG`
+at `$028A` (auto-repeat), `f3`/`f4` are the line operations, `f7`/`f8` are literally
+`INC $D021` / `INC $D020` — which is why each press steps one colour and wraps — and `f1`/`f2`
+land on an `RTS`, unused.)*
 
 **⚠ `STOP` stores and `RUN` restores — they are a pair.** Editing without a restore is editing
 without an undo, on a page the user may have spent a long time on. `STOP` is what *makes* the
