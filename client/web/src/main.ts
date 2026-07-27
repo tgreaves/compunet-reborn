@@ -1074,9 +1074,27 @@ function endSession(msg: string): void {
   status(msg + ' Press Connect to log in again.');
 }
 
+/** Turn whatever the user typed into the two base URLs the client needs.
+ *
+ *  ⚠ The field asks for a SERVER, not a URL. `ws://` is transport trivia that
+ *  the user has no reason to know, and a missing scheme or port is the obvious
+ *  mistake — so accept the lot: `compunet.live`, `docker.lan:6404`,
+ *  `http://host`, `ws://host:6404`. The default port is Binding B's (§api).
+ *
+ *  Scheme mapping is not cosmetic: `https`/`wss` must stay secure, or a client
+ *  told to use TLS would silently fall back to a plaintext socket. */
+export function resolveServer(input: string): { ws: string; http: string } {
+  let v = input.trim().replace(/\/+$/, '');
+  const m = /^([a-z][a-z0-9+.-]*):\/\//i.exec(v);
+  const scheme = m ? m[1].toLowerCase() : '';
+  if (m) v = v.slice(m[0].length);
+  const secure = scheme === 'wss' || scheme === 'https';
+  if (!/:\d+$/.test(v)) v += ':6404';        // Binding B's port
+  return { ws: `${secure ? 'wss' : 'ws'}://${v}`, http: `${secure ? 'https' : 'http'}://${v}` };
+}
+
 async function connect(): Promise<void> {
-  const wsBase = $<HTMLInputElement>('host').value.trim().replace(/\/$/, '');
-  const httpBase = wsBase.replace(/^ws/, 'http');
+  const { ws: wsBase, http: httpBase } = resolveServer($<HTMLInputElement>('host').value);
   try {
     const { token } = await gw.login(httpBase, $<HTMLInputElement>('user').value, $<HTMLInputElement>('pass').value);
     gw.connect(

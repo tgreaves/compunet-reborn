@@ -1674,9 +1674,17 @@ function endSession(msg) {
   render();
   status(msg + " Press Connect to log in again.");
 }
+function resolveServer(input) {
+  let v = input.trim().replace(/\/+$/, "");
+  const m = /^([a-z][a-z0-9+.-]*):\/\//i.exec(v);
+  const scheme = m ? m[1].toLowerCase() : "";
+  if (m) v = v.slice(m[0].length);
+  const secure = scheme === "wss" || scheme === "https";
+  if (!/:\d+$/.test(v)) v += ":6404";
+  return { ws: `${secure ? "wss" : "ws"}://${v}`, http: `${secure ? "https" : "http"}://${v}` };
+}
 async function connect() {
-  const wsBase = $("host").value.trim().replace(/\/$/, "");
-  const httpBase = wsBase.replace(/^ws/, "http");
+  const { ws: wsBase, http: httpBase } = resolveServer($("host").value);
   try {
     const { token } = await gw.login(httpBase, $("user").value, $("pass").value);
     gw.connect(
@@ -2105,4 +2113,7 @@ async function boot() {
   restoreEditor();
 }
 void boot();
+export {
+  resolveServer
+};
 //# sourceMappingURL=app.bundle.js.map

@@ -524,6 +524,14 @@ This has two consequences a client is likely to get wrong:
     begin with a blank page, and **say** the pages could not be read;
   - if the store is **full**, the client **MUST** keep working and **MUST** report it.
 
+  **⚠ Check that your storage is keyed to something STABLE.** A desktop client wrapping a web
+  view is the likely shape, and the trap is specific: browser storage is keyed by **origin**, so
+  a shell that serves its own UI from `http://127.0.0.1` on an **ephemeral port** gets a
+  different origin every launch — and therefore empty storage. Everything works perfectly within
+  a session and silently starts blank on the next one, which reads as "persistence is broken"
+  rather than "the origin moved". Serve from a fixed origin (a custom scheme, or a fixed port).
+  The reference client hit exactly this and now serves itself from `compunet://app`.
+
   Settings — server address, user id — **SHOULD** persist too. That is convenience, not data
   loss, so it is a weaker requirement. A client **MUST NOT** persist the **password**: at rest in
   a browser or desktop store it is readable by anything running in the client, and "remember me"
