@@ -6,9 +6,10 @@
   "description": "Compunet Reborn desktop client (Electron shell around the web client)",
   "main": "main.js",
   "scripts": {
-    "_comment": "⚠ Every script that PACKAGES or RUNS the app rebuilds the web client first. The shell only copies ../web/dist/app.bundle.js, so without this an installer silently ships whatever bundle happened to be on disk — it builds fine, launches fine, and runs stale code. That shipped once: an installer went out carrying a bundle four commits old, and the symptom (an old behaviour persisting after a fix) looks like a bug in the fix.",
+    "_comment": "⚠ Every script that PACKAGES or RUNS the app rebuilds the web client first. The shell only COPIES ../web/dist/app.bundle.js, so without this it silently ships whatever bundle happened to be on disk — it builds fine, launches fine, and runs stale code. That shipped once: an installer went out carrying a bundle four commits old, and the symptom (an old behaviour surviving a fix) reads as the fix not working.",
     "build:web": "npm --prefix ../web run build",
     "start": "npm run build:web && electron .",
+    "pack:win": "npm run build:web && electron-builder --win --dir",
     "dist": "npm run build:web && electron-builder",
     "dist:win": "npm run build:web && electron-builder --win",
     "dist:mac": "npm run build:web && electron-builder --mac"
@@ -36,7 +37,10 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "mac": {
       "target": "dmg",
@@ -44,6 +48,9 @@
     },
     "linux": {
       "target": "AppImage"
+    },
+    "portable": {
+      "artifactName": "Compunet Reborn ${version} (portable).exe"
     }
   },
   "allowScripts": {

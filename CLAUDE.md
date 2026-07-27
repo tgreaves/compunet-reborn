@@ -51,6 +51,23 @@ you rely on MUST be confirmed against ground truth before you write or change co
 1. The client must ALWAYS be rebuilt after any change to `client/c64/src/compunet.s`. Build with `make` in `client/c64/src/`. The output is `client/c64/compunet-reborn.prg`.
 2. The client embeds a hash of `compunet.s` at build time and the server verifies it matches `server/cfg/client_version.txt`. The build script (`gen_version.py`) derives both from the source file content, so they stay in sync automatically. The hash only changes when the client source changes — server-only commits don't require a client rebuild. When client code changes: `make clean && make` in `client/c64/src/`, then commit source + binaries + `server/cfg/client_version.txt` together.
 3. To test a development client against a production server without deploying, override the hash: `make HASH=6fc715` (use the hash from the production `server/cfg/client_version.txt`).
+4. **The Electron app must ALWAYS be repackaged after any change under `client/web/src/`**, so
+   there is always a current executable to test. Run in `client/electron/`:
+
+   ```bash
+   npm run pack:win     # fast: rebuilds the web bundle, writes dist/win-unpacked/
+   npm run dist:win     # full: also builds the installer and the portable exe
+   ```
+
+   Every script there (`start`, `pack:win`, `dist*`) rebuilds the web bundle first, because the
+   shell only *copies* `client/web/dist/app.bundle.js`. Without that it packages whatever bundle
+   is lying on disk: it builds cleanly, launches cleanly, and runs stale code — which has
+   already happened once, and reads as "the fix didn't work" rather than "the artifact is old".
+   Committing a client change without repackaging leaves the same trap for the next test.
+5. **`Compunet Reborn Setup <version>.exe` is an INSTALLER, not the app.** It is a one-click
+   NSIS installer, so running it reinstalls every time (hence "Installing…"). To simply run the
+   client, use `dist/win-unpacked/Compunet Reborn.exe` or the portable build,
+   `Compunet Reborn <version> (portable).exe`.
 
 ## Server Rules
 
@@ -60,3 +77,9 @@ you rely on MUST be confirmed against ground truth before you write or change co
 
 1. Only ever commit when instructed to do so by a human.
 2. On any commit, ensure [README.md](README.md) and [docs/PROTOCOL.md](docs/PROTOCOL.md) are fully up to date and reflect any changes made.
+3. **NEVER create a git tag.** Not as housekeeping, not "to match VERSION", not as part of
+   finishing a piece of work — only when a human explicitly asks for that tag. A tag is a
+   production release: it is what people install and what the version numbers in the tree
+   claim. **A human decides when a release happens.** Bumping `VERSION` or a `package.json`
+   is not a release and does not imply one; leaving the tree at a version with no matching
+   tag is a normal, intended state.

@@ -534,11 +534,6 @@ var EditorBuffer = class {
   moveCol(d) {
     this.col = Math.max(0, Math.min(PAGE_COLS - 1, this.col + d));
   }
-  /** Change the colour subsequent typing uses (the original's f7/f8). */
-  cycleColour(d) {
-    const p = this.page();
-    p.colour = ((p.colour + d) % 16 + 16) % 16;
-  }
   /** Set the pen directly — the C64's CTRL+1-8 / C=+1-8 colour keys (§8.4.3).
    *  ⚠ The pen is what the CURSOR is drawn in too, so changing it is visible
    *  immediately even before anything is typed. */
