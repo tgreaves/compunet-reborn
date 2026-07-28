@@ -98,9 +98,39 @@ def _account_json(session):
             "name": _real_name(session)}
 
 
-def _credentials_ok(user_id, password):
-    """Validate credentials via the authoritative handle_login path."""
-    session = _new_session()
+def _client_ip(request):
+    """The address of the person making the request, not of the hop in front.
+
+    ⚠ `request.remote` is the PROXY in every real deployment: production reaches
+    this server through a Cloudflare tunnel, so the peer is a container address
+    on the compose network and logging it records 172.18.0.x for the entire
+    internet. Prefer what the proxy forwarded.
+
+    CF-Connecting-IP first: Cloudflare sets it and it holds exactly one address.
+    X-Forwarded-For is a CHAIN — the client appends to it too, so only the first
+    entry is meaningful and the rest are hops. Falls back to the peer, which is
+    correct for a direct connection.
+    """
+    cf = request.headers.get('CF-Connecting-IP', '').strip()
+    if cf:
+        return cf
+    xff = request.headers.get('X-Forwarded-For', '')
+    if xff:
+        first = xff.split(',')[0].strip()
+        if first:
+            return first
+    return request.remote or 'api'
+
+
+def _credentials_ok(user_id, password, client_ip='api'):
+    """Validate credentials via the authoritative handle_login path.
+
+    ⚠ Pass the caller's address. handle_login audits a `connect` event with
+    session.client_ip, so omitting it recorded the string "api" as the origin of
+    every web-client login — 4 of them sat in the live log among 1,029 real
+    addresses from the C64, Amiga and terminal paths.
+    """
+    session = _new_session(client_ip)
     resp = session.handle_login(user_id, password)
     return session.authenticated, session
 
@@ -1337,7 +1367,7 @@ async def http_session(request):
         return web.json_response({"error": {"code": "invalid"}}, status=400)
     user = str(body.get("user", ""))
     password = str(body.get("pass", ""))
-    ok, session = _credentials_ok(user, password)
+    ok, session = _credentials_ok(user, password, _client_ip(request))
     if not ok:
         return web.json_response({"error": {"code": "unauthorized"}}, status=401)
     token = _issue_token(session.user_id)
@@ -1367,7 +1397,7 @@ def _rest_session(request):
     user_id = _bearer(request)
     if not user_id:
         return None
-    session = _new_session(request.remote or 'api')
+    session = _new_session(_client_ip(request))
     return session if _adopt_user(session, user_id) else None
 
 

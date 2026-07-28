@@ -746,6 +746,46 @@ class PersistenceRoundTrip(unittest.TestCase):
         self.assertIn('directory', self._jungle_entry(MORE_DIR))
 
 
+class ClientAddressResolution(unittest.TestCase):
+    """§ audit: record the person, not the hop in front of them.
+
+    ⚠ `request.remote` is the PROXY in every real deployment — production is
+    reached through a Cloudflare tunnel, so the peer is a compose-network
+    address. Logging it puts 172.18.0.x against the whole internet, which is no
+    more useful than the literal "api" that web-client logins used to record."""
+
+    class _Req:
+        def __init__(self, headers=None, remote='172.18.0.4'):
+            self.headers = headers or {}
+            self.remote = remote
+
+    def test_prefers_cloudflares_header(self):
+        r = self._Req({'CF-Connecting-IP': '203.0.113.7',
+                       'X-Forwarded-For': '198.51.100.1, 172.18.0.4'})
+        self.assertEqual(api._client_ip(r), '203.0.113.7')
+
+    def test_falls_back_to_the_first_forwarded_entry(self):
+        """X-Forwarded-For is a CHAIN and the client can append to it, so only
+        the first entry is meaningful; the rest are hops."""
+        r = self._Req({'X-Forwarded-For': '198.51.100.1, 172.18.0.4'})
+        self.assertEqual(api._client_ip(r), '198.51.100.1')
+
+    def test_falls_back_to_the_peer_when_direct(self):
+        self.assertEqual(api._client_ip(self._Req({}, remote='10.1.2.3')), '10.1.2.3')
+
+    def test_never_returns_empty(self):
+        """A blank header must not become a blank audit field."""
+        r = self._Req({'CF-Connecting-IP': '   ', 'X-Forwarded-For': ' , '}, remote=None)
+        self.assertEqual(api._client_ip(r), 'api')
+
+    def test_a_login_records_the_address_not_the_literal_api(self):
+        """The regression itself: _credentials_ok defaulted client_ip to "api",
+        so handle_login audited that as the origin of every web-client login."""
+        ok, s = api._credentials_ok(USER, PASSWORD, '203.0.113.7')
+        self.assertTrue(ok)
+        self.assertEqual(s.client_ip, '203.0.113.7')
+
+
 class AuditWriteEndpoint(unittest.TestCase):
     """POST /api/audit — the website records events through the server, because
     it cannot write the file and should not be able to.

@@ -3218,8 +3218,19 @@ async def api_auth(request):
 
     password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
     if user['password'] != password_hash:
+        audit_log('login_failed', user=user_id, ip=body.get('ip') or request.remote)
         return aiohttp_web.json_response({'error': 'invalid credentials'}, status=401)
 
+    # ⚠ The website's own sign-in was not audited AT ALL: of 6,567 entries there
+    # was no login event of any kind, so managing an account — changing a
+    # password, an email address — left no trace. Every other way into Compunet
+    # records a `connect`.
+    #
+    # `ip` comes from the WEBSITE, because the server cannot see the browser:
+    # its peer here is the website container. The website resolves the real
+    # address from its own forwarded headers and passes it; `request.remote` is
+    # only the fallback, and names the website itself.
+    audit_log('login', user=user_id, ip=body.get('ip') or request.remote)
     return aiohttp_web.json_response(_api_user_public(user_id, user))
 
 

@@ -135,6 +135,23 @@ def _server_path(*parts):
     return container
 
 
+def _client_ip():
+    """The visitor's address, not the proxy in front of the site.
+
+    ⚠ `request.remote_addr` is the TUNNEL here — the site is reached through
+    Cloudflare, so the peer is a container address and recording it puts
+    172.18.0.x against every event. CF-Connecting-IP holds exactly one address
+    and only Cloudflare sets it; X-Forwarded-For is a chain the client can also
+    append to, so only its first entry means anything.
+    """
+    cf = (request.headers.get('CF-Connecting-IP') or '').strip()
+    if cf:
+        return cf
+    xff = request.headers.get('X-Forwarded-For') or ''
+    first = xff.split(',')[0].strip()
+    return first or request.remote_addr
+
+
 def _audit_event(event, user=None, **details):
     """Record an event in the shared audit log, via the server that owns it.
 
@@ -352,7 +369,11 @@ def login():
     user_id = request.form.get('user_id', '').upper().strip()
     password = request.form.get('password', '').upper().strip()
 
-    resp = _api_post('/api/auth', {'user_id': user_id, 'password': password})
+    # ⚠ Send the visitor's address. The server audits this sign-in but cannot
+    # see who made it — its peer is this container — so an unsent address is
+    # recorded as the website itself.
+    resp = _api_post('/api/auth', {'user_id': user_id, 'password': password,
+                                   'ip': _client_ip()})
     if resp.status_code != 200:
         flash('Invalid User ID or password.', 'error')
         return render_template('login.html', user_id=user_id)
@@ -713,7 +734,7 @@ def forgot_password():
                 subject='Compunet Reborn — Password Reset',
                 body_html=body_html,
             )
-            _audit_event('password_reset_request', user=user_id, ip=request.remote_addr)
+            _audit_event('password_reset_request', user=user_id, ip=_client_ip())
 
     return render_template('forgot_password.html')
 
@@ -750,7 +771,7 @@ def reset_password(token):
     if resp.status_code == 200:
         del resets[token]
         _save_resets(resets)
-        _audit_event('password_reset', user=entry['user_id'], ip=request.remote_addr)
+        _audit_event('password_reset', user=entry['user_id'], ip=_client_ip())
         flash('Password reset successfully. You can now log in.', 'success')
         return redirect(url_for('login'))
     else:

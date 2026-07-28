@@ -7,6 +7,10 @@
 	  up empty. (#117)
 	* Password resets are recorded in the admin audit log, with the user and
 	  originating IP. They were previously discarded. (#117)
+	* Signing in to manage an account is recorded too, successes and failures.
+	  It was not logged at all.
+	* Audited events show the visitor's IP address rather than `api` or the
+	  address of the proxy in front of the server.
 * **Running your own server**:
 	* The admin REST API (6403) is no longer published on the host. Only the
 	  website uses it, over the internal network. (#117)
