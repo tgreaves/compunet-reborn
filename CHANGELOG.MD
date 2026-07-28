@@ -11,6 +11,10 @@
 	  operators' own one-line descriptions, as the live system listed them
 	  c.1987. It records what Compunet actually held, area by area, and which
 	  areas were open for user uploads.
+* Desktop client:
+	* New: an application icon — the Commodore 64 `C`, in the Compunet red and
+	  light grey of the service's own header. Windows previously showed the
+	  stock Electron icon on the desktop shortcut, taskbar and installer.
 * C64 client:
 	* Fixed: the client banner reading `COMPUNET REBORN 1.0.0` whatever version
 	  you were actually running. The version is baked into the binary at build
