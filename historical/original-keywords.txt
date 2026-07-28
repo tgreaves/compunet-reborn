@@ -1,0 +1,172 @@
+Compunet Keyword Index
+======================
+
+The service's own INDEX page, as captured from the live system c.1987.
+Source: DEMO011A__KEYWORDS.seq (9 frames), contributed by ZILDAC.
+
+A trailing "*" marks an area that was open for user uploads.
+
+KEYWORD    DESCRIPTION
+---------  ------------------------------------------------------------
+ACTION     Programs which run on-line
+ADS        Small ads *
+ADVANC     Advance Software
+ADVICE     Help and advice--UPLD problems and answers *
+AIRNET     Aviation features & news *
+AKMDOS     Disk utility
+ALBUMS     Album reviews *
+AMIGA      Amiga bulletin board *
+ANEWS      Amiga news from AUG
+ANON       Mudders Anonymous *
+ARCADE     Arcade game bulletin board *
+ARENA      Ongoing debate area--UPLD your views *
+ART        Art Gallery. UPLD your own *
+ARTAID     Utilities and help for producing art and demos *
+ARTH       Art Hall of Fame
+ASTRO      Astronomy area *
+AUG        Amiga User Group
+AVCOM      Aviation communications *
+AWAY       who's temporarily away from the net--UPLD your absence *
+BB         Free bulletin board list from ICPUG
+BB99       Bulletin board jungle *
+BIX        Downloads from BIX conferences *
+BIZ        SHOW BIZ, for software house arcade and games/demo gossip and news
+BIZ1       Software house arcade
+BOGG       Music from Graham Marsh
+BUY        How to download s/w from Cnet
+BUZZ       For your games/demo chat *
+BYTE       Reviews of US Byte magazine *
+C+H        CRACKERS & HACKERS area *
+CARDS      Greetings cards for mailboxing *
+CAVES      Live role-play *
+CHAT       CHAT-ON-LINE, the message-by-message chat service *
+CHEATS     Games tips & pokes *
+CHESS      CHESS & mailbox chess area *
+CLAP       CLAPPERBOARD, the C+H review area *
+CNBOOT     Cnet boot program
+CNET       Guide to Compunet
+CNEWS      COMMS NEWS from Wino *
+CODERS     How to enter the CNET CODERS' DIRECTORY
+CODIR      The CNET CODERS' DIRECTORY (CUG)
+COMMS      COMMUNICATIONS area
+COMPS      Competitions on the net *
+CRL        CRL Arcade
+D&D        DUNGEONS & DRAGONS *
+DANGER     Kanor's s/w and demo area *
+DEMOH      DEMO HALL OF FAME
+DEMOS      For your demo uploads *
+DIRECT     ICC user directory
+DOKK       Dokk's s/w and demos *
+DOLPH      Dolphin dos board *
+DOS        Dos 5.1 for disk operations on-line
+DRAGON     DRAGON'S LAIR for adventure and D&D *
+EDGE       The Edge software arcade
+EDITR      How to use the Cnet Editor
+EDUC       Educational software
+ELITE      Elite software arcade
+ENHANC     Editor Enhancer (a Cnet Editor utility)
+EXPERT     Expert Cartridge board *
+FAME       Cnet HALL OF FAME
+FEANOR     MUD gossip column *
+FED        News, guides, stories on Federation II *
+FEES       Cnet charges
+FLUSH      The Blue Flush dir *
+FM         FM Sound Expander board *
+FNEWS      Electric Frog Plate News for in-depth computing news *
+FOGG       The notorious DR FOGG's spot *
+FORUM      For your view on the Election *
+FPSION     Frog-Plate's Psion area *
+FREEBY     Free games
+FROG       ELECTRIC FROG-PLATE for in-depth computer news & features *
+GAMES      New games telesoftware
+GOTO       How to use the GOTO command
+GOTOS      Announcing latest uploads *
+GRAVE      MUD graveyard and obituaries *
+HDX        1200/1200 half duplex software
+HEAD       KKY's HEAD amusement area *
+HELLO      Hints for new users
+HEWSON     Hewson arcade
+HHG        Hitch-Hikers' Sci-Fi area *
+HOTBED     Controversy, humour, outrage; home of celebrated Cnet columnists *
+ICC        INDEPENDENT COMPUNET CLUB; open to all
+ICPUG      INDEPENDENT CBM PRODUCTS USER GROUP area; much is open to non-members
+ICTHUS     Christian dir *
+INDEX      Features & software indexes
+JOBS       Jobs small ads (also see BIZ1) *
+JUMBLE     For your small ads *
+JUNGLE     For miscellaneous uploads *
+KEVE       KEVE's D&D area *
+KKY        KKY TV *
+KRYS       KRYSTAL's KRUTCH: a woman-about-the-MUGS *
+KWORLD     KKY TV's demo reviews *
+LASER      LASER BASIC area *
+LECCY      Electrosound area *
+LIVE       LIVE WIRE: Cnet news & features
+LOGOH      Logo hall of fame
+LOGOS      For your graphics logos *
+MAIL       How to send a mailbox
+MANIAC     MANIAC's den
+MANUAL     On-line Compunet manual
+MARKII     Jungle MarkII area *
+MATES      NET MATES for Cnet contacts *
+MATT       Music from Matt Perry
+MBAR2      Coders' Jungle area *
+MBXS       Your mailboxes, our answers
+MICRO      For micro information, help, software; computing interests
+MICRON     Micron software & boards *
+MIDI       Midi music *
+MUD        Multi-User Dungeon game
+MUSE       MUSE's section *
+MUSIC      For your music uploads *
+MUSICH     Music hall of fame
+NEW        New User jungle *
+NEWDEM     For your first demo uploads *
+NEWS       Compunet news & 'roundups' of what's new on the net
+NICKS      Nicks bits--hardware advice *
+NWCUG      North West CBM User Group *
+OFF        OFF-LINE for video, music, films etc *
+PARTY      Party-Line
+PBM        Play by mail & play by mailbox *
+PEOPLE     PEOPLE-LINK for interests of all kinds *
+PETS       Pet topics *
+PHONES     Compunet phone numbers
+PHOTO      PHOTONET *
+PLUS       Powerful Cnet enhancement s/w
+PRIVS      Gold subscriber privileges
+PSION      Psion organiser board *
+PUBLIC     Public domain software *
+PURPLE     PURPLE PRESS--on-line libel! *
+QUEST      QUEST adventure club
+RADCUG     Radio amateurs area (members only *
+RADIO      How to join RADCUG
+RADIX      Demos from the Radix team
+REVIEW     Reviews
+ROAD       Road transport area *
+ROB        Robb Hubbard's music
+ROVER      Sci-fi TV guide & reviews *
+SAGAS      Sci-fi sages & strips *
+SAMPLE     Sound samplers *
+SCHOOL     SCHOOLNET *
+SHOCKWAVE  A hotbed of controversy *
+SHOP       let your fingers...ads & small ads
+SHOWS      SHOWBOARD for your show announcements *
+SIGS       Computing special interest groups
+SUBS       Cnet subscription types and fees
+SW         SOFTWARE PARK for telesoftware
+TALENT     SHOWCASE for art, music, demos *
+TTAD       TTAD's demo directory
+TTY        Teletype communications software
+UBIK       UBIK's demo directory
+UPLD       How to upload onto Cnet
+UU         User-to-User communications software
+VICAR      VICAR'S TRAIN SET; more HOTBED controversy *
+VISION     Wino's VISIONARY MOUNT, yet more HOTBED outrage *
+WHO        DR WHO area *
+WORST      World's Worst Art, for not-so serious artists
+YAK        Jeff Minter's demos
+YETI       Lair of Cnet's Yeti *
+YR128      CBM 128 area *
+ZAP        Games board *
+ZZAP64     You can talk to them--but don't expect them to listen! *
+
+160 keywords.

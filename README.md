@@ -272,6 +272,9 @@ python server/tests/test_api_binding.py && python server/tests/test_client_confo
 ### Historical
 
 - **[historical/](historical/)** — Original SEQ files, D64 disk images, documentation
+- **[historical/original-keywords.txt](historical/original-keywords.txt)** — the original
+  service's own `INDEX` page, transcribed: 160 GOTO keywords with the operators' own
+  descriptions, as the live system listed them c.1987
 
 ## Acknowledgements
 
@@ -282,6 +285,9 @@ Historical SEQ file sources:
 - **compunet-pages-interviews** — Frank @ Games That Weren't
 - **compunet-sequence-files** — Unknown
 - **neil_shumsky** — Neil Shumsky (256 SEQ files extracted from D64 disk images)
+- **zildac** — ZILDAC (43 SEQ files extracted from 35 Compunet demo D64 disk images,
+  including the service's own `INDEX` page, transcribed to
+  [historical/original-keywords.txt](historical/original-keywords.txt))
 
 Thanks to Mark Wilson for providing the Welcome screen, music, and other historical frames.
 

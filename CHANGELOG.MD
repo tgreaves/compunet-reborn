@@ -1,5 +1,16 @@
 # 1.2.2 (unreleased)
 
+* Historical archive:
+	* New: 43 SEQ frames recovered from 35 original Compunet demo disks,
+	  contributed by ZILDAC (`historical/seq/zildac/`). Among them a 1987
+	  Courier exchange with Compunet's own staff about faults on Istel's
+	  Liverpool X.25 node — which names the modem ROM revisions then in the
+	  field, 1.22 and 1.35.
+	* New: the original service's `INDEX` page, transcribed to
+	  `historical/original-keywords.txt` — 160 GOTO keywords with the
+	  operators' own one-line descriptions, as the live system listed them
+	  c.1987. It records what Compunet actually held, area by area, and which
+	  areas were open for user uploads.
 * Website / client:
 	* Fixed: advert lines at the foot of a directory sitting slightly off
 	  centre. The client was centring text the author had already centred,
