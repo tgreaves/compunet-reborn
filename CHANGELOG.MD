@@ -1,21 +1,22 @@
 # 1.2.1 (unreleased)
 
-* **Website**:
-	* The `COMPUNET REBORN` heading no longer drops onto its own line for
-	  signed-in administrators. (#115)
-	* The admin Partyline log shows its entries in a Docker deployment; it came
-	  up empty. (#117)
-	* Password resets are recorded in the admin audit log, with the user and
-	  originating IP. They were previously discarded. (#117)
-	* Signing in to manage an account is recorded too, successes and failures.
-	  It was not logged at all.
-	* Audited events show the visitor's IP address rather than `api` or the
-	  address of the proxy in front of the server.
-* **Running your own server**:
-	* The admin REST API (6403) is no longer published on the host. Only the
-	  website uses it, over the internal network. (#117)
-	* `docker-compose.yml` documents `COMPUNET_CLIENT_URL`; without it the site
-	  has no link to its own client. (#117)
+* Website:
+	* Fixed: navigation bar falling onto two lines when logged in as an admin
+	  (#115).
+	* Fixed: partyline log admin page not showing content in Docker (#117).
+	  Reported fixed in 0.12-beta, but that change was reverted the same day
+	  because it broke a source checkout; the path now resolves in both.
+	* Fixed: password resets never reaching the audit log (#117). The website
+	  wrote them inside its own container, where they were discarded on restart.
+	* Fixed: account sign-ins not audited at all. Successes and failures are now
+	  recorded, including attempts on user ids that do not exist.
+	* Fixed: audited events recording `api`, or the address of the proxy, in
+	  place of the visitor's IP.
+* Docker:
+	* Admin REST API (6403) no longer published on the host; only the website
+	  uses it, over the internal network (#117).
+	* `docker-compose.yml` documents `COMPUNET_CLIENT_URL`, without which the
+	  site has no link to its own client.
 
 # 1.2.0 (2026-07-27)
 
