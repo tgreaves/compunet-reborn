@@ -61,6 +61,12 @@ body {
     z-index: 100;
 }
 
+/* ⚠ nowrap, deliberately. With `flex-wrap: wrap` the WHOLE links block dropped
+   below the brand as soon as the two together exceeded the row — which the
+   ADMIN menu did by ONE pixel (813px into 812px), because it carries three
+   trailing items where other visitors get two. Nobody but an admin ever saw it.
+   With nowrap plus `min-width: 0` on .nav-links, an over-long menu wraps WITHIN
+   itself and the brand stays put, which fails far more gracefully. */
 .nav-inner {
     max-width: var(--max-width);
     margin: 0 auto;
@@ -68,7 +74,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 12px;
 }
 
@@ -78,6 +84,7 @@ body {
     font-family: var(--font-pixel);
     font-size: 12px;
     letter-spacing: 1px;
+    flex: 0 0 auto;          /* never squeezed by a long menu */
 }
 
 .nav-brand:hover {
@@ -86,9 +93,11 @@ body {
 
 .nav-links {
     display: flex;
-    gap: 20px;
+    gap: 16px;               /* 20px put the ADMIN menu 1px over the row */
     flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
+    min-width: 0;            /* lets the menu shrink and wrap inside itself */
 }
 
 .nav-links a {

@@ -106,24 +106,78 @@ def _send_email(to, subject, body_text=None, body_html=None):
     return False
 
 
-AUDIT_LOG_PATH = os.path.join(os.path.dirname(__file__), '..', 'server', 'data', 'audit.jsonl')
+def _server_path(*parts):
+    """Resolve a path under the server tree, in either layout.
+
+    ⚠ The two layouts genuinely differ, and hardcoding either one breaks the
+    other:
+
+      container — the Dockerfile puts app.py at /app and compose mounts the data
+                  INSIDE it, at /app/server/data
+      checkout  — app.py is at <repo>/website/, so the tree is one level UP
+
+    Production ran for weeks on a hand-applied one-line patch to the partyline
+    path because of this, re-applied by hand after every deploy (#117). This is
+    the same try-then-fall-back approach the VERSION lookup at the top of this
+    file already uses; it is here so the difference is handled once instead of
+    at each call site.
+
+    Returns the container path when neither exists, so a missing file behaves as
+    "not there yet" rather than raising — the dev host has no such mount.
+    """
+    here = os.path.dirname(__file__)
+    container = os.path.join(here, *parts)                 # /app/server/...
+    checkout = os.path.join(here, '..', *parts)            # <repo>/server/...
+    if os.path.exists(container):
+        return container
+    if os.path.exists(checkout):
+        return checkout
+    return container
+
+
+def _client_ip():
+    """The visitor's address, not the proxy in front of the site.
+
+    ⚠ `request.remote_addr` is the TUNNEL here — the site is reached through
+    Cloudflare, so the peer is a container address and recording it puts
+    172.18.0.x against every event. CF-Connecting-IP holds exactly one address
+    and only Cloudflare sets it; X-Forwarded-For is a chain the client can also
+    append to, so only its first entry means anything.
+    """
+    cf = (request.headers.get('CF-Connecting-IP') or '').strip()
+    if cf:
+        return cf
+    xff = request.headers.get('X-Forwarded-For') or ''
+    first = xff.split(',')[0].strip()
+    return first or request.remote_addr
+
 
 def _audit_event(event, user=None, **details):
-    """Append an event to the shared audit log."""
-    import datetime
-    entry = {
-        'time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'event': event,
-    }
-    if user:
-        entry['user'] = user
-    entry.update(details)
+    """Record an event in the shared audit log, via the server that owns it.
+
+    ⚠ This POSTs rather than writing the file, and that is deliberate. The
+    website runs in its own container with `server/data` mounted READ-ONLY —
+    it is the internet-facing half of the deployment and has no business
+    writing to the content, mail or config trees. It already READS this log
+    through the API (the admin audit page); writing goes the same way.
+
+    It used to append to a path of its own, which under Docker resolved inside
+    this container and vanished on the next recreate. Both events this function
+    records — `password_reset_request` and `password_reset`, with user and IP —
+    had therefore never once survived: 0 of the 6,566 entries in the live log.
+    Precisely the trail you want when investigating a stolen account.
+
+    Failure is logged, never raised: an audit write must not be able to break a
+    password reset for the user in front of us.
+    """
     try:
-        os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
-        with open(AUDIT_LOG_PATH, 'a') as f:
-            f.write(json.dumps(entry) + '\n')
-    except OSError:
-        app.logger.warning('Failed to write audit log entry: %s', entry)
+        resp = _api_post('/api/audit', {'event': event, 'user': user,
+                                        'details': details})
+        if resp.status_code != 200:
+            app.logger.warning('Audit event %s rejected: %s %s',
+                               event, resp.status_code, resp.text[:200])
+    except requests.RequestException as e:
+        app.logger.warning('Audit event %s not recorded: %s', event, e)
 
 
 def _hash_password(password):
@@ -138,7 +192,7 @@ def _notify_admins_new_user(entry):
     users = resp.json().get('users', [])
     admin_emails = [u['email'] for u in users if u.get('admin') and u.get('email')]
     date = time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())
-    template_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'cfg', 'new-user-notification.md')
+    template_path = _server_path('server', 'cfg', 'new-user-notification.md')
     try:
         template = open(template_path).read()
     except OSError:
@@ -315,7 +369,11 @@ def login():
     user_id = request.form.get('user_id', '').upper().strip()
     password = request.form.get('password', '').upper().strip()
 
-    resp = _api_post('/api/auth', {'user_id': user_id, 'password': password})
+    # ⚠ Send the visitor's address. The server audits this sign-in but cannot
+    # see who made it — its peer is this container — so an unsent address is
+    # recorded as the website itself.
+    resp = _api_post('/api/auth', {'user_id': user_id, 'password': password,
+                                   'ip': _client_ip()})
     if resp.status_code != 200:
         flash('Invalid User ID or password.', 'error')
         return render_template('login.html', user_id=user_id)
@@ -585,7 +643,7 @@ def admin_partyline_log():
     per_page = 50
 
     # Read partyline log directly (it's on the same filesystem in Docker)
-    log_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'data', 'partyline.jsonl')
+    log_path = _server_path('server', 'data', 'partyline.jsonl')
     entries = []
     if os.path.exists(log_path):
         with open(log_path, 'r') as f:
@@ -612,7 +670,7 @@ def admin_partyline_log():
 # Password Reset
 # ============================================================
 
-RESETS_FILE = os.path.join(os.path.dirname(__file__), '..', 'server', 'cfg', 'password-resets.json')
+RESETS_FILE = _server_path('server', 'cfg', 'password-resets.json')
 
 
 def _load_resets():
@@ -660,7 +718,7 @@ def forgot_password():
             _save_resets(resets)
 
             reset_url = f'{config.get("WEBSITE_BASE_URL", "http://localhost:6464")}/reset-password/{token}'
-            template_path = os.path.join(os.path.dirname(__file__), '..', 'server', 'cfg', 'password-reset.md')
+            template_path = _server_path('server', 'cfg', 'password-reset.md')
             try:
                 template = open(template_path).read()
             except OSError:
@@ -676,7 +734,7 @@ def forgot_password():
                 subject='Compunet Reborn — Password Reset',
                 body_html=body_html,
             )
-            _audit_event('password_reset_request', user=user_id, ip=request.remote_addr)
+            _audit_event('password_reset_request', user=user_id, ip=_client_ip())
 
     return render_template('forgot_password.html')
 
@@ -713,7 +771,7 @@ def reset_password(token):
     if resp.status_code == 200:
         del resets[token]
         _save_resets(resets)
-        _audit_event('password_reset', user=entry['user_id'], ip=request.remote_addr)
+        _audit_event('password_reset', user=entry['user_id'], ip=_client_ip())
         flash('Password reset successfully. You can now log in.', 'success')
         return redirect(url_for('login'))
     else:
