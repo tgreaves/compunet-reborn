@@ -11,6 +11,12 @@
 	  operators' own one-line descriptions, as the live system listed them
 	  c.1987. It records what Compunet actually held, area by area, and which
 	  areas were open for user uploads.
+* C64 client:
+	* Fixed: the client banner reading `COMPUNET REBORN 1.0.0` whatever version
+	  you were actually running. The version is baked into the binary at build
+	  time, and the released binaries had not been rebuilt since 1.0.0, so every
+	  release since displayed that same number on connecting. It now shows the
+	  version it was built from.
 * Website / client:
 	* Fixed: advert lines at the foot of a directory sitting slightly off
 	  centre. The client was centring text the author had already centred,
