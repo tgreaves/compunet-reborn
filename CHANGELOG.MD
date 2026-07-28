@@ -1,3 +1,12 @@
+# 1.2.2 (unreleased)
+
+* Website / client:
+	* Fixed: advert lines at the foot of a directory sitting slightly off
+	  centre. The client was centring text the author had already centred,
+	  shifting each line right by a differing amount. The original C64 client
+	  cannot centre — it prints these lines exactly as sent — so positioning is
+	  the author's, using leading spaces.
+
 # 1.2.1 (2026-07-28)
 
 * Website:

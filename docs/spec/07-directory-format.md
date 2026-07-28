@@ -289,7 +289,28 @@ right-hand column, and the column-cycle indicator; the parts overlay onto it:
 | 7 | Breadcrumb line 1, aligned with the entry columns (left) | Part 4 |
 | 8 | Breadcrumb line 2, e.g. `100 WELCOME`, same alignment (left); **selected column header** e.g. `PRICE` (right column, one column in — see below) | Part 4 / Part 5 |
 | 10–20 | The entry list — up to 11 entries, one per row (see below) | Part 6 (+ selected Part 5 column) |
-| 22–23 | Footer / advert — Part 2's two lines, **centred** on their rows | Part 2 |
+| 22–23 | Footer / advert — Part 2's two lines, **verbatim from column 0** (⚠ *not* centred — see below) | Part 2 |
+
+**⚠ The footer / advert is drawn VERBATIM from column 0 — a client MUST NOT centre it
+(normative).** Earlier revisions of this table said "centred on their rows". That was wrong,
+and it is the kind of wrong that looks like a courtesy: the two lines are printed exactly as
+Part 2 delivers them, and **any positioning is the author's**, expressed as leading spaces.
+
+Verified in the vintage binaries. Centring requires computing `(40 − length) / 2`, and across
+**both** originals — the 8 KB ROM and the 7,699-byte terminal — there is not a single
+instruction that halves a value, nor a division routine to call. Every `$4A`/`$6A` byte in them
+is a `J` inside a string or the low byte of an address operand; the only genuine shifts are four
+consecutively to print a hex nibble, and one `LDA #$00 / ROR` building a flag. The original
+does not centre differently from us — **it cannot centre at all.**
+
+Two consequences a client author should keep in mind:
+
+- **Re-centring an already-centred line moves it.** Authors centre by padding, so a client that
+  also centres adds the padding twice and shifts the text right — by a different amount per
+  line, which makes the two rows look misaligned with each other rather than merely offset.
+- **Centring is lossy.** Because Part 2 arrives as typed, an author can left-align, right-align
+  or indent deliberately. A client that centres takes that away and offers no means to express
+  it.
 
 **Breadcrumb alignment.** Part 4's two lines are **not** drawn at column 1. They share the
 entry columns: the leading **page number is right-justified** in the same left column the entry

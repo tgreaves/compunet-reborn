@@ -137,6 +137,11 @@ marked **⚠** are the ones known to have been got wrong in practice.
       (§8.4.3). Both look plausible; only one matches.
 - [ ] **⚠ Right-pane content rendered verbatim** from column 31 — the server's leading spaces and
       right-justification are the positioning; do not re-justify (§7.3).
+- [ ] **⚠ Footer / advert drawn verbatim from column 0, NOT centred** (§7.7). The original has no
+      instruction that halves a value in either binary, so it cannot centre; authors position
+      these lines with leading spaces. Centring re-centres already-padded text and shifts it
+      right by a different amount on each line — which reads as "the advert is slightly off"
+      rather than as a client bug.
 - [ ] **Page number shown only on the selected row**, right-justified to column 6 (§7.7) — and
       **never for the `(EMPTY)` placeholder**, whose page and type columns are both blank (§7.3).
       A `0` there advertises a page that does not exist; a `T` announces a text page, in a listing

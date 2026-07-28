@@ -142,8 +142,7 @@ var Renderer = class {
       if (val) this.put(g, row, 31, val, fg, bg, rv);
     });
     (dir2.advert || []).slice(0, 2).forEach((line, i) => {
-      const col = Math.max(0, Math.floor((COLS - line.length) / 2));
-      this.put(g, 22 + i, col, line, BLUE, TEMPLATE_BG);
+      this.put(g, 22 + i, 0, line, BLUE, TEMPLATE_BG);
     });
     this.renderGrid(g, TEMPLATE_BG);
     this.setBorder(this.assets.template.border);

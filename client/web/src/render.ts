@@ -190,9 +190,22 @@ export class Renderer {
       if (val) this.put(g, row, 31, val, fg, bg, rv);
     });
 
+    // ⚠ VERBATIM from column 0 — do NOT centre. The original cannot: across
+    // both vintage binaries (the 8K ROM and the 7,699-byte terminal) there is
+    // not one instruction that halves a value, and centring needs
+    // (40 - length) / 2. Every apparent `LSR A`/`ROR A` byte is a `J` in a
+    // string or an address low-byte; the only genuine shifts are four in a row
+    // to print a hex nibble, and a `LDA #$00 / ROR` building a flag.
+    //
+    // Positioning is the AUTHOR'S, expressed as leading spaces — the live
+    // advert is padded by 3 and 5. Centring here re-centred the already-padded
+    // string and pushed it right by 1 and 3 columns, which is what made the two
+    // lines look unevenly placed against each other.
+    //
+    // Centring is also lossy: the server sends Part 2 as typed, so an author
+    // can left- or right-align by padding — unless the client overrides them.
     (dir.advert || []).slice(0, 2).forEach((line, i) => {
-      const col = Math.max(0, Math.floor((COLS - line.length) / 2));
-      this.put(g, 22 + i, col, line, BLUE, TEMPLATE_BG);
+      this.put(g, 22 + i, 0, line, BLUE, TEMPLATE_BG);
     });
 
     this.renderGrid(g, TEMPLATE_BG);
