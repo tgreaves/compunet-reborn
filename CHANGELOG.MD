@@ -1,31 +1,17 @@
 # 1.2.1 (unreleased)
 
 * **Website**:
-	* The `COMPUNET REBORN` heading sits beside the menu again for signed-in
-	  administrators, instead of dropping onto its own line above it. The admin
-	  menu carries one item more than everyone else's, which pushed the header a
-	  single pixel past the width available and sent the whole menu to a second
-	  row. (#115)
-	* The admin **Partyline log** shows its entries in a Docker deployment. It
-	  reads the log straight from disk, and the supplied `docker-compose.yml`
-	  mounts that log somewhere the site was not looking — so the page came up
-	  empty with nothing to say why. It now finds the log wherever it is
-	  mounted, whether the site is running from a container or a source
-	  checkout. (#117)
-	* **Password resets now appear in the admin audit log.** Requests and
-	  completions are recorded with the user and the originating IP — the trail
-	  you want when an account may have been taken over. The website had been
-	  writing these to a file inside its own container, so under Docker they
-	  were discarded the next time it restarted and never reached the log at
-	  all. (#117)
+	* The `COMPUNET REBORN` heading no longer drops onto its own line for
+	  signed-in administrators. (#115)
+	* The admin Partyline log shows its entries in a Docker deployment; it came
+	  up empty. (#117)
+	* Password resets are recorded in the admin audit log, with the user and
+	  originating IP. They were previously discarded. (#117)
 * **Running your own server**:
-	* **The admin REST API is no longer published on the host.** Port 6403
-	  manages users, the audit log and broadcasts, and is only ever used by the
-	  website over the internal network — as the README has always said it
-	  should be. The supplied `docker-compose.yml` published it anyway, so
-	  anything able to reach the machine could reach an admin surface. (#117)
-	* `docker-compose.yml` now documents `COMPUNET_CLIENT_URL`. Without it a new
-	  deployment's website has no working link to its own client. (#117)
+	* The admin REST API (6403) is no longer published on the host. Only the
+	  website uses it, over the internal network. (#117)
+	* `docker-compose.yml` documents `COMPUNET_CLIENT_URL`; without it the site
+	  has no link to its own client. (#117)
 
 # 1.2.0 (2026-07-27)
 
