@@ -1,3 +1,12 @@
+# 1.2.1 (unreleased)
+
+* **Website**:
+	* The `COMPUNET REBORN` heading sits beside the menu again for signed-in
+	  administrators, instead of dropping onto its own line above it. The admin
+	  menu carries one item more than everyone else's, which pushed the header a
+	  single pixel past the width available and sent the whole menu to a second
+	  row. (#115)
+
 # 1.2.0 (2026-07-27)
 
 Opens Compunet Reborn to modern clients, and pins down how to build one.
