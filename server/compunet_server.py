@@ -3212,13 +3212,19 @@ async def api_auth(request):
     async with _lock_users:
         users = _api_load_users()
 
+    # ⚠ BOTH failure branches audit. Only logging a wrong password misses the
+    # attack that matters most: someone working through a list of user ids,
+    # every attempt of which lands on the unknown-user branch and would leave
+    # no trace at all.
+    client_ip = body.get('ip') or request.remote
     user = users.get(user_id)
     if user is None:
+        audit_log('login_failed', user=user_id, ip=client_ip, reason='no such user')
         return aiohttp_web.json_response({'error': 'invalid credentials'}, status=401)
 
     password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
     if user['password'] != password_hash:
-        audit_log('login_failed', user=user_id, ip=body.get('ip') or request.remote)
+        audit_log('login_failed', user=user_id, ip=client_ip, reason='bad password')
         return aiohttp_web.json_response({'error': 'invalid credentials'}, status=401)
 
     # ⚠ The website's own sign-in was not audited AT ALL: of 6,567 entries there
@@ -3230,7 +3236,7 @@ async def api_auth(request):
     # its peer here is the website container. The website resolves the real
     # address from its own forwarded headers and passes it; `request.remote` is
     # only the fallback, and names the website itself.
-    audit_log('login', user=user_id, ip=body.get('ip') or request.remote)
+    audit_log('login', user=user_id, ip=client_ip)
     return aiohttp_web.json_response(_api_user_public(user_id, user))
 
 
