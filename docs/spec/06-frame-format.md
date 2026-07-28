@@ -83,6 +83,19 @@ A client **MUST** implement this loop (or an equivalent producing the same cell 
 **MUST** stop at the `$00` terminator regardless of any remaining bytes in the current
 packet, and **MUST** decode the RLE runs with the `1 + N` semantics of §6.4.
 
+**⚠ The `$00` terminator ends a FRAME, not a FILE (normative).** The rule above applies to a
+frame arriving on the **wire**, where one DAT stream (§6.1) carries one frame and the terminator
+is therefore also the end of the data. It does **not** apply to frames in **local storage**: a
+stored file may hold several complete frames written back-to-back — each
+`[4-byte header][body][$00]` — with **no count, no index and no container**. A client reading
+local storage **MUST** continue parsing after a `$00`, treat the bytes that follow as the next
+frame's header, and end only at **end of file**. A reader that stops at the first terminator
+loads the first page of a multi-page file and reports success, which is why the distinction is
+called out here rather than left to §8.4.4.
+
+The storage layout — including the boundary encoding and the `$01` substitution, both of which a
+naive reader gets wrong — is specified in §8.4.4 ([§8 — Subsystems](08-subsystems.md)).
+
 **Initial text colour.** A frame's body **SHOULD** set the text colour with a colour control
 (§5.6) before printing text, and Compunet frames do so at the start of the body (typically
 right after the charset byte). The text colour that applies *before* any colour control is

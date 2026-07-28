@@ -122,6 +122,15 @@ marked **⚠** are the ones known to have been got wrong in practice.
 - [ ] **⚠ The editor opens with no session.** Close the connection (or don't make one) and reach
       it: compose, `PUT`, `STORE`, `GET`, `FREE`, `HELP` must all work offline (§8.4). Then
       reconnect — **is the buffer still there?** Clearing it on disconnect is the known failure.
+- [ ] **⚠ `GET` reads a stored file to END OF FILE, not to the first `$00`** (§8.4.4, §6.3).
+      `STORE` several pages, then `GET` the file back: do **all** of them return? A reader that
+      applies §6.3's wire rule to a file loads **page 1 of N and reports success** — nothing
+      errors, so this passes casual inspection. Check the boundary handling too: frames are
+      separated by the terminator **immediately followed by** the next frame's flags byte, so a
+      reader that assumes one byte between bodies parses everything after the first frame one byte
+      out. **Round-tripping your own files does not test this** — write `$01` into a body and
+      confirm the page truncates on load, or better, test against a file written by a real C64,
+      which is the only place the `$01`→`$00` substitution shows up.
 
 ## C. Display fidelity
 

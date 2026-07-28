@@ -11,11 +11,10 @@
 > (`client/c64/src/compunet.s`).
 >
 > **⚠ Every frame asset here carries its own 4-byte header and is parsed as-is.** A client
-> supplies nothing and **MUST NOT** prepend a header of its own. Earlier revisions said §A.8 and
-> §A.9 were *body-only* — true of the hand-retyped files those revisions carried, not of the
-> originals, which are now extracted from the vintage binaries. (Directory **Part-1 headers**,
-> served from content files rather than embedded here, genuinely are body-only. Different asset,
-> different rule — don't carry one over to the other.)
+> supplies nothing and **MUST NOT** prepend a header of its own — including for §A.8 and §A.9,
+> which are **not** body-only. (Directory **Part-1 headers**, served from content files rather
+> than embedded here, genuinely are body-only. Different asset, different rule — don't carry one
+> over to the other.)
 
 ## §A.1 — Command table
 
@@ -682,14 +681,11 @@ few frames that is genuinely **mixed case**, which is why the `$0E` matters here
 The ink is **blue (`$1F`)** for headings and **brown (`$95`)** for body text — three colour
 switches in the whole frame. Spaces are compressed with the §6.4 space-run code `$06`.
 
-**⚠ Earlier revisions of this appendix carried a hand-retyped body instead, and every guess in
-it was wrong.** That version was transcribed from a *rendered screen* rather than the byte
-stream, so it lost the `$06` runs (583 bytes against the original's 470), spelled `At Connect` as
-`AT CONNECT`, and used **cyan** ink where the original uses **brown** — thirteen colour switches
-against three. Because it had no header, this appendix instructed clients to invent one, and the
-invented `$F4`/`$FF` gave a purple border on a light-grey page. Rendered against a photograph of
-the real screen the result was cyan text on a cyan background: invisible. Do not reconstruct
-these frames from a screenshot; extract them from the binary.
+**⚠ Never reconstruct these frames from a screenshot — extract them from the binary.** A body
+retyped from a rendered screen loses the `$06` runs, guesses at the colour switches and case, and
+carries no header, so the border and background have to be invented too. The failure is not
+subtle when it lands: the wrong surround can put the ink and the background at the same colour
+and render the frame invisible.
 
 A client **SHOULD** display it in the reading context, and **MUST NOT** send a command either to
 obtain it **or to leave it**. It is a single frame with no further pages, so §4.8's rule for that
@@ -777,17 +773,14 @@ substitute its own key reference rather than display this one verbatim — showi
 
 **These are the original bytes, from the ROM at `$9589`**, and as in §A.8 they are a complete §6
 frame rendered **raw**. The header `00 F6 FC 0E` is *no more pages*, **border 6 (blue)**,
-**background 12 (mid grey)**, *lowercase/mixed charset* — a different surround from §A.8, which
-is worth noting because a previous revision of this appendix assumed the two shared one.
+**background 12 (mid grey)**, *lowercase/mixed charset*. ⚠ That is a **different surround from
+§A.8** — do not assume the two help frames share one.
 
 Ink is **blue** and **brown**, the same pair §A.8 uses.
 
-**⚠ This section previously carried a retyped body (314 bytes) and told clients to prepend
-`[$00][$F4][$FF][$0E]`, flagging the border and background as “the one unverified value in this
-appendix”.** Both are now verified from the ROM and both were wrong. The retyped body also
-mis-paired the actions: it printed `overwrite` beneath `change case`, making `SHIFT`-`C=` a
-change-case-and-overwrite key. The original pairs them the other way — `SHIFT`-`C=` is
-*change case*, and `f6` is *On/Off colour overwrite*, one action wrapped across two lines.
+**⚠ Note which key does what:** `SHIFT`-`C=` is *change case*, and `f6` is *On/Off colour
+overwrite* — one action wrapped across two lines in the frame. Read from the rendered layout they
+are easy to mis-pair into a single change-case-and-overwrite key, which does not exist (§8.4.3).
 
 Reproduced verbatim below (299 bytes) so this specification stays self-contained; it is also kept
 in the repository as `server/cfg/editor-help.pet`.

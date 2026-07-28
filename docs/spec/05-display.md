@@ -99,24 +99,16 @@ take — they embed the C64 character ROM.)*
 
 ## 5.5 Colour palette
 
-Colour uses the **standard C64 16-colour palette**, indexed 0–15:
-
-| Idx | Colour | | Idx | Colour |
-|---|---|---|---|---|
-| 0 | black | | 8 | orange |
-| 1 | white | | 9 | brown |
-| 2 | red | | 10 | light red |
-| 3 | cyan | | 11 | dark grey (grey 1) |
-| 4 | purple | | 12 | medium grey (grey 2) |
-| 5 | green | | 13 | light green |
-| 6 | blue | | 14 | light blue |
-| 7 | yellow | | 15 | light grey (grey 3) |
+Colour uses the **standard C64 16-colour palette**, indexed 0–15. The palette — the index,
+name and RGB value of each colour — is tabulated once, in §A.3
+([Appendix §A](99-appendices.md)); this section defines how those indices are used.
 
 - The **border** and **background** colours come from the frame header (§6) as a colour
   index in the low nibble of each header byte.
 - The **text colour** of subsequent cells is set by the colour control codes (§5.6) and
   applies until the next colour code.
-- The exact RGB values for each index are given in [Appendix §A](99-appendices.md).
+- There is **one background register for the whole screen** — a cell has a foreground colour
+  and a reverse-video bit, but no background of its own (§7.7).
 
 *(Non-normative: the Amiga client stores an internal index→hardware-pen remap because its
 screen pens are not ordered in C64 index order; that remap is a platform detail and does
@@ -212,8 +204,7 @@ deletes the character to the *left* of the cursor and shifts the rest of the lin
 inserts a space at the cursor and shifts the rest of the line right, discarding whatever falls
 off column 39. They exist because frames are authored on a C64, but **no frame in this system
 uses them** — a client **MAY** treat both as no-ops, and the reference renderers do. They are
-listed for completeness, not as an obligation. (VALIDATION.md, F34: previously listed by name
-with no behaviour at all, which reads as an unimplemented requirement.)
+listed for completeness, not as an obligation.
 
 ### 5.6.1 The auto-wrap guard (important)
 
