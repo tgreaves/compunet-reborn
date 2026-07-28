@@ -135,24 +135,32 @@ def _server_path(*parts):
     return container
 
 
-AUDIT_LOG_PATH = _server_path('server', 'data', 'audit.jsonl')
-
 def _audit_event(event, user=None, **details):
-    """Append an event to the shared audit log."""
-    import datetime
-    entry = {
-        'time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'event': event,
-    }
-    if user:
-        entry['user'] = user
-    entry.update(details)
+    """Record an event in the shared audit log, via the server that owns it.
+
+    ⚠ This POSTs rather than writing the file, and that is deliberate. The
+    website runs in its own container with `server/data` mounted READ-ONLY —
+    it is the internet-facing half of the deployment and has no business
+    writing to the content, mail or config trees. It already READS this log
+    through the API (the admin audit page); writing goes the same way.
+
+    It used to append to a path of its own, which under Docker resolved inside
+    this container and vanished on the next recreate. Both events this function
+    records — `password_reset_request` and `password_reset`, with user and IP —
+    had therefore never once survived: 0 of the 6,566 entries in the live log.
+    Precisely the trail you want when investigating a stolen account.
+
+    Failure is logged, never raised: an audit write must not be able to break a
+    password reset for the user in front of us.
+    """
     try:
-        os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
-        with open(AUDIT_LOG_PATH, 'a') as f:
-            f.write(json.dumps(entry) + '\n')
-    except OSError:
-        app.logger.warning('Failed to write audit log entry: %s', entry)
+        resp = _api_post('/api/audit', {'event': event, 'user': user,
+                                        'details': details})
+        if resp.status_code != 200:
+            app.logger.warning('Audit event %s rejected: %s %s',
+                               event, resp.status_code, resp.text[:200])
+    except requests.RequestException as e:
+        app.logger.warning('Audit event %s not recorded: %s', event, e)
 
 
 def _hash_password(password):

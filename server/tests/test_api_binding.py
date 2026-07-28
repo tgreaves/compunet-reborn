@@ -746,5 +746,102 @@ class PersistenceRoundTrip(unittest.TestCase):
         self.assertIn('directory', self._jungle_entry(MORE_DIR))
 
 
+class AuditWriteEndpoint(unittest.TestCase):
+    """POST /api/audit — the website records events through the server, because
+    it cannot write the file and should not be able to.
+
+    ⚠ Before this endpoint existed the website appended to a path of its own,
+    which under Docker resolved inside its own container and vanished on the
+    next recreate. `password_reset_request` and `password_reset` — user and IP —
+    had therefore never once been recorded: 0 of 6,566 entries in the live log.
+    """
+
+    KEY = 'test-key-1234'
+
+    def setUp(self):
+        import asyncio
+        self._tmp = tempfile.mkdtemp(prefix='compunet-audit-')
+        self._saved_path = srv.AUDIT_LOG_PATH
+        self._saved_key = os.environ.get('COMPUNET_API_KEY')
+        srv.AUDIT_LOG_PATH = os.path.join(self._tmp, 'audit.jsonl')
+        os.environ['COMPUNET_API_KEY'] = self.KEY
+        self._loop = asyncio.new_event_loop()
+
+    def tearDown(self):
+        srv.AUDIT_LOG_PATH = self._saved_path
+        if self._saved_key is None:
+            os.environ.pop('COMPUNET_API_KEY', None)
+        else:
+            os.environ['COMPUNET_API_KEY'] = self._saved_key
+        self._loop.close()
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _post(self, body, auth=True, raw=None):
+        from aiohttp import web
+        from aiohttp.test_utils import TestClient, TestServer
+
+        async def run():
+            app = web.Application()
+            app.router.add_post('/api/audit', srv.api_post_audit)
+            cl = TestClient(TestServer(app))
+            await cl.start_server()
+            hdr = {'Authorization': 'Bearer %s' % self.KEY} if auth else {}
+            if raw is not None:
+                r = await cl.post('/api/audit', data=raw, headers=hdr)
+            else:
+                r = await cl.post('/api/audit', json=body, headers=hdr)
+            status = r.status
+            await cl.close()
+            return status
+
+        return self._loop.run_until_complete(run())
+
+    def _stored(self):
+        import json
+        if not os.path.exists(srv.AUDIT_LOG_PATH):
+            return []
+        return [json.loads(l) for l in open(srv.AUDIT_LOG_PATH) if l.strip()]
+
+    def test_requires_the_api_key(self):
+        """It writes to the security log — an unguarded writer lets anyone
+        forge the record of a password reset."""
+        self.assertEqual(self._post({'event': 'x'}, auth=False), 401)
+        self.assertEqual(self._stored(), [])
+
+    def test_rejects_a_missing_event(self):
+        self.assertEqual(self._post({'event': ''}), 400)
+        self.assertEqual(self._post({}), 400)
+        self.assertEqual(self._stored(), [])
+
+    def test_rejects_malformed_json(self):
+        self.assertEqual(self._post(None, raw='not json'), 400)
+
+    def test_records_the_event(self):
+        self.assertEqual(self._post({'event': 'password_reset_request',
+                                     'user': 'TEST',
+                                     'details': {'ip': '10.0.0.9'}}), 200)
+        entries = self._stored()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]['event'], 'password_reset_request')
+        self.assertEqual(entries[0]['user'], 'TEST')
+        self.assertEqual(entries[0]['ip'], '10.0.0.9')
+        self.assertIn('time', entries[0])
+
+    def test_a_caller_cannot_forge_time_or_event(self):
+        """⚠ `details` is filtered, not spread wholesale. Letting a caller set
+        `time` would let it claim a reset happened at a different hour, which
+        is exactly what an audit log exists to prevent."""
+        self.assertEqual(self._post({'event': 'password_reset', 'user': 'TEST',
+                                     'details': {'time': 'FORGED',
+                                                 'event': 'evil',
+                                                 'user': 'SOMEONE_ELSE',
+                                                 'ip': '10.0.0.9'}}), 200)
+        e = self._stored()[0]
+        self.assertNotEqual(e['time'], 'FORGED')
+        self.assertEqual(e['event'], 'password_reset')
+        self.assertEqual(e['user'], 'TEST')
+        self.assertEqual(e['ip'], '10.0.0.9')
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

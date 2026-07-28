@@ -3566,6 +3566,41 @@ async def api_get_audit(request):
     return aiohttp_web.json_response({'entries': entries, 'total': total})
 
 
+async def api_post_audit(request):
+    """POST /api/audit — record an audit event on behalf of the website.
+
+    ⚠ The website cannot write this file, and should not be able to. It runs in
+    its own container with `server/data` mounted READ-ONLY, because it is the
+    internet-facing half of the deployment and has no business writing to the
+    content, mail or config trees. So it asks the owner of the log to append,
+    exactly as it already asks for the log to be READ (GET above).
+
+    Until this existed the website wrote straight to a path of its own, which in
+    Docker resolved inside its container and vanished on the next recreate. The
+    result: `password_reset_request` and `password_reset` — user and IP, the two
+    events you most want when investigating a stolen account — had never once
+    been recorded. The GET docstring above claims the log covers password
+    resets; it did not, and this is what makes that true.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return aiohttp_web.json_response({'error': 'invalid json'}, status=400)
+    event = str(body.get('event', '')).strip()
+    if not event:
+        return aiohttp_web.json_response({'error': 'event is required'}, status=400)
+    user = body.get('user')
+    # ⚠ Only the caller's own fields — never spread the whole body into the
+    # entry, or a caller could overwrite `time` and forge when something
+    # happened.
+    details = {k: v for k, v in (body.get('details') or {}).items()
+               if k not in ('time', 'event', 'user')}
+    audit_log(event, user=user, **details)
+    return aiohttp_web.json_response({'ok': True})
+
+
 # ============================================================
 # Main
 # ============================================================
@@ -3592,6 +3627,7 @@ async def main():
         app.router.add_delete('/api/pending/{token}', api_consume_pending)
         app.router.add_post('/api/broadcast', api_broadcast)
         app.router.add_get('/api/audit', api_get_audit)
+        app.router.add_post('/api/audit', api_post_audit)
         app.router.add_get('/ws/partyline', api_ws_partyline)
         runner = aiohttp_web.AppRunner(app)
         await runner.setup()

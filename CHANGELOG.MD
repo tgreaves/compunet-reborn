@@ -12,6 +12,12 @@
 	  empty with nothing to say why. It now finds the log wherever it is
 	  mounted, whether the site is running from a container or a source
 	  checkout. (#117)
+	* **Password resets now appear in the admin audit log.** Requests and
+	  completions are recorded with the user and the originating IP — the trail
+	  you want when an account may have been taken over. The website had been
+	  writing these to a file inside its own container, so under Docker they
+	  were discarded the next time it restarted and never reached the log at
+	  all. (#117)
 * **Running your own server**:
 	* **The admin REST API is no longer published on the host.** Port 6403
 	  manages users, the audit log and broadcasts, and is only ever used by the
