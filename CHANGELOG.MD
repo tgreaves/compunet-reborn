@@ -6,6 +6,20 @@
 	  menu carries one item more than everyone else's, which pushed the header a
 	  single pixel past the width available and sent the whole menu to a second
 	  row. (#115)
+	* The admin **Partyline log** shows its entries in a Docker deployment. It
+	  reads the log straight from disk, and the supplied `docker-compose.yml`
+	  mounts that log somewhere the site was not looking — so the page came up
+	  empty with nothing to say why. It now finds the log wherever it is
+	  mounted, whether the site is running from a container or a source
+	  checkout. (#117)
+* **Running your own server**:
+	* **The admin REST API is no longer published on the host.** Port 6403
+	  manages users, the audit log and broadcasts, and is only ever used by the
+	  website over the internal network — as the README has always said it
+	  should be. The supplied `docker-compose.yml` published it anyway, so
+	  anything able to reach the machine could reach an admin surface. (#117)
+	* `docker-compose.yml` now documents `COMPUNET_CLIENT_URL`. Without it a new
+	  deployment's website has no working link to its own client. (#117)
 
 # 1.2.0 (2026-07-27)
 
