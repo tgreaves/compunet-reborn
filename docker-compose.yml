@@ -1,3 +1,7 @@
+# Reference deployment. The dev host (docker.lan) and production both derive
+# from this file — keep the three in step. Where a volume lands decides which
+# paths the code can resolve, so a difference between hosts means a bug that
+# appears in only one of them (#117).
 services:
   compunet-server:
     container_name: compunet-server
@@ -5,10 +9,17 @@ services:
       context: .
       dockerfile: server/Dockerfile
     ports:
-      - "6400:6400"
-      - "6401:6401"
-      - "6403:6403"
-      - "6404:6404"
+      # Published deliberately — these are the services users reach:
+      - "6400:6400"     # C64 / Amiga clients (X.25 over TCP)
+      - "6401:6401"     # PETSCII terminal
+      - "6404:6404"     # client API, Binding B (the web / desktop client)
+    expose:
+      # ⚠ NOT published. 6403 is the ADMIN REST API — user management, the audit
+      # log, broadcasts. Its only consumer is the website container, which
+      # reaches it over this compose network as COMPUNET_API_URL. Publishing it
+      # puts an admin surface on the host for no benefit, and it was reachable
+      # without an API key until 1.2.0.
+      - "6403"
     volumes:
       - ./server/cfg:/app/cfg
       - ./server/data:/app/data
@@ -25,12 +36,22 @@ services:
     ports:
       - "6464:6464"
     volumes:
+      # ⚠ Load-bearing, not a convenience. `server/data` MUST land at
+      # /app/server/data: the Dockerfile puts app.py at /app, and the admin
+      # partyline page reads that log straight off the filesystem rather than
+      # through the API. Omit the mount and the page silently shows nothing,
+      # which is exactly how it stayed broken on the dev host while working in
+      # production (#117).
       - ./website/templates:/app/templates
       - ./website/static:/app/static
       - ./website/app.py:/app/app.py:ro
       - ./server/data:/app/server/data:ro
       - ./.env:/app/.env:ro
     environment:
+      # Where the website sends people for the client. Per-deployment:
+      # production points at connect.compunet.live, the dev host at
+      # connect-dev.compunet.live. Without it the site has no working link.
+      - COMPUNET_CLIENT_URL=https://connect.compunet.live
       - COMPUNET_API_URL=http://compunet-server:6403
       - TZ=Europe/London
     depends_on:
