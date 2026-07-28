@@ -1,4 +1,4 @@
-# 1.2.1 (unreleased)
+# 1.2.1 (2026-07-28)
 
 * Website:
 	* Fixed: navigation bar falling onto two lines when logged in as an admin
