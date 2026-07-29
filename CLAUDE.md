@@ -48,12 +48,12 @@ you rely on MUST be confirmed against ground truth before you write or change co
 
 ## Client Rules
 
-0. **Before building anything, read [REQUIREMENTS.md](REQUIREMENTS.md).** It records which
-   toolchains are installed on this machine and which are **not** — the C64 toolchain (cc65,
-   VICE, `make`) is absent, so a `make` failure there is a missing component, not a bug to
-   debug. It also carries the platform traps that cost an afternoon each: the Windows CRLF
-   line-ending problem that changes the C64 version hash, electron-builder's `winCodeSign`
-   symlink failure, and the file lock that makes packaging hang silently.
+0. **Before building anything, read [REQUIREMENTS.md](REQUIREMENTS.md).** It lists the toolchain
+   each component needs and how to check it is present — a build that fails for a missing
+   `ca65`, `make` or `c1541` is a component to install, not a bug to debug. It also carries the
+   platform traps that cost an afternoon each: the Windows CRLF line endings that change the C64
+   version hash, electron-builder's `winCodeSign` symlink failure, and the file lock that makes
+   packaging hang silently.
 
 1. The client must ALWAYS be rebuilt after any change to `client/c64/src/compunet.s`. Build with `make` in `client/c64/src/`. The output is `client/c64/compunet-reborn.prg`.
 2. The client embeds a hash of `compunet.s` at build time and the server verifies it matches `server/cfg/client_version.txt`. The build script (`gen_version.py`) derives both from the source file content, so they stay in sync automatically. The hash only changes when the client source changes — server-only commits don't require a client rebuild. When client code changes: `make clean && make` in `client/c64/src/`, then commit source + binaries + `server/cfg/client_version.txt` together.
