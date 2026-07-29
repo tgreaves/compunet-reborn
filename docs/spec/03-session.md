@@ -147,6 +147,22 @@ client **MUST** be prepared to render this frame and handle the close.
 **MUST** consume and (at Tier 1) render it. The user is now logged in and the session
 enters the online phase.
 
+**⚠ The welcome frame is sent ONCE, and this is the only time it is ever visible.** It is not
+a page: it has no page number, `GOTO` cannot reach it, and no command redisplays it. Once
+anything replaces the screen — entering a directory, reading a page, the editor, Partyline —
+it is gone for the rest of the session. Leaving the editor sends `P`, which returns the
+**directory listing**, not the welcome frame.
+
+A client therefore **MUST NOT** offer a route "back" to it, and **MUST NOT** treat it as a home
+screen to return to on `FINISH` or `BACK`; there is no command that would fetch it. A client
+that wants it available afterwards **MUST** keep its own copy of the rendered frame — nothing on
+the wire will send it again. (The reference client does **not**: pages are captured into the
+editor buffer as they are read (§8.4.2), but the welcome frame arrives in the `ready` message
+rather than as a page, so it is not among them and is genuinely gone once replaced.)
+
+This is inherited from the original and is deliberate rather than an oversight: the frame is a
+greeting delivered at the moment of connection, not a destination.
+
 ## 3.6 LINKING (ROM clients only)
 
 For a ROM / C64 client, the server follows the welcome frame with the **LINKING** stream —

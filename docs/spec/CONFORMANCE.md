@@ -171,6 +171,10 @@ marked **⚠** are the ones known to have been got wrong in practice.
 - [ ] **⚠ RLE counts are `1 + N`** (§6.4), and a control byte inside a `$07` run repeats the
       *action*, not the glyph.
 - [ ] **Welcome frame persists after login** until the user acts; `DIR` reaches the root (§4.7).
+      And once anything replaces it, **it is gone** (§3.5) — it is sent once and no command
+      brings it back. Check you have not offered a route to it: a "home" button that lands on
+      the top directory instead is an invented command (§4.7), and one that appears to work by
+      re-rendering a cached copy is describing your client, not Compunet.
 
 ## D. Silent-failure traps
 
