@@ -111,6 +111,11 @@ See `.env.example` for required configuration variables.
 
 ## Building from Source
 
+> **Toolchains and known pitfalls: [REQUIREMENTS.md](REQUIREMENTS.md)** — one page covering what
+> each component needs, which toolchains are present on this machine and which are not, and the
+> platform traps (Windows line endings and the C64 version hash, electron-builder's symlink
+> failure, the file lock that hangs packaging).
+
 ### Client
 
 ```bash
