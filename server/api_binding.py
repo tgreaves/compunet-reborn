@@ -193,6 +193,16 @@ def _render_header(session):
         anc = getattr(anc, 'parent', None)
     if not header_file:
         return None
+    return render_header_file(header_file)
+
+
+def render_header_file(header_file):
+    """Render one header file, named relative to ROOT_DIR, or None.
+
+    Split out so the website's header preview (#120) draws from this exact code
+    rather than its own copy — a preview that disagreed with the client about
+    what a header looks like would be worse than no preview.
+    """
     path = os.path.join(_srv.ROOT_DIR, header_file)
     if not os.path.exists(path):
         return None
@@ -473,14 +483,29 @@ def frame_to_cells(raw, msg_id=None):
         b = body[i]; i += 1
         if b == 0x00:                    # terminator (§6.3)
             break
+        # ⚠ An RLE OPERAND of $00 terminates the frame (§6.4), the same as a $00
+        # anywhere else. It is not a zero repeat count.
+        #
+        # This decoder used to read the operand as data, so `$06 $00` rendered
+        # as a single space here while the C64 stopped dead — its Part-1 copy
+        # loop is byte-level and knows nothing about RLE, so it ends the part at
+        # that byte and misreads everything after it as the next part. One file,
+        # two different screens, both clients behaving "correctly" because §6.4
+        # allowed a zero count while §6.3 made $00 the terminator. The spec now
+        # forbids the operand outright; this follows it, so the bindings agree
+        # on input that should never have been sendable in the first place.
         if b == 0x06:                    # space run (§6.4): 1+N spaces
             N = body[i] if i < n else 0; i += 1
+            if N == 0x00:
+                break
             for _ in range(1 + N):
                 place(0x20)
         elif b == 0x07:                  # char/control run (§6.4): c, 1+N times
             c = body[i] if i < n else 0
             N = body[i + 1] if i + 1 < n else 0
             i += 2
+            if c == 0x00 or N == 0x00:
+                break
             for _ in range(1 + N):
                 process(c)
         else:

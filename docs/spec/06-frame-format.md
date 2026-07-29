@@ -119,6 +119,23 @@ characters:
 compressed run. `$06` and `$07` never appear as literal content — they are always RLE
 escapes.
 
+**⚠ No operand byte may be `$00` (normative).** Neither the count `N` nor the run byte `c`
+may be `$00`. An encoder **MUST NOT** emit one, and a decoder that meets one **MUST** treat it
+as the frame terminator (§6.3) — stopping there, exactly as it would for a `$00` outside a run.
+
+Earlier revisions did not say this, and the omission made the specification contradict itself.
+`$06 $00` is "one space" by the `1 + N` rule above, while §6.3 makes `$00` the terminator and
+§6.1 permits a client to end a frame at the first in-band `$00` it finds. Both readings are
+conforming, so the same bytes rendered as a space by one client and as end-of-frame by another
+— and on the C64 the divergence is not theoretical: it copies the directory's Part 1 with a
+byte-level loop that stops at the first `$00` and has no notion of RLE at all, so everything
+after the operand is misread as the following part.
+
+Nothing is lost by forbidding it, which is why the rule can be this blunt: **a zero count is
+always longer than the literal it encodes** — `$06 $00` spends two bytes on the one byte `$20`,
+and `$07 c $00` spends three on one `c`. No encoder that is trying to compress would ever
+choose it, so the ban costs no expressiveness and removes the ambiguity outright.
+
 **The run byte `c` is processed exactly as it would be outside a run** (§6.3): if `c` is a
 printable character it is drawn `1 + N` times; **if `c` is a control code** (§5.6, ranges
 `$00`–`$1F` / `$80`–`$9F`) the **control action is performed `1 + N` times**, not drawn as a

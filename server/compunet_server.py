@@ -29,6 +29,7 @@ Transport:
 """
 
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -40,6 +41,8 @@ import datetime
 from pathlib import Path
 import markdown
 import aiohttp
+import header_frame
+import header_preview
 import partyline
 import terminal
 
@@ -476,9 +479,95 @@ class CompunetDirectory:
                     sum(user_votes.values()) / len(user_votes))
 
 
+def save_directory_tree(root_page, root_dir):
+    """Persist the directory tree to per-directory JSON files.
+
+    ⚠ THE ONLY serializer for the content tree. There used to be two — this one
+    and a copy in `terminal.py` — and they drifted apart in both directions,
+    each dropping a key the other kept:
+
+      * this one never wrote `shortcuts`, so any upload, vote or extend silently
+        deleted root.json's F-key block;
+      * the terminal's copy wrote `open_upload` only when TRUE, discarding a
+        directory's explicit opt-out and reopening it to everyone; omitted
+        `machine_type`, so an Amiga page became a C64 one; and still used the
+        narrow `if child.children` test that this copy documents as a fixed bug.
+
+    Which keys survived a save therefore depended on which subsystem the user
+    happened to be using. Anything the tree gains from here on — a header frame
+    among them — is only as durable as the single worst serializer, so there is
+    now one.
+
+    `root_dir` is passed rather than read from the module global because the
+    tests point the content tree at a fixture copy.
+    """
+    def _save_dir_json(page, json_path):
+        data = {}
+        # Round-trip the flag whenever it is set, including an explicit
+        # `false` — writing back only the truthy case would silently drop a
+        # directory's opt-out and reopen it to everyone (_can_upload_here).
+        if hasattr(page, 'open_upload'):
+            data['open_upload'] = bool(page.open_upload)
+        if hasattr(page, 'header') and page.header:
+            data['header'] = page.header
+        # Loaded at :373/:448 but written by only one of the two former
+        # serializers, so the F-key shortcuts on root.json disappeared the first
+        # time anyone uploaded, voted or extended.
+        if getattr(page, 'shortcuts', None):
+            data['shortcuts'] = page.shortcuts
+        if hasattr(page, '_adverts') and page._adverts:
+            data['adverts'] = page._adverts
+        pages_list = []
+        for child in page.children:
+            node = {
+                'page_num': child.page_num,
+                'title': child.title,
+                'type': child.page_type,
+                'author': child.author,
+                'price': child.price,
+                'life': child.life,
+            }
+            if child.keyword:
+                node['keyword'] = child.keyword
+            if getattr(child, 'dynamic', None):
+                node['dynamic'] = child.dynamic
+            if getattr(child, 'uploaded', None):
+                node['uploaded'] = child.uploaded
+            if getattr(child, 'machine_type', 'c64') != 'c64':
+                node['machine_type'] = child.machine_type  # only write non-default
+            frame_files = getattr(child, '_frame_files', [])
+            if frame_files:
+                node['frames'] = frame_files
+            child_dir = getattr(child, '_dir_path', '')
+            dir_json_path = os.path.join(child_dir, 'directory.json')
+            # ⚠ Keep the sub-directory whenever one EXISTS, not only while it
+            # currently holds children. An authored-but-empty directory is
+            # real — §7.3 lists it with the (EMPTY) placeholder — and the
+            # narrower `if child.children` test DELETED it: the next save
+            # wrote the entry back without its `directory` key, so the
+            # sub-tree became unreachable while its files sat on disk. Found
+            # in the fixture tree after clean-room run 9, where JUNGLE's
+            # GRAPHICS entry lost its directory to an unrelated upload.
+            if not getattr(child, 'dynamic', None) and (
+                    child.children or os.path.exists(dir_json_path)):
+                # Forward slashes: os.path.relpath yields backslashes on
+                # Windows, and those do not resolve on the Linux host that
+                # actually serves this tree.
+                node['directory'] = os.path.relpath(
+                    dir_json_path, root_dir).replace(os.sep, '/')
+                _save_dir_json(child, dir_json_path)
+            pages_list.append(node)
+        data['pages'] = pages_list
+        os.makedirs(os.path.dirname(json_path), exist_ok=True)
+        with open(json_path, 'w') as f:
+            json.dump(data, f, indent=2)
+
+    _save_dir_json(root_page, os.path.join(root_dir, 'root.json'))
+
+
 class CompunetSession:
     """A client session - same logic for WebSocket and TCP clients."""
-    
+
     def __init__(self, directory):
         self.directory = directory
         self.user_id = None
@@ -1894,65 +1983,7 @@ class CompunetSession:
 
     def _save_directory(self):
         """Persist the directory tree to per-directory JSON files."""
-        def _page_slug(title):
-            return title.lower().replace(' ', '-')
-
-        def _save_dir_json(page, json_path):
-            """Write a directory JSON for a page's children."""
-            data = {}
-            # Round-trip the flag whenever it is set, including an explicit
-            # `false` — writing back only the truthy case would silently drop a
-            # directory's opt-out and reopen it to everyone (_can_upload_here).
-            if hasattr(page, 'open_upload'):
-                data['open_upload'] = bool(page.open_upload)
-            if hasattr(page, 'header') and page.header:
-                data['header'] = page.header
-            if hasattr(page, '_adverts') and page._adverts:
-                data['adverts'] = page._adverts
-            pages_list = []
-            for child in page.children:
-                node = {
-                    'page_num': child.page_num,
-                    'title': child.title,
-                    'type': child.page_type,
-                    'author': child.author,
-                    'price': child.price,
-                    'life': child.life,
-                }
-                if child.keyword:
-                    node['keyword'] = child.keyword
-                if getattr(child, 'dynamic', None):
-                    node['dynamic'] = child.dynamic
-                if getattr(child, 'uploaded', None):
-                    node['uploaded'] = child.uploaded
-                if getattr(child, 'machine_type', 'c64') != 'c64':
-                    node['machine_type'] = child.machine_type  # only write non-default
-                frame_files = getattr(child, '_frame_files', [])
-                if frame_files:
-                    node['frames'] = frame_files
-                child_slug = _page_slug(child.title)
-                child_dir = getattr(child, '_dir_path', '')
-                dir_json_path = os.path.join(child_dir, 'directory.json')
-                # ⚠ Keep the sub-directory whenever one EXISTS, not only while it
-                # currently holds children. An authored-but-empty directory is
-                # real — §7.3 lists it with the (EMPTY) placeholder — and the
-                # narrower `if child.children` test DELETED it: the next save
-                # wrote the entry back without its `directory` key, so the
-                # sub-tree became unreachable while its files sat on disk. Found
-                # in the fixture tree after clean-room run 9, where JUNGLE's
-                # GRAPHICS entry lost its directory to an unrelated upload.
-                if not getattr(child, 'dynamic', None) and (
-                        child.children or os.path.exists(dir_json_path)):
-                    node['directory'] = os.path.relpath(dir_json_path, ROOT_DIR)
-                    _save_dir_json(child, dir_json_path)
-                pages_list.append(node)
-            data['pages'] = pages_list
-            os.makedirs(os.path.dirname(json_path), exist_ok=True)
-            with open(json_path, 'w') as f:
-                json.dump(data, f, indent=2)
-
-        root_json_path = os.path.join(ROOT_DIR, 'root.json')
-        _save_dir_json(self.directory.root, root_json_path)
+        save_directory_tree(self.directory.root, ROOT_DIR)
         log.info('DIR: saved directory tree')
 
     def _cmd_ucat(self):
@@ -3630,6 +3661,327 @@ async def api_post_audit(request):
 
 
 # ============================================================
+# Directory header frames (#120)
+#
+# A directory's Part-1 header (§7.2) used to be operator-only, set by hand in a
+# directory JSON. These endpoints let the website offer it to the user who OWNS
+# the directory — the C64 ROM has no room for an upload command and §4.7's
+# vocabulary is closed, so the website is the only place it can live.
+#
+# ⚠ The website cannot do any of this itself: its container mounts server/data
+# READ-ONLY and does not mount server/cfg at all. Same reason POST /api/audit
+# exists.
+#
+# ⚠ Authorization is decided HERE, not by the caller. The API key is
+# all-or-nothing with no notion of which person is behind a request, so the
+# website passes the signed-in user and the server re-checks that they really
+# own the directory. Trusting the caller's word would make the key a
+# write-anything-anywhere credential.
+# ============================================================
+
+def _api_directory_json_path(directory, page):
+    """Where this page's own directory JSON lives.
+
+    The root is the exception: its file is `root.json` at the top of the tree,
+    not a `directory.json` in a sub-folder.
+    """
+    if page is directory.root:
+        return os.path.join(ROOT_DIR, 'root.json')
+    dir_path = getattr(page, '_dir_path', None)
+    return os.path.join(dir_path, 'directory.json') if dir_path else None
+
+
+def _api_is_directory(directory, page):
+    """Does this page act as a directory, i.e. can it draw a header at all?
+
+    Directories are latent (§7.3): a page becomes one when someone descends into
+    it, so "has children" is not sufficient — an authored-but-empty directory is
+    real and still renders a header.
+    """
+    if page is directory.root:
+        return True
+    json_path = _api_directory_json_path(directory, page)
+    return bool(json_path) and (page.has_subdir() or os.path.exists(json_path))
+
+
+def _api_may_configure(page, user_id, user_data):
+    """Ownership rule, mirroring _can_upload_here.
+
+    ⚠ `open_upload` grants the right to WRITE somewhere; it is not ownership and
+    must never stand in for it here, or anyone able to upload into The Jungle
+    could restyle it.
+    """
+    if user_data.get('admin', False) or user_data.get('editor', False):
+        return True
+    return page.author == user_id
+
+
+def _api_breadcrumb(page):
+    titles = []
+    node = page
+    while node is not None:
+        titles.append(node.title)
+        node = getattr(node, 'parent', None)
+    return ' / '.join(reversed(titles))
+
+
+def _api_header_paths(directory, page):
+    """(file to write, value to store in the JSON).
+
+    ⚠ The stored value is ALWAYS generated here and never taken from the
+    request. It is joined to ROOT_DIR by five separate readers with no
+    sanitisation, and Binding B hands the file's bytes to the browser — so a
+    caller-supplied path would be an arbitrary-file-read primitive. Forward
+    slashes because the tree is authored on Windows and served from Linux.
+    """
+    dir_path = getattr(page, '_dir_path', None)
+    if not dir_path:
+        return None, None
+    path = os.path.join(dir_path, 'header.seq')
+    return path, os.path.relpath(path, ROOT_DIR).replace(os.sep, '/')
+
+
+def _api_load_dir_json(path):
+    if path and os.path.exists(path):
+        with open(path, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def _api_write_dir_json(path, data):
+    """Edit the one file in place.
+
+    Deliberately NOT save_directory_tree: that rewrites the whole tree from a
+    freshly-loaded copy, and a header change has no business touching every
+    other directory's JSON.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
+def _api_resolve_target(request, body_user):
+    """Common lookup: (page, directory, user_id, user_data) or an error response."""
+    try:
+        page_num = int(request.match_info['page_num'])
+    except (KeyError, ValueError):
+        return None, aiohttp_web.json_response(
+            {'error': 'bad page number'}, status=400)
+    user_id = (body_user or '').upper()
+    if not user_id:
+        return None, aiohttp_web.json_response(
+            {'error': 'no user supplied'}, status=400)
+    users = _api_load_users()
+    if user_id not in users:
+        return None, aiohttp_web.json_response(
+            {'error': 'unknown user'}, status=404)
+
+    directory = CompunetDirectory()
+    page = directory.pages.get(page_num)
+    if page is None or not _api_is_directory(directory, page):
+        return None, aiohttp_web.json_response(
+            {'error': 'no such directory'}, status=404)
+    if not _api_may_configure(page, user_id, users[user_id]):
+        return None, aiohttp_web.json_response(
+            {'error': 'you do not own that directory'}, status=403)
+    return (page, directory, user_id), None
+
+
+async def api_list_directories(request):
+    """Directories this user may put a header on."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    user_id = request.query.get('user', '').upper()
+    if not user_id:
+        return aiohttp_web.json_response({'error': 'no user supplied'}, status=400)
+    users = _api_load_users()
+    if user_id not in users:
+        return aiohttp_web.json_response({'error': 'unknown user'}, status=404)
+    user_data = users[user_id]
+
+    directory = CompunetDirectory()
+    out = []
+    for page_num, page in sorted(directory.pages.items()):
+        if not _api_is_directory(directory, page):
+            continue
+        if not _api_may_configure(page, user_id, user_data):
+            continue
+        data = _api_load_dir_json(_api_directory_json_path(directory, page))
+        out.append({
+            'page_num': page_num,
+            'title': page.title,
+            'breadcrumb': _api_breadcrumb(page),
+            'author': page.author,
+            # Only a header set on THIS directory counts as removable; an
+            # inherited one belongs to an ancestor the user may not own.
+            'has_header': bool(data.get('header')),
+            'owner_only': data.get('open_upload') is False,
+        })
+    return aiohttp_web.json_response({'directories': out})
+
+
+async def api_set_directory_header(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_target(request, body.get('user'))
+    if err:
+        return err
+    page, directory, user_id = resolved
+
+    try:
+        raw = base64.b64decode(body.get('data', ''), validate=True)
+    except Exception:
+        return aiohttp_web.json_response({'error': 'invalid base64'}, status=400)
+
+    reasons = header_frame.validate_header_frame(raw)
+    if reasons:
+        # The whole point of rejecting rather than sanitising: the author gets
+        # to know what is wrong with their artwork instead of quietly receiving
+        # something else back.
+        return aiohttp_web.json_response(
+            {'error': 'invalid header frame', 'reasons': reasons}, status=400)
+
+    path, stored = _api_header_paths(directory, page)
+    if not path:
+        return aiohttp_web.json_response(
+            {'error': 'directory has no folder on disk'}, status=409)
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as f:
+        f.write(raw)
+    json_path = _api_directory_json_path(directory, page)
+    data = _api_load_dir_json(json_path)
+    data['header'] = stored
+    _api_write_dir_json(json_path, data)
+
+    audit_log('header_set', user=user_id, page=page.page_num,
+              title=page.title, bytes=len(raw))
+    log.info('HEADER: %s set header on page %d "%s" (%d bytes)',
+             user_id, page.page_num, page.title, len(raw))
+    return aiohttp_web.json_response(
+        {'ok': True, 'header': stored,
+         'describe': header_frame.describe_header_frame(raw)})
+
+
+async def api_delete_directory_header(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+
+    resolved, err = _api_resolve_target(
+        request, body.get('user') or request.query.get('user'))
+    if err:
+        return err
+    page, directory, user_id = resolved
+
+    json_path = _api_directory_json_path(directory, page)
+    data = _api_load_dir_json(json_path)
+    if 'header' in data:
+        del data['header']
+        _api_write_dir_json(json_path, data)
+    path, _ = _api_header_paths(directory, page)
+    if path and os.path.exists(path):
+        os.remove(path)
+
+    audit_log('header_removed', user=user_id, page=page.page_num,
+              title=page.title)
+    return aiohttp_web.json_response({'ok': True})
+
+
+async def api_directory_header_png(request):
+    """A rendition of the header currently on this directory, as a PNG.
+
+    Rendered from the same palette and font the real clients use (§A.3, §A.5 via
+    assets.json) so the preview cannot disagree with them about what the header
+    looks like. Only the directory's OWN header — an inherited one belongs to an
+    ancestor the user may not own, and offering to preview it here would imply
+    they can change it.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+
+    resolved, err = _api_resolve_target(request, request.query.get('user'))
+    if err:
+        return err
+    page, directory, _user_id = resolved
+
+    json_path = _api_directory_json_path(directory, page)
+    header_file = _api_load_dir_json(json_path).get('header')
+    if not header_file:
+        return aiohttp_web.json_response({'error': 'no header'}, status=404)
+
+    assets = header_preview.load_assets(SERVER_DIR, WEB_CLIENT_DIR)
+    if not assets:
+        # The font ships in assets.json; without it there is nothing to draw
+        # with, and guessing a substitute font would misrepresent the header.
+        log.warning('HEADER: assets.json not found — no preview available')
+        return aiohttp_web.json_response(
+            {'error': 'preview unavailable'}, status=503)
+
+    # ⚠ Imported here, not at module scope. api_binding is deliberately a lazy
+    # import (see main()): importing it eagerly once took the whole framed
+    # protocol down with it when a dependency was missing, putting every vintage
+    # client offline. A preview is the last thing that should be able to do that.
+    try:
+        import api_binding
+    except ImportError:
+        return aiohttp_web.json_response(
+            {'error': 'preview unavailable'}, status=503)
+
+    frame = api_binding.render_header_file(header_file)
+    if not frame:
+        return aiohttp_web.json_response({'error': 'no header'}, status=404)
+
+    png = header_preview.cells_to_png(frame['cells'], assets)
+    return aiohttp_web.Response(
+        body=png, content_type='image/png',
+        # The file can be replaced at any moment by an upload, and it is small.
+        headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+async def api_set_directory_settings(request):
+    """`owner_only` — whether others may upload here, and so whether they can
+    create directories beneath it (a sub-directory is created by descending
+    into an uploaded page, which _can_upload_here gates).
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_target(request, body.get('user'))
+    if err:
+        return err
+    page, directory, user_id = resolved
+
+    json_path = _api_directory_json_path(directory, page)
+    data = _api_load_dir_json(json_path)
+    if body.get('owner_only'):
+        # An explicit `false` STOPS the inherited flag for this directory and
+        # everything beneath it. Absent would merely defer to the ancestor,
+        # which in an open area means "open" — the opposite of what was asked.
+        data['open_upload'] = False
+    else:
+        data.pop('open_upload', None)
+    _api_write_dir_json(json_path, data)
+
+    audit_log('directory_settings', user=user_id, page=page.page_num,
+              owner_only=bool(body.get('owner_only')))
+    return aiohttp_web.json_response(
+        {'ok': True, 'owner_only': data.get('open_upload') is False})
+
+
+# ============================================================
 # Main
 # ============================================================
 
@@ -3656,6 +4008,15 @@ async def main():
         app.router.add_post('/api/broadcast', api_broadcast)
         app.router.add_get('/api/audit', api_get_audit)
         app.router.add_post('/api/audit', api_post_audit)
+        app.router.add_get('/api/directories', api_list_directories)
+        app.router.add_post('/api/directories/{page_num}/header',
+                            api_set_directory_header)
+        app.router.add_delete('/api/directories/{page_num}/header',
+                              api_delete_directory_header)
+        app.router.add_get('/api/directories/{page_num}/header.png',
+                           api_directory_header_png)
+        app.router.add_put('/api/directories/{page_num}/settings',
+                           api_set_directory_settings)
         app.router.add_get('/ws/partyline', api_ws_partyline)
         runner = aiohttp_web.AppRunner(app)
         await runner.setup()

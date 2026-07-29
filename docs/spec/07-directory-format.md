@@ -38,6 +38,29 @@ no `$00` terminator of its own** (see the boundary note after the table).
 | **5 — Column headers** | The column titles, comma-separated, `CR`-terminated, then a `$00` separator byte | one line ended by `$0D`, then a `$00` |
 | **6 — Entries** | The directory entries, one per line (§7.3) | the stream ends (EOS) after the last entry's `$0D` |
 
+### What a Part-1 header may contain (normative)
+
+Earlier revisions of this section described where the header is *composed*
+(§7.7) but placed no constraints on its *content*, which read as "anything a
+frame may contain is fine here". It is not, and the omission mattered: a server
+may now accept header frames from users (they are no longer operator-authored
+only), and each rule below exists because a specific renderer misbehaves without
+it. A header frame **MUST**:
+
+| Rule | Why |
+|---|---|
+| Draw only on **rows 0–5** | Part 1 is printed **over** the already-drawn template (§7.5). There is no clipping in the reference clients: printing on row 6 destroys the frame's top border, and lower still overwrites the breadcrumb, entries and footer. Past row 23 the C64 KERNAL scrolls the whole screen |
+| Contain **no `$00`**, not even as an RLE operand (§6.4) | The C64 copies Part 1 with a **byte-level** loop that stops at the first `$00` and has no RLE awareness, so a `$00` used merely as a repeat count still ends the part — and everything after it is read as Part 2/3/4, desynchronising the six-part stream. This is the general §6.4 rule, and Part 1 is where its absence bit hardest |
+| Contain **no `$93`** (clear screen) | The template is drawn first, so a clear-screen erases the entire directory — border, breadcrumb, entries and all — leaving only what the header itself then draws |
+| Leave the character set as it found it | Nothing re-issues `$8E` after Part 1, so a `$0E` leaks the lower-case set into the rest of the screen |
+| Leave reverse video off | An unmatched `$12` reverses the start of the next line drawn |
+| Fit within the header buffer | The C64 stores Part 1 at `$D000` with **no length counter and no bounds check**; the next part's buffer begins at `$D300`, so **768 bytes** is the point at which a header silently corrupts the parts after it. A server accepting user-supplied headers should enforce a limit well below that |
+
+⚠ **These are constraints on what a server may SEND, not licence for a client to
+assume them.** A client is still responsible for its own display: bounding Part 1
+to rows 0–5 costs little and turns a hostile or simply broken header into a
+cosmetic problem rather than an unusable screen.
+
 **Part 2 → Part 3 boundary — do not consume a `$00` after the footer (normative).** The footer
 is exactly **two `$0D`-terminated lines** (empty lines if there is no advert); Part 2 does *not*
 emit a `$00`. The very next `$00` in the stream is **Part 3's** terminator (its empty

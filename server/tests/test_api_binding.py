@@ -388,6 +388,45 @@ class ErrorTyping(unittest.TestCase):
             self.assertEqual(send(s, type=t)['code'], 'invalid', t)
 
 
+class RleOperandsAreNeverZero(unittest.TestCase):
+    """§6.4 — a `$00` RLE operand is the frame terminator, not a zero count.
+
+    ⚠ The two bindings used to disagree here, and both were "conforming": §6.4
+    said `$06 N` draws `1 + N` spaces without constraining N, while §6.3 made
+    `$00` the terminator and §6.1 let a client end a frame at the first in-band
+    `$00`. So `$06 $00` was one space to this decoder and end-of-part to the
+    C64, whose Part-1 copy loop is byte-level and has no notion of RLE. One
+    file, two screens. The spec now forbids the operand; these pin this decoder
+    to it.
+
+    Nothing legitimate is affected: a zero count is always LONGER than the
+    literal it encodes, so no encoder in this tree emits one.
+    """
+
+    def _cells(self, body):
+        return api.frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x8E]) + body)['cells']
+
+    def _text(self, cells, count):
+        return ''.join(chr(api._screencode_to_petscii(c['g'] & 0x7F))
+                       for c in cells[:count])
+
+    def test_a_zero_space_count_ends_the_frame(self):
+        # 'AB' then $06 $00 — everything after the operand must be discarded,
+        # matching the C64 rather than drawing a space and carrying on.
+        self.assertEqual('AB  ', self._text(self._cells(b'AB\x06\x00CD'), 4))
+
+    def test_a_zero_repeat_count_ends_the_frame(self):
+        self.assertEqual('AB  ', self._text(self._cells(b'AB\x07\x41\x00CD'), 4))
+
+    def test_a_nul_run_byte_ends_the_frame(self):
+        self.assertEqual('AB  ', self._text(self._cells(b'AB\x07\x00\x05CD'), 4))
+
+    def test_ordinary_runs_are_untouched(self):
+        """The control: non-zero counts still expand with `1 + N` semantics."""
+        self.assertEqual('A***B', self._text(self._cells(b'A\x07\x2A\x02B'), 5))
+        self.assertEqual('A  B', self._text(self._cells(b'A\x06\x01B'), 4))
+
+
 class FrameFidelity(unittest.TestCase):
     """The `cells` submission form must reproduce what it was given (api §5.4)."""
 
@@ -744,6 +783,63 @@ class PersistenceRoundTrip(unittest.TestCase):
         self.assertTrue(s.directory.pages[MORE_DIR].children, 'fixture precondition')
         s._save_directory()
         self.assertIn('directory', self._jungle_entry(MORE_DIR))
+
+    def _dir_json(self, *parts):
+        import json
+        with open(os.path.join(srv.ROOT_DIR, *parts)) as f:
+            return json.load(f)
+
+    def test_a_directory_header_survives_an_unrelated_save(self):
+        """Users can now set the Part-1 header themselves (#120), so a save that
+        drops it destroys someone's artwork rather than an operator's typo."""
+        self.assertIn('header', self._dir_json('jungle', 'directory.json'),
+                      'fixture precondition')
+        session()._save_directory()
+        self.assertEqual(
+            'jungle/header.seq',
+            self._dir_json('jungle', 'directory.json').get('header'),
+            'saving deleted a directory header frame')
+
+    def test_function_key_shortcuts_survive_a_save(self):
+        """⚠ The regression: `shortcuts` was loaded but never written back, so
+        the F-key block in root.json was deleted by the next upload, vote or
+        extend — an action with nothing to do with it. The terminal's own copy
+        of the serializer *did* write it, so whether the shortcuts survived
+        depended on which subsystem the user happened to be using."""
+        import json
+        root_json = os.path.join(srv.ROOT_DIR, 'root.json')
+        with open(root_json) as f:
+            data = json.load(f)
+        data['shortcuts'] = {'F1': 'JUNGLE', 'F3': 'PARTY'}
+        with open(root_json, 'w') as f:
+            json.dump(data, f, indent=2)
+
+        session()._save_directory()
+
+        self.assertEqual({'F1': 'JUNGLE', 'F3': 'PARTY'},
+                         self._dir_json('root.json').get('shortcuts'),
+                         'saving deleted the function-key shortcuts')
+
+    def test_an_explicit_upload_optout_survives_a_save(self):
+        """THE ZOO sets `open_upload: false` to stop the Jungle's inheritance.
+        Writing back only the truthy case reopens the directory to everyone —
+        and that is exactly what the terminal's serializer used to do."""
+        self.assertIs(False,
+                      self._dir_json('jungle', 'the-zoo', 'directory.json')
+                          .get('open_upload'), 'fixture precondition')
+        session()._save_directory()
+        self.assertIs(False,
+                      self._dir_json('jungle', 'the-zoo', 'directory.json')
+                          .get('open_upload'),
+                      'saving reopened a directory that had opted out')
+
+    def test_the_directory_path_is_written_with_forward_slashes(self):
+        """os.path.relpath yields backslashes on Windows, and the tree is served
+        from Linux — a path saved on one does not resolve on the other."""
+        session()._save_directory()
+        for page in self._dir_json('root.json')['pages']:
+            if 'directory' in page:
+                self.assertNotIn('\\', page['directory'])
 
 
 class ClientAddressResolution(unittest.TestCase):

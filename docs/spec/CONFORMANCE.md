@@ -170,6 +170,18 @@ marked **⚠** are the ones known to have been got wrong in practice.
       content directory's (§7.2).
 - [ ] **⚠ RLE counts are `1 + N`** (§6.4), and a control byte inside a `$07` run repeats the
       *action*, not the glyph.
+- [ ] **A `$00` RLE operand ends the frame** (§6.4) — it is the terminator, not a zero count.
+      Check this deliberately: reading `$06 $00` as "one space" is the natural implementation
+      and it passes every test built from real content, because no encoder emits a zero count.
+      It diverges only on hand-made bytes, and then your client draws a different screen from
+      the C64, which stops at that byte. The spec said both things until recently; if you
+      implemented from an older copy, this is the line to re-check.
+- [ ] **The Part-1 header is bounded to rows 0–5** (§7.2, §7.7), and a header that tries to draw
+      lower cannot reach the entry list. Directory headers may be **user-supplied**, so this is
+      no longer only a question of trusting the operator: a header that runs long, clears the
+      screen, or leaves the character set switched should cost you the header, not the page.
+      Test with a deliberately broken one rather than assuming — the reference clients disagree
+      here, and the failure is invisible until someone uploads the wrong file.
 - [ ] **Welcome frame persists after login** until the user acts; `DIR` reaches the root (§4.7).
       And once anything replaces it, **it is gone** (§3.5) — it is sent once and no command
       brings it back. Check you have not offered a route to it: a "home" button that lands on

@@ -2157,51 +2157,17 @@ class TerminalSession:
         await self.render_directory()
 
     def _save_directory_tree(self, cs):
-        """Save directory tree to JSON files (same logic as CompunetSession._save_directory)."""
-        import json
+        """Save the directory tree.
 
-        def _save_dir_json(page, json_path):
-            data = {}
-            if hasattr(page, 'header') and page.header:
-                data['header'] = page.header
-            if hasattr(page, '_adverts') and page._adverts:
-                data['adverts'] = page._adverts
-            if hasattr(page, 'shortcuts') and page.shortcuts:
-                data['shortcuts'] = page.shortcuts
-            if hasattr(page, 'open_upload') and page.open_upload:
-                data['open_upload'] = True
-            pages_list = []
-            for child in page.children:
-                node = {
-                    'page_num': child.page_num,
-                    'title': child.title,
-                    'type': child.page_type,
-                    'author': child.author,
-                    'price': child.price,
-                    'life': child.life,
-                }
-                if child.keyword:
-                    node['keyword'] = child.keyword
-                if getattr(child, 'dynamic', None):
-                    node['dynamic'] = child.dynamic
-                if getattr(child, 'uploaded', None):
-                    node['uploaded'] = child.uploaded
-                frame_files = getattr(child, '_frame_files', [])
-                if frame_files:
-                    node['frames'] = frame_files
-                if child.children:
-                    child_dir = getattr(child, '_dir_path', '')
-                    dir_json_path = os.path.join(child_dir, 'directory.json')
-                    node['directory'] = os.path.relpath(dir_json_path, cs.ROOT_DIR)
-                    _save_dir_json(child, dir_json_path)
-                pages_list.append(node)
-            data['pages'] = pages_list
-            os.makedirs(os.path.dirname(json_path), exist_ok=True)
-            with open(json_path, 'w') as f:
-                json.dump(data, f, indent=2)
-
-        root_json_path = os.path.join(cs.ROOT_DIR, 'root.json')
-        _save_dir_json(self.directory.root, root_json_path)
+        This was a second, hand-copied implementation of the serializer, and it
+        had drifted: it wrote `open_upload` only when true (discarding a
+        directory's explicit opt-out), omitted `machine_type` entirely (turning
+        Amiga pages into C64 ones), and still used the narrow `if child.children`
+        test that the other copy had already been fixed for. Whether a key
+        survived depended on whether the user was on the terminal or the C64.
+        It now calls the one serializer.
+        """
+        cs.save_directory_tree(self.directory.root, cs.ROOT_DIR)
 
     async def _xmodem_receive(self):
         """Receive a file via XMODEM-CRC (supports both 128-byte and 1K blocks)."""
