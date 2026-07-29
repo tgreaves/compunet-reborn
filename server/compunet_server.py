@@ -54,8 +54,19 @@ _LOG_LEVEL = getattr(logging, os.environ.get('LOG_LEVEL', 'INFO').upper(), loggi
 logging.basicConfig(level=_LOG_LEVEL, format='%(asctime)s %(levelname)s %(message)s')
 log = logging.getLogger('compunet')
 
-# Load .env file if present (allows restart without rebuild)
+# Load .env file if present (allows restart without rebuild).
+#
+# In the container this file sits at /app, so the first path IS the root .env
+# that docker-compose mounts to /app/.env — server and website read one file.
+# A source checkout is not flattened that way: server/.env usually does not
+# exist, and the file the tree actually documents (.env.example, and what
+# website/config.py reads) is at the repository root. Without the fallback the
+# server silently started with no configuration at all, which shows up as an
+# empty COMPUNET_API_KEY — and _api_check_auth fails closed, so every call the
+# website makes to the admin API returns 401 while both processes look healthy.
 _env_file = os.path.join(os.path.dirname(__file__), '.env')
+if not os.path.exists(_env_file):
+    _env_file = os.path.join(os.path.dirname(__file__), '..', '.env')
 if os.path.exists(_env_file):
     with open(_env_file, 'r') as _f:
         for _line in _f:
