@@ -1,32 +1,59 @@
 # 1.2.2 (unreleased)
 
-* Historical archive:
-	* New: 43 SEQ frames recovered from 35 original Compunet demo disks,
-	  contributed by ZILDAC (`historical/seq/zildac/`). Among them a 1987
-	  Courier exchange with Compunet's own staff about faults on Istel's
-	  Liverpool X.25 node — which names the modem ROM revisions then in the
-	  field, 1.22 and 1.35.
-	* New: the original service's `INDEX` page, transcribed to
-	  `historical/original-keywords.txt` — 160 GOTO keywords with the
-	  operators' own one-line descriptions, as the live system listed them
-	  c.1987. It records what Compunet actually held, area by area, and which
-	  areas were open for user uploads.
 * Desktop client:
 	* New: an application icon — the Commodore 64 `C`, in the Compunet red and
 	  light grey of the service's own header. Windows previously showed the
 	  stock Electron icon on the desktop shortcut, taskbar and installer.
 * C64 client:
-	* Fixed: the client banner reading `COMPUNET REBORN 1.0.0` whatever version
-	  you were actually running. The version is baked into the binary at build
-	  time, and the released binaries had not been rebuilt since 1.0.0, so every
-	  release since displayed that same number on connecting. It now shows the
-	  version it was built from.
+	* Fixed: client banner now correctly shows the version it was built from.
+	  Every release since 1.0.0 announced itself as `COMPUNET REBORN 1.0.0`.
+* Website:
+	* New: a NEWS section (#35), listing what has changed on the service with a
+	  permanent link for each item and an index alongside for jumping between
+	  them. It opens with four: terminal support, the first stable release, the
+	  Amiga client and the browser client. Those were announced by email and
+	  nowhere else, so anyone who joined afterwards — or who was not on the
+	  mailing list — had no way to find out what had happened.
 * Website / client:
-	* Fixed: advert lines at the foot of a directory sitting slightly off
-	  centre. The client was centring text the author had already centred,
-	  shifting each line right by a differing amount. The original C64 client
-	  cannot centre — it prints these lines exactly as sent — so positioning is
-	  the author's, using leading spaces.
+	* Fixed: advert lines at the bottom of a directory now appear exactly where
+	  their author placed them. The client was re-centring text that was already
+	  centred, shifting each line by a different amount.
+* Directories:
+	* New: you can give a directory you own its own header — the PETSCII
+	  picture drawn above the list of entries, in place of the standard frame
+	  (#120). Upload a `.seq` from your account page on the website, under YOUR
+	  DIRECTORIES; it appears the next time anyone opens the directory, on the
+	  C64, the Amiga, the terminal and the web client alike. Until now only the
+	  operators could set one. The C64 client needs no update — it has always
+	  been able to draw these, there was simply no way for you to supply one.
+	* New: a directory you own can be marked so that **only you** can add to it,
+	  which also stops anyone else creating directories inside it. Your header
+	  applies to everything below your directory that has none of its own, so
+	  this keeps that to pages you own.
+	* The page shows the header a directory is currently using, drawn as the C64
+	  draws it — same character set, same sixteen colours, same six rows. You
+	  can see what is there before replacing it, rather than uploading a file and
+	  hoping.
+	* Headers are checked before they are accepted, and a file that would break
+	  the screen is refused with the reason and the byte at fault rather than
+	  being quietly altered — the picture that appears is the one you made. The
+	  limits are 512 bytes, rows 0-5 only, and no clear-screen: a header is
+	  drawn on top of the directory, so one that runs long or clears the screen
+	  takes the entry list with it.
+	* Fixed: the function-key shortcuts on the top directory disappearing. Any
+	  upload, vote or lifetime change rewrote the directory and left them out,
+	  so F1 and F3 stopped going anywhere — usually within minutes of the
+	  service starting, and with nothing to say they had gone.
+	* Fixed: a directory closed to other people quietly reopening. Where the
+	  owner had shut theirs to everyone else, a save made from the PETSCII
+	  terminal wrote it back as open, and anyone could upload into it again.
+	* Fixed: Amiga pages being offered to C64 users, and missing from the Amiga
+	  listing. A save made from the PETSCII terminal forgot which machine a page
+	  was for, and every page it rewrote became a C64 one.
+	* Fixed: a directory with nothing in it yet disappearing, taking anything
+	  later added to it out of reach. A save made from the PETSCII terminal
+	  wrote the parent's entry back without its link to the directory, so it
+	  could no longer be opened even though its contents were still there.
 * Running from source:
 	* Fixed: `./server.sh start` and `./website.sh start` announcing
 	  `Server started (PID …)` for a service that had already failed. They
@@ -51,6 +78,16 @@
 	  `COMPUNET_CLIENT_URL` — `docker-compose.yml` has documented it since
 	  1.2.1, but a deployment configured from `.env.example` alone still had no
 	  link to its own client, with nothing to suggest one was expected.
+* Historical archive:
+	* New: 43 SEQ frames recovered from 35 original Compunet demo disks,
+	  contributed by ZILDAC (`historical/seq/zildac/`). Among them a 1987
+	  Courier exchange with Compunet's own staff about faults on Istel's
+	  Liverpool X.25 node — which names the modem ROM revisions then in the
+	  field, 1.22 and 1.35.
+	* New: 160 GOTO keywords with the operators' own one-line descriptions, as
+	  the live system listed them c.1987, transcribed to
+	  `historical/original-keywords.txt`. Records what Compunet actually held,
+	  area by area, and which areas were open for user uploads.
 
 # 1.2.1 (2026-07-28)
 

@@ -93,7 +93,15 @@ body {
 
 .nav-links {
     display: flex;
-    gap: 16px;               /* 20px put the ADMIN menu 1px over the row */
+    /* 20px put the ADMIN menu 1px over the row; 16px then left it with nothing
+       to spare, and adding NEWS (#35) took it over again — the GitHub icon
+       dropped to a second line. Reducing the gap rather than accepting that is
+       deliberate: the two-line admin menu was #115, fixed in 1.2.1, and letting
+       a new link put it back would undo that fix.
+       Measured in the browser at 1280px signed in as ADMIN, which is the widest
+       the menu ever gets: 13px is the largest gap that still holds one row, so
+       12px is one step inside it rather than balanced on the edge again. */
+    gap: 12px;
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
@@ -391,6 +399,129 @@ pre {
 
 .info-box p {
     margin-bottom: 0;
+}
+
+/* Header frame preview (#120) */
+.header-preview {
+    margin-bottom: 20px;
+}
+
+.header-preview img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 2px solid var(--c64-surface-light);
+    /* The PNG is drawn at 2x from 8x8 glyphs. If a narrow screen scales it, keep
+       the pixels square rather than letting the browser smooth PETSCII into
+       mush. */
+    image-rendering: pixelated;
+}
+
+.header-preview .hint {
+    margin-top: 8px;
+}
+
+/* News (#35) */
+.news-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 40px;
+    align-items: start;
+}
+
+.news-item {
+    border-bottom: 2px solid var(--c64-surface-light);
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+}
+
+.news-item:last-of-type {
+    border-bottom: none;
+}
+
+.news-item h1,
+.news-item h2 {
+    margin-top: 0;
+}
+
+.news-item h2 a {
+    text-decoration: none;
+}
+
+/* The date leads the entry — it is the first thing worth knowing about a news
+   item, so it sits above the title rather than under it in small grey text. */
+.news-date {
+    color: var(--c64-red);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.news-index {
+    border-left: 2px solid var(--c64-surface-light);
+    padding-left: 20px;
+    position: sticky;
+    top: 24px;
+}
+
+.news-index h2 {
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+}
+
+.news-index ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.news-index li {
+    margin-bottom: 14px;
+}
+
+.news-index a {
+    text-decoration: none;
+    display: block;
+}
+
+.news-index a:hover .news-index-title {
+    text-decoration: underline;
+}
+
+.news-index-date {
+    display: block;
+    color: var(--c64-ink-soft);
+    font-size: 12px;
+}
+
+.news-index-title {
+    display: block;
+    font-size: 14px;
+}
+
+.news-index li.current .news-index-title {
+    color: var(--c64-red);
+    font-weight: 700;
+}
+
+/* One column on narrow screens: a 220px rail beside the text stops being a
+   convenience well before the phone breakpoint. */
+@media (max-width: 800px) {
+    .news-layout {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .news-index {
+        border-left: none;
+        border-top: 2px solid var(--c64-surface-light);
+        padding-left: 0;
+        padding-top: 20px;
+        position: static;
+    }
 }
 
 /* Download table */

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}News — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>NEWS</h1>
+
+<p>What has changed on the service, newest first.</p>
+
+{% if not items %}
+<div class="info-box">
+    <p>Nothing here yet.</p>
+</div>
+{% else %}
+<div class="news-layout">
+    <div class="news-main">
+        {% for item in items %}
+        <article class="news-item" id="{{ item.slug }}">
+            <p class="news-date">{{ item.display_date }}</p>
+            <h2><a href="{{ url_for('news_item', slug=item.slug) }}">{{ item.title }}</a></h2>
+            {{ item.html|safe }}
+        </article>
+        {% endfor %}
+    </div>
+
+    {# Jumps within this page rather than reloading — the whole archive is
+       already here, so a permalink per entry would be a slower way to reach
+       something the reader can already see. #}
+    <nav class="news-index" aria-label="All news items">
+        <h2>ALL ITEMS</h2>
+        <ul>
+            {% for item in items %}
+            <li>
+                <a href="#{{ item.slug }}">
+                    <span class="news-index-date">{{ item.display_date }}</span>
+                    <span class="news-index-title">{{ item.title }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </nav>
+</div>
+{% endif %}
+{% endblock %}

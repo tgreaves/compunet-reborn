@@ -1,5 +1,6 @@
 """Compunet Reborn — Website (Registration + Account Management)"""
 
+import base64
 import hashlib
 import json
 import os
@@ -7,13 +8,18 @@ import re
 import time
 
 import requests
-from flask import (Flask, flash, redirect, render_template, request,
+from flask import (Flask, Response, flash, redirect, render_template, request,
                    session, url_for)
 
 import config
 
 app = Flask(__name__)
 app.secret_key = config.get('WEBSITE_SECRET_KEY', 'dev-secret-change-me')
+
+# ⚠ The site's only file upload is a directory header frame, which may not
+# exceed 512 bytes. Cap the request body well below anything worth buffering so
+# an oversized or hostile POST is refused by Flask before a handler sees it.
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
 
 _version_file = os.path.join(os.path.dirname(__file__), 'VERSION')
 if not os.path.exists(_version_file):
@@ -62,6 +68,12 @@ def _api_put(path, data):
 
 def _api_delete(path):
     return requests.delete(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers())
+
+
+def _api_delete_json(path, data):
+    """DELETE carrying a body — the server needs to know WHICH user is asking,
+    because the API key identifies the website, not a person."""
+    return requests.delete(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers(), json=data)
 
 
 def _api_create_pending(data):
@@ -239,6 +251,100 @@ def guide():
 @app.route('/extras')
 def extras():
     return render_template('extras.html')
+
+
+# ============================================================
+# News (#35)
+#
+# Items are Markdown files in the repository, named `YYYY-MM-DD-slug.md`. The
+# filename carries the date and the permalink; the first `# heading` is the
+# title. No front-matter, no database.
+#
+# ⚠ Not published from the admin UI, deliberately. This container cannot write
+# to the server tree (server/data is read-only, server/cfg is not mounted), so
+# runtime publishing needs a server endpoint and a write path — real machinery
+# for something published a handful of times a year. Files in git give version
+# control, review and rollback instead, at the cost of a deploy per item.
+#
+# ⚠ markdown.markdown() passes RAW HTML THROUGH. That is acceptable only while
+# the author is someone with commit access. If items ever become submittable at
+# runtime, this needs sanitising first.
+# ============================================================
+
+NEWS_DIR = os.path.join(os.path.dirname(__file__), 'news')
+_NEWS_NAME_RE = re.compile(r'^(\d{4}-\d{2}-\d{2})-([a-z0-9-]+)\.md$')
+
+
+def _news_items():
+    """Every news item, newest first."""
+    items = []
+    if not os.path.isdir(NEWS_DIR):
+        return items
+    for name in os.listdir(NEWS_DIR):
+        match = _NEWS_NAME_RE.match(name)
+        if not match:
+            continue
+        date, slug = match.group(1), match.group(2)
+        with open(os.path.join(NEWS_DIR, name), 'r', encoding='utf-8') as f:
+            body = f.read()
+        title, body = _split_news_title(body)
+        items.append({'date': date, 'slug': slug, 'title': title, 'body': body,
+                      'display_date': _news_display_date(date)})
+    # Filename dates sort correctly as strings, and ties break on the slug so
+    # the order is stable rather than filesystem-dependent.
+    items.sort(key=lambda i: (i['date'], i['slug']), reverse=True)
+    return items
+
+
+def _news_display_date(date):
+    """`2026-06-29` -> `29 June 2026`.
+
+    Built from the parsed fields rather than a `%-d` format: that directive
+    strips the leading zero on Linux but is not portable — on Windows it raises,
+    which would take the page down on the developer's machine and nowhere else.
+    Falls back to the raw value rather than failing a page over a misnamed file.
+    """
+    try:
+        parsed = time.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        return date
+    return '%d %s %d' % (parsed.tm_mday, time.strftime('%B', parsed),
+                         parsed.tm_year)
+
+
+def _split_news_title(body):
+    """Take the leading `# heading` as the title, and return the rest."""
+    lines = body.strip().split('\n')
+    if lines and lines[0].startswith('# '):
+        return lines[0][2:].strip(), '\n'.join(lines[1:]).strip()
+    return 'Untitled', body.strip()
+
+
+def _render_news(body):
+    import markdown as md
+    return md.markdown(body, extensions=['extra'])
+
+
+@app.route('/news')
+def news():
+    items = _news_items()
+    for item in items:
+        item['html'] = _render_news(item['body'])
+    return render_template('news.html', items=items)
+
+
+@app.route('/news/<slug>')
+def news_item(slug):
+    items = _news_items()
+    for item in items:
+        if item['slug'] == slug:
+            item['html'] = _render_news(item['body'])
+            # The full list too, for the index beside it.
+            return render_template('news_item.html', item=item, items=items)
+    # An item that has been renamed or withdrawn should land somewhere useful
+    # rather than on an error page.
+    flash('That news item no longer exists.', 'error')
+    return redirect(url_for('news'))
 
 
 @app.route('/contact', methods=['GET', 'POST'])
@@ -431,6 +537,164 @@ def change_password():
     else:
         flash('Failed to change password.', 'error')
         return render_template('password.html')
+
+
+# ============================================================
+# Directory header frames (#120)
+#
+# A directory's header is the PETSCII drawn above its entry list (§7.2 Part 1).
+# The C64 ROM has no room for an upload command and the command vocabulary is
+# closed, so this is the one place a user can set one.
+#
+# ⚠ Nothing is written here. This container mounts server/data READ-ONLY and
+# has no access to server/cfg at all, so every change goes to the server over
+# the admin API, which re-checks ownership itself.
+# ============================================================
+
+#: The server enforces this too — it is repeated here only so an oversized file
+#: is refused before it is read into memory and base64'd.
+MAX_HEADER_BYTES = 512
+
+
+def _directories_for_session():
+    """Directories the signed-in user may configure, or None on failure."""
+    resp = _api_get(f'/api/directories?user={session["user_id"]}')
+    if resp.status_code != 200:
+        return None
+    return resp.json().get('directories', [])
+
+
+@app.route('/directories')
+def directories():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    dirs = _directories_for_session()
+    if dirs is None:
+        flash('Could not reach the Compunet server.', 'error')
+        return redirect(url_for('account'))
+    return render_template('directories.html', directories=dirs,
+                           max_bytes=MAX_HEADER_BYTES)
+
+
+@app.route('/directories/<int:page_num>/header', methods=['POST'])
+def set_directory_header(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    # Remove is a separate button on the same form rather than a DELETE, because
+    # a plain HTML form cannot issue one.
+    if request.form.get('action') == 'remove':
+        resp = _api_delete_json(f'/api/directories/{page_num}/header',
+                                {'user': session['user_id']})
+        if resp.status_code == 200:
+            flash('Header removed. The directory uses the standard frame again.',
+                  'success')
+        else:
+            flash(_api_error(resp, 'Could not remove the header.'), 'error')
+        return redirect(url_for('directories'))
+
+    upload = request.files.get('header')
+    if upload is None or not upload.filename:
+        flash('Choose a .seq file to upload.', 'error')
+        return redirect(url_for('directories'))
+
+    raw = upload.read(MAX_HEADER_BYTES + 1)
+    if not raw:
+        flash('That file is empty.', 'error')
+        return redirect(url_for('directories'))
+    if len(raw) > MAX_HEADER_BYTES:
+        flash('That file is larger than %d bytes, the most a header may be.'
+              % MAX_HEADER_BYTES, 'error')
+        return redirect(url_for('directories'))
+
+    resp = _api_post(f'/api/directories/{page_num}/header',
+                     {'user': session['user_id'],
+                      'data': base64.b64encode(raw).decode('ascii')})
+    if resp.status_code == 200:
+        described = resp.json().get('describe') or {}
+        flash('Header set — %d bytes, %s. It appears the next time the '
+              'directory is opened.'
+              % (described.get('bytes', len(raw)),
+                 _rows_phrase(described.get('rows_used'))), 'success')
+        return redirect(url_for('directories'))
+
+    # A rejected frame comes back with one reason per problem, each naming the
+    # byte offset. Showing them individually is the point of rejecting rather
+    # than silently cleaning the file up.
+    reasons = []
+    try:
+        reasons = resp.json().get('reasons') or []
+    except ValueError:
+        pass
+    if reasons:
+        for reason in reasons:
+            flash(reason, 'error')
+    else:
+        flash(_api_error(resp, 'The server would not accept that header.'),
+              'error')
+    return redirect(url_for('directories'))
+
+
+@app.route('/directories/<int:page_num>/header.png')
+def directory_header_png(page_num):
+    """Proxy the server's rendition of this directory's header.
+
+    ⚠ Proxied rather than linked directly: the image lives behind the admin API,
+    which the browser must never be given the key for. The server still checks
+    that the signed-in user owns the directory — this route passes who is asking
+    and does not vouch for them.
+    """
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    resp = _api_get('/api/directories/%d/header.png?user=%s'
+                    % (page_num, session['user_id']))
+    if resp.status_code != 200:
+        # No header, or no font to draw it with. The template only asks for the
+        # image when a header is set, so this is the racing case — someone
+        # removed it in another tab.
+        return '', 404
+    return Response(resp.content, mimetype='image/png',
+                    headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+@app.route('/directories/<int:page_num>/settings', methods=['POST'])
+def set_directory_settings(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    owner_only = request.form.get('owner_only') == 'on'
+    resp = _api_put(f'/api/directories/{page_num}/settings',
+                    {'user': session['user_id'], 'owner_only': owner_only})
+    if resp.status_code == 200:
+        flash('Only you can add to this directory.' if owner_only
+              else 'This directory follows the surrounding area again.',
+              'success')
+    else:
+        flash(_api_error(resp, 'Could not change that setting.'), 'error')
+    return redirect(url_for('directories'))
+
+
+@app.errorhandler(413)
+def _too_large(_e):
+    """Flask aborts oversized requests before any handler runs, so without this
+    picking the wrong file — an image, say — answers with a bare 413 page."""
+    flash('That file is far too large. A header frame is at most %d bytes.'
+          % MAX_HEADER_BYTES, 'error')
+    if 'user_id' in session:
+        return redirect(url_for('directories'))
+    return redirect(url_for('login'))
+
+
+def _rows_phrase(rows):
+    if not rows:
+        return 'no rows used'
+    return 'using row 0' if rows == 1 else 'using rows 0-%d' % (rows - 1)
+
+
+def _api_error(resp, fallback):
+    try:
+        return resp.json().get('error') or fallback
+    except ValueError:
+        return fallback
 
 
 # ============================================================

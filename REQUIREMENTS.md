@@ -76,6 +76,33 @@ all work — but the website cannot then talk to it at all; see the shared-key t
 tracked, and it carries the `TEST` and `ADMIN` logins — a server started without it runs
 perfectly and rejects every login.
 
+⚠ **`users.json.example` does not satisfy the test suite.** `test_api_binding.py` signs in as
+`TEST` / `SECRET`, but the example file ships a different password for `TEST`, so a checkout set
+up exactly as documented fails one test for a reason that has nothing to do with the code. Set it
+before believing a failure:
+
+```bash
+python -c "import hashlib,json; p='server/cfg/users.json'; u=json.load(open(p)); u['TEST']['password']=hashlib.sha256(b'SECRET').hexdigest(); json.dump(u,open(p,'w'),indent=2)"
+```
+
+⚠ **There is no content until you seed `data/`.** `server/data/` is *mostly* untracked and starts
+almost empty; with no `content/root/root.json` the server invents a single empty root and every
+directory listing is bare. The tracked `server/data.example/` is the starting tree — a root with
+The Jungle, news, a header frame and the F-key shortcuts. Seed it **without clobbering**:
+
+```bash
+cp -rn server/data.example/* server/data/
+```
+
+⚠ **`-n` is load-bearing.** `server/data/` is not entirely untracked: `content/courier-header.seq`
+and `content/root/partyline/join-partyline/partyline.prg` *are* in git, and the latter is the real
+2,514-byte Partyline client. `data.example` carries a 975-byte placeholder of the same name, so a
+plain `cp -r` silently replaces the working binary with the stub and leaves a modified tracked
+file for someone to commit by accident. Check with `git status server/data/` after seeding.
+
+(`data/content.test/` is the *test* fixture and is tracked deliberately; do not run a dev server
+against it, because uploads and mail would write into it.)
+
 ⚠ **`./server.sh` does not work on Windows.** It selects `venv/bin/python3`, which a Windows venv
 does not have (`venv/Scripts/python.exe`), falls back to `python3` — the Store stub above — and
 the server dies at once. It now reports that correctly (`Server failed to start`, followed by the

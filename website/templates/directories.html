@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Your Directories — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>YOUR DIRECTORIES</h1>
+
+{% if not directories %}
+<div class="info-box">
+    <p>You do not own any directories yet.</p>
+    <p class="hint">A directory becomes yours when you upload a page and then
+    open it on Compunet — the page turns into a directory of its own, and you
+    are its owner.</p>
+</div>
+{% else %}
+
+<p>A directory can show your own PETSCII above its list of entries, in place of
+the standard frame.</p>
+
+<div class="info-box">
+    <h3>WHAT THE FILE MUST BE</h3>
+    <p>A raw PETSCII sequence — the frame body only, with no load address and no
+    frame header. This is what the editor writes and what a <code>.seq</code>
+    from a PETSCII art tool contains.</p>
+    <ul>
+        <li>At most <strong>{{ max_bytes }} bytes</strong>.</li>
+        <li>It may only draw on <strong>rows 0 to 5</strong>. Row 6 is the top of
+            the directory frame, and anything lower overwrites the entry list.</li>
+        <li>No clear-screen. The header is drawn on top of the directory, so
+            clearing the screen erases the whole thing.</li>
+        <li>No lower-case switch, and turn reverse off before the end —
+            otherwise the rest of the screen inherits it.</li>
+    </ul>
+    <p class="hint">If a file breaks any of these, it is refused and the reason
+    says which byte is at fault. Nothing you upload is ever altered to fit.</p>
+</div>
+
+{% for d in directories %}
+<div class="info-box">
+    <h3>{{ d.page_num }} {{ d.title }}</h3>
+    <p class="hint">{{ d.breadcrumb }}</p>
+
+    {% if d.has_header %}
+    {# Drawn by the server from the same font and palette the C64 uses, so this
+       is what the header actually looks like rather than an impression of it. #}
+    <div class="header-preview">
+        <img src="{{ url_for('directory_header_png', page_num=d.page_num) }}"
+             alt="The header frame currently set on {{ d.title }}, as the C64 draws it"
+             width="640" height="96" loading="lazy">
+        <p class="hint">The header on this directory now — rows 0 to 5, as the C64
+        draws it.</p>
+    </div>
+    {% endif %}
+
+    <form method="POST"
+          action="{{ url_for('set_directory_header', page_num=d.page_num) }}"
+          enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="header-{{ d.page_num }}">HEADER FRAME</label>
+            <input type="file" id="header-{{ d.page_num }}" name="header"
+                   accept=".seq,application/octet-stream">
+            <p class="hint">
+                {% if d.has_header %}
+                This directory has its own header.
+                {% else %}
+                No header of its own — it uses the standard frame, or one
+                inherited from the directory above it.
+                {% endif %}
+            </p>
+        </div>
+        <button type="submit">UPLOAD HEADER</button>
+        {% if d.has_header %}
+        <button type="submit" name="action" value="remove">REMOVE HEADER</button>
+        {% endif %}
+    </form>
+
+    <form method="POST"
+          action="{{ url_for('set_directory_settings', page_num=d.page_num) }}">
+        <div class="form-group">
+            <label for="owner-{{ d.page_num }}">
+                <input type="checkbox" id="owner-{{ d.page_num }}"
+                       name="owner_only" {% if d.owner_only %}checked{% endif %}>
+                ONLY I CAN ADD TO THIS DIRECTORY
+            </label>
+            <p class="hint">Stops anyone else uploading here, and so stops them
+            creating directories inside it. Your header applies to everything
+            below this directory that has none of its own, so this keeps that to
+            pages you own.</p>
+        </div>
+        <button type="submit">SAVE SETTING</button>
+    </form>
+</div>
+{% endfor %}
+{% endif %}
+
+<p><a href="{{ url_for('account') }}">BACK TO ACCOUNT</a></p>
+{% endblock %}

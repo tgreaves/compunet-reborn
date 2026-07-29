@@ -21,6 +21,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 - Telesoftware downloads and uploads
 - Electronic mail (Courier) with send/receive and email notifications
 - User-generated content (The Jungle) with voting
+- Custom PETSCII headers on directories you own, uploaded from the website
 - Partyline multi-user chat with rooms
 - WHO IS ONLINE (live user list)
 - WHAT'S NEW (most recent uploads)
@@ -248,7 +249,11 @@ python server/tests/test_api_binding.py && python server/tests/test_client_confo
 
 ### Website
 
-- **[website/](website/)** — Flask web app (registration, admin panel, password reset, guide)
+- **[website/](website/)** — Flask web app (registration, admin panel, password reset, guide,
+  news). News items are Markdown files in [website/news/](website/news/), named
+  `YYYY-MM-DD-slug.md`; the filename gives the date and the permalink, the first `#` heading
+  gives the title. Adding one means adding a file and deploying — the site has no write path to
+  its own content, by design
 
 ### Documentation
 
