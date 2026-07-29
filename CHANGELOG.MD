@@ -27,6 +27,30 @@
 	  shifting each line right by a differing amount. The original C64 client
 	  cannot centre — it prints these lines exactly as sent — so positioning is
 	  the author's, using leading spaces.
+* Running from source:
+	* Fixed: `./server.sh start` and `./website.sh start` announcing
+	  `Server started (PID …)` for a service that had already failed. They
+	  reported the PID the shell hands back when a process is *forked*, which
+	  says nothing about whether it went on to run: a missing interpreter or a
+	  failed import happens after the fork, and the output has already been
+	  redirected into the log file. Both now confirm the process is still alive,
+	  print the end of the log when it is not, and no longer leave a PID file
+	  pointing at something that died.
+	* Fixed: the server ignoring the repository's own `.env` when run from a
+	  source checkout, rather than under Docker. It read only `server/.env`,
+	  while `.env.example` and the website both describe the file at the
+	  repository root — so a checkout set up as documented ran with no
+	  configuration at all. Because the admin API key fails closed when unset,
+	  every request the website made to the server was refused, leaving
+	  registration, the admin panel and password reset broken while both
+	  processes appeared healthy. The server now falls back to the root `.env`.
+	  Docker deployments never had the problem and are unaffected: there the two
+	  locations are the same file.
+	* `.env.example` now lists every setting the server and website read, not
+	  the five that happened to need a value. Among the missing was
+	  `COMPUNET_CLIENT_URL` — `docker-compose.yml` has documented it since
+	  1.2.1, but a deployment configured from `.env.example` alone still had no
+	  link to its own client, with nothing to suggest one was expected.
 
 # 1.2.1 (2026-07-28)
 
