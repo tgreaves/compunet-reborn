@@ -27,8 +27,20 @@ start_server() {
         PYTHON="python3"
     fi
     $PYTHON compunet_server.py >> "$LOG_FILE" 2>&1 &
-    echo $! > "$PID_FILE"
-    echo "Server started (PID $!)"
+    local pid=$!
+    # `&` returns once the process is FORKED, which tells us nothing about
+    # whether it ran: a missing interpreter or an import error fails inside the
+    # child, after the fork, and its output has already been redirected to the
+    # log. Reporting success here recorded a PID for a process that was often
+    # already gone. Give it a moment, then check it is actually alive.
+    sleep 1
+    if ! kill -0 "$pid" 2>/dev/null; then
+        echo "Server failed to start. Last lines of $LOG_FILE:" >&2
+        tail -n 10 "$LOG_FILE" >&2
+        return 1
+    fi
+    echo "$pid" > "$PID_FILE"
+    echo "Server started (PID $pid)"
 }
 
 stop_server() {

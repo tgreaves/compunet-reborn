@@ -27,8 +27,18 @@ start_website() {
         PYTHON="python3"
     fi
     $PYTHON app.py >> "$LOG_FILE" 2>&1 &
-    echo $! > "$PID_FILE"
-    echo "Website started (PID $!)"
+    local pid=$!
+    # See server.sh: `&` reports a fork, not a successful start, and the child's
+    # error goes to the log rather than the terminal. Verify it is still alive
+    # before claiming it started.
+    sleep 1
+    if ! kill -0 "$pid" 2>/dev/null; then
+        echo "Website failed to start. Last lines of $LOG_FILE:" >&2
+        tail -n 10 "$LOG_FILE" >&2
+        return 1
+    fi
+    echo "$pid" > "$PID_FILE"
+    echo "Website started (PID $pid)"
 }
 
 stop_website() {
