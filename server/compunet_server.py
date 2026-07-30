@@ -4351,6 +4351,56 @@ async def api_rename_page(request):
     return aiohttp_web.json_response({'ok': True, 'title': page.title, 'was': was})
 
 
+async def api_move_page(request):
+    """Move an entry into another directory."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_editable(request, body)
+    if err:
+        return err
+    directory, page, user_id, user_data = resolved
+
+    try:
+        dest_num = int(body.get('dest_page_num'))
+    except (TypeError, ValueError):
+        return aiohttp_web.json_response({'error': 'bad destination'}, status=400)
+    dest = directory.pages.get(dest_num)
+    if dest is None or not _api_is_directory(directory, dest):
+        return aiohttp_web.json_response(
+            {'error': 'no such directory to move into'}, status=404)
+
+    # ⚠ TWO permissions, not one. Being allowed to change the entry says nothing
+    # about being allowed to put things into the destination — otherwise anyone
+    # could file their own pages into someone else's private directory.
+    if not _api_may_add_here(dest, user_id, user_data):
+        return aiohttp_web.json_response(
+            {'error': 'you may not add to "%s"' % dest.title}, status=403)
+
+    was = page.parent.title if page.parent else '?'
+    try:
+        affected = relocate_page(directory, page, ROOT_DIR, new_parent=dest)
+    except RelocateError as exc:
+        return aiohttp_web.json_response({'error': str(exc)}, status=409)
+    except OSError as exc:
+        log.error('MOVE: %s', exc)
+        return aiohttp_web.json_response(
+            {'error': 'could not move the files on disk'}, status=500)
+
+    for node in affected:
+        save_one_directory(node, ROOT_DIR)
+    audit_log('page_moved', user=user_id, page=page.page_num, title=page.title,
+              was=was, now=dest.title)
+    log.info('MOVE: %s moved page %d "%s" from "%s" to "%s"',
+             user_id, page.page_num, page.title, was, dest.title)
+    return aiohttp_web.json_response(
+        {'ok': True, 'title': page.title, 'was': was, 'now': dest.title})
+
+
 async def api_reorder_page(request):
     """Move an entry up or down the listing its directory shows."""
     if not _api_check_auth(request):
@@ -4608,6 +4658,7 @@ async def main():
         app.router.add_post('/api/audit', api_post_audit)
         app.router.add_get('/api/tree', api_get_tree)
         app.router.add_post('/api/pages/{page_num}/rename', api_rename_page)
+        app.router.add_post('/api/pages/{page_num}/move', api_move_page)
         app.router.add_post('/api/pages/{page_num}/reorder', api_reorder_page)
         app.router.add_get('/api/pages/{page_num}/frame/{index}.png',
                            api_page_frame_png)

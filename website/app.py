@@ -603,7 +603,8 @@ def directories():
         return redirect(url_for('account'))
     return render_template('tree.html', tree=data['tree'],
                            duplicates=data.get('duplicate_page_numbers') or [],
-                           max_title=MAX_TITLE)
+                           max_title=MAX_TITLE,
+                           move_targets=_move_targets(data['tree']))
 
 
 @app.route('/pages/<int:page_num>')
@@ -636,6 +637,75 @@ def page_frame_png(page_num, index):
         return '', resp.status_code
     return Response(resp.content, mimetype='image/png',
                     headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+def _move_targets(tree):
+    """Where each entry could be moved to: {page_num: [{page_num, label}, ...]}.
+
+    Worked out here rather than in the template because the exclusions need the
+    shape of the tree, and a select that offers a destination the server will
+    refuse is worse than one that offers fewer. The server still checks every one
+    of these — this only decides what to show.
+
+    Excluded per entry: itself and everything beneath it (a directory cannot be
+    moved inside itself), the directory it is already in, any directory already
+    holding its 11 entries, and any the user may not add to.
+    """
+    directories, parent_of, subtree = [], {}, {}
+
+    def index(node, depth, parent_num):
+        parent_of[node['page_num']] = parent_num
+        if node.get('is_directory'):
+            directories.append({
+                'page_num': node['page_num'],
+                # Non-breaking spaces: an <option> collapses ordinary runs, so
+                # this is the only way to show depth in a plain select.
+                'label': (' ' * (depth * 3)) + node['title'],
+                'may_add': node.get('may_add'),
+                'full': node.get('full'),
+            })
+        below = {node['page_num']}
+        for child in node.get('children', []):
+            below |= index(child, depth + 1, node['page_num'])
+        subtree[node['page_num']] = below
+        return below
+
+    index(tree, 0, None)
+
+    eligible = [d for d in directories if d['may_add'] and not d['full']]
+    targets = {}
+
+    def walk(node):
+        num = node['page_num']
+        if node.get('editable') and node.get('may_edit'):
+            targets[num] = [d for d in eligible
+                            if d['page_num'] not in subtree[num]
+                            and d['page_num'] != parent_of[num]]
+        for child in node.get('children', []):
+            walk(child)
+
+    walk(tree)
+    return targets
+
+
+@app.route('/pages/<int:page_num>/move', methods=['POST'])
+def move_page(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    try:
+        dest = int(request.form.get('dest_page_num', ''))
+    except ValueError:
+        flash('Choose a directory to move it into.', 'error')
+        return redirect(url_for('directories'))
+    resp = _api_post('/api/pages/%d/move' % page_num,
+                     {'user': session['user_id'], 'dest_page_num': dest})
+    if resp.status_code == 200:
+        body = resp.json()
+        flash('Moved "%s" from %s to %s.'
+              % (body.get('title'), body.get('was'), body.get('now')), 'success')
+    else:
+        flash(_api_error(resp, 'Could not move that entry.'), 'error')
+    return redirect(url_for('directories'))
 
 
 @app.route('/pages/<int:page_num>/rename', methods=['POST'])

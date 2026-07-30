@@ -308,6 +308,150 @@ class RenamingMovesTheFolderToo(unittest.TestCase):
                          % sorted(self._rel(p) for p in touched - allowed))
 
 
+class MovingBetweenDirectories(unittest.TestCase):
+    """The same `relocate_page` as a rename, with a destination. Run against a
+    temp copy of the fixture."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix='compunet-move-')
+        shutil.copytree(os.path.join(_SERVER, 'data', 'content.test', 'root'),
+                        os.path.join(self._tmp, 'root'))
+        self._saved_root = srv.ROOT_DIR
+        srv.ROOT_DIR = os.path.join(self._tmp, 'root')
+        self.d = tree()
+
+    def tearDown(self):
+        import shutil
+        srv.ROOT_DIR = self._saved_root
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _save(self, affected):
+        for node in affected:
+            srv.save_one_directory(node, srv.ROOT_DIR)
+
+    def _rel(self, path):
+        return os.path.relpath(path, srv.ROOT_DIR).replace(os.sep, '/')
+
+    def test_an_entry_lands_in_the_destination(self):
+        page = self.d.pages[ASH_AND_DAVE]        # in JUNGLE
+        dest = self.d.pages[THE_ZOO]
+        self._save(srv.relocate_page(self.d, page, srv.ROOT_DIR, new_parent=dest))
+
+        reloaded = tree()
+        moved = reloaded.pages[ASH_AND_DAVE]
+        self.assertEqual(THE_ZOO, moved.parent.page_num)
+        self.assertNotIn(ASH_AND_DAVE,
+                         [c.page_num for c in reloaded.pages[JUNGLE].children])
+        self.assertTrue(os.path.isdir(moved._dir_path))
+
+    def test_the_page_number_is_unchanged(self):
+        """Why moving is safe to offer: `GOTO <n>` and keyword lookups survive
+        it, because the number is not derived from the location."""
+        page = self.d.pages[ASH_AND_DAVE]
+        self._save(srv.relocate_page(self.d, page, srv.ROOT_DIR,
+                                     new_parent=self.d.pages[THE_ZOO]))
+        self.assertEqual(ASH_AND_DAVE, tree().pages[ASH_AND_DAVE].page_num)
+
+    def test_a_moved_directory_keeps_its_header(self):
+        """The same silent failure as a rename: a header is stored relative to
+        ROOT_DIR, so the path is wrong the moment the folder moves."""
+        page = self.d.pages[ASH_AND_DAVE]
+        self.assertEqual('jungle/ash-and-dave/header.seq', page.header,
+                         'fixture precondition')
+        self._save(srv.relocate_page(self.d, page, srv.ROOT_DIR,
+                                     new_parent=self.d.pages[THE_ZOO]))
+
+        reloaded = tree().pages[ASH_AND_DAVE]
+        self.assertEqual('jungle/the-zoo/ash-and-dave/header.seq',
+                         reloaded.header)
+        self.assertTrue(os.path.exists(
+            os.path.join(srv.ROOT_DIR, *reloaded.header.split('/'))))
+
+    def test_the_whole_subtree_comes_along(self):
+        page = self.d.pages[ASH_AND_DAVE]
+        before = {p.page_num for p in srv._subtree(page)}
+        self.assertGreater(len(before), 1, 'fixture precondition')
+
+        self._save(srv.relocate_page(self.d, page, srv.ROOT_DIR,
+                                     new_parent=self.d.pages[THE_ZOO]))
+
+        reloaded = tree()
+        after = {p.page_num for p in srv._subtree(reloaded.pages[ASH_AND_DAVE])}
+        self.assertEqual(before, after)
+        for node in srv._subtree(reloaded.pages[ASH_AND_DAVE]):
+            self.assertTrue(os.path.isdir(node._dir_path),
+                            '%s lost its folder' % node.title)
+
+    def test_a_directory_cannot_be_moved_into_itself(self):
+        """It would be moved inside its own child: unreachable from the root
+        while still sitting on disk."""
+        zoo = self.d.pages[THE_ZOO]
+        inside = next(c for c in zoo.children if c.children) if any(
+            c.children for c in zoo.children) else zoo.children[0]
+        with self.assertRaises(srv.RelocateError) as caught:
+            srv.relocate_page(self.d, zoo, srv.ROOT_DIR, new_parent=inside)
+        self.assertIn('into itself', str(caught.exception))
+
+    def test_a_directory_cannot_be_moved_into_its_own_child_directory(self):
+        zoo = self.d.pages[THE_ZOO]
+        with self.assertRaises(srv.RelocateError):
+            srv.relocate_page(self.d, zoo, srv.ROOT_DIR, new_parent=zoo)
+
+    def test_a_full_destination_is_refused(self):
+        """A directory holds at most 11 entries."""
+        dest = self.d.pages[THE_ZOO]
+        page = self.d.pages[ASH_AND_DAVE]
+        # Pad the destination to the limit with stand-in children.
+        while len(dest.children) < 11:
+            filler = srv.CompunetPage(
+                page_num=self.d.next_page_num(), title='FILL%d' % len(dest.children),
+                page_type='T')
+            filler.parent = dest
+            filler._dir_path = os.path.join(dest._dir_path, 'fill')
+            dest.children.append(filler)
+            self.d.pages[filler.page_num] = filler
+
+        with self.assertRaises(srv.RelocateError) as caught:
+            srv.relocate_page(self.d, page, srv.ROOT_DIR, new_parent=dest)
+        self.assertIn('full', str(caught.exception))
+
+    def test_a_colliding_title_in_the_destination_is_refused(self):
+        page = self.d.pages[ASH_AND_DAVE]
+        dest = self.d.pages[THE_ZOO]
+        clash = dest.children[0]
+        with self.assertRaises(srv.RelocateError) as caught:
+            srv.relocate_page(self.d, page, srv.ROOT_DIR, new_parent=dest,
+                              new_title=clash.title)
+        self.assertIn('same folder', str(caught.exception))
+
+    def test_moving_touches_only_the_directories_involved(self):
+        def mtimes():
+            found = {}
+            for base, _dirs, files in os.walk(srv.ROOT_DIR):
+                for name in files:
+                    if name in ('directory.json', 'root.json'):
+                        p = os.path.join(base, name)
+                        found[p] = os.stat(p).st_mtime_ns
+            return found
+
+        before = mtimes()
+        page = self.d.pages[ASH_AND_DAVE]
+        self._save(srv.relocate_page(self.d, page, srv.ROOT_DIR,
+                                     new_parent=self.d.pages[THE_ZOO]))
+        touched = {p for p, t in mtimes().items() if before.get(p) != t}
+        allowed = {
+            os.path.join(srv.ROOT_DIR, 'jungle', 'directory.json'),        # source
+            os.path.join(srv.ROOT_DIR, 'jungle', 'the-zoo', 'directory.json'),
+            os.path.join(srv.ROOT_DIR, 'jungle', 'the-zoo', 'ash-and-dave',
+                         'directory.json'),                                # itself
+        }
+        self.assertFalse(touched - allowed,
+                         'a move rewrote unrelated directories: %s'
+                         % sorted(self._rel(p) for p in touched - allowed))
+
+
 class ReorderingChangesTheListing(unittest.TestCase):
 
     def setUp(self):

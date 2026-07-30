@@ -15,6 +15,12 @@
 	  the controls to change something appear only where you have permission.
 	  Header frames and the owner-only setting moved to their own page, linked
 	  from each directory you can configure.
+	* New: entries can be moved from one directory to another from the
+	  DIRECTORIES page (#121) — the point of the whole thing, for tidying up. An
+	  entry keeps its page number, so `GOTO` and keywords still find it wherever
+	  it ends up, and a directory taken somewhere else brings everything inside it
+	  along. Only directories you can add to are offered, and only ones with room;
+	  a directory cannot be put inside itself.
 	* New: entries can be retitled and reordered from the DIRECTORIES page
 	  (#121), wherever you have permission. Reordering changes the order they
 	  appear in on the C64, top to bottom. Retitling also renames the folder the

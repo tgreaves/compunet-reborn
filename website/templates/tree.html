@@ -73,9 +73,29 @@
                     {%- if i == node.position %} selected{% endif %}>{{ i + 1 }}</option>
                 {% endfor %}
             </select>
-            <button type="submit">MOVE</button>
+            <button type="submit">REORDER</button>
             <p class="hint">The order entries appear in on the C64, top to bottom.</p>
         </form>
+        {% endif %}
+
+        {% set targets = move_targets.get(node.page_num) %}
+        {% if targets %}
+        <form method="POST"
+              action="{{ url_for('move_page', page_num=node.page_num) }}">
+            <label for="m{{ node.page_num }}">MOVE INTO</label>
+            <select id="m{{ node.page_num }}" name="dest_page_num">
+                {% for t in targets %}
+                <option value="{{ t.page_num }}">{{ t.page_num }} {{ t.label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">MOVE</button>
+            <p class="hint">Only directories you can add to are listed, and only
+            ones with room. The entry keeps its page number, so
+            <code>GOTO {{ node.page_num }}</code> still finds it.</p>
+        </form>
+        {% elif node.may_edit %}
+        <p class="hint">Nowhere to move this to — no other directory you can add to
+        has room for it.</p>
         {% endif %}
     </div>
 </details>
