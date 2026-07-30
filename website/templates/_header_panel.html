@@ -18,7 +18,7 @@
         <div class="frame-shot frame-shot-header" role="img"
              aria-label="The header frame currently set on {{ node.title }}, as the C64 draws it"
              style="background-image: url('{{ url_for('directory_header_png', page_num=node.page_num) }}')"></div>
-        <p class="hint">The header on this directory now — rows 0 to 5, as the C64
+        <p class="hint">The header on this directory now — its top 6 rows, as the C64
         draws it.</p>
     </div>
     {% else %}
@@ -38,7 +38,7 @@
             <p class="hint">A PETSCII sequence. <strong>Save straight from the
             client's editor</strong> — the page header it writes is removed for
             you, and you will be told it was. At most {{ max_bytes }} bytes,
-            drawing only on rows 0 to 5, with no clear-screen. A file that breaks
+            drawing only on the top 6 rows, with no clear-screen. A file that breaks
             those is refused, and the reason says which byte is at fault.</p>
             <p class="hint">⚠ <strong>Design against light grey.</strong> The
             directory background is fixed at light grey and a header cannot change

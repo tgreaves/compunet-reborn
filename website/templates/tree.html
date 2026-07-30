@@ -53,7 +53,7 @@
         {# may_configure, not may_edit — the root owns a header but cannot be
            moved, renamed or deleted. #}
         {% if node.may_configure %}
-        <a href="{{ url_for('directories', header=node.page_num) }}#header-{{ node.page_num }}"
+        <a href="{{ url_for('directories', header=node.page_num) }}#panel-{{ node.page_num }}"
            data-header="{{ node.page_num }}">HEADER</a>
         {% endif %}
         {# "FIXED", not "LOCKED": this is structural, not a permission. LOCKED read
@@ -118,7 +118,7 @@ reason. A fixed directory can still have its header changed.</p>
     </div>
 
     <aside class="frame-pane" aria-label="Page contents" aria-live="polite"
-           id="header-{{ header_node.page_num if header_node else 'pane' }}">
+           id="panel-{{ header_node.page_num if header_node else 'pane' }}">
         {# Server-rendered when ?header=<n> is set — the no-script path for HEADER,
            and where a header POST returns so a rejected upload comes back to the
            panel it was sent from rather than a bare tree. With the script running

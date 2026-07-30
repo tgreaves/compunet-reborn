@@ -981,9 +981,9 @@ def _header_return(page_num=None):
         # ?header=<n> re-renders the panel server-side, so this works with the
         # script running or not.
         return redirect(url_for('directories', header=page_num,
-                                _anchor='header-%d' % page_num))
+                                _anchor='panel-%d' % page_num))
     return redirect(url_for('directory_settings', header=page_num,
-                            _anchor='header-%d' % page_num))
+                            _anchor='panel-%d' % page_num))
 
 
 @app.route('/directories/<int:page_num>/header', methods=['POST'])
@@ -1102,9 +1102,12 @@ def _too_large(_e):
 
 
 def _rows_phrase(rows):
+    """How much of the header region the artwork fills, counted the way a person
+    would — the first row is row 1, not row 0 (#126). `rows` is a COUNT, so it
+    needs no adjustment; the phrasing is what changes."""
     if not rows:
         return 'no rows used'
-    return 'using row 0' if rows == 1 else 'using rows 0-%d' % (rows - 1)
+    return 'using row 1' if rows == 1 else 'using rows 1-%d' % rows
 
 
 def _api_error(resp, fallback):

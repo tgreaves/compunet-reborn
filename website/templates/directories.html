@@ -22,8 +22,9 @@ the standard frame.</p>
     from a PETSCII art tool contains.</p>
     <ul>
         <li>At most <strong>{{ max_bytes }} bytes</strong>.</li>
-        <li>It may only draw on <strong>rows 0 to 5</strong>. Row 6 is the top of
-            the directory frame, and anything lower overwrites the entry list.</li>
+        <li>It may only draw on the <strong>top 6 rows</strong>. Row 7 is the top
+            of the directory frame, and anything lower overwrites the entry
+            list.</li>
         <li>No clear-screen. The header is drawn on top of the directory, so
             clearing the screen erases the whole thing.</li>
         <li>No lower-case switch, and turn reverse off before the end —
@@ -35,7 +36,7 @@ the standard frame.</p>
 
 {% for d in directories %}
 <div class="info-box">
-    <h3 id="header-{{ d.page_num }}">{{ d.page_num }} {{ d.title }}</h3>
+    <h3 id="panel-{{ d.page_num }}">{{ d.page_num }} {{ d.title }}</h3>
     <p class="hint">{{ d.breadcrumb }}</p>
 
     {# Upload results belong beside the directory they describe. This page can be a
@@ -54,7 +55,7 @@ the standard frame.</p>
         <img src="{{ url_for('directory_header_png', page_num=d.page_num) }}"
              alt="The header frame currently set on {{ d.title }}, as the C64 draws it"
              width="640" height="96" loading="lazy">
-        <p class="hint">The header on this directory now — rows 0 to 5, as the C64
+        <p class="hint">The header on this directory now — its top 6 rows, as the C64
         draws it.</p>
     </div>
     {% endif %}

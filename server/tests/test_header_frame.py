@@ -140,14 +140,20 @@ class HostileHeadersAreRejected(unittest.TestCase):
         reasons = hf.validate_header_frame(b'AB\x0ECD')
         self.assertTrue(any('lower-case' in r for r in reasons))
 
+    # ⚠ The MESSAGES count rows from 1, the code from 0 (#126). A reader looking at
+    # the fifth line of their own artwork cannot act on "row 4", so anything shown
+    # to a person is translated; nothing internal changed. These assert the
+    # user-facing numbering deliberately, so a well-meaning "fix" back to 0-based
+    # fails here rather than in front of an author.
     def test_drawing_on_row_six_is_refused(self):
-        # Row 6 is the template's top border. Six CRs put the cursor on row 6.
+        # Six CRs put the cursor on internal row 6 — the template's top border,
+        # which a person counting from 1 calls row 7.
         reasons = hf.validate_header_frame(b'\x0d' * 6 + b'X')
-        self.assertTrue(any('row 6' in r for r in reasons))
+        self.assertTrue(any('row 7' in r for r in reasons), reasons)
 
     def test_drawing_far_below_the_header_region_is_refused(self):
         reasons = hf.validate_header_frame(b'\x0d' * 8 + b'X')
-        self.assertTrue(any('row 8' in r for r in reasons))
+        self.assertTrue(any('row 9' in r for r in reasons), reasons)
 
     def test_ending_the_cursor_on_row_six_without_drawing_is_allowed(self):
         # Every shipped header does exactly this: it finishes with a CR, leaving
@@ -333,6 +339,8 @@ class EditorFramesAreAccepted(unittest.TestCase):
         out, notes = hf.normalise_header_frame(body)
         self.assertEqual(hf.validate_header_frame(out), [], 'must not be rejected')
         self.assertTrue(any('invisible' in n for n in notes), notes)
+        # 1-based: this is the first row, so the reader is told "row 1".
+        self.assertTrue(any('row 1' in n for n in notes), notes)
 
     def test_visible_ink_is_not_warned_about(self):
         body = bytes([0x8E, 0x05]) + b'VISIBLE'     # $05 = white

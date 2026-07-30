@@ -224,6 +224,15 @@ ul li, ol li {
     background: color-mix(in srgb, var(--c64-amber) 10%, transparent);
 }
 
+/* ⚠ The nav is `position: sticky; top: 0`, so an anchored element scrolls to the
+   viewport top and lands UNDERNEATH it. A header upload returns to #panel-<n>,
+   which put the first result message — the green "Header set" — behind the nav,
+   half cut off. Measured at 56px in the browser; the extra 16px is breathing room
+   so the panel does not sit flush against the bar. */
+[id^="panel-"] {
+    scroll-margin-top: 72px;
+}
+
 /* Forms */
 .form-group {
     margin-bottom: 24px;

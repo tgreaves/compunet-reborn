@@ -111,17 +111,26 @@ def normalise_header_frame(data):
                 'Added $92 at the end to switch reverse video off, so it does '
                 'not carry into the directory listing below your header.')
 
-        hidden = _invisible_cells(body)
-        if hidden:
+        try:
+            hidden = _invisible_cells(body)
+        except ImportError:
+            hidden = {}
             notes.append(
-                'Warning: %d character%s on row%s %s drawn in light grey, which '
-                'is the directory background colour ($0F, set by the client at '
-                'compunet.s:3785) - they will be invisible. Design against light '
-                'grey, not the white or black your editor may be showing you.'
-                % (sum(hidden.values()),
-                   's' if sum(hidden.values()) != 1 else '',
-                   's' if len(hidden) != 1 else '',
-                   ', '.join(str(r) for r in sorted(hidden))))
+                'Note: could not check whether any of this header is drawn in '
+                'the background colour, so it may contain characters that are '
+                'invisible on the directory screen.')
+        if hidden:
+            total = sum(hidden.values())
+            # 1-based for the reader — see the note on the overflow message below.
+            rows = ', '.join(str(r + 1) for r in sorted(hidden))
+            notes.append(
+                'Warning: %d character%s on row%s %s drawn in light grey, the '
+                'directory background colour, so %s be invisible. Design against '
+                'light grey - not the white or black your editor may be showing '
+                'you.'
+                % (total, 's' if total != 1 else '',
+                   's' if len(hidden) != 1 else '', rows,
+                   'they will' if total != 1 else 'it will'))
 
     return body, notes
 
@@ -142,10 +151,12 @@ def _invisible_cells(body):
     client's editor has no way to discover that: the editor shows their page's
     own background, not the directory's.
     """
-    try:
-        from api_binding import frame_to_cells
-    except ImportError:                       # validator used standalone
-        return {}
+    # ⚠ NOT guarded into silence. This used to swallow ImportError and return {},
+    # which turned "the renderer is missing" into "your header is fine" — the very
+    # failure this warning exists to prevent. api_binding pulls in aiohttp, so the
+    # import only fails outside the server's own environment; the caller reports
+    # that rather than pretending the check ran.
+    from api_binding import frame_to_cells
     cells = frame_to_cells(
         bytes([0x00, 0x0F, 0x0F]) + body + b'\x00')['cells']
     hidden = {}
@@ -351,11 +362,15 @@ def validate_header_frame(data, _skip_reverse_check=False):
 
     if first_overflow_at is not None:
         offset, bad_row = first_overflow_at
+        # ⚠ 1-BASED in anything a person reads. The code, the spec and the C64 all
+        # count rows from 0, and saying "row 4" to someone looking at the fifth line
+        # of their own artwork is a puzzle, not a diagnosis. Internally everything
+        # stays 0-based; only the sentence is translated.
         reasons.append(
-            'Draws on row %d (from offset %d). A header may only use rows 0-%d '
-            '— row %d is the top of the directory frame, and anything below '
+            'Draws on row %d (from offset %d). A header may only use the top %d '
+            'rows - row %d is the top of the directory frame, and anything below '
             'that overwrites the entry list.'
-            % (bad_row, offset, LAST_HEADER_ROW, LAST_HEADER_ROW + 1))
+            % (bad_row + 1, offset, LAST_HEADER_ROW + 1, LAST_HEADER_ROW + 2))
 
     # normalise_header_frame appends the $92 itself and passes the flag while it
     # decides whether the stream is otherwise sound, so this must not fire then —
