@@ -21,10 +21,19 @@ export PATH
 
 MODS="startup wbstartup globals transport connect login frame frame_control frame_gfx navigate directory directory_init directory_parse directory_select transfer download mail resources config settings launch launch_helpers menu event_loop diagnostics modem dosio ui ui_state ui_dialogs dispatch osglue net button_images frame_init stubs"
 
+# Version shown in the About window. Read from the repository VERSION file so it
+# cannot drift from the release the client was built for — the same reason the C64
+# client derives its version hash at build time rather than carrying a literal.
+CLIENT_VERSION="${CLIENT_VERSION:-$(tr -d ' \t\r\n' < ../../../VERSION)}"
+echo "  VER  $CLIENT_VERSION"
+
 OBJS=""
 for f in $MODS; do
     echo "  CC   $f.c"
-    vc +kick13 -c -I. "$f.c" -o "$f.o"
+    # Passed WITHOUT quotes and stringified in C: vc.exe on Windows strips quote
+    # characters out of -D values, so -DX="\"1.3.0\"" arrives as X=1.3.0 and the
+    # string concatenation below it fails to parse.
+    vc +kick13 -c -I. -DCLIENT_VERSION_ID=$CLIENT_VERSION "$f.c" -o "$f.o"
     OBJS="$OBJS $f.o"
 done
 

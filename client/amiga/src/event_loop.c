@@ -169,6 +169,10 @@ extern APTR g_sess_a;           /* DAT_0011f120 */
 extern APTR g_sess_b;           /* DAT_0011f124 */
 extern APTR g_sess_c;           /* DAT_0011f128 */
 
+/* Download destination left open by an aborted transfer — see disconnect(). */
+extern APTR g_dl_file;          /* DAT_001215f0 */
+extern void file_close(APTR fh);
+
 void disconnect(void)
 {
     /* Close the TCP transport (the socket + bsdsocket.library) if we came up over TCP.
@@ -176,6 +180,29 @@ void disconnect(void)
      * but the socket isn't tracked, so it must be closed explicitly here. */
     if (g_tcp_mode)
         net_close();
+
+    /*
+     * Release a download file left open by an aborted transfer.
+     *
+     * ⚠ DELIBERATE DEVIATION — the original leaks this handle. FUN_00102968 zeroes
+     * eleven longwords at a4=$11d000 ($74, $7c, $570, $78, $4650, $4698, $2d70, $2120,
+     * $2124, $2128, $70) and g_dl_file is $45f0, which is not among them. The recon above
+     * is faithful; the bug is the original's.
+     *
+     * Why fix it anyway: download_receive only calls file_close on its success path, and
+     * every transport error longjmps past it straight to here. The handle then keeps the
+     * destination locked, so the NEXT attempt fails at file_open_write and the user is
+     * told "Can't open file - try again?" — which points at their disk, and retrying can
+     * never succeed until the client is quit. Observed exactly that way when a server
+     * fault dropped a connection mid-download: a 0-byte file, unopenable thereafter.
+     *
+     * The partial file is deliberately left on disk rather than deleted — it is the
+     * user's, and the retry reopens with MODE_NEWFILE, which truncates it anyway.
+     */
+    if (g_dl_file != NULL) {
+        file_close(g_dl_file);
+        g_dl_file = NULL;
+    }
 
     /* Unwind tracked resources level-by-level back to the saved mark. */
     while ((BYTE)g_res_saved_level <= cleanup_resources())
