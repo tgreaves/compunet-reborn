@@ -12,11 +12,13 @@ work on it.
 | C64 disk image (`.d64`) | **`c1541`**, from VICE | `c1541 -help` |
 | Amiga client | **vbcc** (m68k-amigaos) with `vasmm68k_mot`, `vlink` | `$VBCC/bin/vc -v` |
 | Amiga ADF / icon steps | **`xdftool`**, from amitools | `xdftool --help` |
+| Verifying the Amiga reconstruction | **capstone** (Python m68k disassembler) | `python -c "import capstone"` |
+| Running the Amiga client | An emulator (**WinUAE**/FS-UAE) and a Kickstart 2.04+ ROM | — |
 | Issues and pull requests | **GitHub CLI** (`gh`) | `gh --version` |
 
 Sources: [cc65](https://cc65.github.io/) · [VICE](https://vice-emu.sourceforge.io/) ·
 [vbcc](http://sun.hasenbraten.de/vbcc/) · [amitools](https://github.com/cnvogelg/amitools) ·
-[GitHub CLI](https://cli.github.com/)
+[capstone](https://www.capstone-engine.org/) · [GitHub CLI](https://cli.github.com/)
 
 Each component builds independently — you only need the toolchain for the part you are working
 on. A missing toolchain is a component you have not installed, not a build to debug.
@@ -219,10 +221,80 @@ cd client/amiga/src && VBCC=/path/to/vbcc sh build.sh     # -> compunet-client
 `PATH` itself, so pointing that variable at your installation is the whole configuration — vbcc
 does not need to be on `PATH` otherwise.
 
+⚠ **On Windows, `VBCC` must be a Windows-style path with no spaces**, even when building from
+Git Bash. The config expands `%VBCC%` inside `vc.exe`, which cannot read a POSIX path like
+`/c/Users/You/vbcc` and does not fail when it cannot — it passes the include flag through
+**unexpanded**, and the compiler reports:
+
+```
+error 1: only one input file allowed
+… -I%VBCC%/targets/m68k-amigaos/include failed
+```
+
+which names neither the variable nor the path. A space in the home directory breaks it the same
+way. Use the 8.3 short name, which points at the same directory:
+
+```bash
+export VBCC="C:/Users/TRISTA~1/vbcc"        # not /c/Users/Tristan Greaves/vbcc
+export PATH="/c/Users/TRISTA~1/vbcc/bin:$PATH"
+cd client/amiga/src && sh build.sh
+```
+
+`vc -v` on its own reports **"No config file!"** and is not a usable check — `build.sh` selects
+the config with `+kick13`. A successful build ends with `Built compunet-client (<n> bytes)`.
+
 Building the toolchain from scratch — components, versions, download URLs, directory layout —
 is documented in
 **[client/amiga/vintage/tools/re/toolchain.md](client/amiga/vintage/tools/re/toolchain.md)**,
 which is the authority for it.
+
+## capstone — verifying the Amiga reconstruction
+
+[CLAUDE.md](CLAUDE.md) requires every claim about the original client to be checked against a
+**relocated** disassembly rather than the Ghidra decompile. `disasm_fn.py` is the tool that
+produces one, and it needs `capstone` — which is not a dependency of anything else in the
+repository, so a fresh checkout cannot run the one workflow the project rules mandate:
+
+```bash
+pip install capstone
+```
+
+Without it the tool dies on import with `ModuleNotFoundError: No module named 'capstone'`,
+which reads like a broken tool rather than a missing package.
+
+⚠ **Run `flatten.py` first, and give it both arguments.** `compunet_flat.bin` is generated, not
+committed, and `disasm_fn.py` resolves every address through it. `flatten.py` takes no defaults:
+
+```bash
+cd client/amiga/vintage/tools/re
+python flatten.py ../../decrunched/Compunet compunet_flat    # -> compunet_flat.bin + .map
+python disasm_fn.py 0x10b174                                 # or a name from symbols.json
+python disasm_fn.py --our account                            # original beside our vc -S
+```
+
+Run bare, `flatten.py` fails with `IndexError: list index out of range` from `sys.argv[1]` —
+easily misread as a corrupt binary. Disassembling the un-relocated hunk bytes instead decodes
+garbage, which is the failure the whole tool exists to prevent.
+
+## Running the Amiga client in an emulator
+
+Needed to test client behaviour end to end; not needed to build anything.
+
+- **Kickstart 2.04 or later.** The client itself is built against the 1.3 NDK, but every Amiga
+  TCP/IP stack requires 2.04. Note there was never a *Kickstart* 2.1 — AmigaOS 2.1 was a
+  software-only release — so a "2.1 or higher" requirement is wrong wherever it appears.
+- **WinUAE has `bsdsocket.library` emulation built in** (Host tab), which removes the need to
+  install Roadshow, AmiTCP or Miami inside the emulated Amiga. Socket calls are proxied through
+  the host, so a server on the same machine is reachable at `127.0.0.1`.
+- **The server address comes from a `TCPHOST` file**, not from the client's configuration
+  screen — the phone-number field is far too small for a hostname. One line, `host` or
+  `host:port`; looked up in the current directory, then `ENV:`, then `S:`. The shipped archive
+  presets it to `vme.compunet.live:6400`, so point it at `127.0.0.1:6400` to test locally.
+
+⚠ **The Amiga client is exempt from the client-version hash gate**, unlike the C64 client. The
+server identifies it during handshake and logs *"Amiga client detected — skipping hash check +
+LINKING"*. So a shipped `dist/*.lha` talks to a development server as-is: no rebuild, and no
+`make HASH=…` override of the kind the C64 client needs.
 
 ## gh — issues and pull requests
 
@@ -252,6 +324,19 @@ winget install --id GitHub.cli --scope user --accept-source-agreements --accept-
 
 It puts `gh` on `PATH` for new shells only — an existing shell keeps the old `PATH` and still
 reports `gh` as not found.
+
+⚠ **A user-scope install may never reach `PATH` in a tool-driven shell at all.** Neither Git
+Bash nor `Get-Command gh` in PowerShell resolved it here long after installation, so `gh` looks
+uninstalled when it is present and working. Find it rather than reinstalling:
+
+```powershell
+Get-ChildItem "$env:LOCALAPPDATA" -Filter gh.exe -Recurse -ErrorAction SilentlyContinue |
+  Select-Object -First 1 -ExpandProperty FullName
+```
+
+It lands under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\GitHub.cli_…\bin\gh.exe`. Invoke it by
+full path with PowerShell's call operator — `& $gh issue view 122` — and note that `--jq`
+expressions get word-split by PowerShell, so prefer `--json` and pipe through `ConvertFrom-Json`.
 
 ---
 

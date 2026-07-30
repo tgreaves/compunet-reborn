@@ -3,6 +3,17 @@
 * C64 client:
 	* Fixed: client banner now correctly shows the version it was built from.
 	  Every release since 1.0.0 announced itself as `COMPUNET REBORN 1.0.0`.
+* Amiga Client:
+	* Fixed: a download taken after any other action wrote the previous screen to
+	  disk instead of the file, and reported it as complete. The saved file was
+	  unusable (#123).
+	* Fixed: downloads are around 40 times faster — a 166K program took 36 seconds
+	  and now takes under one (#124).
+	* Fixed: a download interrupted by a lost connection left the file locked, so
+	  every retry failed with "Can't open file" until the client was restarted
+	  (#124).
+	* New: the About window shows the client version, and credits the Reborn
+	  project alongside the 1989 authors.
 * Web / Electron Client:
 	* New: an application icon for the desktop app — the Commodore 64 `C`, in the
 	  Compunet red and light grey of the service's own header. Windows previously
@@ -28,6 +39,9 @@
 	* Fixed: Deleting directories no longer orphans the content inside it.
 	  Everything is now correctly archived.
 	* Fixed: Page numbers now forced to be unique.  Example content fixed.
+	* Fixed: Amiga and ST downloads now carry the correct file size. The header
+	  used the C64's 16-bit field, so anything over 64K was truncated and
+	  byte-swapped — a 169,966-byte file was described as 61,079 (#123).
 * Historical archive:
 	* New: 43 SEQ frames recovered from 35 original Compunet demo disks,
 	  contributed by ZILDAC (`historical/seq/zildac/`).

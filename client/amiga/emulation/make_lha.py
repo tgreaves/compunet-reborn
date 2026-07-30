@@ -4,7 +4,8 @@ make_lha.py - build the Compunet Reborn Amiga client distribution as an LHA arch
 
 Produces a `Compunet` Workbench drawer (with a drawer icon) containing the TCP client and
 its support files (the client itself carries the authentic vintage icon). Output:
-    client/amiga/dist/CompunetReborn-Amiga-<ver>.lha
+    client/amiga/dist/CompunetReborn.lha      (+ CompunetReborn.readme for Aminet)
+    client/amiga/dist/CompunetReborn-dev.lha  (same, pointed at a local server)
 
 No host `lha` tool is required: this writes standard LHA **level-1, -lh0- (stored)** headers
 directly (directory via extended-header type 0x02 with 0xff separators, CRC-16/ARC, 1-byte
@@ -28,8 +29,12 @@ DRAWER   = 'Compunet'
 # Two builds: the public release (points at the live server) and a dev build (local server).
 PROD_HOST = 'vme.compunet.live:6400'
 DEV_HOST  = 'docker.lan:6400'
-PROD_ARCHIVE = os.path.join(DIST, f'CompunetReborn-Amiga-{VER}.lha')
-DEV_ARCHIVE  = os.path.join(DIST, f'CompunetReborn-Amiga-{VER}-dev.lha')
+# ⚠ The public archive is named WITHOUT a version. Aminet identifies an upload by its
+# archive name and carries the version in the .readme header, so a versioned filename
+# creates a new entry on every release instead of updating the existing one — and the
+# .readme MUST share the archive's base name to be paired with it.
+PROD_ARCHIVE = os.path.join(DIST, 'CompunetReborn.lha')
+DEV_ARCHIVE  = os.path.join(DIST, 'CompunetReborn-dev.lha')
 
 # The public (live) archive is also published to the website's static downloads under a
 # stable name (matching the .crt/.prg naming) so the Connecting page can link to it.
@@ -38,7 +43,7 @@ WEBSITE_LHA  = os.path.join(ROOT, 'website', 'static', 'compunet-reborn-amiga.lh
 # Aminet submission: an Aminet-style .readme (structured header + description) is written
 # next to the public archive, matching its base name, for a comm/tcp Aminet upload.
 AMINET_TEMPLATE = os.path.join(HERE, 'aminet.readme.template')
-AMINET_README   = os.path.join(DIST, f'CompunetReborn-Amiga-{VER}.readme')
+AMINET_README   = os.path.join(DIST, 'CompunetReborn.readme')  # must match the .lha base name
 
 # The drawer icon is a genuine standard Workbench 2.1 drawer icon, extracted from the WB ADF
 # at build time (so no Cloanto content lives in the repo). Override the ADF with $WB_ADF.
@@ -48,7 +53,7 @@ DEFAULT_WB_ADF = os.environ.get(
 WB_DRAWER_ICON = 'Devs.info'        # a plain 632-byte standard drawer icon on the WB disk
 
 # Fixed timestamp (Date.now/new Date() unavailable in some sandboxes; use the release date).
-STAMP = datetime.datetime(2026, 7, 24, 12, 0, 0)
+STAMP = datetime.datetime(2026, 7, 30, 12, 0, 0)
 
 README_TEMPLATE = os.path.join(HERE, 'README.template')
 

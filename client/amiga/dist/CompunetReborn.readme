@@ -2,8 +2,8 @@ Short:        Native Amiga client for the Compunet Reborn service
 Author:       Tristan Greaves (Compunet Reborn); original by Ariadne Software
 Uploader:     Tristan Greaves <tristan@extricate.org>
 Type:         comm/tcp
-Version:      1.1.0
-Architecture: m68k-amigaos >= 2.1
+Version:      1.3.0
+Architecture: m68k-amigaos >= 2.0
 Requires:     bsdsocket.library TCP/IP stack
 Distribution: Aminet
 
@@ -31,9 +31,11 @@ Features:
   * LIFE / VOTE / user catalogue
 
 Requirements:
-  * Workbench / Kickstart 2.1 or higher
   * A TCP/IP stack providing bsdsocket.library (Roadshow, AmiTCP, Miami, ...),
-    installed and online
+    installed and online - these need Kickstart 2.04 or higher, which is what
+    sets the floor
+  * The client itself runs on Kickstart 1.3 or higher, as the 1989 original did;
+    with no stack it keeps its offline UI
   * A free Compunet Reborn account - register at https://compunet.live/
 
 Usage:
@@ -52,3 +54,26 @@ from a C64, a PETSCII terminal, or the Amiga. Register and read more at:
 The reverse-engineering and reconstruction are documented at:
 
   https://github.com/tgreaves/compunet-reborn
+
+
+Changes affecting the Amiga client
+----------------------------------
+
+1.3.0
+  * Fixed: a download taken after any other action wrote the previous screen to
+    disk instead of the file, and reported it as a completed download. The
+    saved file was unusable.
+  * Fixed: downloads are around 40 times faster. A 166K program took 36
+    seconds and now takes under one.
+  * Fixed: a download interrupted by a lost connection left the file locked, so
+    every retry failed with "Can't open file - try again?" until the client was
+    restarted.
+  * Fixed: the file size sent with a download was truncated and byte-swapped
+    for Amiga files, so anything over 64K was described wrongly.
+  * Fixed: uploading from the Amiga could later have the entry recorded as a
+    C64 file, after which downloading it warned it was for the wrong machine.
+  * New: the About window shows the client version, and credits the Reborn
+    project alongside the 1989 authors.
+
+1.1.0
+  * First release of the Amiga client.

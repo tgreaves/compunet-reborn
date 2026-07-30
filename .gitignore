@@ -52,6 +52,7 @@ website/pending.json
 
 # Logs
 server/logs/
+website/logs/
 client/c64/logs/
 *.pid
 
