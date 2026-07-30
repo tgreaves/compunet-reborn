@@ -1975,8 +1975,8 @@ class TerminalSession:
         if existing:
             page_num = existing.page_num
         else:
-            all_pages = list(self.directory.pages.keys())
-            page_num = max(all_pages) + 1 if all_pages else 1000
+            # Unique against the whole tree, not just the lookup table.
+            page_num = self.directory.next_page_num()
 
         size = len(send['frames'])
 
@@ -2110,8 +2110,8 @@ class TerminalSession:
         if existing:
             page_num = existing.page_num
         else:
-            all_pages = list(self.directory.pages.keys())
-            page_num = max(all_pages) + 1 if all_pages else 1000
+            # Unique against the whole tree, not just the lookup table.
+            page_num = self.directory.next_page_num()
 
         # Calculate size in K
         size = (len(prg_data) - 2 + 1023) // 1024 if len(prg_data) > 2 else 1

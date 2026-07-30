@@ -41,53 +41,138 @@ def tree():
     return srv.CompunetDirectory()
 
 
-class DuplicatePageNumbersAreRefused(unittest.TestCase):
-    """⚠ Page numbers are the tree's identifier, and they are NOT unique.
+class TheShippedTreesHaveUniquePageNumbers(unittest.TestCase):
+    """A guard, not a formality.
 
-    `data.example` and the fixture tree both ship page 700 twice — `DEMOS` under
-    The Jungle and `FEBREVIEW FOUR` under THE ZOO. Nothing enforces uniqueness on
-    load (`self.pages[num] = page` is last-wins), so both render in their listings
-    while only one is reachable by number.
+    `data.example` and the fixture both shipped page 700 twice — `DEMOS` under The
+    Jungle and `FEBREVIEW FOUR` under THE ZOO — for long enough that it reached
+    the tracked content. `GOTO 700` could only ever reach one of them, and an edit
+    addressed by number would have acted on whichever loaded second. DEMOS is now
+    604, back in sequence with its siblings.
 
-    Every edit addresses a page by number. With a duplicate that is ambiguous, and
-    an edit would act on whichever entry loaded second — the user asks to move one
-    page and a different one moves. So they are detected and refused.
+    This fails the moment a duplicate is reintroduced by hand, which is the only
+    way one can now appear.
     """
 
-    def test_the_fixture_duplicate_is_found(self):
-        self.assertIn(700, srv._api_duplicate_page_nums(tree()))
-
-    def test_counted_from_the_tree_not_the_lookup_table(self):
-        """`directory.pages` has already collapsed the duplicate, so counting it
-        there would report no duplicates at all."""
+    def test_the_fixture_tree_is_clean(self):
         d = tree()
-        self.assertEqual(1, sum(1 for n in d.pages if n == 700),
-                         'the lookup table cannot see the duplicate')
-        self.assertIn(700, srv._api_duplicate_page_nums(d))
+        self.assertEqual(set(), srv._api_duplicate_page_nums(d))
 
-    def test_both_duplicated_entries_are_locked(self):
+    def test_every_tree_entry_is_reachable_by_its_number(self):
+        """The consequence of uniqueness worth stating: a refused duplicate is a
+        page nothing can address."""
+        d = tree()
+        missing = []
+
+        def walk(page):
+            if d.pages.get(page.page_num) is not page:
+                missing.append((page.page_num, page.title))
+            for child in page.children:
+                walk(child)
+
+        walk(d.root)
+        self.assertEqual([], missing,
+                         'entries not reachable by their own page number')
+
+
+class ADuplicatePageNumberIsRefused(unittest.TestCase):
+    """⚠ Page numbers are the tree's identity: `GOTO` resolves through them and
+    every edit addresses a page by one. A repeated number is therefore ambiguous,
+    and the loader used to accept it silently — a plain `pages[num] = page`, so the
+    later entry overwrote the earlier one, which stayed visible in its listing
+    while becoming unreachable.
+
+    The duplicate is deliberately NOT auto-renumbered: that would change a
+    user-visible identifier nobody asked to change, break bookmarks and `GOTO`,
+    and disagree with what is on disk. First occurrence wins, so the outcome does
+    not depend on load order, and the collision is reported.
+
+    The trees no longer contain one, so this builds it — which also tests the only
+    way it can now happen, a hand-edited file.
+    """
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix='compunet-dupe-')
+        shutil.copytree(os.path.join(_SERVER, 'data', 'content.test', 'root'),
+                        os.path.join(self._tmp, 'root'))
+        self._saved_root = srv.ROOT_DIR
+        srv.ROOT_DIR = os.path.join(self._tmp, 'root')
+
+        # Give GRAPHICS the number THE ZOO already has.
+        import json
+        path = os.path.join(srv.ROOT_DIR, 'jungle', 'directory.json')
+        with open(path) as f:
+            data = json.load(f)
+        for node in data['pages']:
+            if node['title'] == 'GRAPHICS':
+                node['page_num'] = THE_ZOO
+                break
+        else:
+            self.skipTest('fixture has no GRAPHICS entry')
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
+
+    def tearDown(self):
+        import shutil
+        srv.ROOT_DIR = self._saved_root
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_the_collision_is_reported(self):
+        self.assertIn(THE_ZOO, srv._api_duplicate_page_nums(tree()))
+
+    def test_the_first_entry_keeps_the_number(self):
+        """Deterministic rather than load-order dependent. THE ZOO is listed
+        before GRAPHICS in the fixture, so it keeps 699."""
+        d = tree()
+        self.assertEqual('THE ZOO', d.pages[THE_ZOO].title)
+
+    def test_the_lookup_table_alone_cannot_reveal_it(self):
+        """Why the loader records duplicates instead of anything recounting them
+        from `pages` afterwards: the refused entry never gets in there."""
+        d = tree()
+        self.assertEqual(1, sum(1 for n in d.pages if n == THE_ZOO))
+        self.assertIn(THE_ZOO, srv._api_duplicate_page_nums(d))
+
+    def test_both_colliding_entries_are_locked(self):
         d = tree()
         dupes = srv._api_duplicate_page_nums(d)
         found = []
 
         def walk(page):
-            if page.page_num == 700:
+            if page.page_num == THE_ZOO:
                 editable, why = srv._api_is_editable(d, page, dupes)
                 found.append((page.title, editable, why))
             for child in page.children:
                 walk(child)
 
         walk(d.root)
-        self.assertEqual(2, len(found), 'expected two entries numbered 700')
+        self.assertEqual(2, len(found), 'expected two entries sharing the number')
         for title, editable, why in found:
             self.assertFalse(editable, '%s should be locked' % title)
-            self.assertIn('700', why)
+            self.assertIn(str(THE_ZOO), why)
 
-    def test_a_unique_page_is_not_locked_by_the_duplicate(self):
+    def test_an_unaffected_page_stays_editable(self):
         d = tree()
-        editable, why = srv._api_is_editable(d, d.pages[THE_ZOO],
+        editable, why = srv._api_is_editable(d, d.pages[JUNGLE],
                                             srv._api_duplicate_page_nums(d))
         self.assertTrue(editable, why)
+
+    def test_a_new_page_number_avoids_the_hidden_entry(self):
+        """`max(pages)` cannot see a refused duplicate, so allocation walks the
+        tree instead — otherwise a new upload could be handed a number already in
+        use further down."""
+        d = tree()
+        used = set()
+
+        def walk(page):
+            used.add(page.page_num)
+            for child in page.children:
+                walk(child)
+
+        walk(d.root)
+        self.assertNotIn(d.next_page_num(), used)
 
 
 class WhoMayEditWhat(unittest.TestCase):
@@ -124,7 +209,7 @@ class WhoMayEditWhat(unittest.TestCase):
         """One level only: owning JUNGLE does not confer authority over what is
         inside THE ZOO, which PIMAN owns. Otherwise owning a directory near the
         root would carry the whole subtree beneath it."""
-        grandchild = next(c for c in self.zoo.children if c.page_num != 700)
+        grandchild = self.zoo.children[0]
         self.assertFalse(srv._api_may_edit(grandchild, 'JUNGLE', PLAIN))
         self.assertTrue(srv._api_may_edit(grandchild, 'PIMAN', PLAIN))
 

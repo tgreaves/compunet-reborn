@@ -47,6 +47,14 @@
 	  limits are 512 bytes, rows 0-5 only, and no clear-screen: a header is
 	  drawn on top of the directory, so one that runs long or clears the screen
 	  takes the entry list with it.
+	* Fixed: two entries could share a page number, which left one of them
+	  unreachable. A page number is how the service finds a page, so `GOTO` could
+	  only ever get to one of the pair while both carried on appearing in their
+	  listings. Numbers are now kept unique, and a clash is reported rather than
+	  quietly swallowed. The example content shipped with the server had such a
+	  pair — DEMOS in The Jungle and FEBREVIEW FOUR in THE ZOO were both page 700
+	  — so a newly seeded service started out with one page nobody could reach;
+	  DEMOS is now 604, in sequence with the entries beside it.
 	* Fixed: uploads, votes and lifetime changes silently undoing each other's
 	  work. Every one of those rewrote the **whole** directory tree from the copy
 	  the connection had loaded when it started, so anything anyone else had done

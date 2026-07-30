@@ -346,6 +346,10 @@ class CompunetDirectory:
 
     def __init__(self):
         self.pages = {}
+        #: Numbers found on more than one entry while loading. Empty is the
+        #: normal case; anything in here is a content defect that makes those
+        #: entries unaddressable (see _register_page).
+        self.duplicate_page_nums = set()
         self.root = None
         self.global_adverts = []
         self.reload()
@@ -353,6 +357,7 @@ class CompunetDirectory:
     def reload(self):
         """Reload the entire tree from disk."""
         self.pages = {}
+        self.duplicate_page_nums = set()
         self.root = None
         self.global_adverts = []
         self._load_tree()
@@ -387,6 +392,56 @@ class CompunetDirectory:
             with open(adverts_path, 'r') as f:
                 self.global_adverts = json.load(f).get('adverts', [])
 
+    def _register_page(self, page):
+        """Add a page to the number lookup, refusing to let a duplicate hide one.
+
+        ⚠ A page number is the tree's identity: `GOTO <n>` resolves through this
+        table, and the website addresses every edit by number. Nothing enforced
+        uniqueness here — it was a plain `self.pages[num] = page`, so a repeated
+        number silently overwrote the earlier entry and made it unreachable while
+        it still rendered in its listing. `data.example` shipped exactly that
+        (page 700 was both DEMOS and FEBREVIEW FOUR), and an edit addressed by
+        number would have acted on whichever loaded second — you ask to move one
+        page and a different one moves.
+
+        The duplicate is NOT auto-renumbered. That would change a user-visible
+        identifier without anyone asking, break any bookmark or GOTO pointing at
+        it, and differ from what is on disk. Instead: the FIRST occurrence wins,
+        so behaviour is deterministic rather than dependent on load order, and the
+        collision is logged as an error naming both entries so it gets fixed.
+        `duplicate_page_nums` carries them to the API, which marks them
+        uneditable.
+        """
+        existing = self.pages.get(page.page_num)
+        if existing is not None and existing is not page:
+            self.duplicate_page_nums.add(page.page_num)
+            log.error('CONTENT: page number %d used twice — "%s" and "%s". '
+                      'Keeping "%s"; the other is unreachable by number until '
+                      'one is renumbered.',
+                      page.page_num, existing.title, page.title, existing.title)
+            return
+        self.pages[page.page_num] = page
+
+    def next_page_num(self):
+        """A page number no entry in the tree is using.
+
+        ⚠ Derived from the whole tree rather than `max(self.pages)`: the lookup
+        table cannot see a duplicate that was refused, so a number could be
+        handed out that is already in use further down. Walking the tree is cheap
+        and cannot be wrong.
+        """
+        used = set()
+
+        def walk(page):
+            used.add(page.page_num)
+            for child in page.children:
+                walk(child)
+
+        if self.root is not None:
+            walk(self.root)
+        used |= set(self.pages)
+        return (max(used) + 1) if used else 1000
+
     @staticmethod
     def _make_slug(title):
         """Convert a page title to a filesystem-safe directory slug."""
@@ -418,7 +473,7 @@ class CompunetDirectory:
         page.dynamic = node.get('dynamic', None)
         page.uploaded = node.get('uploaded', None)
         page.machine_type = node.get('machine_type', 'c64')  # absent -> C64 (existing content)
-        self.pages[page.page_num] = page
+        self._register_page(page)
 
         # Load frames from page folder
         page._frame_files = node.get('frames', [])
@@ -1956,8 +2011,8 @@ class CompunetSession:
         if existing:
             page_num = existing.page_num
         else:
-            all_pages = list(self.directory.pages.keys())
-            page_num = max(all_pages) + 1 if all_pages else 1000
+            # Unique against the whole tree, not just the lookup table.
+            page_num = self.directory.next_page_num()
 
         # Create page folder
         parent_dir = getattr(self.current_page, '_dir_path', ROOT_DIR)
@@ -3892,31 +3947,18 @@ def _api_may_edit(page, user_id, user_data):
 
 
 def _api_duplicate_page_nums(directory):
-    """Page numbers that appear on more than one entry in the tree.
+    """Page numbers found on more than one entry.
 
-    ⚠ Load-bearing, and not hypothetical: `data.example` ships page 700 twice —
-    `DEMOS` under The Jungle and `FEBREVIEW FOUR` under THE ZOO. Nothing enforces
-    uniqueness on load (`self.pages[page.page_num] = page` is last-wins), so both
-    render in their listings while only one is reachable by number.
+    Recorded by the loader (`CompunetDirectory._register_page`) rather than
+    recounted here: one detector, so the API and the tree cannot come to different
+    conclusions about which numbers are safe to act on. Reading `directory.pages`
+    instead would find nothing at all — a refused duplicate never reaches it.
 
-    Everything here addresses a page BY NUMBER, because that is the tree's stable
-    identifier. With a duplicate that identifier is ambiguous, and an edit would
-    silently act on whichever entry happened to load second — the user asks to
-    move one page and a different one moves. So duplicates are detected and those
-    entries are refused rather than guessed at.
-
-    Counted by walking the tree, not by reading `directory.pages`, which has
-    already collapsed the duplicates.
+    Normally empty. Anything in it is a content defect that makes those entries
+    unaddressable, so the API marks them uneditable rather than guessing which
+    one a request meant.
     """
-    counts = {}
-
-    def walk(page):
-        counts[page.page_num] = counts.get(page.page_num, 0) + 1
-        for child in page.children:
-            walk(child)
-
-    walk(directory.root)
-    return {num for num, count in counts.items() if count > 1}
+    return set(getattr(directory, 'duplicate_page_nums', ()) or ())
 
 
 def _api_is_editable(directory, page, duplicates=frozenset()):
