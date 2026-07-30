@@ -124,6 +124,13 @@ reason. A fixed directory can still have its header changed.</p>
            panel it was sent from rather than a bare tree. With the script running
            the same panel is normally fetched instead. #}
         {% if header_node %}
+        {# Upload results sit WITH the panel, not at the top of the page: arriving
+           here scrolls the panel into view, which puts anything up there off
+           screen. These are drained in the route so base.html does not repeat
+           them. #}
+        {% for category, message in panel_messages or [] %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
         {% include '_header_panel.html' %}
         {% else %}
         <p class="frame-pane-idle hint">Choose VIEW beside any text page to read it

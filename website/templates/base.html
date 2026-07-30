@@ -42,6 +42,15 @@
     {# A page can widen itself — the directory tree needs room for a 640px frame
        beside it. Every other page keeps the site's reading width. #}
     <main class="content {% block content_class %}{% endblock %}">
+        {# ⚠ A page that arrives anchored (the header panels, #header-<n>) renders
+           these ITSELF, beside the thing they describe — a message up here would be
+           scrolled off screen before the reader ever saw it. It sets
+           `messages_in_page` and takes responsibility for showing them.
+
+           Note get_flashed_messages CACHES per request: draining it in the view does
+           not stop this block finding the same list again, which is why the page has
+           to say so rather than simply consuming them early. #}
+        {% if not messages_in_page %}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -49,6 +58,7 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
+        {% endif %}
 
         {% block content %}{% endblock %}
     </main>

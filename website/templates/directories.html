@@ -35,8 +35,17 @@ the standard frame.</p>
 
 {% for d in directories %}
 <div class="info-box">
-    <h3>{{ d.page_num }} {{ d.title }}</h3>
+    <h3 id="header-{{ d.page_num }}">{{ d.page_num }} {{ d.title }}</h3>
     <p class="hint">{{ d.breadcrumb }}</p>
+
+    {# Upload results belong beside the directory they describe. This page can be a
+       long list and we arrive on it anchored, so anything rendered at the top by
+       base.html would already be scrolled past. Drained in the route. #}
+    {% if panel_messages and panel_page == d.page_num %}
+    {% for category, message in panel_messages %}
+    <div class="flash flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
 
     {% if d.has_header %}
     {# Drawn by the server from the same font and palette the C64 uses, so this

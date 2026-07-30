@@ -10,8 +10,8 @@ import secrets
 import time
 
 import requests
-from flask import (Flask, Response, flash, redirect, render_template, request,
-                   session, url_for)
+from flask import (Flask, Response, flash, get_flashed_messages, redirect,
+                   render_template, request, session, url_for)
 
 import config
 
@@ -703,10 +703,20 @@ def directories():
         if candidate is not None and candidate.get('may_configure'):
             header_node = candidate
 
+    # ⚠ Drained here, deliberately, so base.html does not render them at the top of
+    # the page. We arrive on this URL via #header-<n>, which scrolls the panel into
+    # view — and scrolls a message at the top of a tall tree straight out of it. The
+    # whole point of the upload notes is that the author reads them, so they belong
+    # beside the panel they describe. get_flashed_messages consumes, so taking them
+    # now is what stops them appearing twice.
+    panel_messages = get_flashed_messages(with_categories=True) if header_node else None
+
     return render_template('tree.html', tree=data['tree'],
+                           messages_in_page=bool(header_node),
                            duplicates=data.get('duplicate_page_numbers') or [],
                            edit_node=edit_node, node=edit_node or header_node,
                            header_node=header_node,
+                           panel_messages=panel_messages,
                            max_bytes=MAX_HEADER_BYTES,
                            targets=targets, max_title=MAX_TITLE)
 
@@ -932,7 +942,21 @@ def directory_settings():
     if dirs is None:
         flash('Could not reach the Compunet server.', 'error')
         return redirect(url_for('account'))
+
+    # ?header=<n> says which directory an upload just came back from, so its
+    # results can be shown beside it. See the note in `directories` — this page is
+    # a long list and we arrive anchored, so the top of it is already off screen.
+    try:
+        panel_page = int(request.args.get('header', ''))
+    except ValueError:
+        panel_page = None
+    panel_messages = (get_flashed_messages(with_categories=True)
+                      if panel_page is not None else None)
+
     return render_template('directories.html', directories=dirs,
+                           messages_in_page=panel_page is not None,
+                           panel_page=panel_page,
+                           panel_messages=panel_messages,
                            max_bytes=MAX_HEADER_BYTES)
 
 
@@ -958,7 +982,7 @@ def _header_return(page_num=None):
         # script running or not.
         return redirect(url_for('directories', header=page_num,
                                 _anchor='header-%d' % page_num))
-    return redirect(url_for('directory_settings',
+    return redirect(url_for('directory_settings', header=page_num,
                             _anchor='header-%d' % page_num))
 
 
