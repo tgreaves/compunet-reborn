@@ -734,6 +734,19 @@ def page_panel(page_num):
     return render_template('_frame_panel.html', node=node)
 
 
+@app.route('/directories/<int:page_num>/panel')
+def directory_header_panel(page_num):
+    """A directory's header frame and its owner-only setting, as a fragment."""
+    if 'user_id' not in session:
+        return '', 403
+    data = _tree_for_session()
+    node = _find_node(data['tree'], page_num) if data else None
+    if node is None or not node.get('is_directory') or not node.get('may_edit'):
+        return '', 404
+    return render_template('_header_panel.html', node=node,
+                           max_bytes=MAX_HEADER_BYTES)
+
+
 @app.route('/pages/<int:page_num>/controls')
 def page_controls(page_num):
     """The rename / reorder / move / delete controls for one entry."""
@@ -905,6 +918,17 @@ def directory_settings():
                            max_bytes=MAX_HEADER_BYTES)
 
 
+def _header_return():
+    """Where a header form should send the user back to.
+
+    ⚠ Only ever one of two known endpoints, never a URL from the request. Taking a
+    redirect target from form input is how open-redirect bugs happen; the form only
+    gets to say WHICH of our own pages it came from.
+    """
+    return redirect(url_for('directories') if request.form.get('next') == 'tree'
+                    else url_for('directory_settings'))
+
+
 @app.route('/directories/<int:page_num>/header', methods=['POST'])
 def set_directory_header(page_num):
     if 'user_id' not in session:
@@ -920,21 +944,21 @@ def set_directory_header(page_num):
                   'success')
         else:
             flash(_api_error(resp, 'Could not remove the header.'), 'error')
-        return redirect(url_for('directory_settings'))
+        return _header_return()
 
     upload = request.files.get('header')
     if upload is None or not upload.filename:
         flash('Choose a .seq file to upload.', 'error')
-        return redirect(url_for('directory_settings'))
+        return _header_return()
 
     raw = upload.read(MAX_HEADER_BYTES + 1)
     if not raw:
         flash('That file is empty.', 'error')
-        return redirect(url_for('directory_settings'))
+        return _header_return()
     if len(raw) > MAX_HEADER_BYTES:
         flash('That file is larger than %d bytes, the most a header may be.'
               % MAX_HEADER_BYTES, 'error')
-        return redirect(url_for('directory_settings'))
+        return _header_return()
 
     resp = _api_post(f'/api/directories/{page_num}/header',
                      {'user': session['user_id'],
@@ -945,7 +969,7 @@ def set_directory_header(page_num):
               'directory is opened.'
               % (described.get('bytes', len(raw)),
                  _rows_phrase(described.get('rows_used'))), 'success')
-        return redirect(url_for('directory_settings'))
+        return _header_return()
 
     # A rejected frame comes back with one reason per problem, each naming the
     # byte offset. Showing them individually is the point of rejecting rather
@@ -961,7 +985,7 @@ def set_directory_header(page_num):
     else:
         flash(_api_error(resp, 'The server would not accept that header.'),
               'error')
-    return redirect(url_for('directory_settings'))
+    return _header_return()
 
 
 @app.route('/directories/<int:page_num>/header.png')
@@ -999,7 +1023,7 @@ def set_directory_settings(page_num):
               'success')
     else:
         flash(_api_error(resp, 'Could not change that setting.'), 'error')
-    return redirect(url_for('directory_settings'))
+    return _header_return()
 
 
 @app.errorhandler(413)
@@ -1009,7 +1033,7 @@ def _too_large(_e):
     flash('That file is far too large. A header frame is at most %d bytes.'
           % MAX_HEADER_BYTES, 'error')
     if 'user_id' in session:
-        return redirect(url_for('directory_settings'))
+        return _header_return()
     return redirect(url_for('login'))
 
 

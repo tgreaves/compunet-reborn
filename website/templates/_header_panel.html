@@ -1,0 +1,67 @@
+{#
+  A directory's header frame, as a fragment for the directory view's side pane.
+
+  Same shape as the frame viewer: fetched when someone clicks HEADER, so the tree
+  page carries none of it. The forms post normally and come back to the tree —
+  `next=tree` tells the handler which of its two callers to return to, since these
+  same controls also live on the settings page.
+#}
+<div class="frame-panel">
+    <div class="frame-panel-head">
+        <h2>{{ node.page_num }} {{ node.title }}</h2>
+        <a href="#" class="frame-close" data-close>CLOSE</a>
+    </div>
+    <p class="hint">Header frame and upload permissions for this directory.</p>
+
+    {% if node.has_header %}
+    <div class="header-preview">
+        <div class="frame-shot frame-shot-header" role="img"
+             aria-label="The header frame currently set on {{ node.title }}, as the C64 draws it"
+             style="background-image: url('{{ url_for('directory_header_png', page_num=node.page_num) }}')"></div>
+        <p class="hint">The header on this directory now — rows 0 to 5, as the C64
+        draws it.</p>
+    </div>
+    {% else %}
+    <p class="hint">No header of its own. It uses the standard frame, or one
+    inherited from the directory above it.</p>
+    {% endif %}
+
+    <form method="POST"
+          action="{{ url_for('set_directory_header', page_num=node.page_num) }}"
+          enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="tree">
+        <div class="form-group">
+            <label for="hdr{{ node.page_num }}">HEADER FRAME</label>
+            <input type="file" id="hdr{{ node.page_num }}" name="header"
+                   accept=".seq,application/octet-stream">
+            <p class="hint">A raw PETSCII sequence — frame body only, no load
+            address and no frame header. At most {{ max_bytes }} bytes, drawing only
+            on rows 0 to 5, with no clear-screen. A file that breaks those is
+            refused and the reason says which byte is at fault; nothing you upload
+            is altered to fit.</p>
+        </div>
+        <button type="submit">UPLOAD HEADER</button>
+        {% if node.has_header %}
+        <button type="submit" name="action" value="remove">REMOVE HEADER</button>
+        {% endif %}
+    </form>
+
+    <form method="POST"
+          action="{{ url_for('set_directory_settings', page_num=node.page_num) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="tree">
+        <div class="form-group">
+            <label for="own{{ node.page_num }}">
+                <input type="checkbox" id="own{{ node.page_num }}" name="owner_only"
+                       {% if node.owner_only %}checked{% endif %}>
+                ONLY I CAN ADD TO THIS DIRECTORY
+            </label>
+            <p class="hint">Stops anyone else uploading here, and so stops them
+            creating directories inside it. Your header applies to everything below
+            this directory that has none of its own, so this keeps that to pages you
+            own.</p>
+        </div>
+        <button type="submit">SAVE SETTING</button>
+    </form>
+</div>

@@ -48,16 +48,26 @@
     }
 
     tree.addEventListener('click', function (ev) {
-        var link = ev.target.closest('a[data-view], a[data-edit]');
+        var link = ev.target.closest('a[data-view], a[data-edit], a[data-header]');
         if (!link) { return; }
         /* Let modified clicks do what the user asked — open in a new tab, etc. */
         if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) { return; }
         ev.preventDefault();
 
+        /* VIEW and HEADER both fill the side pane — one shows what a page holds,
+         * the other what a directory draws above its listing. Only ever one at a
+         * time, which is why they share it. */
         var num = link.getAttribute('data-view');
         if (num) {
             if (idle) { idle.hidden = true; }
             load('/pages/' + num + '/panel', pane);
+            return;
+        }
+
+        num = link.getAttribute('data-header');
+        if (num) {
+            if (idle) { idle.hidden = true; }
+            load('/directories/' + num + '/panel', pane);
             return;
         }
 

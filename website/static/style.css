@@ -458,6 +458,15 @@ pre {
    ⚠ The size must be stated here. Without it the div is 0x0, nothing paints, and
    the background is therefore never requested — an entirely blank panel with no
    error anywhere. */
+/* A header frame is the six-row region only (§7.7), so 640x96 rather than a full
+   40x24 screen. Same mechanism, different shape.
+   ⚠ Two classes deliberately, not one: with equal specificity the LATER rule
+   wins, so a single `.frame-shot-header` placed above `.frame-shot` would be
+   silently overridden by it. */
+.frame-shot.frame-shot-header {
+    aspect-ratio: 640 / 96;
+}
+
 .frame-shot {
     width: 640px;
     max-width: 100%;

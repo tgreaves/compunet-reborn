@@ -51,7 +51,8 @@
            data-edit="{{ node.page_num }}">CHANGE</a>
         {% endif %}
         {% if node.is_directory and node.may_edit %}
-        <a href="{{ url_for('directory_settings') }}">HEADER</a>
+        <a href="{{ url_for('directory_settings') }}"
+           data-header="{{ node.page_num }}">HEADER</a>
         {% endif %}
         {% if not node.editable %}
         <span class="tree-why" title="{{ node.not_editable_because }}">LOCKED</span>
