@@ -11,6 +11,10 @@
 	* New: a warning when part of a header is drawn in light grey, the directory
 	  background colour, and would be invisible. Editors show their own page
 	  colour, so this was impossible to spot before uploading.
+	* Fixed: a header upload that fails now returns to the directory it was sent
+	  from. Any error — forgetting to choose a file, most easily — dropped you
+	  back at the top of the list with no indication of which directory you had
+	  been editing.
 
 # 1.3.0 (2026-07-30)
 
