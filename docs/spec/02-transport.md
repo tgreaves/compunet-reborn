@@ -88,6 +88,38 @@ Therefore `length = N + 5` where `N` is the payload length. The minimum content 
 The `length` field counts **unescaped** bytes (the content as laid out above), not the
 possibly-longer byte-stuffed form seen on the wire.
 
+> **⚠ `length` is ONE BYTE and WRAPS. It is advisory — do not derive the payload length
+> from it.** Payloads larger than 250 are legal and routine (§2.4.1), so `N + 5` does not fit
+> and the field carries `(N + 5) mod 256`. A 4000-byte payload transmits `length = $A5`
+> (165). Receivers **MUST** determine the payload length from where the `$02` end marker
+> fell, after de-stuffing, and **MUST NOT** reject a packet because `length` disagrees.
+> Senders **MUST** transmit the truncated value and **MUST** include it, as truncated, in
+> the CRC — a sender that computed the CRC over an untruncated length would fail every
+> frame against a conforming receiver.
+>
+> Both of this project's implementations frame on the markers and always have, which is why
+> 4000-byte uploads worked from the start. The trap is on the *sending* side: the reference
+> server built its length byte without masking, which raised on any payload over 250 and
+> dropped the connection mid-transfer. That went unnoticed for as long as every send was
+> 100 bytes, and surfaced the moment program downloads were widened.
+
+### 2.4.1 Payload size
+
+There is no protocol maximum beyond what the framing and the receiver's buffer allow. In
+practice:
+
+- **C64 clients: 100 bytes.** The ROM's receive path expects it; a server **MUST NOT** send
+  more to a C64 session.
+- **Amiga: up to 4000 bytes.** This is the client's own send size and its safe ceiling —
+  `net_recv_frame` collects into an 8302-byte buffer, and worst-case stuffing (every byte
+  in `$01`–`$03`) doubles a 4005-byte content to 8010.
+
+Size matters far more than it appears: each packet costs a round trip, and on an emulated
+Amiga each round trip costs one ~20 ms frame tick, because `bsdsocket.library` emulation
+services socket I/O once per frame. At 100 bytes a 166K download took 36 seconds; at 4000 it
+takes 0.9. A client that is slow to receive should look at packet count before anything
+else.
+
 ## 2.5 Tokens
 
 The `token` byte identifies the packet type. The values a conforming client must handle
@@ -194,9 +226,16 @@ Reborn paces the server → client data stream with a stop-and-wait ACK, so a sl
 never overrun regardless of link speed:
 
 1. The server sends a `DAT` (`$22`) packet with sequence `seq`.
-2. The client receives it, de-stuffs it, and validates length and CRC.
+2. The client receives it, de-stuffs it, and validates the **CRC**. It does *not* validate
+   the `length` byte, which is advisory and wraps (§2.4).
 3. The client sends an **ACK** (`$20`) packet echoing `seq`.
 4. The server, on receiving the ACK, sends the next packet.
+
+⚠ **This is stop-and-wait, so throughput is bounded by round-trip latency, not by
+bandwidth** — one round trip per packet, no windowing. Where a round trip is expensive the
+packet size dominates everything else: on an emulated Amiga each costs one ~20 ms frame
+tick, making a 166K download take 36 seconds at 100-byte packets and 0.9 seconds at 4000
+(§2.4.1). Implementers tuning a slow transfer should count packets first.
 
 The ACK packet has a **fixed 6-byte content**: `length = $06`, `token = $20` (ACK), a fixed
 byte `$20`, the `seq` being acknowledged, then the two CRC bytes (framed and byte-stuffed like

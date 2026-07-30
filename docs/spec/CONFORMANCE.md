@@ -192,6 +192,14 @@ marked **⚠** are the ones known to have been got wrong in practice.
 
 The server does not report these; a client that ignores them looks fine and loses user data.
 
+- [ ] **⚠ The packet `length` byte is advisory and wraps — never validate against it**
+      (§2.4). It is one byte, so a payload over 250 cannot fit and it carries
+      `(N + 5) mod 256`; a 4000-byte payload sends `length = $A5`. Derive the payload length
+      from where the `$02` end marker fell. A receiver that rejects on a length mismatch
+      breaks on every large transfer; a **sender** that builds the byte without truncating
+      is worse — the reference server raised on any payload over 250 and dropped the
+      connection mid-transfer, which the Amiga reported as "Fatal error: Comms problem".
+      The CRC covers the truncated value, so both sides must truncate identically.
 - [ ] **⚠ The download descriptor's bytes 4–7 are read per machine, not one way** (§8.3.1).
       Byte 0 selects: C64 takes the 16-bit size at **6–7** (4–5 being its load address), while
       Amiga and ST take a 32-bit **big-endian** size at **4–7**. Reading the C64 field on a 68k
