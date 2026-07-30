@@ -1,144 +1,36 @@
 # 1.2.2 (unreleased)
 
-* Desktop client:
-	* New: an application icon — the Commodore 64 `C`, in the Compunet red and
-	  light grey of the service's own header. Windows previously showed the
-	  stock Electron icon on the desktop shortcut, taskbar and installer.
 * C64 client:
 	* Fixed: client banner now correctly shows the version it was built from.
 	  Every release since 1.0.0 announced itself as `COMPUNET REBORN 1.0.0`.
-* Website:
-	* Fixed: another site could act on your behalf here. Because a browser attaches
-	  your sign-in cookie to any request arriving at this site — whoever caused it
-	  — a page elsewhere could quietly make your browser submit something here, and
-	  the site would carry it out as you. Every form now carries a token that only
-	  this site can issue, and anything without one is refused.
-	  Worst affected were APPROVE and DELETE on the pending-registrations page:
-	  those acted on a plain link, so an admin merely *following a link* from
-	  anywhere — or opening a page that loaded one as an image — approved or
-	  deleted a registration. Both, and signing out, are now buttons that act only
-	  when pressed here.
-	* New: the whole Compunet hierarchy is now browsable on the website (#121),
-	  under DIRECTORIES — every directory and entry, who wrote it, and what it
-	  holds, laid out as a tree you can expand and collapse. Any text page can be
-	  read there too, drawn exactly as the C64 draws it. Everyone sees all of it;
-	  the controls to change something appear only where you have permission.
-	  Header frames and the owner-only setting moved to their own page, linked
-	  from each directory you can configure.
-	* New: entries can be deleted from the DIRECTORIES page (#121), after a
-	  confirmation that names what is going and, for a directory, how many entries
-	  are inside it. The storage the entry was using comes back to whoever wrote
-	  it, exactly as running its life down to zero from the C64 does.
-	* Fixed: removing a directory used to abandon everything inside it. Running a
-	  directory's life down to zero took the directory away but left its contents
-	  on the server — unreachable, and not in the archive that every other removal
-	  puts a copy in. Anything inside was simply gone. Removing a directory now
-	  archives it and everything within, each with a note of what it was and which
-	  directory it came from.
-	* New: entries can be moved from one directory to another from the
-	  DIRECTORIES page (#121) — the point of the whole thing, for tidying up. An
-	  entry keeps its page number, so `GOTO` and keywords still find it wherever
-	  it ends up, and a directory taken somewhere else brings everything inside it
-	  along. Only directories you can add to are offered, and only ones with room;
-	  a directory cannot be put inside itself.
-	* New: entries can be retitled and reordered from the DIRECTORIES page
-	  (#121), wherever you have permission. Reordering changes the order they
-	  appear in on the C64, top to bottom. Retitling also renames the folder the
-	  entry's files live in, so two entries in the same directory cannot be given
-	  titles that would collide — you are told which one is in the way rather than
-	  finding out later.
-	* New: a NEWS section (#35), listing what has changed on the service with a
-	  permanent link for each item and an index alongside for jumping between
-	  them. It opens with four: terminal support, the first stable release, the
-	  Amiga client and the browser client. Those were announced by email and
-	  nowhere else, so anyone who joined afterwards — or who was not on the
-	  mailing list — had no way to find out what had happened.
-* Website / client:
+* Web / Electron Client:
+	* New: an application icon for the desktop app — the Commodore 64 `C`, in the
+	  Compunet red and light grey of the service's own header. Windows previously
+	  showed the stock Electron icon on the desktop shortcut, taskbar and
+	  installer.
 	* Fixed: advert lines at the bottom of a directory now appear exactly where
 	  their author placed them. The client was re-centring text that was already
 	  centred, shifting each line by a different amount.
-* Directories:
-	* New: you can give a directory you own its own header — the PETSCII
-	  picture drawn above the list of entries, in place of the standard frame
-	  (#120). Upload a `.seq` from your account page on the website, under YOUR
-	  DIRECTORIES; it appears the next time anyone opens the directory, on the
-	  C64, the Amiga, the terminal and the web client alike. Until now only the
-	  operators could set one. The C64 client needs no update — it has always
-	  been able to draw these, there was simply no way for you to supply one.
-	* New: a directory you own can be marked so that **only you** can add to it,
-	  which also stops anyone else creating directories inside it. Your header
-	  applies to everything below your directory that has none of its own, so
-	  this keeps that to pages you own.
-	* The page shows the header a directory is currently using, drawn as the C64
-	  draws it — same character set, same sixteen colours, same six rows. You
-	  can see what is there before replacing it, rather than uploading a file and
-	  hoping.
-	* Headers are checked before they are accepted, and a file that would break
-	  the screen is refused with the reason and the byte at fault rather than
-	  being quietly altered — the picture that appears is the one you made. The
-	  limits are 512 bytes, rows 0-5 only, and no clear-screen: a header is
-	  drawn on top of the directory, so one that runs long or clears the screen
-	  takes the entry list with it.
-	* Fixed: two entries could share a page number, which left one of them
-	  unreachable. A page number is how the service finds a page, so `GOTO` could
-	  only ever get to one of the pair while both carried on appearing in their
-	  listings. Numbers are now kept unique, and a clash is reported rather than
-	  quietly swallowed. The example content shipped with the server had such a
-	  pair — DEMOS in The Jungle and FEBREVIEW FOUR in THE ZOO were both page 700
-	  — so a newly seeded service started out with one page nobody could reach;
-	  DEMOS is now 604, in sequence with the entries beside it.
-	* Fixed: uploads, votes and lifetime changes silently undoing each other's
-	  work. Every one of those rewrote the **whole** directory tree from the copy
-	  the connection had loaded when it started, so anything anyone else had done
-	  in the meantime was quietly replaced by the older version — an upload that
-	  vanished, a page whose lifetime went back to what it was, with no error and
-	  nothing in the log. Each action now writes only the directory it actually
-	  changed. Voting writes no directory at all, which is what it should always
-	  have done: a vote is not kept there.
-	* Fixed: the function-key shortcuts on the top directory disappearing. Any
-	  upload, vote or lifetime change rewrote the directory and left them out,
-	  so F1 and F3 stopped going anywhere — usually within minutes of the
-	  service starting, and with nothing to say they had gone.
-	* Fixed: a directory closed to other people quietly reopening. Where the
-	  owner had shut theirs to everyone else, a save made from the PETSCII
-	  terminal wrote it back as open, and anyone could upload into it again.
-	* Fixed: Amiga pages being offered to C64 users, and missing from the Amiga
-	  listing. A save made from the PETSCII terminal forgot which machine a page
-	  was for, and every page it rewrote became a C64 one.
-	* Fixed: a directory with nothing in it yet disappearing, taking anything
-	  later added to it out of reach. A save made from the PETSCII terminal
-	  wrote the parent's entry back without its link to the directory, so it
-	  could no longer be opened even though its contents were still there.
-* Running from source:
-	* Fixed: `./server.sh start` and `./website.sh start` announcing
-	  `Server started (PID …)` for a service that had already failed. They
-	  reported the PID the shell hands back when a process is *forked*, which
-	  says nothing about whether it went on to run: a missing interpreter or a
-	  failed import happens after the fork, and the output has already been
-	  redirected into the log file. Both now confirm the process is still alive,
-	  print the end of the log when it is not, and no longer leave a PID file
-	  pointing at something that died.
-	* Fixed: the server ignoring the repository's own `.env` when run from a
-	  source checkout, rather than under Docker. It read only `server/.env`,
-	  while `.env.example` and the website both describe the file at the
-	  repository root — so a checkout set up as documented ran with no
-	  configuration at all. Because the admin API key fails closed when unset,
-	  every request the website made to the server was refused, leaving
-	  registration, the admin panel and password reset broken while both
-	  processes appeared healthy. The server now falls back to the root `.env`.
-	  Docker deployments never had the problem and are unaffected: there the two
-	  locations are the same file.
-	* `.env.example` now lists every setting the server and website read, not
-	  the five that happened to need a value. Among the missing was
-	  `COMPUNET_CLIENT_URL` — `docker-compose.yml` has documented it since
-	  1.2.1, but a deployment configured from `.env.example` alone still had no
-	  link to its own client, with nothing to suggest one was expected.
+* Website:
+	* Security: CSRF protection.
+	* New: Compunet hierarchy browsing (Includes frame rendering).
+	* New: Users can upload their own directory headers.
+	* New: Users can delete via the DIRECTORIES page (Archived - can be recovered).
+	* New: Users can move content via the DIRECTORIES page.
+	* New: Users can retitle and reorder content via the DIRECTORIES page.
+	* New: Users can set 'owner only' on their directories so only they can add to
+	  it.
+	* New: A NEWS section (#35).
+* Server:
+	* Fixed: Uploads and edits no longer silently discard each other's changes.
+	* Fixed: Saving a directory no longer drops settings it did not recognise —
+	  shortcuts, upload permissions and machine type were each lost this way.
+	* Fixed: Deleting directories no longer orphans the content inside it.
+	  Everything is now correctly archived.
+	* Fixed: Page numbers now forced to be unique.  Example content fixed.
 * Historical archive:
 	* New: 43 SEQ frames recovered from 35 original Compunet demo disks,
-	  contributed by ZILDAC (`historical/seq/zildac/`). Among them a 1987
-	  Courier exchange with Compunet's own staff about faults on Istel's
-	  Liverpool X.25 node — which names the modem ROM revisions then in the
-	  field, 1.22 and 1.35.
+	  contributed by ZILDAC (`historical/seq/zildac/`).
 	* New: 160 GOTO keywords with the operators' own one-line descriptions, as
 	  the live system listed them c.1987, transcribed to
 	  `historical/original-keywords.txt`. Records what Compunet actually held,
