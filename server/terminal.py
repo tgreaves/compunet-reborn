@@ -2008,8 +2008,9 @@ class TerminalSession:
             page.children.append(new_page)
             self.directory.pages[page_num] = new_page
 
-        # Save directory
-        self._save_directory_tree(cs)
+        # This directory gained an entry; its parent may need the `directory`
+        # key, since a latent directory becomes real on first upload (§7.3).
+        self._save_directories(cs, page, getattr(page, 'parent', None))
 
         action = 'replaced' if existing else 'uploaded'
         cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
@@ -2140,7 +2141,7 @@ class TerminalSession:
             page.children.append(new_page)
             self.directory.pages[page_num] = new_page
 
-        self._save_directory_tree(cs)
+        self._save_directories(cs, page, getattr(page, 'parent', None))
 
         action = 'replaced' if existing else 'uploaded'
         cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
@@ -2156,18 +2157,21 @@ class TerminalSession:
         self.duck_pos = getattr(self, '_saved_duck_pos', 0)
         await self.render_directory()
 
-    def _save_directory_tree(self, cs):
-        """Save the directory tree.
+    def _save_directories(self, cs, *pages):
+        """Persist only the directories this command changed.
 
-        This was a second, hand-copied implementation of the serializer, and it
-        had drifted: it wrote `open_upload` only when true (discarding a
-        directory's explicit opt-out), omitted `machine_type` entirely (turning
-        Amiga pages into C64 ones), and still used the narrow `if child.children`
-        test that the other copy had already been fixed for. Whether a key
-        survived depended on whether the user was on the terminal or the C64.
-        It now calls the one serializer.
+        Was a second, hand-copied implementation of the serializer that had
+        drifted — it wrote `open_upload` only when true, omitted `machine_type`,
+        and used the narrow `if child.children` test the other copy was already
+        fixed for, so which keys survived depended on whether the user was on the
+        terminal or the C64. It then became a call to the one serializer, which
+        still rewrote the WHOLE tree from this session's copy and so discarded
+        other sessions' committed work. Now it writes only what changed.
         """
-        cs.save_directory_tree(self.directory.root, cs.ROOT_DIR)
+        for page in pages:
+            if page is None:
+                continue
+            cs.save_one_directory(page, cs.ROOT_DIR)
 
     async def _xmodem_receive(self):
         """Receive a file via XMODEM-CRC (supports both 128-byte and 1K blocks)."""
@@ -2936,8 +2940,9 @@ class TerminalSession:
                         users_path = os.path.join(os.path.dirname(__file__), 'cfg', 'users.json')
                         with open(users_path, 'w') as f:
                             json.dump(users, f)
-                    # Save directory and audit
-                    self._save_directory_tree(cs)
+                    # `life` lives in the child's node inside its own
+                    # directory's JSON — that one file, not the tree.
+                    self._save_directories(cs, getattr(child, 'parent', None))
                     cs.audit_log('extend', user=self.user_id, ip=self.client_ip,
                                  page=child.page_num, title=child.title,
                                  extend_by=extend_by, new_life=child.life)

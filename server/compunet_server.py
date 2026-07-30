@@ -479,90 +479,138 @@ class CompunetDirectory:
                     sum(user_votes.values()) / len(user_votes))
 
 
-def save_directory_tree(root_page, root_dir):
-    """Persist the directory tree to per-directory JSON files.
+def directory_json_path(page, root_dir):
+    """Where this directory's own JSON lives.
 
-    ⚠ THE ONLY serializer for the content tree. There used to be two — this one
-    and a copy in `terminal.py` — and they drifted apart in both directions,
-    each dropping a key the other kept:
-
-      * this one never wrote `shortcuts`, so any upload, vote or extend silently
-        deleted root.json's F-key block;
-      * the terminal's copy wrote `open_upload` only when TRUE, discarding a
-        directory's explicit opt-out and reopening it to everyone; omitted
-        `machine_type`, so an Amiga page became a C64 one; and still used the
-        narrow `if child.children` test that this copy documents as a fixed bug.
-
-    Which keys survived a save therefore depended on which subsystem the user
-    happened to be using. Anything the tree gains from here on — a header frame
-    among them — is only as durable as the single worst serializer, so there is
-    now one.
-
-    `root_dir` is passed rather than read from the module global because the
-    tests point the content tree at a fixture copy.
+    The root is the exception: `root.json` at the top of the tree rather than a
+    `directory.json` in a sub-folder. A page is the root when it has no parent.
     """
-    def _save_dir_json(page, json_path):
-        data = {}
-        # Round-trip the flag whenever it is set, including an explicit
-        # `false` — writing back only the truthy case would silently drop a
-        # directory's opt-out and reopen it to everyone (_can_upload_here).
-        if hasattr(page, 'open_upload'):
-            data['open_upload'] = bool(page.open_upload)
-        if hasattr(page, 'header') and page.header:
-            data['header'] = page.header
-        # Loaded at :373/:448 but written by only one of the two former
-        # serializers, so the F-key shortcuts on root.json disappeared the first
-        # time anyone uploaded, voted or extended.
-        if getattr(page, 'shortcuts', None):
-            data['shortcuts'] = page.shortcuts
-        if hasattr(page, '_adverts') and page._adverts:
-            data['adverts'] = page._adverts
-        pages_list = []
-        for child in page.children:
-            node = {
-                'page_num': child.page_num,
-                'title': child.title,
-                'type': child.page_type,
-                'author': child.author,
-                'price': child.price,
-                'life': child.life,
-            }
-            if child.keyword:
-                node['keyword'] = child.keyword
-            if getattr(child, 'dynamic', None):
-                node['dynamic'] = child.dynamic
-            if getattr(child, 'uploaded', None):
-                node['uploaded'] = child.uploaded
-            if getattr(child, 'machine_type', 'c64') != 'c64':
-                node['machine_type'] = child.machine_type  # only write non-default
-            frame_files = getattr(child, '_frame_files', [])
-            if frame_files:
-                node['frames'] = frame_files
-            child_dir = getattr(child, '_dir_path', '')
-            dir_json_path = os.path.join(child_dir, 'directory.json')
-            # ⚠ Keep the sub-directory whenever one EXISTS, not only while it
-            # currently holds children. An authored-but-empty directory is
-            # real — §7.3 lists it with the (EMPTY) placeholder — and the
-            # narrower `if child.children` test DELETED it: the next save
-            # wrote the entry back without its `directory` key, so the
-            # sub-tree became unreachable while its files sat on disk. Found
-            # in the fixture tree after clean-room run 9, where JUNGLE's
-            # GRAPHICS entry lost its directory to an unrelated upload.
-            if not getattr(child, 'dynamic', None) and (
-                    child.children or os.path.exists(dir_json_path)):
-                # Forward slashes: os.path.relpath yields backslashes on
-                # Windows, and those do not resolve on the Linux host that
-                # actually serves this tree.
-                node['directory'] = os.path.relpath(
-                    dir_json_path, root_dir).replace(os.sep, '/')
-                _save_dir_json(child, dir_json_path)
-            pages_list.append(node)
-        data['pages'] = pages_list
-        os.makedirs(os.path.dirname(json_path), exist_ok=True)
-        with open(json_path, 'w') as f:
-            json.dump(data, f, indent=2)
+    if getattr(page, 'parent', None) is None:
+        return os.path.join(root_dir, 'root.json')
+    return os.path.join(getattr(page, '_dir_path', ''), 'directory.json')
 
-    _save_dir_json(root_page, os.path.join(root_dir, 'root.json'))
+
+def _write_json_atomic(path, data):
+    """Write JSON so a concurrent reader can never see it half-written.
+
+    ⚠ `_load_tree` re-reads every `directory.json` on EVERY directory render, and
+    a plain `open(path, 'w')` truncates the file before the new bytes land — so a
+    reader arriving in that window gets a partial file and the tree fails to
+    parse. Writing beside it and renaming is atomic on both POSIX and Windows.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, path)
+
+
+def build_directory_json(page, root_dir):
+    """The JSON for ONE directory: its own settings, plus its child entries.
+
+    ⚠ THE ONLY serializer for the content tree. There used to be two — this and a
+    copy in `terminal.py` — and they drifted apart in both directions, each
+    dropping a key the other kept: `shortcuts` (so root.json's F-key block
+    disappeared on the first upload), an explicit `open_upload: false` (reopening
+    a directory its owner had closed), `machine_type` (turning Amiga pages into
+    C64 ones), and the `directory` key on an authored-but-empty directory (making
+    a whole sub-tree unreachable). Which keys survived a save depended on which
+    subsystem the user happened to be using.
+    """
+    data = {}
+    # Round-trip the flag whenever it is set, including an explicit
+    # `false` — writing back only the truthy case would silently drop a
+    # directory's opt-out and reopen it to everyone (_can_upload_here).
+    if hasattr(page, 'open_upload'):
+        data['open_upload'] = bool(page.open_upload)
+    if hasattr(page, 'header') and page.header:
+        data['header'] = page.header
+    if getattr(page, 'shortcuts', None):
+        data['shortcuts'] = page.shortcuts
+    if hasattr(page, '_adverts') and page._adverts:
+        data['adverts'] = page._adverts
+
+    pages_list = []
+    for child in page.children:
+        node = {
+            'page_num': child.page_num,
+            'title': child.title,
+            'type': child.page_type,
+            'author': child.author,
+            'price': child.price,
+            'life': child.life,
+        }
+        if child.keyword:
+            node['keyword'] = child.keyword
+        if getattr(child, 'dynamic', None):
+            node['dynamic'] = child.dynamic
+        if getattr(child, 'uploaded', None):
+            node['uploaded'] = child.uploaded
+        if getattr(child, 'machine_type', 'c64') != 'c64':
+            node['machine_type'] = child.machine_type  # only write non-default
+        frame_files = getattr(child, '_frame_files', [])
+        if frame_files:
+            node['frames'] = frame_files
+        child_dir = getattr(child, '_dir_path', '')
+        dir_json_path = os.path.join(child_dir, 'directory.json')
+        # ⚠ Keep the sub-directory whenever one EXISTS, not only while it
+        # currently holds children. An authored-but-empty directory is
+        # real — §7.3 lists it with the (EMPTY) placeholder — and the
+        # narrower `if child.children` test DELETED it: the next save
+        # wrote the entry back without its `directory` key, so the
+        # sub-tree became unreachable while its files sat on disk. Found
+        # in the fixture tree after clean-room run 9, where JUNGLE's
+        # GRAPHICS entry lost its directory to an unrelated upload.
+        if not getattr(child, 'dynamic', None) and (
+                child.children or os.path.exists(dir_json_path)):
+            # Forward slashes: os.path.relpath yields backslashes on
+            # Windows, and those do not resolve on the Linux host that
+            # actually serves this tree.
+            node['directory'] = os.path.relpath(
+                dir_json_path, root_dir).replace(os.sep, '/')
+        pages_list.append(node)
+    data['pages'] = pages_list
+    return data
+
+
+def save_one_directory(page, root_dir):
+    """Write ONE directory's JSON, and nothing else.
+
+    ⚠ THIS, not `save_directory_tree`, is what a mutation should call.
+    Rewriting the whole tree to change one directory is how uploads went missing:
+    every session holds its own `CompunetDirectory`, so a whole-tree write
+    republishes that session's entire view of the content and silently discards
+    whatever another session committed since it loaded. The writer is not racing
+    another writer — within one event loop these calls cannot interleave — it is
+    publishing stale data over fresh data. A lock would not have helped; writing
+    only what changed does.
+
+    Callers must therefore know which directories they actually altered. That is
+    a small burden and it is the whole fix.
+    """
+    _write_json_atomic(directory_json_path(page, root_dir),
+                       build_directory_json(page, root_dir))
+
+
+def save_directory_tree(root_page, root_dir):
+    """Rewrite the WHOLE tree from this in-memory copy.
+
+    ⚠ Prefer `save_one_directory`. This is only correct when the caller's tree is
+    known to be current — a freshly loaded one, or the tests. Used against a
+    session's long-lived copy it discards other sessions' work (see
+    `save_one_directory`).
+    """
+    def walk(page):
+        save_one_directory(page, root_dir)
+        for child in page.children:
+            if getattr(child, 'dynamic', None):
+                continue
+            if child.children or os.path.exists(
+                    os.path.join(getattr(child, '_dir_path', ''),
+                                 'directory.json')):
+                walk(child)
+
+    walk(root_page)
 
 
 class CompunetSession:
@@ -1158,7 +1206,8 @@ class CompunetSession:
 
             child.life += extend_by
             self._save_user()
-            self._save_directory()
+            # `life` lives in the child's node inside this directory's JSON.
+            self._save_directory_containing(self.current_page)
             log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
                      self.user_id, child.page_num, child.title, extend_by, child.life)
             audit_log('extend', user=self.user_id, page=child.page_num,
@@ -1186,7 +1235,9 @@ class CompunetSession:
                 log.info('DELETE: page %d ("%s") removed (life=0, archived)', child.page_num, child.title)
 
             self._save_user()
-            self._save_directory()
+            # Reduced life, or the entry's removal — both are edits to this
+            # directory's own JSON.
+            self._save_directory_containing(self.current_page)
 
         self.dir_displayed = False
         return bytes([0x40])
@@ -1304,7 +1355,13 @@ class CompunetSession:
 
         avg = round(sum(votes[page_key].values()) / len(votes[page_key]))
         page.vote = avg
-        self._save_directory()
+        # ⚠ No directory save here, deliberately. Votes live in votes.json
+        # (_save_votes, above) and `page.vote` is repopulated from there by
+        # _load_votes on every load; the directory serializer has never written a
+        # `vote` key at all. So the whole-tree write that used to be here
+        # persisted NOTHING, and its only effect was to republish this session's
+        # stale copy of the content over everyone else's committed changes — on a
+        # command ordinary users issue constantly.
 
         log.info('VOTE: user=%s page=%d (%s) score=%d avg=%d',
                  self.user_id, page.page_num, page.title, score, avg)
@@ -1976,15 +2033,33 @@ class CompunetSession:
                      page_num, send['title'], self.user_id,
                      len(send['frames']), send['price'], send['lifetime'])
 
-        self._save_directory()
+        # This directory gains (or replaces) an entry — and its PARENT may need
+        # the `directory` key added, because a latent directory only becomes real
+        # on the first upload into it (§7.3). Two files, not the whole tree.
+        self._save_directory_containing(self.current_page,
+                                        getattr(self.current_page, 'parent', None))
         audit_log('upload', user=self.user_id, title=send['title'],
                   page=page_num, type=send['type'])
         return b''
 
-    def _save_directory(self):
-        """Persist the directory tree to per-directory JSON files."""
-        save_directory_tree(self.directory.root, ROOT_DIR)
-        log.info('DIR: saved directory tree')
+    def _save_directory_containing(self, *pages):
+        """Persist only the directories this command actually changed.
+
+        ⚠ Replaces a whole-tree save, and the difference is data loss. Every
+        session holds its own `CompunetDirectory`; rewriting the entire tree
+        republished this session's whole view of the content and discarded
+        anything another session had committed since it loaded — someone else's
+        upload, gone, with nothing logged. Writing only the changed directory
+        cannot do that.
+
+        `None` entries are ignored so callers can pass `page.parent` without
+        checking for the root first.
+        """
+        for page in pages:
+            if page is None:
+                continue
+            save_one_directory(page, ROOT_DIR)
+            log.info('DIR: saved "%s"', page.title)
 
     def _cmd_ucat(self):
         """UCAT command - list all pages owned by the current user.
@@ -3749,15 +3824,14 @@ def _api_load_dir_json(path):
 
 
 def _api_write_dir_json(path, data):
-    """Edit the one file in place.
+    """Edit the one file in place, atomically.
 
     Deliberately NOT save_directory_tree: that rewrites the whole tree from a
     freshly-loaded copy, and a header change has no business touching every
-    other directory's JSON.
+    other directory's JSON. This is the same principle `save_one_directory` now
+    applies to every writer.
     """
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=2)
+    _write_json_atomic(path, data)
 
 
 def _api_resolve_target(request, body_user):

@@ -47,6 +47,14 @@
 	  limits are 512 bytes, rows 0-5 only, and no clear-screen: a header is
 	  drawn on top of the directory, so one that runs long or clears the screen
 	  takes the entry list with it.
+	* Fixed: uploads, votes and lifetime changes silently undoing each other's
+	  work. Every one of those rewrote the **whole** directory tree from the copy
+	  the connection had loaded when it started, so anything anyone else had done
+	  in the meantime was quietly replaced by the older version — an upload that
+	  vanished, a page whose lifetime went back to what it was, with no error and
+	  nothing in the log. Each action now writes only the directory it actually
+	  changed. Voting writes no directory at all, which is what it should always
+	  have done: a vote is not kept there.
 	* Fixed: the function-key shortcuts on the top directory disappearing. Any
 	  upload, vote or lifetime change rewrote the directory and left them out,
 	  so F1 and F3 stopped going anywhere — usually within minutes of the

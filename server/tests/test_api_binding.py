@@ -772,7 +772,7 @@ class PersistenceRoundTrip(unittest.TestCase):
         s = session()
         self.assertEqual(s.directory.pages[GRAPHICS].children, [],
                          'fixture precondition: GRAPHICS is empty')
-        s._save_directory()
+        s._save_directory_containing(s.directory.pages[JUNGLE])
 
         self.assertIn('directory', self._jungle_entry(GRAPHICS),
                       'saving deleted an empty sub-directory')
@@ -781,7 +781,7 @@ class PersistenceRoundTrip(unittest.TestCase):
         """The control: the same field on a directory that does have children."""
         s = session()
         self.assertTrue(s.directory.pages[MORE_DIR].children, 'fixture precondition')
-        s._save_directory()
+        s._save_directory_containing(s.directory.pages[JUNGLE])
         self.assertIn('directory', self._jungle_entry(MORE_DIR))
 
     def _dir_json(self, *parts):
@@ -794,7 +794,8 @@ class PersistenceRoundTrip(unittest.TestCase):
         drops it destroys someone's artwork rather than an operator's typo."""
         self.assertIn('header', self._dir_json('jungle', 'directory.json'),
                       'fixture precondition')
-        session()._save_directory()
+        s = session()
+        s._save_directory_containing(s.directory.pages[JUNGLE])
         self.assertEqual(
             'jungle/header.seq',
             self._dir_json('jungle', 'directory.json').get('header'),
@@ -814,7 +815,8 @@ class PersistenceRoundTrip(unittest.TestCase):
         with open(root_json, 'w') as f:
             json.dump(data, f, indent=2)
 
-        session()._save_directory()
+        s = session()
+        s._save_directory_containing(s.directory.root)
 
         self.assertEqual({'F1': 'JUNGLE', 'F3': 'PARTY'},
                          self._dir_json('root.json').get('shortcuts'),
@@ -827,7 +829,8 @@ class PersistenceRoundTrip(unittest.TestCase):
         self.assertIs(False,
                       self._dir_json('jungle', 'the-zoo', 'directory.json')
                           .get('open_upload'), 'fixture precondition')
-        session()._save_directory()
+        s = session()
+        s._save_directory_containing(s.directory.pages[THE_ZOO])
         self.assertIs(False,
                       self._dir_json('jungle', 'the-zoo', 'directory.json')
                           .get('open_upload'),
@@ -836,10 +839,108 @@ class PersistenceRoundTrip(unittest.TestCase):
     def test_the_directory_path_is_written_with_forward_slashes(self):
         """os.path.relpath yields backslashes on Windows, and the tree is served
         from Linux — a path saved on one does not resolve on the other."""
-        session()._save_directory()
+        s = session()
+        srv.save_directory_tree(s.directory.root, srv.ROOT_DIR)
         for page in self._dir_json('root.json')['pages']:
             if 'directory' in page:
                 self.assertNotIn('\\', page['directory'])
+
+    def test_one_sessions_save_does_not_discard_anothers(self):
+        """⚠ THE regression the targeted writes exist for.
+
+        Every session holds its own `CompunetDirectory`. A whole-tree save
+        republishes that session's entire view of the content, so anything another
+        session committed since it loaded was silently overwritten — an upload,
+        gone, with nothing logged and no error.
+
+        This is not a race between writers: within one event loop the saves cannot
+        interleave. It is one writer publishing stale data over fresh data, which
+        is why a lock would not have fixed it and writing only what changed does.
+        """
+        first = session()
+        second = session()          # loaded independently, same content
+
+        # The first session changes something and commits it.
+        jungle = first.directory.pages[JUNGLE]
+        target = jungle.children[0]
+        target.life = 4321
+        first.current_page = jungle
+        first._save_directory_containing(jungle)
+        self.assertEqual(
+            4321,
+            next(p['life'] for p in self._dir_json('jungle', 'directory.json')['pages']
+                 if p['page_num'] == target.page_num))
+
+        # The second session, which never saw that, now commits something of its
+        # own in a DIFFERENT directory.
+        zoo = second.directory.pages[THE_ZOO]
+        second.current_page = zoo
+        second._save_directory_containing(zoo)
+
+        # The first session's change must still be on disk.
+        self.assertEqual(
+            4321,
+            next(p['life'] for p in self._dir_json('jungle', 'directory.json')['pages']
+                 if p['page_num'] == target.page_num),
+            'a save from another session discarded a committed change')
+
+    def test_an_upload_leaves_unrelated_directories_untouched(self):
+        """The invariant behind the fix, stated positively.
+
+        A write must touch the directory it changed (and its parent, since a
+        latent directory becomes real on first upload) and NOTHING else. Asserted
+        on mtime rather than content: a whole-tree save often rewrites unrelated
+        files byte-identically, so comparing bytes would pass while the
+        stale-data bug remained.
+        """
+        import base64
+        import os as _os
+
+        def mtimes():
+            found = {}
+            for base, _dirs, files in _os.walk(srv.ROOT_DIR):
+                for name in files:
+                    if name == 'directory.json' or name == 'root.json':
+                        path = _os.path.join(base, name)
+                        found[path] = _os.stat(path).st_mtime_ns
+            return found
+
+        before = mtimes()
+        s = session()
+        send(s, type='goto', target=str(JUNGLE))
+        send(s, type='enter', page=GRAPHICS)
+        reply = send(s, type='upload', title='TOUCHTEST', kind='T', price=0, life=30,
+                     frames=[{'raw': base64.b64encode(
+                         b'\x00\x00\x00\x8eHI').decode('ascii')}])
+        self.assertEqual('directory', reply.get('type'),
+                         'upload refused: %r' % (reply.get('message'),))
+
+        touched = {p for p, t in mtimes().items() if before.get(p) != t}
+        # GRAPHICS gains the entry; the Jungle above it may gain the `directory`
+        # key that makes GRAPHICS reachable. Everything else must be untouched.
+        allowed = {_os.path.join(srv.ROOT_DIR, 'jungle', 'graphics', 'directory.json'),
+                   _os.path.join(srv.ROOT_DIR, 'jungle', 'directory.json')}
+        self.assertTrue(touched, 'the upload wrote nothing at all')
+        self.assertFalse(touched - allowed,
+                         'an upload rewrote unrelated directories: %s'
+                         % sorted(p.replace(srv.ROOT_DIR, '') for p in touched - allowed))
+
+    def test_a_vote_writes_no_directory_json_at_all(self):
+        """Votes live in votes.json and `vote` is never a directory-JSON key, so
+        the whole-tree write that used to happen on every VOTE persisted nothing
+        and could only clobber other sessions. Guarded by mtime: the file must be
+        untouched, not merely unchanged in content."""
+        import os as _os
+        path = os.path.join(srv.ROOT_DIR, 'jungle', 'directory.json')
+        before = _os.stat(path).st_mtime_ns
+
+        s = session()
+        s.current_page = s.directory.pages[JUNGLE]
+        s.dir_page_offset = 0
+        s._cmd_vote(b'005')          # entry 0, score 5
+
+        self.assertEqual(before, _os.stat(path).st_mtime_ns,
+                         'VOTE rewrote a directory JSON')
 
 
 class ClientAddressResolution(unittest.TestCase):
