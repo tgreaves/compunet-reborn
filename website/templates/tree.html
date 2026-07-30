@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Directories — Compunet Reborn{% endblock %}
+
+{#
+  One macro, recursive, so the whole hierarchy is rendered server-side with no
+  JavaScript — the site has none, and a tree does not need any. <details> gives
+  expand and collapse for free, and keeps working with a keyboard and a screen
+  reader.
+#}
+{% macro entry(node) %}
+<li class="tree-entry{% if not node.editable %} tree-locked{% endif %}">
+    {% if node.is_directory and node.children %}
+    <details open>
+        <summary>{{ row(node) }}</summary>
+        <ul>
+            {% for child in node.children %}{{ entry(child) }}{% endfor %}
+        </ul>
+    </details>
+    {% else %}
+    {{ row(node) }}
+    {% endif %}
+</li>
+{% endmacro %}
+
+{% macro row(node) %}
+<span class="tree-row">
+    <span class="tree-num">{{ node.page_num }}</span>
+    <span class="tree-title">{{ node.title }}</span>
+    <span class="tree-kind">{{ kind(node) }}</span>
+    <span class="tree-author">{{ node.author }}</span>
+    <span class="tree-actions">
+        {% if node.viewable %}
+        <a href="{{ url_for('view_page', page_num=node.page_num) }}">VIEW</a>
+        {% endif %}
+        {% if node.is_directory and node.may_edit %}
+        <a href="{{ url_for('directory_settings') }}#d{{ node.page_num }}">HEADER</a>
+        {% endif %}
+        {% if not node.editable %}
+        <span class="tree-why" title="{{ node.not_editable_because }}">LOCKED</span>
+        {% endif %}
+    </span>
+</span>
+{% endmacro %}
+
+{% macro kind(node) %}
+{%- if node.is_directory -%}
+    DIR{% if node.child_count %} ({{ node.child_count }}{% if node.full %}, FULL{% endif %}){% endif %}
+{%- elif node.type == 'P' -%}
+    PROGRAM{% if node.machine_type != 'c64' %} ({{ node.machine_type|upper }}){% endif %}
+{%- elif node.type == 'L' -%}
+    LINK
+{%- else -%}
+    TEXT{% if node.frame_count > 1 %} ({{ node.frame_count }} frames){% endif %}
+{%- endif -%}
+{% endmacro %}
+
+{% block content %}
+<h1>DIRECTORIES</h1>
+
+<p>The whole of Compunet, as the service sees it. Anything you have permission to
+change is marked; everything else is here to browse.</p>
+
+{% if duplicates %}
+<div class="info-box">
+    <h3>⚠ DUPLICATE PAGE NUMBERS</h3>
+    <p>More than one entry is using
+    {% for n in duplicates %}<strong>{{ n }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}.
+    A page number is how the service identifies an entry — <code>GOTO</code> reaches
+    only one of them, and those entries cannot be edited from here until one is
+    renumbered.</p>
+</div>
+{% endif %}
+
+<ul class="tree">
+    {{ entry(tree) }}
+</ul>
+
+<p><a href="{{ url_for('directory_settings') }}">HEADER FRAMES AND SETTINGS</a>
+&middot; <a href="{{ url_for('account') }}">BACK TO ACCOUNT</a></p>
+{% endblock %}

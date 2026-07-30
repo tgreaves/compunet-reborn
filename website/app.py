@@ -564,8 +564,77 @@ def _directories_for_session():
     return resp.json().get('directories', [])
 
 
+def _tree_for_session():
+    """The whole hierarchy with this user's permissions resolved, or None."""
+    resp = _api_get(f'/api/tree?user={session["user_id"]}')
+    if resp.status_code != 200:
+        return None
+    return resp.json()
+
+
+def _find_node(node, page_num):
+    """Locate one entry in the tree.
+
+    The tree arrives in a single response, so looking a page up in it costs
+    nothing extra and avoids a second endpoint that could answer differently
+    about the same page.
+    """
+    if node.get('page_num') == page_num:
+        return node
+    for child in node.get('children', []):
+        found = _find_node(child, page_num)
+        if found:
+            return found
+    return None
+
+
 @app.route('/directories')
 def directories():
+    """The hierarchy. Everyone may browse it; editing is per-node."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    data = _tree_for_session()
+    if data is None:
+        flash('Could not reach the Compunet server.', 'error')
+        return redirect(url_for('account'))
+    return render_template('tree.html', tree=data['tree'],
+                           duplicates=data.get('duplicate_page_numbers') or [])
+
+
+@app.route('/pages/<int:page_num>')
+def view_page(page_num):
+    """A text page's frames, as the C64 draws them."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    data = _tree_for_session()
+    if data is None:
+        flash('Could not reach the Compunet server.', 'error')
+        return redirect(url_for('directories'))
+    node = _find_node(data['tree'], page_num)
+    if node is None:
+        flash('No such page.', 'error')
+        return redirect(url_for('directories'))
+    if not node.get('viewable'):
+        flash('%s holds nothing that can be shown here.' % node['title'], 'info')
+        return redirect(url_for('directories'))
+    return render_template('page_frames.html', node=node)
+
+
+@app.route('/pages/<int:page_num>/frame/<int:index>.png')
+def page_frame_png(page_num, index):
+    """Proxy one rendered frame. See directory_header_png for why it is proxied."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    resp = _api_get('/api/pages/%d/frame/%d.png?user=%s'
+                    % (page_num, index, session['user_id']))
+    if resp.status_code != 200:
+        return '', resp.status_code
+    return Response(resp.content, mimetype='image/png',
+                    headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+@app.route('/directories/settings')
+def directory_settings():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     dirs = _directories_for_session()
@@ -591,21 +660,21 @@ def set_directory_header(page_num):
                   'success')
         else:
             flash(_api_error(resp, 'Could not remove the header.'), 'error')
-        return redirect(url_for('directories'))
+        return redirect(url_for('directory_settings'))
 
     upload = request.files.get('header')
     if upload is None or not upload.filename:
         flash('Choose a .seq file to upload.', 'error')
-        return redirect(url_for('directories'))
+        return redirect(url_for('directory_settings'))
 
     raw = upload.read(MAX_HEADER_BYTES + 1)
     if not raw:
         flash('That file is empty.', 'error')
-        return redirect(url_for('directories'))
+        return redirect(url_for('directory_settings'))
     if len(raw) > MAX_HEADER_BYTES:
         flash('That file is larger than %d bytes, the most a header may be.'
               % MAX_HEADER_BYTES, 'error')
-        return redirect(url_for('directories'))
+        return redirect(url_for('directory_settings'))
 
     resp = _api_post(f'/api/directories/{page_num}/header',
                      {'user': session['user_id'],
@@ -616,7 +685,7 @@ def set_directory_header(page_num):
               'directory is opened.'
               % (described.get('bytes', len(raw)),
                  _rows_phrase(described.get('rows_used'))), 'success')
-        return redirect(url_for('directories'))
+        return redirect(url_for('directory_settings'))
 
     # A rejected frame comes back with one reason per problem, each naming the
     # byte offset. Showing them individually is the point of rejecting rather
@@ -632,7 +701,7 @@ def set_directory_header(page_num):
     else:
         flash(_api_error(resp, 'The server would not accept that header.'),
               'error')
-    return redirect(url_for('directories'))
+    return redirect(url_for('directory_settings'))
 
 
 @app.route('/directories/<int:page_num>/header.png')
@@ -670,7 +739,7 @@ def set_directory_settings(page_num):
               'success')
     else:
         flash(_api_error(resp, 'Could not change that setting.'), 'error')
-    return redirect(url_for('directories'))
+    return redirect(url_for('directory_settings'))
 
 
 @app.errorhandler(413)
@@ -680,7 +749,7 @@ def _too_large(_e):
     flash('That file is far too large. A header frame is at most %d bytes.'
           % MAX_HEADER_BYTES, 'error')
     if 'user_id' in session:
-        return redirect(url_for('directories'))
+        return redirect(url_for('directory_settings'))
     return redirect(url_for('login'))
 
 

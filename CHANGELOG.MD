@@ -8,6 +8,13 @@
 	* Fixed: client banner now correctly shows the version it was built from.
 	  Every release since 1.0.0 announced itself as `COMPUNET REBORN 1.0.0`.
 * Website:
+	* New: the whole Compunet hierarchy is now browsable on the website (#121),
+	  under DIRECTORIES — every directory and entry, who wrote it, and what it
+	  holds, laid out as a tree you can expand and collapse. Any text page can be
+	  read there too, drawn exactly as the C64 draws it. Everyone sees all of it;
+	  the controls to change something appear only where you have permission.
+	  Header frames and the owner-only setting moved to their own page, linked
+	  from each directory you can configure.
 	* New: a NEWS section (#35), listing what has changed on the service with a
 	  permanent link for each item and an index alongside for jumping between
 	  them. It opens with four: terminal support, the first stable release, the

@@ -3787,6 +3787,225 @@ def _api_resolve_target(request, body_user):
     return (page, directory, user_id), None
 
 
+# ============================================================
+# The directory hierarchy (#121)
+#
+# A browsable, editable view of the tree for the website. Every signed-in user
+# may BROWSE all of it; editing is per-node and decided here.
+# ============================================================
+
+def _api_may_edit(page, user_id, user_data):
+    """May this user change this entry — move, rename, reorder or delete it?
+
+    Three ways to qualify, and they are deliberately the same three the rest of
+    the server already uses (_can_upload_here, the replace check, the negative
+    EXTEND check):
+
+      1. admin or editor — anywhere;
+      2. the entry's author;
+      3. the owner of the directory the entry sits IN. Owning a directory carries
+         authority over its contents, whoever wrote them. Without this a user
+         cannot tidy their own space once someone else has uploaded into it — and
+         since they may delete the whole directory, protecting the individual
+         entries inside it would only be decorative.
+    """
+    if user_data.get('admin', False) or user_data.get('editor', False):
+        return True
+    if page.author == user_id:
+        return True
+    parent = getattr(page, 'parent', None)
+    return parent is not None and parent.author == user_id
+
+
+def _api_duplicate_page_nums(directory):
+    """Page numbers that appear on more than one entry in the tree.
+
+    ⚠ Load-bearing, and not hypothetical: `data.example` ships page 700 twice —
+    `DEMOS` under The Jungle and `FEBREVIEW FOUR` under THE ZOO. Nothing enforces
+    uniqueness on load (`self.pages[page.page_num] = page` is last-wins), so both
+    render in their listings while only one is reachable by number.
+
+    Everything here addresses a page BY NUMBER, because that is the tree's stable
+    identifier. With a duplicate that identifier is ambiguous, and an edit would
+    silently act on whichever entry happened to load second — the user asks to
+    move one page and a different one moves. So duplicates are detected and those
+    entries are refused rather than guessed at.
+
+    Counted by walking the tree, not by reading `directory.pages`, which has
+    already collapsed the duplicates.
+    """
+    counts = {}
+
+    def walk(page):
+        counts[page.page_num] = counts.get(page.page_num, 0) + 1
+        for child in page.children:
+            walk(child)
+
+    walk(directory.root)
+    return {num for num, count in counts.items() if count > 1}
+
+
+def _api_is_editable(directory, page, duplicates=frozenset()):
+    """Can this entry be changed AT ALL, by anybody?
+
+    Reported per node rather than filtered out: an admin who knows a page exists
+    would otherwise think the tree view had lost it.
+    """
+    if page is directory.root:
+        return False, 'the root directory'
+    if getattr(page, 'dynamic', None):
+        # WHAT'S NEW, WHO IS ONLINE and friends are generated on read. There is
+        # no folder to move and no file to archive.
+        return False, 'generated automatically'
+    if page.page_type == 'L':
+        return False, 'a link, not content'
+    if page.page_num in duplicates:
+        return False, ('page number %d is used by more than one entry, so it '
+                       'cannot be identified unambiguously' % page.page_num)
+    return True, None
+
+
+def _api_tree_node(directory, page, user_id, user_data, duplicates=frozenset()):
+    is_dir = _api_is_directory(directory, page)
+    editable, why_not = _api_is_editable(directory, page, duplicates)
+    may_edit = editable and _api_may_edit(page, user_id, user_data)
+    data = _api_load_dir_json(_api_directory_json_path(directory, page)) if is_dir else {}
+    node = {
+        'page_num': page.page_num,
+        'title': page.title,
+        'type': page.page_type,
+        'author': page.author,
+        'price': page.price,
+        'life': page.life,
+        'keyword': page.keyword,
+        'uploaded': getattr(page, 'uploaded', None),
+        'machine_type': getattr(page, 'machine_type', 'c64'),
+        'frame_count': len(page.frames) if page.frames else 0,
+        'is_directory': is_dir,
+        'editable': editable,
+        'not_editable_because': why_not,
+        'may_edit': may_edit,
+        # Only a text page has anything to draw; a program offers a download.
+        'viewable': page.page_type == 'T' and bool(page.frames),
+    }
+    if is_dir:
+        node['child_count'] = len(page.children)
+        # A directory holds at most 11 entries, so a destination picker has to
+        # know which ones cannot accept anything more.
+        node['full'] = len(page.children) >= 11
+        node['has_header'] = bool(data.get('header'))
+        node['owner_only'] = data.get('open_upload') is False
+        # May the user put something INTO this directory? Mirrors
+        # _can_upload_here, including the inherited open_upload walk.
+        node['may_add'] = _api_may_add_here(page, user_id, user_data)
+        node['children'] = [
+            _api_tree_node(directory, child, user_id, user_data, duplicates)
+            for child in page.children]
+    return node
+
+
+def _api_may_add_here(page, user_id, user_data):
+    """_can_upload_here, for a page the caller is not 'in'.
+
+    ⚠ Kept in step with CompunetSession._can_upload_here deliberately: same
+    order, same inheritance rule, same meaning of an explicit `false`. This one
+    takes the page as an argument because the website is not sitting in a
+    directory the way a client session is.
+    """
+    if user_data.get('admin', False) or user_data.get('editor', False):
+        return True
+    if page.author == user_id:
+        return True
+    node = page
+    while node is not None:
+        if hasattr(node, 'open_upload'):      # present => authoritative
+            return bool(node.open_upload)
+        node = getattr(node, 'parent', None)
+    return False
+
+
+async def api_get_tree(request):
+    """The whole hierarchy, with per-node permissions worked out here.
+
+    ⚠ The website must not compute these itself. The API key identifies the
+    website rather than a person, so every authorisation decision belongs on this
+    side — the same rule the header endpoints follow.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    user_id = request.query.get('user', '').upper()
+    if not user_id:
+        return aiohttp_web.json_response({'error': 'no user supplied'}, status=400)
+    users = _api_load_users()
+    if user_id not in users:
+        return aiohttp_web.json_response({'error': 'unknown user'}, status=404)
+
+    directory = CompunetDirectory()
+    duplicates = _api_duplicate_page_nums(directory)
+    if duplicates:
+        # Surfaced rather than merely logged: it is a content defect an operator
+        # has to fix by renumbering, and until then those entries cannot be
+        # edited safely.
+        log.warning('TREE: duplicate page numbers in the content tree: %s',
+                    sorted(duplicates))
+    root = _api_tree_node(directory, directory.root, user_id, users[user_id],
+                          duplicates)
+    return aiohttp_web.json_response(
+        {'tree': root, 'duplicate_page_numbers': sorted(duplicates)})
+
+
+async def api_page_frame_png(request):
+    """One frame of a text page, rendered as a PNG.
+
+    Browsing is open to every signed-in user, so this needs no ownership check —
+    the same frame is readable by anyone through any client. It exists so the
+    hierarchy view can show what a page holds without leaving the page.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        page_num = int(request.match_info['page_num'])
+        index = int(request.match_info.get('index', 0))
+    except (KeyError, ValueError):
+        return aiohttp_web.json_response({'error': 'bad page or index'}, status=400)
+
+    user_id = request.query.get('user', '').upper()
+    users = _api_load_users()
+    if not user_id or user_id not in users:
+        return aiohttp_web.json_response({'error': 'unknown user'}, status=404)
+
+    assets = header_preview.load_assets(SERVER_DIR, WEB_CLIENT_DIR)
+    if not assets:
+        log.warning('FRAME: assets.json not found — no rendering available')
+        return aiohttp_web.json_response({'error': 'preview unavailable'}, status=503)
+
+    # See api_directory_header_png: api_binding is a deliberately lazy import.
+    try:
+        import api_binding
+    except ImportError:
+        return aiohttp_web.json_response({'error': 'preview unavailable'}, status=503)
+
+    directory = CompunetDirectory()
+    page = directory.pages.get(page_num)
+    if page is None or not page.frames:
+        return aiohttp_web.json_response({'error': 'no such frame'}, status=404)
+    if index < 0 or index >= len(page.frames):
+        return aiohttp_web.json_response({'error': 'no such frame'}, status=404)
+    if page.page_type != 'T':
+        return aiohttp_web.json_response(
+            {'error': 'only text pages can be rendered'}, status=409)
+
+    session = CompunetSession(directory)
+    session.user_id = user_id
+    raw = api_binding.page_frame_bytes(session, page, index)
+    frame = api_binding.frame_to_cells(raw)
+    # The whole 24-row screen this time, not the header's six.
+    png = header_preview.cells_to_png(frame['cells'], assets, rows=24)
+    return aiohttp_web.Response(
+        body=png, content_type='image/png',
+        headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
 async def api_list_directories(request):
     """Directories this user may put a header on."""
     if not _api_check_auth(request):
@@ -4008,6 +4227,9 @@ async def main():
         app.router.add_post('/api/broadcast', api_broadcast)
         app.router.add_get('/api/audit', api_get_audit)
         app.router.add_post('/api/audit', api_post_audit)
+        app.router.add_get('/api/tree', api_get_tree)
+        app.router.add_get('/api/pages/{page_num}/frame/{index}.png',
+                           api_page_frame_png)
         app.router.add_get('/api/directories', api_list_directories)
         app.router.add_post('/api/directories/{page_num}/header',
                             api_set_directory_header)

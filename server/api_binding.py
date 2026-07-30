@@ -1467,12 +1467,24 @@ async def http_frame(request):
     if index < 0 or index >= len(page.frames):
         return web.json_response({"error": {"code": "not_found",
                                             "message": "no such frame"}}, status=404)
-    session.show_page = page
-    session.show_frame_index = index
-    raw = session._send_current_frame()
+    raw = page_frame_bytes(session, page, index)
     if getattr(session, '_program_download_pending', False):
         return web.json_response(_download_json(session))
     return web.json_response(frame_to_cells(raw))
+
+
+def page_frame_bytes(session, page, index):
+    """The wire bytes for one frame of a page.
+
+    Split out so anything else that needs to render a page's frame goes through
+    the SAME construction the client sees — `_send_current_frame` is what applies
+    the 4-byte header and the more-pages flag (§6.2, §6.5), and a second reading
+    of the stored bytes would be a second opinion about what the frame is. The
+    header preview learned this the expensive way in #120.
+    """
+    session.show_page = page
+    session.show_frame_index = index
+    return session._send_current_frame()
 
 
 async def ws_gateway(request):

@@ -401,6 +401,92 @@ pre {
     margin-bottom: 0;
 }
 
+/* Directory hierarchy (#121) */
+.tree,
+.tree ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tree ul {
+    /* Indent by depth, with a rule showing which parent a run belongs to. */
+    margin-left: 12px;
+    padding-left: 12px;
+    border-left: 2px solid var(--c64-surface-light);
+}
+
+.tree-entry {
+    margin: 0;
+}
+
+.tree summary {
+    cursor: pointer;
+}
+
+.tree summary::marker {
+    color: var(--c64-ink-soft);
+}
+
+.tree-row {
+    display: inline-flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 3px 0;
+    flex-wrap: wrap;
+}
+
+.tree-num {
+    color: var(--c64-ink-soft);
+    font-variant-numeric: tabular-nums;
+    min-width: 3.5em;
+}
+
+.tree-title {
+    font-weight: 700;
+}
+
+.tree-kind,
+.tree-author {
+    color: var(--c64-ink-soft);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.tree-actions {
+    display: inline-flex;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.tree-locked > .tree-row .tree-title,
+.tree-locked > details > summary .tree-title {
+    /* Present but not editable — visible rather than hidden, so an admin who
+       knows the page exists does not think the view has lost it. */
+    font-weight: 400;
+    color: var(--c64-ink-soft);
+}
+
+.tree-why {
+    color: var(--c64-ink-soft);
+    cursor: help;
+    border-bottom: 1px dotted var(--c64-ink-soft);
+}
+
+/* Rendered page frames (#121) */
+.frame-view {
+    margin-bottom: 24px;
+}
+
+.frame-view img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 2px solid var(--c64-surface-light);
+    image-rendering: pixelated;
+}
+
 /* Header frame preview (#120) */
 .header-preview {
     margin-bottom: 20px;

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ node.title }} — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>{{ node.page_num }} {{ node.title }}</h1>
+
+<p class="hint">By {{ node.author }}{% if node.uploaded %}, uploaded {{ node.uploaded }}{% endif %}
+&middot; {{ node.frame_count }} frame{% if node.frame_count != 1 %}s{% endif %}</p>
+
+{% for index in range(node.frame_count) %}
+<div class="frame-view">
+    {% if node.frame_count > 1 %}<p class="hint">FRAME {{ index + 1 }}</p>{% endif %}
+    <img src="{{ url_for('page_frame_png', page_num=node.page_num, index=index) }}"
+         alt="Frame {{ index + 1 }} of {{ node.title }}, as the C64 draws it"
+         width="640" height="384" loading="lazy">
+</div>
+{% endfor %}
+
+<p><a href="{{ url_for('directories') }}">BACK TO DIRECTORIES</a></p>
+{% endblock %}
