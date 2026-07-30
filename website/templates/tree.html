@@ -50,12 +50,17 @@
         <a href="{{ url_for('directories') }}?edit={{ node.page_num }}#edit-{{ node.page_num }}"
            data-edit="{{ node.page_num }}">CHANGE</a>
         {% endif %}
-        {% if node.is_directory and node.may_edit %}
+        {# may_configure, not may_edit — the root owns a header but cannot be
+           moved, renamed or deleted. #}
+        {% if node.may_configure %}
         <a href="{{ url_for('directory_settings') }}"
            data-header="{{ node.page_num }}">HEADER</a>
         {% endif %}
+        {# "FIXED", not "LOCKED": this is structural, not a permission. LOCKED read
+           as "you are not allowed", which is wrong — an admin sees it on the root
+           too, and can still change that directory's header. #}
         {% if not node.editable %}
-        <span class="tree-why" title="{{ node.not_editable_because }}">LOCKED</span>
+        <span class="tree-why" title="{{ node.not_editable_because }}">FIXED</span>
         {% endif %}
     </span>
 </span>
@@ -84,6 +89,11 @@
 
 <p>The whole of Compunet, as the service sees it. Anything you have permission to
 change has a CHANGE control; everything else is here to browse.</p>
+
+<p class="hint">FIXED marks an entry that cannot be moved, renamed or deleted by
+anyone &mdash; the top of the tree, a page the service generates, a link, or one
+whose page number is shared. It is not about your permissions; hover it for the
+reason. A fixed directory can still have its header changed.</p>
 
 {% if duplicates %}
 <div class="info-box">

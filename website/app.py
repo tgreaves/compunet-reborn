@@ -741,7 +741,10 @@ def directory_header_panel(page_num):
         return '', 403
     data = _tree_for_session()
     node = _find_node(data['tree'], page_num) if data else None
-    if node is None or not node.get('is_directory') or not node.get('may_edit'):
+    # may_configure, not may_edit: the root cannot be restructured but does own a
+    # header frame, and gating this on may_edit hid that from the tree while the
+    # settings page went on offering it.
+    if node is None or not node.get('may_configure'):
         return '', 404
     return render_template('_header_panel.html', node=node,
                            max_bytes=MAX_HEADER_BYTES)

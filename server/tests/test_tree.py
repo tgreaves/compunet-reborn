@@ -709,10 +709,48 @@ class SomeEntriesCannotBeEditedByAnyone(unittest.TestCase):
     def _reason(self, page):
         return srv._api_is_editable(self.d, page)[1]
 
-    def test_the_root_is_locked(self):
+    def test_the_root_cannot_be_restructured(self):
+        """It has no parent, so nowhere to move it and no siblings to reorder
+        within; and its title is hardcoded in the loader rather than stored in
+        root.json, so a rename would have nothing to write to."""
         editable, why = srv._api_is_editable(self.d, self.d.root)
         self.assertFalse(editable)
-        self.assertIn('root', why)
+        self.assertIn('cannot be moved, renamed or deleted', why)
+
+    def test_the_root_can_still_have_its_settings_changed(self):
+        """⚠ The case that forces `_api_is_editable` and `_api_may_configure_dir`
+        apart. The root cannot be restructured, but root.json carries a `header`
+        and always has — gating the header control on editability hid it in the
+        tree while /directories/settings went on offering it, so the two views
+        disagreed about the same directory."""
+        self.assertFalse(srv._api_is_editable(self.d, self.d.root)[0])
+        self.assertTrue(
+            srv._api_may_configure_dir(self.d, self.d.root, 'NOBODY', ADMIN),
+            'an admin must still be able to set the root header')
+        self.assertTrue(
+            srv._api_may_configure_dir(self.d, self.d.root, 'NOBODY', EDITOR))
+
+    def test_an_ordinary_user_cannot_configure_the_root(self):
+        self.assertFalse(
+            srv._api_may_configure_dir(self.d, self.d.root, 'TEST', PLAIN))
+
+    def test_something_that_is_not_a_directory_is_not_configurable(self):
+        """Only a directory has a header frame or an upload setting.
+
+        ⚠ "not a directory" is not the same as "type T". An entry can be BOTH a
+        page and a directory — that is the latent-directory model (§7.3) — so a
+        text page with a directory.json of its own does legitimately have a header.
+        The test has to select on `_api_is_directory`, not on page type; selecting
+        on type T asserted the opposite of the rule and failed.
+        """
+        plain = [p for p in self.d.pages.values()
+                 if not srv._api_is_directory(self.d, p)]
+        if not plain:
+            self.skipTest('every fixture entry doubles as a directory')
+        for page in plain:
+            with self.subTest(page=page.title):
+                self.assertFalse(
+                    srv._api_may_configure_dir(self.d, page, 'NOBODY', ADMIN))
 
     def test_a_generated_page_is_locked(self):
         """WHO IS ONLINE and WHAT'S NEW are built on read — no folder to move,

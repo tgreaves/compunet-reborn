@@ -4189,13 +4189,26 @@ def _api_duplicate_page_nums(directory):
 
 
 def _api_is_editable(directory, page, duplicates=frozenset()):
-    """Can this entry be changed AT ALL, by anybody?
+    """Can this entry be RESTRUCTURED at all — moved, renamed, reordered, deleted?
+
+    ⚠ Structure only. A directory's SETTINGS — its header frame, its owner-only
+    flag — are a separate question, answered by `_api_may_configure_dir`. The root
+    is the case that forces the distinction: it cannot be moved, renamed or
+    deleted, but it does carry a header in root.json and always has.
+
+    Conflating the two hid the root's HEADER control in the tree while
+    /directories/settings went on offering it — the tree and the settings page
+    disagreeing about the same directory.
 
     Reported per node rather than filtered out: an admin who knows a page exists
     would otherwise think the tree view had lost it.
     """
     if page is directory.root:
-        return False, 'the root directory'
+        # No parent, so nowhere to move it and no sibling list to reorder within;
+        # and its title is not stored anywhere — "WELCOME" is hardcoded in the
+        # loader, root.json holds only `header` and `pages` — so a rename would
+        # have nothing to write to.
+        return False, 'the top of the tree: it cannot be moved, renamed or deleted'
     if getattr(page, 'dynamic', None):
         # WHAT'S NEW, WHO IS ONLINE and friends are generated on read. There is
         # no folder to move and no file to archive.
@@ -4206,6 +4219,18 @@ def _api_is_editable(directory, page, duplicates=frozenset()):
         return False, ('page number %d is used by more than one entry, so it '
                        'cannot be identified unambiguously' % page.page_num)
     return True, None
+
+
+def _api_may_configure_dir(directory, page, user_id, user_data):
+    """May this user change this DIRECTORY's settings — header, owner-only?
+
+    Deliberately not gated on `_api_is_editable`: that answers whether an entry can
+    be restructured, and the root cannot be while still owning a header. Uses the
+    same ownership rule as everything else.
+    """
+    if not _api_is_directory(directory, page):
+        return False
+    return _api_may_edit(page, user_id, user_data)
 
 
 def _api_tree_node(directory, page, user_id, user_data, duplicates=frozenset()):
@@ -4228,6 +4253,8 @@ def _api_tree_node(directory, page, user_id, user_data, duplicates=frozenset()):
         'editable': editable,
         'not_editable_because': why_not,
         'may_edit': may_edit,
+        # Separate from may_edit: a directory's settings, not its place in the tree.
+        'may_configure': _api_may_configure_dir(directory, page, user_id, user_data),
         # Only a text page has anything to draw; a program offers a download.
         'viewable': page.page_type == 'T' and bool(page.frames),
     }
