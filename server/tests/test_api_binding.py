@@ -1080,5 +1080,82 @@ class AuditWriteEndpoint(unittest.TestCase):
         self.assertEqual(e['ip'], '10.0.0.9')
 
 
+class ProgramDownloadDescriptor(unittest.TestCase):
+    """§8.3.1 — the 8-byte download descriptor is MACHINE-DEPENDENT, exactly as the
+    upload header is (§8.3.2). It was not, and every Amiga download carried a wrong size.
+
+    Ground truth is the relocated disassembly of the original Amiga client's
+    file_download_xfer (FUN_0010b174), which reads the body size from a different
+    field per machine:
+
+        C64   (0): 16-bit WORD at header+6   10b21c: moveq #6,d0; move.w (a0,d0.l),d1
+        Amiga (1): 32-bit LONG at header+4   10b22e: move.l $45ec(a4),-$a(a5)
+        ST    (2): 32-bit LONG at header+4   10b268: same instruction
+
+    g_dl_header is $45e8(a4), so $45ec is header+4. The split is by CPU, not brand:
+    both 68k machines take a big-endian longword, the 6502 a 16-bit word. A C64
+    cannot use 4-7 for a size because 4-5 carry its load address.
+
+    Regression guarded: serving the C64 layout to an Amiga truncated the size to 16
+    bits AND byte-swapped it — a 169,966-byte module was described as 61,079.
+    """
+
+    @staticmethod
+    def _descriptor(prg_bytes, machine_type):
+        s = session()
+        page = srv.CompunetPage(page_num=1234, title='T', page_type='P',
+                                author='TEST', price=0.0, life=1)
+        page.frames = [prg_bytes]
+        page.machine_type = machine_type
+        s.show_page = page
+        s.show_frame_index = 0
+        return s._send_current_frame(), s
+
+    def test_amiga_size_is_a_big_endian_longword_at_4(self):
+        body = bytes(169966)
+        hdr, s = self._descriptor(body, 'amiga')
+        self.assertEqual(len(hdr), 8)
+        self.assertEqual(hdr[0], 1)
+        self.assertEqual(int.from_bytes(hdr[4:8], 'big'), 169966)
+        self.assertEqual(hdr, bytes([1, 0, 0, 0]) + (169966).to_bytes(4, 'big'))
+        # The staged body is the stored file whole — no load address is stripped.
+        self.assertEqual(s._program_download_data, body)
+
+    def test_amiga_size_survives_beyond_64k(self):
+        """The old layout could not express this at all: it is the wrong field, not
+        a rounding error."""
+        for n in (65535, 65536, 169966, 1 << 20):
+            hdr, _ = self._descriptor(bytes(n), 'amiga')
+            self.assertEqual(int.from_bytes(hdr[4:8], 'big'), n, 'size %d' % n)
+
+    def test_st_uses_the_same_68k_layout_as_amiga(self):
+        hdr, _ = self._descriptor(bytes(70000), 'st')
+        self.assertEqual(hdr[0], 2)
+        self.assertEqual(int.from_bytes(hdr[4:8], 'big'), 70000)
+
+    def test_c64_layout_is_unchanged(self):
+        """The C64 path must stay byte-for-byte identical — 4-5 load address (little
+        endian), 6-7 size, body = stored file minus the 2-byte load address."""
+        prg = bytes([0x01, 0x08]) + bytes(1000)      # $0801, 1000-byte body
+        hdr, s = self._descriptor(prg, 'c64')
+        self.assertEqual(hdr, bytes([0, 0, 0, 0, 0x01, 0x08,
+                                     1000 & 0xFF, (1000 >> 8) & 0xFF]))
+        self.assertEqual(hdr[4] | (hdr[5] << 8), 0x0801)
+        self.assertEqual(s._program_download_data, prg[2:])
+
+    def test_absent_machine_type_is_c64(self):
+        """Pre-existing content has no machine_type; it must serve exactly as before."""
+        prg = bytes([0x01, 0x08]) + bytes(10)
+        s = session()
+        page = srv.CompunetPage(page_num=1234, title='T', page_type='P',
+                                author='TEST', price=0.0, life=1)
+        page.frames = [prg]
+        s.show_page = page
+        s.show_frame_index = 0
+        hdr = s._send_current_frame()
+        self.assertEqual(hdr[0], 0)
+        self.assertEqual(hdr[4] | (hdr[5] << 8), 0x0801)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

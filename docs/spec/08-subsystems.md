@@ -205,12 +205,43 @@ request the body:
 
 | Byte | Meaning |
 |---|---|
-| 0 | machine type (`0` = C64, `1` = Amiga) |
+| 0 | machine type (`0` = C64, `1` = Amiga, `2` = ST) |
 | 1–3 | reserved (`0`) |
-| 4 | load address low |
-| 5 | load address high |
-| 6 | size low |
-| 7 | size high |
+| 4–7 | **machine-dependent — see below** |
+
+**Bytes 4–7 depend on the machine**, exactly as they do on upload (§8.3.2). A client reads the
+body size from a *different field* according to byte 0:
+
+| | byte 0 | bytes 4–5 | bytes 6–7 | body size is read from |
+|---|---|---|---|---|
+| **C64** | `0` | **load address**, little-endian | size | the 16-bit word at **6–7** |
+| **Amiga** | `1` | *(no load address)* | | the 32-bit **big-endian** longword at **4–7** |
+| **ST** | `2` | *(no load address)* | | the 32-bit **big-endian** longword at **4–7** |
+
+The split is by CPU, not by brand: both 68k machines take a big-endian longword, the 6502 a
+16-bit word. A C64 **cannot** put its size in 4–7, because 4–5 carry the load address, which is
+not recoverable from the body. A 68k program has no load address, so it uses all four bytes —
+and needs them, since 16 bits cannot express the size of a typical Amiga program at all.
+
+A server **MUST** select the layout from byte 0. Serving the C64 layout to a 68k client does
+not merely lose precision: the size is truncated to 16 bits *and* byte-swapped, so a
+169,966-byte file is described as 61,079.
+
+> **⚠ This section was wrong until 2026-07-30**, and the reference server was wrong with it. It
+> prescribed a single layout — load address at 4–5, 16-bit size at 6–7 — for every machine,
+> mirroring only the C64 case, even though §8.3.2 had documented the machine-dependence of the
+> *upload* header correctly for months. Anyone implementing a 68k client from this text would
+> have read a wrong size.
+>
+> **Evidence.** The relocated disassembly of the original Amiga client's `file_download_xfer`
+> (`FUN_0010b174`) branches three ways on byte 0 and reads a different field in each:
+> `10b21c: moveq #$6,d0; move.w (a0,d0.l),d1` for C64, `10b22e: move.l $45ec(a4),-$a(a5)` for
+> Amiga, and the same instruction at `10b268` for ST. `g_dl_header` is `$45e8(a4)`, so `$45ec`
+> is `header+4`. Covered by `ProgramDownloadDescriptor` in `server/tests/test_api_binding.py`,
+> which pins all three machines plus the absent-`machine_type` default.
+>
+> The reconstructed Amiga client does not read the size at all — it streams until EOS — which
+> is why the defect stayed invisible on the only 68k client in existence.
 
 Exchange:
 
@@ -224,8 +255,9 @@ A client that offers downloads **MUST** implement the `$40`/`$41` control tokens
 values are meaningful only within this exchange. Each is an ordinary framed packet (§2.2–2.4)
 with that token, the client's current sequence number, and an **empty payload** — i.e. content
 `[length=$05][token=$40 or $41][seq][crc_hi][crc_lo]`, byte-stuffed and framed like any packet.
-*(Non-normative: for a C64 program the load address is honoured; for an Amiga program the body
-is the raw relocatable HUNK executable and the load field is 0 — the client `LoadSeg`s it. Note
+*(Non-normative: for a C64 program the load address is honoured; for a 68k program the body is
+the raw relocatable executable — a HUNK image on the Amiga, which the client `LoadSeg`s — and
+there is no load field at all, those bytes being the size. Note
 some development-server content is stored as placeholder text frames rather than real
 programs, in which case a selected `P`/`PP`/`S` entry returns a normal frame instead of the
 8-byte header; a client should fall back to rendering it as a frame if the response is not

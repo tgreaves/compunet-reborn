@@ -192,6 +192,22 @@ marked **⚠** are the ones known to have been got wrong in practice.
 
 The server does not report these; a client that ignores them looks fine and loses user data.
 
+- [ ] **⚠ The download descriptor's bytes 4–7 are read per machine, not one way** (§8.3.1).
+      Byte 0 selects: C64 takes the 16-bit size at **6–7** (4–5 being its load address), while
+      Amiga and ST take a 32-bit **big-endian** size at **4–7**. Reading the C64 field on a 68k
+      machine truncates to 16 bits *and* byte-swaps, so a 169,966-byte file reads as 61,079 —
+      wrong, but not obviously so, and it only misbehaves above 64K. Both the spec and the
+      reference server had this wrong until 2026-07-30. The mirror-image mistake on *upload*
+      (sizing every body from 4–7) is documented in §8.3.2 and shipped once already: if you
+      implement one direction from the other, you will reproduce one of the two.
+- [ ] **A download is not complete because the client stopped receiving.** Verify the received
+      length against the descriptor's size field, and treat a short transfer as a failure. A
+      client that writes whatever arrived and reports success turns a desynchronised stream
+      into a silently corrupt file — see the Amiga stale-response defect, where a download
+      after other traffic wrote the *previous* command's response to disk and reported success.
+- [ ] **An unrecognised machine type is an error, not a default.** If byte 0 is not one your
+      client handles, refuse — do not fall through to "probably mine". Falling through means a
+      desynchronised descriptor is accepted as valid and its garbage written to disk.
 - [ ] **Upload into a full directory is refused by the client** (11 entries) rather than
       attempted — the server discards it with no error (§8.3.2).
 - [ ] **Upload prompts for type *and* price** — omitting type makes program upload impossible

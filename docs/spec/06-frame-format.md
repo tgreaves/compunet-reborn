@@ -168,7 +168,8 @@ subsequent frames rather than assuming a page is a single frame.
 
 Some directory entries are not text frames. When the selected entry is a **program /
 download page**, the server sends — in place of the frame above — a small binary header
-(load address and size) and then, on the client's request, the program bytes. Link pages
+describing the program (its size, and on the C64 its load address; the layout depends on the
+machine, §8.3.1) and then, on the client's request, the program bytes. Link pages
 behave differently again. These are specified in [§8 — Subsystems](08-subsystems.md)
 (downloads, uploads, Partyline). A client determines which case applies from the directory
 entry type (§7); a text frame is the default and is what this section describes.

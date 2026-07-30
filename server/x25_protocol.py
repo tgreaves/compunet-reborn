@@ -203,7 +203,20 @@ class X25Connection:
 
         # Total unescaped bytes between $01 and $02:
         # len(1) + token(1) + seq(1) + payload(N) + CRC(2) = N + 5
-        pkt_len = len(payload) + 5
+        #
+        # ⚠ THE LENGTH FIELD IS ONE BYTE AND WRAPS — it is advisory, not authoritative.
+        # Both parsers frame on the $01/$02 markers and derive the payload length from
+        # where the end marker fell, so a payload over 250 is legal and already routine:
+        # the Amiga client uploads in 4000-byte blocks, and this server receives them
+        # happily, logging the wrapped value (`DAT seq=$2E len=165 payload=4000 bytes`).
+        #
+        # The client truncates with `(UBYTE)(len + 5)` (net.c net_send_frame), so mask to
+        # match it exactly — including for the CRC below, which covers this byte. Without
+        # the mask, bytearray.append raises ValueError on any payload over 250 and kills
+        # the connection mid-transfer, which the client reports as "Fatal error: Comms
+        # problem". That is what happened the first time program downloads were widened
+        # from 100 to 4000 bytes.
+        pkt_len = (len(payload) + 5) & 0xFF
 
         # Build raw content (before byte stuffing)
         content = bytearray()

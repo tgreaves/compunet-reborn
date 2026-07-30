@@ -1446,12 +1446,27 @@ Sent as standard DAT packets + EOS marker. The client uses the load address
 for the PRG file header when saving to disk, and the size to check available
 RAM ($2B/$2C + size vs $37/$38).
 
+**Byte 0 is the machine type, and bytes 4-7 depend on it.** The layout above is
+the C64 case, where byte 0 is `$00` — which is why the ROM can treat bytes 0-3
+as padding. A 68k client reads the size as a 32-bit big-endian longword at
+bytes **4-7** instead (Amiga = `$01`, ST = `$02`), because it has no load
+address. See §8.3.1 of [the spec](spec/08-subsystems.md) for the full table;
+the C64 stream described here is unchanged.
+
 **Phase 2 — Data (client requests, server delivers):**
 
 Client sends a packet with token $40 (proceed) to confirm download, or token
 $41 (abort) if the program won't fit in RAM. On receiving $40, the server
 responds with the raw program bytes (PRG file offset 2 onward) in 100-byte
 DAT packets followed by an EOS marker.
+
+The 100-byte payload is a C64 requirement — the ROM's receive path expects it.
+Amiga sessions are served in 4000-byte packets instead, because every packet
+costs a round trip and the emulated `bsdsocket.library` services socket I/O
+once per 20 ms frame; at 100 bytes a 166K download took 36 seconds. The X.25
+length field is one byte and simply wraps at that size — both parsers frame on
+the `$01`/`$02` markers, which is also how 4000-byte *uploads* have always
+worked.
 
 The client receives data byte-by-byte via L96CC into memory starting at
 $2B/$2C (BASIC start), updating $2D/$2E (end of BASIC) when complete. It

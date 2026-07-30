@@ -1346,31 +1346,47 @@ class CompunetSession:
             # Program download: send header, wait for proceed token
             if self.show_page.page_type == 'P':
                 prg_data = self.show_page.frames[self.show_frame_index]
-                if getattr(self.show_page, 'machine_type', 'c64') == 'amiga':
-                    # Amiga programs are stored as the raw relocatable HUNK executable —
-                    # there is no C64-style 2-byte load address to strip. Serve it whole;
-                    # the Amiga client LoadSeg/Execute()s it and ignores the load field.
-                    load_lo = 0
-                    load_hi = 0
+                # Header byte 0 = machine type (0=C64, 1=Amiga, 2=ST) from the page's stored
+                # platform; absent/unknown -> C64. The client's download dialog keys off it.
+                machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
+                # ⚠ BYTES 4-7 ARE MACHINE-DEPENDENT, exactly as they are on upload (§8.3.2).
+                # Verified against the relocated disassembly of the original Amiga client's
+                # file_download_xfer (FUN_0010b174), which reads the body size from a
+                # DIFFERENT field per machine:
+                #     C64   (0): 16-bit WORD at header+6   (10b21c: moveq #6,d0; move.w (a0,d0.l),d1)
+                #     Amiga (1): 32-bit LONG at header+4   (10b22e: move.l $45ec(a4),-$a(a5))
+                #     ST    (2): 32-bit LONG at header+4   (10b268: same instruction)
+                # g_dl_header is $45e8(a4), so $45ec is header+4. The split is by CPU: both
+                # 68k machines take a big-endian longword, the 6502 a 16-bit word — and a C64
+                # cannot use 4-7 for a size because 4-5 carry its load address.
+                is_68k = machine in (1, 2)
+                if is_68k:
+                    # No C64-style 2-byte load address to strip: serve the stored body whole.
+                    # The Amiga client LoadSeg/Execute()s it; the load field does not exist.
                     program_bytes = prg_data
+                    size = len(program_bytes)
+                    # Big-endian 32-bit size at 4-7. A 16-bit field cannot even express the
+                    # size of a typical Amiga program, so this is the wrong field, not a
+                    # rounding error: a 169,966-byte module read as 4-7 little-endian/16-bit
+                    # came back as 61,079.
+                    header = bytes([machine, 0x00, 0x00, 0x00]) + size.to_bytes(4, 'big')
                 else:
                     load_lo = prg_data[0]
                     load_hi = prg_data[1]
                     program_bytes = prg_data[2:]
-                size = len(program_bytes)
-                size_lo = size & 0xFF
-                size_hi = (size >> 8) & 0xFF
-                # Header byte 0 = machine type (0=C64, 1=Amiga) from the page's stored
-                # platform; absent/unknown -> C64. The client's download dialog keys off it.
-                machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
-                header = bytes([machine, 0x00, 0x00, 0x00, load_lo, load_hi, size_lo, size_hi])
+                    size = len(program_bytes)
+                    header = bytes([machine, 0x00, 0x00, 0x00,
+                                    load_lo, load_hi, size & 0xFF, (size >> 8) & 0xFF])
                 self._program_download_pending = True
                 self._program_download_data = program_bytes
                 self._download_page_num = self.show_page.page_num
                 self._download_title = self.show_page.title
-                log.info('PROGRAM: page=%d "%s" load=$%02X%02X size=%d bytes (%dK), header sent',
+                # 68k machines have no load address, so report the descriptor rather than a
+                # field that does not exist for them (and load_lo/load_hi are unbound there).
+                log.info('PROGRAM: page=%d "%s" %s size=%d bytes (%dK), header sent [%s]',
                          self.show_page.page_num, self.show_page.title,
-                         load_hi, load_lo, size, (size + 1023) // 1024)
+                         'no load addr' if is_68k else 'load=$%02X%02X' % (load_hi, load_lo),
+                         size, (size + 1023) // 1024, header.hex())
                 return header
 
             frame_data = bytearray(self.show_page.frames[self.show_frame_index])
@@ -3356,7 +3372,28 @@ async def tcp_handler(reader, writer):
                     audit_log('download', user=session.user_id,
                               page=getattr(session, '_download_page_num', 0),
                               title=getattr(session, '_download_title', ''))
-                    MAX_PAYLOAD = 100
+                    # ⚠ THE COST HERE IS PER ROUND TRIP, NOT PER BYTE. Every packet waits
+                    # for the client's ACK, and on an emulated Amiga that wait costs one
+                    # ~20 ms tick: measured over 1700 packets, 1589 of the 1700 inter-ACK
+                    # gaps fell in 19-21 ms, hard-clustered on 20 ms — 50 Hz, the host's
+                    # frame boundary, because bsdsocket.library emulation services socket
+                    # I/O once per frame. 1700 x 20 ms = the 34 s a 166K download took.
+                    #
+                    # So the only lever is FEWER packets. (Buffering the client's per-byte
+                    # reads was tried first and bought 10%: the syscalls were never the
+                    # bottleneck.) The upload direction has always used 4000-byte blocks,
+                    # which is why uploading the same file takes 0.18 s.
+                    #
+                    # Amiga only. The C64 ROM's receive path expects 100-byte packets, so
+                    # its stream stays byte-for-byte unchanged.
+                    #
+                    # 4000 is the client's own send size and its safe ceiling: net_recv_frame
+                    # collects into raw[NET_FRAME_MAX + 2] = 8302, and worst-case stuffing
+                    # (every byte in $01-$03) doubles 4005 to 8010, which still fits. The
+                    # single-byte length field wraps at this size and is advisory only —
+                    # both parsers frame on the $01/$02 markers, which is what makes the
+                    # existing 4000-byte uploads work.
+                    MAX_PAYLOAD = 4000 if getattr(session, 'is_amiga', False) else 100
                     offset = 0
                     pkt_num = 0
                     while offset < len(program_data):
@@ -3368,7 +3405,8 @@ async def tcp_handler(reader, writer):
                     eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
                     writer.write(eos_pkt)
                     await writer.drain()
-                    log.info('DOWNLOAD: sent %d packets + EOS (%d bytes total)', pkt_num, len(program_data))
+                    log.info('DOWNLOAD: sent %d packets of %d + EOS (%d bytes total)',
+                             pkt_num, MAX_PAYLOAD, len(program_data))
 
                 elif token == 0x41 and session._program_download_pending:
                     # Client aborted download (no room in RAM)

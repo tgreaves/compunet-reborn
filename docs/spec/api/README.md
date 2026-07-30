@@ -391,6 +391,13 @@ frames are base64 program blobs rather than editor pages.
 > | 4–5 | **C64 load address**, little-endian (`0` for Amiga) |
 > | 6–7 | body size, little-endian — informational here, since the blob's length is known |
 >
+> ⚠ **This is the Binding-B *upload* blob; do not implement anything else from it.** The size
+> here is inert because the blob carries its own length. Binding A's **download descriptor** is
+> machine-dependent and its size field is load-bearing — 16-bit at 6–7 for the C64, 32-bit
+> big-endian at 4–7 for Amiga and ST (§8.3.1) — and Binding A's *upload* header differs again
+> (§8.3.2). Three similar-looking headers; copying one into another's place has caused a
+> shipped bug in each direction.
+>
 > For a **C64** `.prg`, bytes 4–5 are the file's own first two bytes and the body is the file
 > **from offset 2**: the server rebuilds the stored program as `header[4:6] + blob[8:]`, so this
 > reproduces the original file exactly. For an **Amiga** executable the body is the whole file
