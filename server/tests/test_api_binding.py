@@ -388,6 +388,45 @@ class ErrorTyping(unittest.TestCase):
             self.assertEqual(send(s, type=t)['code'], 'invalid', t)
 
 
+class RleOperandsAreNeverZero(unittest.TestCase):
+    """§6.4 — a `$00` RLE operand is the frame terminator, not a zero count.
+
+    ⚠ The two bindings used to disagree here, and both were "conforming": §6.4
+    said `$06 N` draws `1 + N` spaces without constraining N, while §6.3 made
+    `$00` the terminator and §6.1 let a client end a frame at the first in-band
+    `$00`. So `$06 $00` was one space to this decoder and end-of-part to the
+    C64, whose Part-1 copy loop is byte-level and has no notion of RLE. One
+    file, two screens. The spec now forbids the operand; these pin this decoder
+    to it.
+
+    Nothing legitimate is affected: a zero count is always LONGER than the
+    literal it encodes, so no encoder in this tree emits one.
+    """
+
+    def _cells(self, body):
+        return api.frame_to_cells(bytes([0x00, 0xF4, 0xFF, 0x8E]) + body)['cells']
+
+    def _text(self, cells, count):
+        return ''.join(chr(api._screencode_to_petscii(c['g'] & 0x7F))
+                       for c in cells[:count])
+
+    def test_a_zero_space_count_ends_the_frame(self):
+        # 'AB' then $06 $00 — everything after the operand must be discarded,
+        # matching the C64 rather than drawing a space and carrying on.
+        self.assertEqual('AB  ', self._text(self._cells(b'AB\x06\x00CD'), 4))
+
+    def test_a_zero_repeat_count_ends_the_frame(self):
+        self.assertEqual('AB  ', self._text(self._cells(b'AB\x07\x41\x00CD'), 4))
+
+    def test_a_nul_run_byte_ends_the_frame(self):
+        self.assertEqual('AB  ', self._text(self._cells(b'AB\x07\x00\x05CD'), 4))
+
+    def test_ordinary_runs_are_untouched(self):
+        """The control: non-zero counts still expand with `1 + N` semantics."""
+        self.assertEqual('A***B', self._text(self._cells(b'A\x07\x2A\x02B'), 5))
+        self.assertEqual('A  B', self._text(self._cells(b'A\x06\x01B'), 4))
+
+
 class FrameFidelity(unittest.TestCase):
     """The `cells` submission form must reproduce what it was given (api §5.4)."""
 
@@ -733,7 +772,7 @@ class PersistenceRoundTrip(unittest.TestCase):
         s = session()
         self.assertEqual(s.directory.pages[GRAPHICS].children, [],
                          'fixture precondition: GRAPHICS is empty')
-        s._save_directory()
+        s._save_directory_containing(s.directory.pages[JUNGLE])
 
         self.assertIn('directory', self._jungle_entry(GRAPHICS),
                       'saving deleted an empty sub-directory')
@@ -742,8 +781,166 @@ class PersistenceRoundTrip(unittest.TestCase):
         """The control: the same field on a directory that does have children."""
         s = session()
         self.assertTrue(s.directory.pages[MORE_DIR].children, 'fixture precondition')
-        s._save_directory()
+        s._save_directory_containing(s.directory.pages[JUNGLE])
         self.assertIn('directory', self._jungle_entry(MORE_DIR))
+
+    def _dir_json(self, *parts):
+        import json
+        with open(os.path.join(srv.ROOT_DIR, *parts)) as f:
+            return json.load(f)
+
+    def test_a_directory_header_survives_an_unrelated_save(self):
+        """Users can now set the Part-1 header themselves (#120), so a save that
+        drops it destroys someone's artwork rather than an operator's typo."""
+        self.assertIn('header', self._dir_json('jungle', 'directory.json'),
+                      'fixture precondition')
+        s = session()
+        s._save_directory_containing(s.directory.pages[JUNGLE])
+        self.assertEqual(
+            'jungle/header.seq',
+            self._dir_json('jungle', 'directory.json').get('header'),
+            'saving deleted a directory header frame')
+
+    def test_function_key_shortcuts_survive_a_save(self):
+        """⚠ The regression: `shortcuts` was loaded but never written back, so
+        the F-key block in root.json was deleted by the next upload, vote or
+        extend — an action with nothing to do with it. The terminal's own copy
+        of the serializer *did* write it, so whether the shortcuts survived
+        depended on which subsystem the user happened to be using."""
+        import json
+        root_json = os.path.join(srv.ROOT_DIR, 'root.json')
+        with open(root_json) as f:
+            data = json.load(f)
+        data['shortcuts'] = {'F1': 'JUNGLE', 'F3': 'PARTY'}
+        with open(root_json, 'w') as f:
+            json.dump(data, f, indent=2)
+
+        s = session()
+        s._save_directory_containing(s.directory.root)
+
+        self.assertEqual({'F1': 'JUNGLE', 'F3': 'PARTY'},
+                         self._dir_json('root.json').get('shortcuts'),
+                         'saving deleted the function-key shortcuts')
+
+    def test_an_explicit_upload_optout_survives_a_save(self):
+        """THE ZOO sets `open_upload: false` to stop the Jungle's inheritance.
+        Writing back only the truthy case reopens the directory to everyone —
+        and that is exactly what the terminal's serializer used to do."""
+        self.assertIs(False,
+                      self._dir_json('jungle', 'the-zoo', 'directory.json')
+                          .get('open_upload'), 'fixture precondition')
+        s = session()
+        s._save_directory_containing(s.directory.pages[THE_ZOO])
+        self.assertIs(False,
+                      self._dir_json('jungle', 'the-zoo', 'directory.json')
+                          .get('open_upload'),
+                      'saving reopened a directory that had opted out')
+
+    def test_the_directory_path_is_written_with_forward_slashes(self):
+        """os.path.relpath yields backslashes on Windows, and the tree is served
+        from Linux — a path saved on one does not resolve on the other."""
+        s = session()
+        srv.save_directory_tree(s.directory.root, srv.ROOT_DIR)
+        for page in self._dir_json('root.json')['pages']:
+            if 'directory' in page:
+                self.assertNotIn('\\', page['directory'])
+
+    def test_one_sessions_save_does_not_discard_anothers(self):
+        """⚠ THE regression the targeted writes exist for.
+
+        Every session holds its own `CompunetDirectory`. A whole-tree save
+        republishes that session's entire view of the content, so anything another
+        session committed since it loaded was silently overwritten — an upload,
+        gone, with nothing logged and no error.
+
+        This is not a race between writers: within one event loop the saves cannot
+        interleave. It is one writer publishing stale data over fresh data, which
+        is why a lock would not have fixed it and writing only what changed does.
+        """
+        first = session()
+        second = session()          # loaded independently, same content
+
+        # The first session changes something and commits it.
+        jungle = first.directory.pages[JUNGLE]
+        target = jungle.children[0]
+        target.life = 4321
+        first.current_page = jungle
+        first._save_directory_containing(jungle)
+        self.assertEqual(
+            4321,
+            next(p['life'] for p in self._dir_json('jungle', 'directory.json')['pages']
+                 if p['page_num'] == target.page_num))
+
+        # The second session, which never saw that, now commits something of its
+        # own in a DIFFERENT directory.
+        zoo = second.directory.pages[THE_ZOO]
+        second.current_page = zoo
+        second._save_directory_containing(zoo)
+
+        # The first session's change must still be on disk.
+        self.assertEqual(
+            4321,
+            next(p['life'] for p in self._dir_json('jungle', 'directory.json')['pages']
+                 if p['page_num'] == target.page_num),
+            'a save from another session discarded a committed change')
+
+    def test_an_upload_leaves_unrelated_directories_untouched(self):
+        """The invariant behind the fix, stated positively.
+
+        A write must touch the directory it changed (and its parent, since a
+        latent directory becomes real on first upload) and NOTHING else. Asserted
+        on mtime rather than content: a whole-tree save often rewrites unrelated
+        files byte-identically, so comparing bytes would pass while the
+        stale-data bug remained.
+        """
+        import base64
+        import os as _os
+
+        def mtimes():
+            found = {}
+            for base, _dirs, files in _os.walk(srv.ROOT_DIR):
+                for name in files:
+                    if name == 'directory.json' or name == 'root.json':
+                        path = _os.path.join(base, name)
+                        found[path] = _os.stat(path).st_mtime_ns
+            return found
+
+        before = mtimes()
+        s = session()
+        send(s, type='goto', target=str(JUNGLE))
+        send(s, type='enter', page=GRAPHICS)
+        reply = send(s, type='upload', title='TOUCHTEST', kind='T', price=0, life=30,
+                     frames=[{'raw': base64.b64encode(
+                         b'\x00\x00\x00\x8eHI').decode('ascii')}])
+        self.assertEqual('directory', reply.get('type'),
+                         'upload refused: %r' % (reply.get('message'),))
+
+        touched = {p for p, t in mtimes().items() if before.get(p) != t}
+        # GRAPHICS gains the entry; the Jungle above it may gain the `directory`
+        # key that makes GRAPHICS reachable. Everything else must be untouched.
+        allowed = {_os.path.join(srv.ROOT_DIR, 'jungle', 'graphics', 'directory.json'),
+                   _os.path.join(srv.ROOT_DIR, 'jungle', 'directory.json')}
+        self.assertTrue(touched, 'the upload wrote nothing at all')
+        self.assertFalse(touched - allowed,
+                         'an upload rewrote unrelated directories: %s'
+                         % sorted(p.replace(srv.ROOT_DIR, '') for p in touched - allowed))
+
+    def test_a_vote_writes_no_directory_json_at_all(self):
+        """Votes live in votes.json and `vote` is never a directory-JSON key, so
+        the whole-tree write that used to happen on every VOTE persisted nothing
+        and could only clobber other sessions. Guarded by mtime: the file must be
+        untouched, not merely unchanged in content."""
+        import os as _os
+        path = os.path.join(srv.ROOT_DIR, 'jungle', 'directory.json')
+        before = _os.stat(path).st_mtime_ns
+
+        s = session()
+        s.current_page = s.directory.pages[JUNGLE]
+        s.dir_page_offset = 0
+        s._cmd_vote(b'005')          # entry 0, score 5
+
+        self.assertEqual(before, _os.stat(path).st_mtime_ns,
+                         'VOTE rewrote a directory JSON')
 
 
 class ClientAddressResolution(unittest.TestCase):
@@ -881,6 +1078,83 @@ class AuditWriteEndpoint(unittest.TestCase):
         self.assertEqual(e['event'], 'password_reset')
         self.assertEqual(e['user'], 'TEST')
         self.assertEqual(e['ip'], '10.0.0.9')
+
+
+class ProgramDownloadDescriptor(unittest.TestCase):
+    """§8.3.1 — the 8-byte download descriptor is MACHINE-DEPENDENT, exactly as the
+    upload header is (§8.3.2). It was not, and every Amiga download carried a wrong size.
+
+    Ground truth is the relocated disassembly of the original Amiga client's
+    file_download_xfer (FUN_0010b174), which reads the body size from a different
+    field per machine:
+
+        C64   (0): 16-bit WORD at header+6   10b21c: moveq #6,d0; move.w (a0,d0.l),d1
+        Amiga (1): 32-bit LONG at header+4   10b22e: move.l $45ec(a4),-$a(a5)
+        ST    (2): 32-bit LONG at header+4   10b268: same instruction
+
+    g_dl_header is $45e8(a4), so $45ec is header+4. The split is by CPU, not brand:
+    both 68k machines take a big-endian longword, the 6502 a 16-bit word. A C64
+    cannot use 4-7 for a size because 4-5 carry its load address.
+
+    Regression guarded: serving the C64 layout to an Amiga truncated the size to 16
+    bits AND byte-swapped it — a 169,966-byte module was described as 61,079.
+    """
+
+    @staticmethod
+    def _descriptor(prg_bytes, machine_type):
+        s = session()
+        page = srv.CompunetPage(page_num=1234, title='T', page_type='P',
+                                author='TEST', price=0.0, life=1)
+        page.frames = [prg_bytes]
+        page.machine_type = machine_type
+        s.show_page = page
+        s.show_frame_index = 0
+        return s._send_current_frame(), s
+
+    def test_amiga_size_is_a_big_endian_longword_at_4(self):
+        body = bytes(169966)
+        hdr, s = self._descriptor(body, 'amiga')
+        self.assertEqual(len(hdr), 8)
+        self.assertEqual(hdr[0], 1)
+        self.assertEqual(int.from_bytes(hdr[4:8], 'big'), 169966)
+        self.assertEqual(hdr, bytes([1, 0, 0, 0]) + (169966).to_bytes(4, 'big'))
+        # The staged body is the stored file whole — no load address is stripped.
+        self.assertEqual(s._program_download_data, body)
+
+    def test_amiga_size_survives_beyond_64k(self):
+        """The old layout could not express this at all: it is the wrong field, not
+        a rounding error."""
+        for n in (65535, 65536, 169966, 1 << 20):
+            hdr, _ = self._descriptor(bytes(n), 'amiga')
+            self.assertEqual(int.from_bytes(hdr[4:8], 'big'), n, 'size %d' % n)
+
+    def test_st_uses_the_same_68k_layout_as_amiga(self):
+        hdr, _ = self._descriptor(bytes(70000), 'st')
+        self.assertEqual(hdr[0], 2)
+        self.assertEqual(int.from_bytes(hdr[4:8], 'big'), 70000)
+
+    def test_c64_layout_is_unchanged(self):
+        """The C64 path must stay byte-for-byte identical — 4-5 load address (little
+        endian), 6-7 size, body = stored file minus the 2-byte load address."""
+        prg = bytes([0x01, 0x08]) + bytes(1000)      # $0801, 1000-byte body
+        hdr, s = self._descriptor(prg, 'c64')
+        self.assertEqual(hdr, bytes([0, 0, 0, 0, 0x01, 0x08,
+                                     1000 & 0xFF, (1000 >> 8) & 0xFF]))
+        self.assertEqual(hdr[4] | (hdr[5] << 8), 0x0801)
+        self.assertEqual(s._program_download_data, prg[2:])
+
+    def test_absent_machine_type_is_c64(self):
+        """Pre-existing content has no machine_type; it must serve exactly as before."""
+        prg = bytes([0x01, 0x08]) + bytes(10)
+        s = session()
+        page = srv.CompunetPage(page_num=1234, title='T', page_type='P',
+                                author='TEST', price=0.0, life=1)
+        page.frames = [prg]
+        s.show_page = page
+        s.show_frame_index = 0
+        hdr = s._send_current_frame()
+        self.assertEqual(hdr[0], 0)
+        self.assertEqual(hdr[4] | (hdr[5] << 8), 0x0801)
 
 
 if __name__ == '__main__':

@@ -122,6 +122,15 @@ marked **⚠** are the ones known to have been got wrong in practice.
 - [ ] **⚠ The editor opens with no session.** Close the connection (or don't make one) and reach
       it: compose, `PUT`, `STORE`, `GET`, `FREE`, `HELP` must all work offline (§8.4). Then
       reconnect — **is the buffer still there?** Clearing it on disconnect is the known failure.
+- [ ] **⚠ `GET` reads a stored file to END OF FILE, not to the first `$00`** (§8.4.4, §6.3).
+      `STORE` several pages, then `GET` the file back: do **all** of them return? A reader that
+      applies §6.3's wire rule to a file loads **page 1 of N and reports success** — nothing
+      errors, so this passes casual inspection. Check the boundary handling too: frames are
+      separated by the terminator **immediately followed by** the next frame's flags byte, so a
+      reader that assumes one byte between bodies parses everything after the first frame one byte
+      out. **Round-tripping your own files does not test this** — write `$01` into a body and
+      confirm the page truncates on load, or better, test against a file written by a real C64,
+      which is the only place the `$01`→`$00` substitution shows up.
 
 ## C. Display fidelity
 
@@ -137,6 +146,11 @@ marked **⚠** are the ones known to have been got wrong in practice.
       (§8.4.3). Both look plausible; only one matches.
 - [ ] **⚠ Right-pane content rendered verbatim** from column 31 — the server's leading spaces and
       right-justification are the positioning; do not re-justify (§7.3).
+- [ ] **⚠ Footer / advert drawn verbatim from column 0, NOT centred** (§7.7). The original has no
+      instruction that halves a value in either binary, so it cannot centre; authors position
+      these lines with leading spaces. Centring re-centres already-padded text and shifts it
+      right by a different amount on each line — which reads as "the advert is slightly off"
+      rather than as a client bug.
 - [ ] **Page number shown only on the selected row**, right-justified to column 6 (§7.7) — and
       **never for the `(EMPTY)` placeholder**, whose page and type columns are both blank (§7.3).
       A `0` there advertises a page that does not exist; a `T` announces a text page, in a listing
@@ -156,12 +170,52 @@ marked **⚠** are the ones known to have been got wrong in practice.
       content directory's (§7.2).
 - [ ] **⚠ RLE counts are `1 + N`** (§6.4), and a control byte inside a `$07` run repeats the
       *action*, not the glyph.
+- [ ] **A `$00` RLE operand ends the frame** (§6.4) — it is the terminator, not a zero count.
+      Check this deliberately: reading `$06 $00` as "one space" is the natural implementation
+      and it passes every test built from real content, because no encoder emits a zero count.
+      It diverges only on hand-made bytes, and then your client draws a different screen from
+      the C64, which stops at that byte. The spec said both things until recently; if you
+      implemented from an older copy, this is the line to re-check.
+- [ ] **The Part-1 header is bounded to rows 0–5** (§7.2, §7.7), and a header that tries to draw
+      lower cannot reach the entry list. Directory headers may be **user-supplied**, so this is
+      no longer only a question of trusting the operator: a header that runs long, clears the
+      screen, or leaves the character set switched should cost you the header, not the page.
+      Test with a deliberately broken one rather than assuming — the reference clients disagree
+      here, and the failure is invisible until someone uploads the wrong file.
 - [ ] **Welcome frame persists after login** until the user acts; `DIR` reaches the root (§4.7).
+      And once anything replaces it, **it is gone** (§3.5) — it is sent once and no command
+      brings it back. Check you have not offered a route to it: a "home" button that lands on
+      the top directory instead is an invented command (§4.7), and one that appears to work by
+      re-rendering a cached copy is describing your client, not Compunet.
 
 ## D. Silent-failure traps
 
 The server does not report these; a client that ignores them looks fine and loses user data.
 
+- [ ] **⚠ The packet `length` byte is advisory and wraps — never validate against it**
+      (§2.4). It is one byte, so a payload over 250 cannot fit and it carries
+      `(N + 5) mod 256`; a 4000-byte payload sends `length = $A5`. Derive the payload length
+      from where the `$02` end marker fell. A receiver that rejects on a length mismatch
+      breaks on every large transfer; a **sender** that builds the byte without truncating
+      is worse — the reference server raised on any payload over 250 and dropped the
+      connection mid-transfer, which the Amiga reported as "Fatal error: Comms problem".
+      The CRC covers the truncated value, so both sides must truncate identically.
+- [ ] **⚠ The download descriptor's bytes 4–7 are read per machine, not one way** (§8.3.1).
+      Byte 0 selects: C64 takes the 16-bit size at **6–7** (4–5 being its load address), while
+      Amiga and ST take a 32-bit **big-endian** size at **4–7**. Reading the C64 field on a 68k
+      machine truncates to 16 bits *and* byte-swaps, so a 169,966-byte file reads as 61,079 —
+      wrong, but not obviously so, and it only misbehaves above 64K. Both the spec and the
+      reference server had this wrong until 2026-07-30. The mirror-image mistake on *upload*
+      (sizing every body from 4–7) is documented in §8.3.2 and shipped once already: if you
+      implement one direction from the other, you will reproduce one of the two.
+- [ ] **A download is not complete because the client stopped receiving.** Verify the received
+      length against the descriptor's size field, and treat a short transfer as a failure. A
+      client that writes whatever arrived and reports success turns a desynchronised stream
+      into a silently corrupt file — see the Amiga stale-response defect, where a download
+      after other traffic wrote the *previous* command's response to disk and reported success.
+- [ ] **An unrecognised machine type is an error, not a default.** If byte 0 is not one your
+      client handles, refuse — do not fall through to "probably mine". Falling through means a
+      desynchronised descriptor is accepted as valid and its garbage written to disk.
 - [ ] **Upload into a full directory is refused by the client** (11 entries) rather than
       attempted — the server discards it with no error (§8.3.2).
 - [ ] **Upload prompts for type *and* price** — omitting type makes program upload impossible

@@ -1,19 +1,48 @@
 """Compunet Reborn — Website (Registration + Account Management)"""
 
+import base64
 import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import time
 
 import requests
-from flask import (Flask, flash, redirect, render_template, request,
+from flask import (Flask, Response, flash, redirect, render_template, request,
                    session, url_for)
 
 import config
 
 app = Flask(__name__)
 app.secret_key = config.get('WEBSITE_SECRET_KEY', 'dev-secret-change-me')
+
+# ⚠ The site's only file upload is a directory header frame, which may not
+# exceed 512 bytes. Cap the request body well below anything worth buffering so
+# an oversized or hostile POST is refused by Flask before a handler sees it.
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
+
+# ============================================================
+# Session cookie policy
+#
+# ⚠ Set explicitly rather than inherited. Browsers now default cookies to
+# SameSite=Lax, which does block a cross-site POST from carrying the session — so
+# the forms here were protected in practice by a default the site never stated.
+# Relying on that is not a control: it is invisible, it varies by browser, and
+# Lax deliberately still sends cookies on top-level GET navigation, which is why
+# the two admin routes that changed state on GET were genuinely exposed (they are
+# POST now).
+#
+# SECURE follows the scheme the site is actually published on. Hardcoding True
+# breaks a local checkout — the cookie is never sent over http://localhost, so
+# login silently fails and looks like a broken password. Hardcoding False ships a
+# session cookie that will travel in clear.
+# ============================================================
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SECURE'] = config.get(
+    'WEBSITE_BASE_URL', 'http://localhost:6464').strip().lower().startswith('https://')
 
 _version_file = os.path.join(os.path.dirname(__file__), 'VERSION')
 if not os.path.exists(_version_file):
@@ -31,7 +60,54 @@ CLIENT_URL = config.get('COMPUNET_CLIENT_URL', '').strip().rstrip('/')
 
 @app.context_processor
 def inject_version():
-    return {'version': APP_VERSION, 'client_url': CLIENT_URL}
+    return {'version': APP_VERSION, 'client_url': CLIENT_URL,
+            'csrf_token': _csrf_token}
+
+
+# ============================================================
+# CSRF
+#
+# A cross-site request forgery is a page on another site causing YOUR browser to
+# send a request here. The browser attaches the session cookie based on where the
+# request is going, not where it came from, so the server sees a properly
+# authenticated request and obeys — and the attacker never needs to read the
+# reply, because the damage is the side effect.
+#
+# The defence is a secret the other site cannot obtain: a token this site issues,
+# puts in its own forms, and checks on submission.
+#
+# ⚠ Checked centrally, in before_request, NOT per handler. This codebase has
+# already been bitten by the other approach: `_api_check_auth` is called by hand
+# at the top of every API handler, and the one that forgot it shipped unguarded
+# (see the ⚠ on POST /api/audit). A new form here cannot forget a check it does
+# not have to remember.
+# ============================================================
+
+def _csrf_token():
+    """The token for this session, minted on first use."""
+    token = session.get('_csrf')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['_csrf'] = token
+    return token
+
+
+@app.before_request
+def _check_csrf():
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return None
+    sent = request.form.get('_csrf') or request.headers.get('X-CSRF-Token', '')
+    expected = session.get('_csrf', '')
+    # compare_digest, not ==, so a wrong token cannot be discovered one character
+    # at a time from how long the comparison takes.
+    if not expected or not sent or not hmac.compare_digest(str(sent), str(expected)):
+        app.logger.warning('CSRF check failed for %s %s from %s',
+                           request.method, request.path, _client_ip())
+        flash('That form could not be submitted — it was probably left open too '
+              'long. Please try again.', 'error')
+        return redirect(url_for('account') if 'user_id' in session
+                        else url_for('login'))
+    return None
 
 USERID_RE = re.compile(r'^[A-Z0-9]{1,8}$')
 PASSWORD_RE = re.compile(r'^[A-Z0-9]{1,6}$')
@@ -62,6 +138,12 @@ def _api_put(path, data):
 
 def _api_delete(path):
     return requests.delete(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers())
+
+
+def _api_delete_json(path, data):
+    """DELETE carrying a body — the server needs to know WHICH user is asking,
+    because the API key identifies the website, not a person."""
+    return requests.delete(f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}{path}', headers=_api_headers(), json=data)
 
 
 def _api_create_pending(data):
@@ -241,6 +323,100 @@ def extras():
     return render_template('extras.html')
 
 
+# ============================================================
+# News (#35)
+#
+# Items are Markdown files in the repository, named `YYYY-MM-DD-slug.md`. The
+# filename carries the date and the permalink; the first `# heading` is the
+# title. No front-matter, no database.
+#
+# ⚠ Not published from the admin UI, deliberately. This container cannot write
+# to the server tree (server/data is read-only, server/cfg is not mounted), so
+# runtime publishing needs a server endpoint and a write path — real machinery
+# for something published a handful of times a year. Files in git give version
+# control, review and rollback instead, at the cost of a deploy per item.
+#
+# ⚠ markdown.markdown() passes RAW HTML THROUGH. That is acceptable only while
+# the author is someone with commit access. If items ever become submittable at
+# runtime, this needs sanitising first.
+# ============================================================
+
+NEWS_DIR = os.path.join(os.path.dirname(__file__), 'news')
+_NEWS_NAME_RE = re.compile(r'^(\d{4}-\d{2}-\d{2})-([a-z0-9-]+)\.md$')
+
+
+def _news_items():
+    """Every news item, newest first."""
+    items = []
+    if not os.path.isdir(NEWS_DIR):
+        return items
+    for name in os.listdir(NEWS_DIR):
+        match = _NEWS_NAME_RE.match(name)
+        if not match:
+            continue
+        date, slug = match.group(1), match.group(2)
+        with open(os.path.join(NEWS_DIR, name), 'r', encoding='utf-8') as f:
+            body = f.read()
+        title, body = _split_news_title(body)
+        items.append({'date': date, 'slug': slug, 'title': title, 'body': body,
+                      'display_date': _news_display_date(date)})
+    # Filename dates sort correctly as strings, and ties break on the slug so
+    # the order is stable rather than filesystem-dependent.
+    items.sort(key=lambda i: (i['date'], i['slug']), reverse=True)
+    return items
+
+
+def _news_display_date(date):
+    """`2026-06-29` -> `29 June 2026`.
+
+    Built from the parsed fields rather than a `%-d` format: that directive
+    strips the leading zero on Linux but is not portable — on Windows it raises,
+    which would take the page down on the developer's machine and nowhere else.
+    Falls back to the raw value rather than failing a page over a misnamed file.
+    """
+    try:
+        parsed = time.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        return date
+    return '%d %s %d' % (parsed.tm_mday, time.strftime('%B', parsed),
+                         parsed.tm_year)
+
+
+def _split_news_title(body):
+    """Take the leading `# heading` as the title, and return the rest."""
+    lines = body.strip().split('\n')
+    if lines and lines[0].startswith('# '):
+        return lines[0][2:].strip(), '\n'.join(lines[1:]).strip()
+    return 'Untitled', body.strip()
+
+
+def _render_news(body):
+    import markdown as md
+    return md.markdown(body, extensions=['extra'])
+
+
+@app.route('/news')
+def news():
+    items = _news_items()
+    for item in items:
+        item['html'] = _render_news(item['body'])
+    return render_template('news.html', items=items)
+
+
+@app.route('/news/<slug>')
+def news_item(slug):
+    items = _news_items()
+    for item in items:
+        if item['slug'] == slug:
+            item['html'] = _render_news(item['body'])
+            # The full list too, for the index beside it.
+            return render_template('news_item.html', item=item, items=items)
+    # An item that has been renamed or withdrawn should land somewhere useful
+    # rather than on an error page.
+    flash('That news item no longer exists.', 'error')
+    return redirect(url_for('news'))
+
+
 @app.route('/contact', methods=['GET', 'POST'])
 def contact():
     if request.method == 'GET':
@@ -385,7 +561,7 @@ def login():
     return redirect(url_for('account'))
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
     return redirect(url_for('home'))
@@ -431,6 +607,450 @@ def change_password():
     else:
         flash('Failed to change password.', 'error')
         return render_template('password.html')
+
+
+# ============================================================
+# Directory header frames (#120)
+#
+# A directory's header is the PETSCII drawn above its entry list (§7.2 Part 1).
+# The C64 ROM has no room for an upload command and the command vocabulary is
+# closed, so this is the one place a user can set one.
+#
+# ⚠ Nothing is written here. This container mounts server/data READ-ONLY and
+# has no access to server/cfg at all, so every change goes to the server over
+# the admin API, which re-checks ownership itself.
+# ============================================================
+
+#: The server enforces this too — it is repeated here only so an oversized file
+#: is refused before it is read into memory and base64'd.
+MAX_HEADER_BYTES = 512
+
+#: Longest entry title. The server enforces the same limit (compunet_server
+#: MAX_TITLE); repeated here only so the form can stop over-typing at the source.
+MAX_TITLE = 16
+
+
+def _directories_for_session():
+    """Directories the signed-in user may configure, or None on failure."""
+    resp = _api_get(f'/api/directories?user={session["user_id"]}')
+    if resp.status_code != 200:
+        return None
+    return resp.json().get('directories', [])
+
+
+def _tree_for_session():
+    """The whole hierarchy with this user's permissions resolved, or None."""
+    resp = _api_get(f'/api/tree?user={session["user_id"]}')
+    if resp.status_code != 200:
+        return None
+    return resp.json()
+
+
+def _find_node(node, page_num):
+    """Locate one entry in the tree.
+
+    The tree arrives in a single response, so looking a page up in it costs
+    nothing extra and avoids a second endpoint that could answer differently
+    about the same page.
+    """
+    if node.get('page_num') == page_num:
+        return node
+    for child in node.get('children', []):
+        found = _find_node(child, page_num)
+        if found:
+            return found
+    return None
+
+
+@app.route('/directories')
+def directories():
+    """The hierarchy. Everyone may browse it; editing is per-node."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    data = _tree_for_session()
+    if data is None:
+        flash('Could not reach the Compunet server.', 'error')
+        return redirect(url_for('account'))
+    # ⚠ Rows only. Frame panels and edit controls are fetched per entry when
+    # someone asks for them (see the two fragment routes below). Rendering them
+    # for every entry made the page grow with the tree: measured on a 30-page
+    # fixture the controls alone were 61% of 183 KB, and the live tree has 269
+    # pages.
+    # ?edit=<n> is the no-script path for CHANGE: the server renders that one
+    # entry's controls inline. With the script running, the same link is
+    # intercepted and the fragment is fetched instead, so the tree never moves.
+    edit_node = targets = None
+    try:
+        edit_num = int(request.args.get('edit', ''))
+    except ValueError:
+        edit_num = None
+    if edit_num is not None:
+        candidate = _find_node(data['tree'], edit_num)
+        if candidate is not None and candidate.get('may_edit'):
+            edit_node = candidate
+            targets = _move_targets_for(data['tree'], edit_num)
+
+    return render_template('tree.html', tree=data['tree'],
+                           duplicates=data.get('duplicate_page_numbers') or [],
+                           edit_node=edit_node, node=edit_node,
+                           targets=targets, max_title=MAX_TITLE)
+
+
+@app.route('/pages/<int:page_num>')
+def view_page(page_num):
+    """A text page's frames, as the C64 draws them."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    data = _tree_for_session()
+    if data is None:
+        flash('Could not reach the Compunet server.', 'error')
+        return redirect(url_for('directories'))
+    node = _find_node(data['tree'], page_num)
+    if node is None:
+        flash('No such page.', 'error')
+        return redirect(url_for('directories'))
+    if not node.get('viewable'):
+        flash('%s holds nothing that can be shown here.' % node['title'], 'info')
+        return redirect(url_for('directories'))
+    return render_template('page_frames.html', node=node)
+
+
+#: Fragment routes. Both return a piece of HTML rather than a page, so the tree
+#: can fill in a panel without reloading. Server-rendered from the same macros the
+#: page uses — there is no templating on the client, and no JSON to keep in step.
+#:
+#: ⚠ Each degrades to something that works with scripting off: VIEW is a real link
+#: to /pages/<n>, and CHANGE is a real link to /directories?edit=<n>.
+
+@app.route('/pages/<int:page_num>/panel')
+def page_panel(page_num):
+    """The frame viewer for one page."""
+    if 'user_id' not in session:
+        return '', 403
+    data = _tree_for_session()
+    node = _find_node(data['tree'], page_num) if data else None
+    if node is None or not node.get('viewable'):
+        return '', 404
+    return render_template('_frame_panel.html', node=node)
+
+
+@app.route('/directories/<int:page_num>/panel')
+def directory_header_panel(page_num):
+    """A directory's header frame and its owner-only setting, as a fragment."""
+    if 'user_id' not in session:
+        return '', 403
+    data = _tree_for_session()
+    node = _find_node(data['tree'], page_num) if data else None
+    # may_configure, not may_edit: the root cannot be restructured but does own a
+    # header frame, and gating this on may_edit hid that from the tree while the
+    # settings page went on offering it.
+    if node is None or not node.get('may_configure'):
+        return '', 404
+    return render_template('_header_panel.html', node=node,
+                           max_bytes=MAX_HEADER_BYTES)
+
+
+@app.route('/pages/<int:page_num>/controls')
+def page_controls(page_num):
+    """The rename / reorder / move / delete controls for one entry."""
+    if 'user_id' not in session:
+        return '', 403
+    data = _tree_for_session()
+    node = _find_node(data['tree'], page_num) if data else None
+    if node is None or not node.get('may_edit'):
+        return '', 404
+    return render_template('_controls.html', node=node,
+                           max_title=MAX_TITLE,
+                           targets=_move_targets_for(data['tree'], page_num))
+
+
+@app.route('/pages/<int:page_num>/frame/<int:index>.png')
+def page_frame_png(page_num, index):
+    """Proxy one rendered frame. See directory_header_png for why it is proxied."""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    resp = _api_get('/api/pages/%d/frame/%d.png?user=%s'
+                    % (page_num, index, session['user_id']))
+    if resp.status_code != 200:
+        return '', resp.status_code
+    return Response(resp.content, mimetype='image/png',
+                    headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+def _move_targets_for(tree, page_num):
+    """Where ONE entry could be moved to: [{page_num, label}, ...].
+
+    ⚠ Computed for a single node, on demand. The previous version built this for
+    every node in the tree at once, which is O(n^2) — each of n entries carrying a
+    select listing up to n destinations. On the live tree (269 pages) that was the
+    single largest thing on the page. Now it is fetched when someone opens the
+    controls for one entry.
+
+    Excluded: itself and everything beneath it (a directory cannot be moved inside
+    itself), the directory it is already in, any directory already holding its 11
+    entries, and any the user may not add to. The server re-checks all of it —
+    this only decides what to offer.
+    """
+    directories, parent_of, subtree = [], {}, {}
+
+    def index(node, depth, parent_num):
+        parent_of[node['page_num']] = parent_num
+        if node.get('is_directory'):
+            directories.append({
+                'page_num': node['page_num'],
+                # Non-breaking spaces: an <option> collapses ordinary runs, so
+                # this is the only way to show depth in a plain select.
+                'label': (' ' * (depth * 3)) + node['title'],
+                'may_add': node.get('may_add'),
+                'full': node.get('full'),
+            })
+        below = {node['page_num']}
+        for child in node.get('children', []):
+            below |= index(child, depth + 1, node['page_num'])
+        subtree[node['page_num']] = below
+        return below
+
+    index(tree, 0, None)
+    if page_num not in subtree:
+        return []
+    return [d for d in directories
+            if d['may_add'] and not d['full']
+            and d['page_num'] not in subtree[page_num]
+            and d['page_num'] != parent_of[page_num]]
+
+
+@app.route('/pages/<int:page_num>/move', methods=['POST'])
+def move_page(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    try:
+        dest = int(request.form.get('dest_page_num', ''))
+    except ValueError:
+        flash('Choose a directory to move it into.', 'error')
+        return redirect(url_for('directories'))
+    resp = _api_post('/api/pages/%d/move' % page_num,
+                     {'user': session['user_id'], 'dest_page_num': dest})
+    if resp.status_code == 200:
+        body = resp.json()
+        flash('Moved "%s" from %s to %s.'
+              % (body.get('title'), body.get('was'), body.get('now')), 'success')
+    else:
+        flash(_api_error(resp, 'Could not move that entry.'), 'error')
+    return redirect(url_for('directories'))
+
+
+@app.route('/pages/<int:page_num>/delete', methods=['POST'])
+def delete_page(page_num):
+    """Delete an entry.
+
+    ⚠ Two-step on purpose. A tree view is a list of near-identical rows and the
+    realistic mistake is pressing the control on the wrong one, so the first press
+    shows what would go and the second carries it out. The confirmation names the
+    page number and title, and says the archive is not an undo button — which is
+    true: nothing reads it back, so recovery means an operator restoring files by
+    hand.
+    """
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    if request.form.get('confirm') != 'yes':
+        data = _tree_for_session()
+        node = _find_node(data['tree'], page_num) if data else None
+        if node is None:
+            flash('No such entry.', 'error')
+            return redirect(url_for('directories'))
+        return render_template('confirm_delete.html', node=node)
+
+    resp = _api_delete_json('/api/pages/%d' % page_num,
+                            {'user': session['user_id']})
+    if resp.status_code == 200:
+        body = resp.json()
+        entries = body.get('entries', 1)
+        flash('Deleted "%s"%s. %s archived — ask an admin if you need it back.'
+              % (body.get('title'),
+                 '' if entries == 1 else ' and the %d entries inside it' % (entries - 1),
+                 'A copy was' if entries == 1 else 'Copies were'), 'success')
+    else:
+        flash(_api_error(resp, 'Could not delete that entry.'), 'error')
+    return redirect(url_for('directories'))
+
+
+@app.route('/pages/<int:page_num>/rename', methods=['POST'])
+def rename_page(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    title = request.form.get('title', '')
+    resp = _api_post('/api/pages/%d/rename' % page_num,
+                     {'user': session['user_id'], 'title': title})
+    if resp.status_code == 200:
+        body = resp.json()
+        flash('Renamed "%s" to "%s".' % (body.get('was'), body.get('title')),
+              'success')
+    else:
+        flash(_api_error(resp, 'Could not rename that entry.'), 'error')
+    return redirect(url_for('directories'))
+
+
+@app.route('/pages/<int:page_num>/reorder', methods=['POST'])
+def reorder_page(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    try:
+        index = int(request.form.get('index', ''))
+    except ValueError:
+        flash('Choose a position.', 'error')
+        return redirect(url_for('directories'))
+    resp = _api_post('/api/pages/%d/reorder' % page_num,
+                     {'user': session['user_id'], 'index': index})
+    if resp.status_code == 200:
+        flash('Moved to position %d in the listing.' % (index + 1), 'success')
+    else:
+        flash(_api_error(resp, 'Could not reorder that entry.'), 'error')
+    return redirect(url_for('directories'))
+
+
+@app.route('/directories/settings')
+def directory_settings():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    dirs = _directories_for_session()
+    if dirs is None:
+        flash('Could not reach the Compunet server.', 'error')
+        return redirect(url_for('account'))
+    return render_template('directories.html', directories=dirs,
+                           max_bytes=MAX_HEADER_BYTES)
+
+
+def _header_return():
+    """Where a header form should send the user back to.
+
+    ⚠ Only ever one of two known endpoints, never a URL from the request. Taking a
+    redirect target from form input is how open-redirect bugs happen; the form only
+    gets to say WHICH of our own pages it came from.
+    """
+    return redirect(url_for('directories') if request.form.get('next') == 'tree'
+                    else url_for('directory_settings'))
+
+
+@app.route('/directories/<int:page_num>/header', methods=['POST'])
+def set_directory_header(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    # Remove is a separate button on the same form rather than a DELETE, because
+    # a plain HTML form cannot issue one.
+    if request.form.get('action') == 'remove':
+        resp = _api_delete_json(f'/api/directories/{page_num}/header',
+                                {'user': session['user_id']})
+        if resp.status_code == 200:
+            flash('Header removed. The directory uses the standard frame again.',
+                  'success')
+        else:
+            flash(_api_error(resp, 'Could not remove the header.'), 'error')
+        return _header_return()
+
+    upload = request.files.get('header')
+    if upload is None or not upload.filename:
+        flash('Choose a .seq file to upload.', 'error')
+        return _header_return()
+
+    raw = upload.read(MAX_HEADER_BYTES + 1)
+    if not raw:
+        flash('That file is empty.', 'error')
+        return _header_return()
+    if len(raw) > MAX_HEADER_BYTES:
+        flash('That file is larger than %d bytes, the most a header may be.'
+              % MAX_HEADER_BYTES, 'error')
+        return _header_return()
+
+    resp = _api_post(f'/api/directories/{page_num}/header',
+                     {'user': session['user_id'],
+                      'data': base64.b64encode(raw).decode('ascii')})
+    if resp.status_code == 200:
+        described = resp.json().get('describe') or {}
+        flash('Header set — %d bytes, %s. It appears the next time the '
+              'directory is opened.'
+              % (described.get('bytes', len(raw)),
+                 _rows_phrase(described.get('rows_used'))), 'success')
+        return _header_return()
+
+    # A rejected frame comes back with one reason per problem, each naming the
+    # byte offset. Showing them individually is the point of rejecting rather
+    # than silently cleaning the file up.
+    reasons = []
+    try:
+        reasons = resp.json().get('reasons') or []
+    except ValueError:
+        pass
+    if reasons:
+        for reason in reasons:
+            flash(reason, 'error')
+    else:
+        flash(_api_error(resp, 'The server would not accept that header.'),
+              'error')
+    return _header_return()
+
+
+@app.route('/directories/<int:page_num>/header.png')
+def directory_header_png(page_num):
+    """Proxy the server's rendition of this directory's header.
+
+    ⚠ Proxied rather than linked directly: the image lives behind the admin API,
+    which the browser must never be given the key for. The server still checks
+    that the signed-in user owns the directory — this route passes who is asking
+    and does not vouch for them.
+    """
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    resp = _api_get('/api/directories/%d/header.png?user=%s'
+                    % (page_num, session['user_id']))
+    if resp.status_code != 200:
+        # No header, or no font to draw it with. The template only asks for the
+        # image when a header is set, so this is the racing case — someone
+        # removed it in another tab.
+        return '', 404
+    return Response(resp.content, mimetype='image/png',
+                    headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+@app.route('/directories/<int:page_num>/settings', methods=['POST'])
+def set_directory_settings(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    owner_only = request.form.get('owner_only') == 'on'
+    resp = _api_put(f'/api/directories/{page_num}/settings',
+                    {'user': session['user_id'], 'owner_only': owner_only})
+    if resp.status_code == 200:
+        flash('Only you can add to this directory.' if owner_only
+              else 'This directory follows the surrounding area again.',
+              'success')
+    else:
+        flash(_api_error(resp, 'Could not change that setting.'), 'error')
+    return _header_return()
+
+
+@app.errorhandler(413)
+def _too_large(_e):
+    """Flask aborts oversized requests before any handler runs, so without this
+    picking the wrong file — an image, say — answers with a bare 413 page."""
+    flash('That file is far too large. A header frame is at most %d bytes.'
+          % MAX_HEADER_BYTES, 'error')
+    if 'user_id' in session:
+        return _header_return()
+    return redirect(url_for('login'))
+
+
+def _rows_phrase(rows):
+    if not rows:
+        return 'no rows used'
+    return 'using row 0' if rows == 1 else 'using rows 0-%d' % (rows - 1)
+
+
+def _api_error(resp, fallback):
+    try:
+        return resp.json().get('error') or fallback
+    except ValueError:
+        return fallback
 
 
 # ============================================================
@@ -520,7 +1140,7 @@ def admin_edit_user(user_id):
     return redirect(url_for('admin_edit_user', user_id=user_id))
 
 
-@app.route('/admin/pending/<token>/approve')
+@app.route('/admin/pending/<token>/approve', methods=['POST'])
 def admin_approve_pending(token):
     denied = _require_admin()
     if denied:
@@ -549,7 +1169,7 @@ def admin_approve_pending(token):
     return redirect(url_for('admin_users'))
 
 
-@app.route('/admin/pending/<token>/delete')
+@app.route('/admin/pending/<token>/delete', methods=['POST'])
 def admin_delete_pending(token):
     denied = _require_admin()
     if denied:

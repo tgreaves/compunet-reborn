@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ item.title }} — Compunet Reborn{% endblock %}
+{% block content %}
+<div class="news-layout">
+    <div class="news-main">
+        <article class="news-item">
+            <p class="news-date">{{ item.display_date }}</p>
+            <h1>{{ item.title }}</h1>
+            {{ item.html|safe }}
+        </article>
+
+        <p><a href="{{ url_for('news') }}">ALL NEWS</a></p>
+    </div>
+
+    {# Real links here, not anchors: only one item is on the page. #}
+    <nav class="news-index" aria-label="All news items">
+        <h2>ALL ITEMS</h2>
+        <ul>
+            {% for other in items %}
+            <li{% if other.slug == item.slug %} class="current"{% endif %}>
+                <a href="{{ url_for('news_item', slug=other.slug) }}">
+                    <span class="news-index-date">{{ other.display_date }}</span>
+                    <span class="news-index-title">{{ other.title }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </nav>
+</div>
+{% endblock %}

@@ -29,6 +29,7 @@ Transport:
 """
 
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -36,10 +37,13 @@ import re
 import glob
 import logging
 import secrets
+import shutil
 import datetime
 from pathlib import Path
 import markdown
 import aiohttp
+import header_frame
+import header_preview
 import partyline
 import terminal
 
@@ -54,8 +58,19 @@ _LOG_LEVEL = getattr(logging, os.environ.get('LOG_LEVEL', 'INFO').upper(), loggi
 logging.basicConfig(level=_LOG_LEVEL, format='%(asctime)s %(levelname)s %(message)s')
 log = logging.getLogger('compunet')
 
-# Load .env file if present (allows restart without rebuild)
+# Load .env file if present (allows restart without rebuild).
+#
+# In the container this file sits at /app, so the first path IS the root .env
+# that docker-compose mounts to /app/.env — server and website read one file.
+# A source checkout is not flattened that way: server/.env usually does not
+# exist, and the file the tree actually documents (.env.example, and what
+# website/config.py reads) is at the repository root. Without the fallback the
+# server silently started with no configuration at all, which shows up as an
+# empty COMPUNET_API_KEY — and _api_check_auth fails closed, so every call the
+# website makes to the admin API returns 401 while both processes look healthy.
 _env_file = os.path.join(os.path.dirname(__file__), '.env')
+if not os.path.exists(_env_file):
+    _env_file = os.path.join(os.path.dirname(__file__), '..', '.env')
 if os.path.exists(_env_file):
     with open(_env_file, 'r') as _f:
         for _line in _f:
@@ -332,6 +347,10 @@ class CompunetDirectory:
 
     def __init__(self):
         self.pages = {}
+        #: Numbers found on more than one entry while loading. Empty is the
+        #: normal case; anything in here is a content defect that makes those
+        #: entries unaddressable (see _register_page).
+        self.duplicate_page_nums = set()
         self.root = None
         self.global_adverts = []
         self.reload()
@@ -339,6 +358,7 @@ class CompunetDirectory:
     def reload(self):
         """Reload the entire tree from disk."""
         self.pages = {}
+        self.duplicate_page_nums = set()
         self.root = None
         self.global_adverts = []
         self._load_tree()
@@ -373,6 +393,56 @@ class CompunetDirectory:
             with open(adverts_path, 'r') as f:
                 self.global_adverts = json.load(f).get('adverts', [])
 
+    def _register_page(self, page):
+        """Add a page to the number lookup, refusing to let a duplicate hide one.
+
+        ⚠ A page number is the tree's identity: `GOTO <n>` resolves through this
+        table, and the website addresses every edit by number. Nothing enforced
+        uniqueness here — it was a plain `self.pages[num] = page`, so a repeated
+        number silently overwrote the earlier entry and made it unreachable while
+        it still rendered in its listing. `data.example` shipped exactly that
+        (page 700 was both DEMOS and FEBREVIEW FOUR), and an edit addressed by
+        number would have acted on whichever loaded second — you ask to move one
+        page and a different one moves.
+
+        The duplicate is NOT auto-renumbered. That would change a user-visible
+        identifier without anyone asking, break any bookmark or GOTO pointing at
+        it, and differ from what is on disk. Instead: the FIRST occurrence wins,
+        so behaviour is deterministic rather than dependent on load order, and the
+        collision is logged as an error naming both entries so it gets fixed.
+        `duplicate_page_nums` carries them to the API, which marks them
+        uneditable.
+        """
+        existing = self.pages.get(page.page_num)
+        if existing is not None and existing is not page:
+            self.duplicate_page_nums.add(page.page_num)
+            log.error('CONTENT: page number %d used twice — "%s" and "%s". '
+                      'Keeping "%s"; the other is unreachable by number until '
+                      'one is renumbered.',
+                      page.page_num, existing.title, page.title, existing.title)
+            return
+        self.pages[page.page_num] = page
+
+    def next_page_num(self):
+        """A page number no entry in the tree is using.
+
+        ⚠ Derived from the whole tree rather than `max(self.pages)`: the lookup
+        table cannot see a duplicate that was refused, so a number could be
+        handed out that is already in use further down. Walking the tree is cheap
+        and cannot be wrong.
+        """
+        used = set()
+
+        def walk(page):
+            used.add(page.page_num)
+            for child in page.children:
+                walk(child)
+
+        if self.root is not None:
+            walk(self.root)
+        used |= set(self.pages)
+        return (max(used) + 1) if used else 1000
+
     @staticmethod
     def _make_slug(title):
         """Convert a page title to a filesystem-safe directory slug."""
@@ -404,7 +474,7 @@ class CompunetDirectory:
         page.dynamic = node.get('dynamic', None)
         page.uploaded = node.get('uploaded', None)
         page.machine_type = node.get('machine_type', 'c64')  # absent -> C64 (existing content)
-        self.pages[page.page_num] = page
+        self._register_page(page)
 
         # Load frames from page folder
         page._frame_files = node.get('frames', [])
@@ -465,9 +535,398 @@ class CompunetDirectory:
                     sum(user_votes.values()) / len(user_votes))
 
 
+def directory_json_path(page, root_dir):
+    """Where this directory's own JSON lives.
+
+    The root is the exception: `root.json` at the top of the tree rather than a
+    `directory.json` in a sub-folder. A page is the root when it has no parent.
+    """
+    if getattr(page, 'parent', None) is None:
+        return os.path.join(root_dir, 'root.json')
+    return os.path.join(getattr(page, '_dir_path', ''), 'directory.json')
+
+
+def _write_json_atomic(path, data):
+    """Write JSON so a concurrent reader can never see it half-written.
+
+    ⚠ `_load_tree` re-reads every `directory.json` on EVERY directory render, and
+    a plain `open(path, 'w')` truncates the file before the new bytes land — so a
+    reader arriving in that window gets a partial file and the tree fails to
+    parse. Writing beside it and renaming is atomic on both POSIX and Windows.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, path)
+
+
+def build_directory_json(page, root_dir):
+    """The JSON for ONE directory: its own settings, plus its child entries.
+
+    ⚠ THE ONLY serializer for the content tree. There used to be two — this and a
+    copy in `terminal.py` — and they drifted apart in both directions, each
+    dropping a key the other kept: `shortcuts` (so root.json's F-key block
+    disappeared on the first upload), an explicit `open_upload: false` (reopening
+    a directory its owner had closed), `machine_type` (turning Amiga pages into
+    C64 ones), and the `directory` key on an authored-but-empty directory (making
+    a whole sub-tree unreachable). Which keys survived a save depended on which
+    subsystem the user happened to be using.
+    """
+    data = {}
+    # Round-trip the flag whenever it is set, including an explicit
+    # `false` — writing back only the truthy case would silently drop a
+    # directory's opt-out and reopen it to everyone (_can_upload_here).
+    if hasattr(page, 'open_upload'):
+        data['open_upload'] = bool(page.open_upload)
+    if hasattr(page, 'header') and page.header:
+        data['header'] = page.header
+    if getattr(page, 'shortcuts', None):
+        data['shortcuts'] = page.shortcuts
+    if hasattr(page, '_adverts') and page._adverts:
+        data['adverts'] = page._adverts
+
+    pages_list = []
+    for child in page.children:
+        node = {
+            'page_num': child.page_num,
+            'title': child.title,
+            'type': child.page_type,
+            'author': child.author,
+            'price': child.price,
+            'life': child.life,
+        }
+        if child.keyword:
+            node['keyword'] = child.keyword
+        if getattr(child, 'dynamic', None):
+            node['dynamic'] = child.dynamic
+        if getattr(child, 'uploaded', None):
+            node['uploaded'] = child.uploaded
+        if getattr(child, 'machine_type', 'c64') != 'c64':
+            node['machine_type'] = child.machine_type  # only write non-default
+        frame_files = getattr(child, '_frame_files', [])
+        if frame_files:
+            node['frames'] = frame_files
+        child_dir = getattr(child, '_dir_path', '')
+        dir_json_path = os.path.join(child_dir, 'directory.json')
+        # ⚠ Keep the sub-directory whenever one EXISTS, not only while it
+        # currently holds children. An authored-but-empty directory is
+        # real — §7.3 lists it with the (EMPTY) placeholder — and the
+        # narrower `if child.children` test DELETED it: the next save
+        # wrote the entry back without its `directory` key, so the
+        # sub-tree became unreachable while its files sat on disk. Found
+        # in the fixture tree after clean-room run 9, where JUNGLE's
+        # GRAPHICS entry lost its directory to an unrelated upload.
+        if not getattr(child, 'dynamic', None) and (
+                child.children or os.path.exists(dir_json_path)):
+            # Forward slashes: os.path.relpath yields backslashes on
+            # Windows, and those do not resolve on the Linux host that
+            # actually serves this tree.
+            node['directory'] = os.path.relpath(
+                dir_json_path, root_dir).replace(os.sep, '/')
+        pages_list.append(node)
+    data['pages'] = pages_list
+    return data
+
+
+def save_one_directory(page, root_dir):
+    """Write ONE directory's JSON, and nothing else.
+
+    ⚠ THIS, not `save_directory_tree`, is what a mutation should call.
+    Rewriting the whole tree to change one directory is how uploads went missing:
+    every session holds its own `CompunetDirectory`, so a whole-tree write
+    republishes that session's entire view of the content and silently discards
+    whatever another session committed since it loaded. The writer is not racing
+    another writer — within one event loop these calls cannot interleave — it is
+    publishing stale data over fresh data. A lock would not have helped; writing
+    only what changed does.
+
+    Callers must therefore know which directories they actually altered. That is
+    a small burden and it is the whole fix.
+    """
+    _write_json_atomic(directory_json_path(page, root_dir),
+                       build_directory_json(page, root_dir))
+
+
+def save_directory_tree(root_page, root_dir):
+    """Rewrite the WHOLE tree from this in-memory copy.
+
+    ⚠ Prefer `save_one_directory`. This is only correct when the caller's tree is
+    known to be current — a freshly loaded one, or the tests. Used against a
+    session's long-lived copy it discards other sessions' work (see
+    `save_one_directory`).
+    """
+    def walk(page):
+        save_one_directory(page, root_dir)
+        for child in page.children:
+            if getattr(child, 'dynamic', None):
+                continue
+            if child.children or os.path.exists(
+                    os.path.join(getattr(child, '_dir_path', ''),
+                                 'directory.json')):
+                walk(child)
+
+    walk(root_page)
+
+
+#: Longest title an entry may carry — the same limit uploads apply (§7.3 gives the
+#: title field 17 columns; the upload path truncates to 16).
+MAX_TITLE = 16
+
+
+class RelocateError(Exception):
+    """A move or rename that must not proceed, with a reason for the user."""
+
+
+def archive_page(page, data_dir, reason='replaced', timestamp=None):
+    """Copy a page's files and metadata aside before it is removed.
+
+    ⚠ THE ONLY archiver, and it RECURSES. There were two copies of this — here
+    and in `terminal.py` — and neither descended into a directory's contents: they
+    copied `_frame_files` and stopped. So reducing a *directory* page's life to
+    zero removed it and left its whole subtree on disk, unreachable and
+    unarchived. Content silently lost, from a command users already had.
+
+    That mattered more once a directory's owner could delete the directory with
+    other people's pages inside it (#121): without recursion the safety net does
+    not cover the material most likely to be missed.
+
+    Each page gets its own folder under `archive/`, so a subtree arrives as a set
+    of entries rather than one opaque blob, and each carries the `metadata.json`
+    that says what it was and why it went. Nothing reads the archive back — it is
+    a safety net for an operator, not an undo button — so the metadata has to be
+    enough to rebuild an entry by hand.
+
+    Returns the archive directories written, newest-first order irrelevant.
+    """
+    stamp = timestamp or datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+    written = []
+    for node in _subtree(page):
+        slug = CompunetDirectory._make_slug(node.title)
+        dest = os.path.join(data_dir, 'archive',
+                            '%d-%s-%s' % (node.page_num, slug, stamp))
+        os.makedirs(dest, exist_ok=True)
+
+        node_dir = getattr(node, '_dir_path', '')
+        for frame_file in getattr(node, '_frame_files', []):
+            src = os.path.join(node_dir, frame_file)
+            if os.path.exists(src):
+                shutil.copy2(src, os.path.join(dest, frame_file))
+
+        # A directory's header is its own artwork and would otherwise be the one
+        # thing not recoverable.
+        header = getattr(node, 'header', None)
+        if header:
+            src = os.path.join(ROOT_DIR, *header.split('/'))
+            if os.path.exists(src):
+                shutil.copy2(src, os.path.join(dest, os.path.basename(src)))
+
+        metadata = {
+            'page_num': node.page_num,
+            'title': node.title,
+            'type': node.page_type,
+            'author': node.author,
+            'price': node.price,
+            'life': node.life,
+            'uploaded': getattr(node, 'uploaded', None),
+            'archived': stamp,
+            'reason': reason,
+        }
+        if node is not page:
+            # So an operator can see where a descendant sat, and rebuild the
+            # shape rather than just the files.
+            metadata['was_inside'] = node.parent.title
+            metadata['was_inside_page'] = node.parent.page_num
+        with open(os.path.join(dest, 'metadata.json'), 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        log.info('ARCHIVE: page %d "%s" by %s -> %s (%s)',
+                 node.page_num, node.title, node.author, dest, reason)
+        written.append(dest)
+    return written
+
+
+def delete_page(directory, page, data_dir, root_dir, reason='deleted'):
+    """Archive a page and everything beneath it, then remove it from the tree.
+
+    Follows the path negative `LIFE` already takes — archive, then remove — so the
+    same act through two interfaces has the same effect. Returns
+    `(archived_dirs, refunds)`, where refunds is `{user_id: units}` for the caller
+    to credit: storage is refunded to each page's OWN author, never to whoever
+    pressed the button, so an admin clearing a directory does not credit or charge
+    the wrong person.
+    """
+    parent = page.parent
+    if parent is None:
+        raise RelocateError('the root directory cannot be deleted')
+
+    doomed = _subtree(page)
+    refunds = {}
+    for node in doomed:
+        frames = len(node.frames) if node.frames else 1
+        units = frames * max(0, node.life)
+        if units:
+            refunds[node.author] = refunds.get(node.author, 0) + units
+
+    archived = archive_page(page, data_dir, reason=reason)
+
+    page_dir = getattr(page, '_dir_path', '')
+    if page_dir and os.path.isdir(page_dir):
+        shutil.rmtree(page_dir, ignore_errors=True)
+
+    if page in parent.children:
+        parent.children.remove(page)
+    for node in doomed:
+        if directory.pages.get(node.page_num) is node:
+            del directory.pages[node.page_num]
+
+    return archived, refunds
+
+
+def _subtree(page):
+    """This page and every descendant, parents before children."""
+    out = [page]
+    for child in page.children:
+        out.extend(_subtree(child))
+    return out
+
+
+def _rehome_header(page, old_root, new_root, root_dir):
+    """Fix a directory's header path after its folder has moved.
+
+    ⚠ The one thing about a move that breaks silently. A header is stored as a
+    path relative to ROOT_DIR (`jungle/the-zoo/header.seq`, #120), not relative to
+    the directory that owns it — so once the folder moves, the stored path points
+    at nothing and the header simply stops appearing, in every binding, with no
+    error anywhere.
+
+    Only headers that live INSIDE the moved folder are rewritten. A directory
+    whose header points somewhere else entirely — the root's own `header.seq`, say
+    — still resolves, because that file did not move.
+    """
+    header = getattr(page, 'header', None)
+    if not header:
+        return
+    absolute = os.path.normpath(os.path.join(root_dir, header))
+    old_root = os.path.normpath(old_root)
+    if not (absolute == old_root or absolute.startswith(old_root + os.sep)):
+        return                      # outside the moved folder; still valid
+    moved = os.path.join(new_root, os.path.relpath(absolute, old_root))
+    page.header = os.path.relpath(moved, root_dir).replace(os.sep, '/')
+
+
+def relocate_page(directory, page, root_dir, new_parent=None, new_title=None):
+    """Move a page to another directory, rename it, or both.
+
+    ⚠ ONE function for both, because they are one operation on disk: a page's
+    folder is named from its title and sits under its parent
+    (`<parent>/<slug(title)>`), so changing either moves the folder. Implementing
+    them separately would mean two chances to forget the descendants, the header
+    paths, or the collision check.
+
+    Returns the set of directories whose JSON now needs writing. The caller saves
+    them, because only it knows whether anything else changed too.
+
+    Raises RelocateError with a reason the user can act on.
+    """
+    parent = new_parent if new_parent is not None else page.parent
+    if parent is None:
+        raise RelocateError('the root directory cannot be moved or renamed')
+
+    title = (new_title if new_title is not None else page.title).strip()[:MAX_TITLE]
+    if not title:
+        raise RelocateError('a title cannot be empty')
+    slug = CompunetDirectory._make_slug(title)
+
+    old_parent = page.parent
+    moving = parent is not old_parent
+
+    # ⚠ A directory cannot be moved inside itself: the folder would be moved into
+    # its own child, and the subtree would be unreachable from the root while
+    # still existing on disk.
+    if moving and parent in _subtree(page):
+        raise RelocateError('a directory cannot be moved into itself')
+
+    # Two entries in one directory cannot share a folder, and the folder name
+    # comes from the title — so this is a real constraint, not a nicety.
+    for sibling in parent.children:
+        if sibling is page:
+            continue
+        if CompunetDirectory._make_slug(sibling.title) == slug:
+            raise RelocateError(
+                '"%s" already holds an entry that would use the same folder '
+                'as "%s"' % (parent.title, title))
+
+    if moving and len(parent.children) >= 11:
+        raise RelocateError('"%s" is full (11 entries maximum)' % parent.title)
+
+    old_dir = getattr(page, '_dir_path', '')
+    new_dir = os.path.join(getattr(parent, '_dir_path', ''), slug)
+
+    if os.path.normpath(old_dir) != os.path.normpath(new_dir):
+        if os.path.exists(new_dir):
+            raise RelocateError(
+                'there is already something at %s'
+                % os.path.relpath(new_dir, root_dir).replace(os.sep, '/'))
+        if os.path.exists(old_dir):
+            os.makedirs(os.path.dirname(new_dir), exist_ok=True)
+            # Carries the frames and the whole subtree beneath in one operation.
+            shutil.move(old_dir, new_dir)
+
+    # --- in-memory tree ------------------------------------------------
+    if moving:
+        if page in old_parent.children:
+            old_parent.children.remove(page)
+        parent.children.append(page)
+        page.parent = parent
+    page.title = title
+
+    # Every descendant's folder is derived from the parent chain, so all of them
+    # move with it — and each carries its own header path to fix.
+    for node in _subtree(page):
+        if node is page:
+            node._dir_path = new_dir
+        else:
+            node._dir_path = os.path.join(
+                node.parent._dir_path,
+                CompunetDirectory._make_slug(node.title))
+        _rehome_header(node, old_dir, new_dir, root_dir)
+
+    # --- what needs saving ---------------------------------------------
+    #
+    # Both parents (their entry lists and the `directory` relpaths in them), and
+    # every directory inside the moved subtree, because the paths stored in those
+    # files — `header`, and each child's `directory` — are relative to ROOT_DIR
+    # and have all just changed.
+    affected = [parent]
+    if old_parent is not parent:
+        affected.append(old_parent)
+    for node in _subtree(page):
+        if node.children or os.path.exists(
+                os.path.join(getattr(node, '_dir_path', ''), 'directory.json')):
+            affected.append(node)
+    return affected
+
+
+def reorder_child(parent, page, index):
+    """Move `page` to position `index` among its siblings.
+
+    The listing order IS the JSON order — the client renders
+    `children[offset:offset+11]` — so this is the whole operation, and it touches
+    no files on disk.
+    """
+    if page not in parent.children:
+        raise RelocateError('"%s" is not in "%s"' % (page.title, parent.title))
+    if index < 0 or index >= len(parent.children):
+        raise RelocateError('position must be between 1 and %d'
+                            % len(parent.children))
+    parent.children.remove(page)
+    parent.children.insert(index, page)
+
+
 class CompunetSession:
     """A client session - same logic for WebSocket and TCP clients."""
-    
+
     def __init__(self, directory):
         self.directory = directory
         self.user_id = None
@@ -887,31 +1346,47 @@ class CompunetSession:
             # Program download: send header, wait for proceed token
             if self.show_page.page_type == 'P':
                 prg_data = self.show_page.frames[self.show_frame_index]
-                if getattr(self.show_page, 'machine_type', 'c64') == 'amiga':
-                    # Amiga programs are stored as the raw relocatable HUNK executable —
-                    # there is no C64-style 2-byte load address to strip. Serve it whole;
-                    # the Amiga client LoadSeg/Execute()s it and ignores the load field.
-                    load_lo = 0
-                    load_hi = 0
+                # Header byte 0 = machine type (0=C64, 1=Amiga, 2=ST) from the page's stored
+                # platform; absent/unknown -> C64. The client's download dialog keys off it.
+                machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
+                # ⚠ BYTES 4-7 ARE MACHINE-DEPENDENT, exactly as they are on upload (§8.3.2).
+                # Verified against the relocated disassembly of the original Amiga client's
+                # file_download_xfer (FUN_0010b174), which reads the body size from a
+                # DIFFERENT field per machine:
+                #     C64   (0): 16-bit WORD at header+6   (10b21c: moveq #6,d0; move.w (a0,d0.l),d1)
+                #     Amiga (1): 32-bit LONG at header+4   (10b22e: move.l $45ec(a4),-$a(a5))
+                #     ST    (2): 32-bit LONG at header+4   (10b268: same instruction)
+                # g_dl_header is $45e8(a4), so $45ec is header+4. The split is by CPU: both
+                # 68k machines take a big-endian longword, the 6502 a 16-bit word — and a C64
+                # cannot use 4-7 for a size because 4-5 carry its load address.
+                is_68k = machine in (1, 2)
+                if is_68k:
+                    # No C64-style 2-byte load address to strip: serve the stored body whole.
+                    # The Amiga client LoadSeg/Execute()s it; the load field does not exist.
                     program_bytes = prg_data
+                    size = len(program_bytes)
+                    # Big-endian 32-bit size at 4-7. A 16-bit field cannot even express the
+                    # size of a typical Amiga program, so this is the wrong field, not a
+                    # rounding error: a 169,966-byte module read as 4-7 little-endian/16-bit
+                    # came back as 61,079.
+                    header = bytes([machine, 0x00, 0x00, 0x00]) + size.to_bytes(4, 'big')
                 else:
                     load_lo = prg_data[0]
                     load_hi = prg_data[1]
                     program_bytes = prg_data[2:]
-                size = len(program_bytes)
-                size_lo = size & 0xFF
-                size_hi = (size >> 8) & 0xFF
-                # Header byte 0 = machine type (0=C64, 1=Amiga) from the page's stored
-                # platform; absent/unknown -> C64. The client's download dialog keys off it.
-                machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
-                header = bytes([machine, 0x00, 0x00, 0x00, load_lo, load_hi, size_lo, size_hi])
+                    size = len(program_bytes)
+                    header = bytes([machine, 0x00, 0x00, 0x00,
+                                    load_lo, load_hi, size & 0xFF, (size >> 8) & 0xFF])
                 self._program_download_pending = True
                 self._program_download_data = program_bytes
                 self._download_page_num = self.show_page.page_num
                 self._download_title = self.show_page.title
-                log.info('PROGRAM: page=%d "%s" load=$%02X%02X size=%d bytes (%dK), header sent',
+                # 68k machines have no load address, so report the descriptor rather than a
+                # field that does not exist for them (and load_lo/load_hi are unbound there).
+                log.info('PROGRAM: page=%d "%s" %s size=%d bytes (%dK), header sent [%s]',
                          self.show_page.page_num, self.show_page.title,
-                         load_hi, load_lo, size, (size + 1023) // 1024)
+                         'no load addr' if is_68k else 'load=$%02X%02X' % (load_hi, load_lo),
+                         size, (size + 1023) // 1024, header.hex())
                 return header
 
             frame_data = bytearray(self.show_page.frames[self.show_frame_index])
@@ -1058,7 +1533,8 @@ class CompunetSession:
 
             child.life += extend_by
             self._save_user()
-            self._save_directory()
+            # `life` lives in the child's node inside this directory's JSON.
+            self._save_directory_containing(self.current_page)
             log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
                      self.user_id, child.page_num, child.title, extend_by, child.life)
             audit_log('extend', user=self.user_id, page=child.page_num,
@@ -1086,7 +1562,9 @@ class CompunetSession:
                 log.info('DELETE: page %d ("%s") removed (life=0, archived)', child.page_num, child.title)
 
             self._save_user()
-            self._save_directory()
+            # Reduced life, or the entry's removal — both are edits to this
+            # directory's own JSON.
+            self._save_directory_containing(self.current_page)
 
         self.dir_displayed = False
         return bytes([0x40])
@@ -1204,7 +1682,13 @@ class CompunetSession:
 
         avg = round(sum(votes[page_key].values()) / len(votes[page_key]))
         page.vote = avg
-        self._save_directory()
+        # ⚠ No directory save here, deliberately. Votes live in votes.json
+        # (_save_votes, above) and `page.vote` is repopulated from there by
+        # _load_votes on every load; the directory serializer has never written a
+        # `vote` key at all. So the whole-tree write that used to be here
+        # persisted NOTHING, and its only effect was to republish this session's
+        # stale copy of the content over everyone else's committed changes — on a
+        # command ordinary users issue constantly.
 
         log.info('VOTE: user=%s page=%d (%s) score=%d avg=%d',
                  self.user_id, page.page_num, page.title, score, avg)
@@ -1732,39 +2216,10 @@ class CompunetSession:
         return b''
 
     def _archive_page(self, page, reason='replaced'):
-        """Archive a page's files and metadata before removal."""
-        archive_dir = os.path.join(DATA_DIR, 'archive')
-        slug = CompunetDirectory._make_slug(page.title)
-        timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-        dest = os.path.join(archive_dir, f'{page.page_num}-{slug}-{timestamp}')
-        os.makedirs(dest, exist_ok=True)
-
-        # Copy frame files
-        page_dir = getattr(page, '_dir_path', '')
-        frame_files = getattr(page, '_frame_files', [])
-        for frame_file in frame_files:
-            src_path = os.path.join(page_dir, frame_file)
-            if os.path.exists(src_path):
-                import shutil
-                shutil.copy2(src_path, os.path.join(dest, frame_file))
-
-        # Save metadata
-        metadata = {
-            'page_num': page.page_num,
-            'title': page.title,
-            'type': page.page_type,
-            'author': page.author,
-            'price': page.price,
-            'life': page.life,
-            'uploaded': getattr(page, 'uploaded', None),
-            'archived': timestamp,
-            'reason': reason,
-        }
-        with open(os.path.join(dest, 'metadata.json'), 'w') as f:
-            json.dump(metadata, f, indent=2)
-
-        log.info('ARCHIVE: page %d "%s" by %s → %s (%s)',
-                 page.page_num, page.title, page.author, dest, reason)
+        """Archive a page before removal. See module-level `archive_page`, which
+        is shared with the terminal and — unlike the two copies this replaces —
+        descends into a directory's contents instead of leaving them orphaned."""
+        archive_page(page, DATA_DIR, reason=reason)
 
     def _complete_content_upload(self, send):
         """Add or replace uploaded page in the current directory."""
@@ -1799,8 +2254,8 @@ class CompunetSession:
         if existing:
             page_num = existing.page_num
         else:
-            all_pages = list(self.directory.pages.keys())
-            page_num = max(all_pages) + 1 if all_pages else 1000
+            # Unique against the whole tree, not just the lookup table.
+            page_num = self.directory.next_page_num()
 
         # Create page folder
         parent_dir = getattr(self.current_page, '_dir_path', ROOT_DIR)
@@ -1876,73 +2331,33 @@ class CompunetSession:
                      page_num, send['title'], self.user_id,
                      len(send['frames']), send['price'], send['lifetime'])
 
-        self._save_directory()
+        # This directory gains (or replaces) an entry — and its PARENT may need
+        # the `directory` key added, because a latent directory only becomes real
+        # on the first upload into it (§7.3). Two files, not the whole tree.
+        self._save_directory_containing(self.current_page,
+                                        getattr(self.current_page, 'parent', None))
         audit_log('upload', user=self.user_id, title=send['title'],
                   page=page_num, type=send['type'])
         return b''
 
-    def _save_directory(self):
-        """Persist the directory tree to per-directory JSON files."""
-        def _page_slug(title):
-            return title.lower().replace(' ', '-')
+    def _save_directory_containing(self, *pages):
+        """Persist only the directories this command actually changed.
 
-        def _save_dir_json(page, json_path):
-            """Write a directory JSON for a page's children."""
-            data = {}
-            # Round-trip the flag whenever it is set, including an explicit
-            # `false` — writing back only the truthy case would silently drop a
-            # directory's opt-out and reopen it to everyone (_can_upload_here).
-            if hasattr(page, 'open_upload'):
-                data['open_upload'] = bool(page.open_upload)
-            if hasattr(page, 'header') and page.header:
-                data['header'] = page.header
-            if hasattr(page, '_adverts') and page._adverts:
-                data['adverts'] = page._adverts
-            pages_list = []
-            for child in page.children:
-                node = {
-                    'page_num': child.page_num,
-                    'title': child.title,
-                    'type': child.page_type,
-                    'author': child.author,
-                    'price': child.price,
-                    'life': child.life,
-                }
-                if child.keyword:
-                    node['keyword'] = child.keyword
-                if getattr(child, 'dynamic', None):
-                    node['dynamic'] = child.dynamic
-                if getattr(child, 'uploaded', None):
-                    node['uploaded'] = child.uploaded
-                if getattr(child, 'machine_type', 'c64') != 'c64':
-                    node['machine_type'] = child.machine_type  # only write non-default
-                frame_files = getattr(child, '_frame_files', [])
-                if frame_files:
-                    node['frames'] = frame_files
-                child_slug = _page_slug(child.title)
-                child_dir = getattr(child, '_dir_path', '')
-                dir_json_path = os.path.join(child_dir, 'directory.json')
-                # ⚠ Keep the sub-directory whenever one EXISTS, not only while it
-                # currently holds children. An authored-but-empty directory is
-                # real — §7.3 lists it with the (EMPTY) placeholder — and the
-                # narrower `if child.children` test DELETED it: the next save
-                # wrote the entry back without its `directory` key, so the
-                # sub-tree became unreachable while its files sat on disk. Found
-                # in the fixture tree after clean-room run 9, where JUNGLE's
-                # GRAPHICS entry lost its directory to an unrelated upload.
-                if not getattr(child, 'dynamic', None) and (
-                        child.children or os.path.exists(dir_json_path)):
-                    node['directory'] = os.path.relpath(dir_json_path, ROOT_DIR)
-                    _save_dir_json(child, dir_json_path)
-                pages_list.append(node)
-            data['pages'] = pages_list
-            os.makedirs(os.path.dirname(json_path), exist_ok=True)
-            with open(json_path, 'w') as f:
-                json.dump(data, f, indent=2)
+        ⚠ Replaces a whole-tree save, and the difference is data loss. Every
+        session holds its own `CompunetDirectory`; rewriting the entire tree
+        republished this session's whole view of the content and discarded
+        anything another session had committed since it loaded — someone else's
+        upload, gone, with nothing logged. Writing only the changed directory
+        cannot do that.
 
-        root_json_path = os.path.join(ROOT_DIR, 'root.json')
-        _save_dir_json(self.directory.root, root_json_path)
-        log.info('DIR: saved directory tree')
+        `None` entries are ignored so callers can pass `page.parent` without
+        checking for the root first.
+        """
+        for page in pages:
+            if page is None:
+                continue
+            save_one_directory(page, ROOT_DIR)
+            log.info('DIR: saved "%s"', page.title)
 
     def _cmd_ucat(self):
         """UCAT command - list all pages owned by the current user.
@@ -2957,7 +3372,28 @@ async def tcp_handler(reader, writer):
                     audit_log('download', user=session.user_id,
                               page=getattr(session, '_download_page_num', 0),
                               title=getattr(session, '_download_title', ''))
-                    MAX_PAYLOAD = 100
+                    # ⚠ THE COST HERE IS PER ROUND TRIP, NOT PER BYTE. Every packet waits
+                    # for the client's ACK, and on an emulated Amiga that wait costs one
+                    # ~20 ms tick: measured over 1700 packets, 1589 of the 1700 inter-ACK
+                    # gaps fell in 19-21 ms, hard-clustered on 20 ms — 50 Hz, the host's
+                    # frame boundary, because bsdsocket.library emulation services socket
+                    # I/O once per frame. 1700 x 20 ms = the 34 s a 166K download took.
+                    #
+                    # So the only lever is FEWER packets. (Buffering the client's per-byte
+                    # reads was tried first and bought 10%: the syscalls were never the
+                    # bottleneck.) The upload direction has always used 4000-byte blocks,
+                    # which is why uploading the same file takes 0.18 s.
+                    #
+                    # Amiga only. The C64 ROM's receive path expects 100-byte packets, so
+                    # its stream stays byte-for-byte unchanged.
+                    #
+                    # 4000 is the client's own send size and its safe ceiling: net_recv_frame
+                    # collects into raw[NET_FRAME_MAX + 2] = 8302, and worst-case stuffing
+                    # (every byte in $01-$03) doubles 4005 to 8010, which still fits. The
+                    # single-byte length field wraps at this size and is advisory only —
+                    # both parsers frame on the $01/$02 markers, which is what makes the
+                    # existing 4000-byte uploads work.
+                    MAX_PAYLOAD = 4000 if getattr(session, 'is_amiga', False) else 100
                     offset = 0
                     pkt_num = 0
                     while offset < len(program_data):
@@ -2969,7 +3405,8 @@ async def tcp_handler(reader, writer):
                     eos_pkt = x25.make_data_packet(b'', TOKEN_DAT)
                     writer.write(eos_pkt)
                     await writer.drain()
-                    log.info('DOWNLOAD: sent %d packets + EOS (%d bytes total)', pkt_num, len(program_data))
+                    log.info('DOWNLOAD: sent %d packets of %d + EOS (%d bytes total)',
+                             pkt_num, MAX_PAYLOAD, len(program_data))
 
                 elif token == 0x41 and session._program_download_pending:
                     # Client aborted download (no room in RAM)
@@ -3619,6 +4056,772 @@ async def api_post_audit(request):
 
 
 # ============================================================
+# Directory header frames (#120)
+#
+# A directory's Part-1 header (§7.2) used to be operator-only, set by hand in a
+# directory JSON. These endpoints let the website offer it to the user who OWNS
+# the directory — the C64 ROM has no room for an upload command and §4.7's
+# vocabulary is closed, so the website is the only place it can live.
+#
+# ⚠ The website cannot do any of this itself: its container mounts server/data
+# READ-ONLY and does not mount server/cfg at all. Same reason POST /api/audit
+# exists.
+#
+# ⚠ Authorization is decided HERE, not by the caller. The API key is
+# all-or-nothing with no notion of which person is behind a request, so the
+# website passes the signed-in user and the server re-checks that they really
+# own the directory. Trusting the caller's word would make the key a
+# write-anything-anywhere credential.
+# ============================================================
+
+def _api_directory_json_path(directory, page):
+    """Where this page's own directory JSON lives.
+
+    The root is the exception: its file is `root.json` at the top of the tree,
+    not a `directory.json` in a sub-folder.
+    """
+    if page is directory.root:
+        return os.path.join(ROOT_DIR, 'root.json')
+    dir_path = getattr(page, '_dir_path', None)
+    return os.path.join(dir_path, 'directory.json') if dir_path else None
+
+
+def _api_is_directory(directory, page):
+    """Does this page act as a directory, i.e. can it draw a header at all?
+
+    Directories are latent (§7.3): a page becomes one when someone descends into
+    it, so "has children" is not sufficient — an authored-but-empty directory is
+    real and still renders a header.
+    """
+    if page is directory.root:
+        return True
+    json_path = _api_directory_json_path(directory, page)
+    return bool(json_path) and (page.has_subdir() or os.path.exists(json_path))
+
+
+def _api_may_configure(page, user_id, user_data):
+    """Ownership rule, mirroring _can_upload_here.
+
+    ⚠ `open_upload` grants the right to WRITE somewhere; it is not ownership and
+    must never stand in for it here, or anyone able to upload into The Jungle
+    could restyle it.
+    """
+    if user_data.get('admin', False) or user_data.get('editor', False):
+        return True
+    return page.author == user_id
+
+
+def _api_breadcrumb(page):
+    titles = []
+    node = page
+    while node is not None:
+        titles.append(node.title)
+        node = getattr(node, 'parent', None)
+    return ' / '.join(reversed(titles))
+
+
+def _api_header_paths(directory, page):
+    """(file to write, value to store in the JSON).
+
+    ⚠ The stored value is ALWAYS generated here and never taken from the
+    request. It is joined to ROOT_DIR by five separate readers with no
+    sanitisation, and Binding B hands the file's bytes to the browser — so a
+    caller-supplied path would be an arbitrary-file-read primitive. Forward
+    slashes because the tree is authored on Windows and served from Linux.
+    """
+    dir_path = getattr(page, '_dir_path', None)
+    if not dir_path:
+        return None, None
+    path = os.path.join(dir_path, 'header.seq')
+    return path, os.path.relpath(path, ROOT_DIR).replace(os.sep, '/')
+
+
+def _api_load_dir_json(path):
+    if path and os.path.exists(path):
+        with open(path, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def _api_write_dir_json(path, data):
+    """Edit the one file in place, atomically.
+
+    Deliberately NOT save_directory_tree: that rewrites the whole tree from a
+    freshly-loaded copy, and a header change has no business touching every
+    other directory's JSON. This is the same principle `save_one_directory` now
+    applies to every writer.
+    """
+    _write_json_atomic(path, data)
+
+
+def _api_resolve_target(request, body_user):
+    """Common lookup: (page, directory, user_id, user_data) or an error response."""
+    try:
+        page_num = int(request.match_info['page_num'])
+    except (KeyError, ValueError):
+        return None, aiohttp_web.json_response(
+            {'error': 'bad page number'}, status=400)
+    user_id = (body_user or '').upper()
+    if not user_id:
+        return None, aiohttp_web.json_response(
+            {'error': 'no user supplied'}, status=400)
+    users = _api_load_users()
+    if user_id not in users:
+        return None, aiohttp_web.json_response(
+            {'error': 'unknown user'}, status=404)
+
+    directory = CompunetDirectory()
+    page = directory.pages.get(page_num)
+    if page is None or not _api_is_directory(directory, page):
+        return None, aiohttp_web.json_response(
+            {'error': 'no such directory'}, status=404)
+    if not _api_may_configure(page, user_id, users[user_id]):
+        return None, aiohttp_web.json_response(
+            {'error': 'you do not own that directory'}, status=403)
+    return (page, directory, user_id), None
+
+
+# ============================================================
+# The directory hierarchy (#121)
+#
+# A browsable, editable view of the tree for the website. Every signed-in user
+# may BROWSE all of it; editing is per-node and decided here.
+# ============================================================
+
+def _api_may_edit(page, user_id, user_data):
+    """May this user change this entry — move, rename, reorder or delete it?
+
+    Three ways to qualify, and they are deliberately the same three the rest of
+    the server already uses (_can_upload_here, the replace check, the negative
+    EXTEND check):
+
+      1. admin or editor — anywhere;
+      2. the entry's author;
+      3. the owner of the directory the entry sits IN. Owning a directory carries
+         authority over its contents, whoever wrote them. Without this a user
+         cannot tidy their own space once someone else has uploaded into it — and
+         since they may delete the whole directory, protecting the individual
+         entries inside it would only be decorative.
+    """
+    if user_data.get('admin', False) or user_data.get('editor', False):
+        return True
+    if page.author == user_id:
+        return True
+    parent = getattr(page, 'parent', None)
+    return parent is not None and parent.author == user_id
+
+
+def _api_duplicate_page_nums(directory):
+    """Page numbers found on more than one entry.
+
+    Recorded by the loader (`CompunetDirectory._register_page`) rather than
+    recounted here: one detector, so the API and the tree cannot come to different
+    conclusions about which numbers are safe to act on. Reading `directory.pages`
+    instead would find nothing at all — a refused duplicate never reaches it.
+
+    Normally empty. Anything in it is a content defect that makes those entries
+    unaddressable, so the API marks them uneditable rather than guessing which
+    one a request meant.
+    """
+    return set(getattr(directory, 'duplicate_page_nums', ()) or ())
+
+
+def _api_is_editable(directory, page, duplicates=frozenset()):
+    """Can this entry be RESTRUCTURED at all — moved, renamed, reordered, deleted?
+
+    ⚠ Structure only. A directory's SETTINGS — its header frame, its owner-only
+    flag — are a separate question, answered by `_api_may_configure_dir`. The root
+    is the case that forces the distinction: it cannot be moved, renamed or
+    deleted, but it does carry a header in root.json and always has.
+
+    Conflating the two hid the root's HEADER control in the tree while
+    /directories/settings went on offering it — the tree and the settings page
+    disagreeing about the same directory.
+
+    Reported per node rather than filtered out: an admin who knows a page exists
+    would otherwise think the tree view had lost it.
+    """
+    if page is directory.root:
+        # No parent, so nowhere to move it and no sibling list to reorder within;
+        # and its title is not stored anywhere — "WELCOME" is hardcoded in the
+        # loader, root.json holds only `header` and `pages` — so a rename would
+        # have nothing to write to.
+        return False, 'the top of the tree: it cannot be moved, renamed or deleted'
+    if getattr(page, 'dynamic', None):
+        # WHAT'S NEW, WHO IS ONLINE and friends are generated on read. There is
+        # no folder to move and no file to archive.
+        return False, 'generated automatically'
+    if page.page_type == 'L':
+        return False, 'a link, not content'
+    if page.page_num in duplicates:
+        return False, ('page number %d is used by more than one entry, so it '
+                       'cannot be identified unambiguously' % page.page_num)
+    return True, None
+
+
+def _api_may_configure_dir(directory, page, user_id, user_data):
+    """May this user change this DIRECTORY's settings — header, owner-only?
+
+    Deliberately not gated on `_api_is_editable`: that answers whether an entry can
+    be restructured, and the root cannot be while still owning a header. Uses the
+    same ownership rule as everything else.
+    """
+    if not _api_is_directory(directory, page):
+        return False
+    return _api_may_edit(page, user_id, user_data)
+
+
+def _api_tree_node(directory, page, user_id, user_data, duplicates=frozenset()):
+    is_dir = _api_is_directory(directory, page)
+    editable, why_not = _api_is_editable(directory, page, duplicates)
+    may_edit = editable and _api_may_edit(page, user_id, user_data)
+    data = _api_load_dir_json(_api_directory_json_path(directory, page)) if is_dir else {}
+    node = {
+        'page_num': page.page_num,
+        'title': page.title,
+        'type': page.page_type,
+        'author': page.author,
+        'price': page.price,
+        'life': page.life,
+        'keyword': page.keyword,
+        'uploaded': getattr(page, 'uploaded', None),
+        'machine_type': getattr(page, 'machine_type', 'c64'),
+        'frame_count': len(page.frames) if page.frames else 0,
+        'is_directory': is_dir,
+        'editable': editable,
+        'not_editable_because': why_not,
+        'may_edit': may_edit,
+        # Separate from may_edit: a directory's settings, not its place in the tree.
+        'may_configure': _api_may_configure_dir(directory, page, user_id, user_data),
+        # Only a text page has anything to draw; a program offers a download.
+        'viewable': page.page_type == 'T' and bool(page.frames),
+    }
+    if is_dir:
+        node['child_count'] = len(page.children)
+        # A directory holds at most 11 entries, so a destination picker has to
+        # know which ones cannot accept anything more.
+        node['full'] = len(page.children) >= 11
+        node['has_header'] = bool(data.get('header'))
+        node['owner_only'] = data.get('open_upload') is False
+        # May the user put something INTO this directory? Mirrors
+        # _can_upload_here, including the inherited open_upload walk.
+        node['may_add'] = _api_may_add_here(page, user_id, user_data)
+        children = [
+            _api_tree_node(directory, child, user_id, user_data, duplicates)
+            for child in page.children]
+        # Where each entry sits in the listing, and how many it shares it with —
+        # a reorder control cannot be drawn without both, and the server is the
+        # only side that knows the order is the JSON order.
+        for position, child in enumerate(children):
+            child['position'] = position
+            child['sibling_count'] = len(children)
+        node['children'] = children
+    return node
+
+
+def _api_may_add_here(page, user_id, user_data):
+    """_can_upload_here, for a page the caller is not 'in'.
+
+    ⚠ Kept in step with CompunetSession._can_upload_here deliberately: same
+    order, same inheritance rule, same meaning of an explicit `false`. This one
+    takes the page as an argument because the website is not sitting in a
+    directory the way a client session is.
+    """
+    if user_data.get('admin', False) or user_data.get('editor', False):
+        return True
+    if page.author == user_id:
+        return True
+    node = page
+    while node is not None:
+        if hasattr(node, 'open_upload'):      # present => authoritative
+            return bool(node.open_upload)
+        node = getattr(node, 'parent', None)
+    return False
+
+
+async def api_get_tree(request):
+    """The whole hierarchy, with per-node permissions worked out here.
+
+    ⚠ The website must not compute these itself. The API key identifies the
+    website rather than a person, so every authorisation decision belongs on this
+    side — the same rule the header endpoints follow.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    user_id = request.query.get('user', '').upper()
+    if not user_id:
+        return aiohttp_web.json_response({'error': 'no user supplied'}, status=400)
+    users = _api_load_users()
+    if user_id not in users:
+        return aiohttp_web.json_response({'error': 'unknown user'}, status=404)
+
+    directory = CompunetDirectory()
+    duplicates = _api_duplicate_page_nums(directory)
+    if duplicates:
+        # Surfaced rather than merely logged: it is a content defect an operator
+        # has to fix by renumbering, and until then those entries cannot be
+        # edited safely.
+        log.warning('TREE: duplicate page numbers in the content tree: %s',
+                    sorted(duplicates))
+    root = _api_tree_node(directory, directory.root, user_id, users[user_id],
+                          duplicates)
+    return aiohttp_web.json_response(
+        {'tree': root, 'duplicate_page_numbers': sorted(duplicates)})
+
+
+async def api_page_frame_png(request):
+    """One frame of a text page, rendered as a PNG.
+
+    Browsing is open to every signed-in user, so this needs no ownership check —
+    the same frame is readable by anyone through any client. It exists so the
+    hierarchy view can show what a page holds without leaving the page.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        page_num = int(request.match_info['page_num'])
+        index = int(request.match_info.get('index', 0))
+    except (KeyError, ValueError):
+        return aiohttp_web.json_response({'error': 'bad page or index'}, status=400)
+
+    user_id = request.query.get('user', '').upper()
+    users = _api_load_users()
+    if not user_id or user_id not in users:
+        return aiohttp_web.json_response({'error': 'unknown user'}, status=404)
+
+    assets = header_preview.load_assets(SERVER_DIR, WEB_CLIENT_DIR)
+    if not assets:
+        log.warning('FRAME: assets.json not found — no rendering available')
+        return aiohttp_web.json_response({'error': 'preview unavailable'}, status=503)
+
+    # See api_directory_header_png: api_binding is a deliberately lazy import.
+    try:
+        import api_binding
+    except ImportError:
+        return aiohttp_web.json_response({'error': 'preview unavailable'}, status=503)
+
+    directory = CompunetDirectory()
+    page = directory.pages.get(page_num)
+    if page is None or not page.frames:
+        return aiohttp_web.json_response({'error': 'no such frame'}, status=404)
+    if index < 0 or index >= len(page.frames):
+        return aiohttp_web.json_response({'error': 'no such frame'}, status=404)
+    if page.page_type != 'T':
+        return aiohttp_web.json_response(
+            {'error': 'only text pages can be rendered'}, status=409)
+
+    session = CompunetSession(directory)
+    session.user_id = user_id
+    raw = api_binding.page_frame_bytes(session, page, index)
+    frame = api_binding.frame_to_cells(raw)
+    # The whole 24-row screen this time, not the header's six.
+    png = header_preview.cells_to_png(frame['cells'], assets, rows=24)
+    return aiohttp_web.Response(
+        body=png, content_type='image/png',
+        headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+def _api_resolve_editable(request, body):
+    """Find the page an edit names, and check the caller may change it.
+
+    Refuses a duplicated number rather than guessing: with two entries sharing it,
+    acting on "whichever loaded second" means the user asks to change one page and
+    a different one changes.
+    """
+    try:
+        page_num = int(request.match_info['page_num'])
+    except (KeyError, ValueError):
+        return None, aiohttp_web.json_response(
+            {'error': 'bad page number'}, status=400)
+    user_id = str(body.get('user') or '').upper()
+    if not user_id:
+        return None, aiohttp_web.json_response(
+            {'error': 'no user supplied'}, status=400)
+    users = _api_load_users()
+    if user_id not in users:
+        return None, aiohttp_web.json_response(
+            {'error': 'unknown user'}, status=404)
+
+    directory = CompunetDirectory()
+    page = directory.pages.get(page_num)
+    if page is None:
+        return None, aiohttp_web.json_response(
+            {'error': 'no such page'}, status=404)
+    editable, why_not = _api_is_editable(
+        directory, page, _api_duplicate_page_nums(directory))
+    if not editable:
+        return None, aiohttp_web.json_response(
+            {'error': 'that entry cannot be changed: %s' % why_not}, status=409)
+    if not _api_may_edit(page, user_id, users[user_id]):
+        return None, aiohttp_web.json_response(
+            {'error': 'you may not change that entry'}, status=403)
+    return (directory, page, user_id, users[user_id]), None
+
+
+async def api_rename_page(request):
+    """Change an entry's title — which also renames its folder."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_editable(request, body)
+    if err:
+        return err
+    directory, page, user_id, _user_data = resolved
+
+    was = page.title
+    try:
+        affected = relocate_page(directory, page, ROOT_DIR,
+                                 new_title=str(body.get('title', '')))
+    except RelocateError as exc:
+        return aiohttp_web.json_response({'error': str(exc)}, status=409)
+    except OSError as exc:
+        log.error('RENAME: %s', exc)
+        return aiohttp_web.json_response(
+            {'error': 'could not rename the files on disk'}, status=500)
+
+    for node in affected:
+        save_one_directory(node, ROOT_DIR)
+    audit_log('page_renamed', user=user_id, page=page.page_num,
+              title=page.title, was=was)
+    log.info('RENAME: %s renamed page %d "%s" -> "%s"',
+             user_id, page.page_num, was, page.title)
+    return aiohttp_web.json_response({'ok': True, 'title': page.title, 'was': was})
+
+
+async def api_move_page(request):
+    """Move an entry into another directory."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_editable(request, body)
+    if err:
+        return err
+    directory, page, user_id, user_data = resolved
+
+    try:
+        dest_num = int(body.get('dest_page_num'))
+    except (TypeError, ValueError):
+        return aiohttp_web.json_response({'error': 'bad destination'}, status=400)
+    dest = directory.pages.get(dest_num)
+    if dest is None or not _api_is_directory(directory, dest):
+        return aiohttp_web.json_response(
+            {'error': 'no such directory to move into'}, status=404)
+
+    # ⚠ TWO permissions, not one. Being allowed to change the entry says nothing
+    # about being allowed to put things into the destination — otherwise anyone
+    # could file their own pages into someone else's private directory.
+    if not _api_may_add_here(dest, user_id, user_data):
+        return aiohttp_web.json_response(
+            {'error': 'you may not add to "%s"' % dest.title}, status=403)
+
+    was = page.parent.title if page.parent else '?'
+    try:
+        affected = relocate_page(directory, page, ROOT_DIR, new_parent=dest)
+    except RelocateError as exc:
+        return aiohttp_web.json_response({'error': str(exc)}, status=409)
+    except OSError as exc:
+        log.error('MOVE: %s', exc)
+        return aiohttp_web.json_response(
+            {'error': 'could not move the files on disk'}, status=500)
+
+    for node in affected:
+        save_one_directory(node, ROOT_DIR)
+    audit_log('page_moved', user=user_id, page=page.page_num, title=page.title,
+              was=was, now=dest.title)
+    log.info('MOVE: %s moved page %d "%s" from "%s" to "%s"',
+             user_id, page.page_num, page.title, was, dest.title)
+    return aiohttp_web.json_response(
+        {'ok': True, 'title': page.title, 'was': was, 'now': dest.title})
+
+
+async def api_delete_page(request):
+    """Delete an entry — archived first, storage refunded, then removed.
+
+    Deliberately the same shape as reducing an entry's life to zero, which is how
+    the C64 has always removed content: the same act through two interfaces should
+    leave the same trace.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+
+    resolved, err = _api_resolve_editable(request, body)
+    if err:
+        return err
+    directory, page, user_id, _user_data = resolved
+
+    doomed = _subtree(page)
+    try:
+        archived, refunds = delete_page(directory, page, DATA_DIR, ROOT_DIR)
+    except RelocateError as exc:
+        return aiohttp_web.json_response({'error': str(exc)}, status=409)
+    except OSError as exc:
+        log.error('DELETE: %s', exc)
+        return aiohttp_web.json_response(
+            {'error': 'could not remove the files on disk'}, status=500)
+
+    # ⚠ Refunded to each page's OWN author, not to whoever pressed the button. An
+    # admin clearing someone's directory must not charge or credit themselves,
+    # and the authors are the ones whose quota the content was consuming.
+    if refunds:
+        async with _lock_users:
+            users = _api_load_users()
+            for author, units in refunds.items():
+                if author in users:
+                    used = users[author].get('free_storage_used', 0)
+                    users[author]['free_storage_used'] = max(0, used - units)
+            _api_save_users(users)
+
+    save_one_directory(page.parent, ROOT_DIR)
+    audit_log('page_deleted', user=user_id, page=page.page_num, title=page.title,
+              entries=len(doomed), refunds=refunds)
+    log.info('DELETE: %s deleted page %d "%s" (%d entries archived)',
+             user_id, page.page_num, page.title, len(doomed))
+    return aiohttp_web.json_response(
+        {'ok': True, 'title': page.title, 'entries': len(doomed),
+         'archived': len(archived), 'refunds': refunds})
+
+
+async def api_reorder_page(request):
+    """Move an entry up or down the listing its directory shows."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_editable(request, body)
+    if err:
+        return err
+    directory, page, user_id, _user_data = resolved
+
+    parent = page.parent
+    if parent is None:
+        return aiohttp_web.json_response(
+            {'error': 'the root cannot be reordered'}, status=409)
+    try:
+        index = int(body.get('index'))
+    except (TypeError, ValueError):
+        return aiohttp_web.json_response({'error': 'bad position'}, status=400)
+
+    try:
+        reorder_child(parent, page, index)
+    except RelocateError as exc:
+        return aiohttp_web.json_response({'error': str(exc)}, status=409)
+
+    save_one_directory(parent, ROOT_DIR)
+    audit_log('page_reordered', user=user_id, page=page.page_num,
+              title=page.title, index=index)
+    return aiohttp_web.json_response({'ok': True, 'index': index})
+
+
+async def api_list_directories(request):
+    """Directories this user may put a header on."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    user_id = request.query.get('user', '').upper()
+    if not user_id:
+        return aiohttp_web.json_response({'error': 'no user supplied'}, status=400)
+    users = _api_load_users()
+    if user_id not in users:
+        return aiohttp_web.json_response({'error': 'unknown user'}, status=404)
+    user_data = users[user_id]
+
+    directory = CompunetDirectory()
+    out = []
+    for page_num, page in sorted(directory.pages.items()):
+        if not _api_is_directory(directory, page):
+            continue
+        if not _api_may_configure(page, user_id, user_data):
+            continue
+        data = _api_load_dir_json(_api_directory_json_path(directory, page))
+        out.append({
+            'page_num': page_num,
+            'title': page.title,
+            'breadcrumb': _api_breadcrumb(page),
+            'author': page.author,
+            # Only a header set on THIS directory counts as removable; an
+            # inherited one belongs to an ancestor the user may not own.
+            'has_header': bool(data.get('header')),
+            'owner_only': data.get('open_upload') is False,
+        })
+    return aiohttp_web.json_response({'directories': out})
+
+
+async def api_set_directory_header(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_target(request, body.get('user'))
+    if err:
+        return err
+    page, directory, user_id = resolved
+
+    try:
+        raw = base64.b64decode(body.get('data', ''), validate=True)
+    except Exception:
+        return aiohttp_web.json_response({'error': 'invalid base64'}, status=400)
+
+    reasons = header_frame.validate_header_frame(raw)
+    if reasons:
+        # The whole point of rejecting rather than sanitising: the author gets
+        # to know what is wrong with their artwork instead of quietly receiving
+        # something else back.
+        return aiohttp_web.json_response(
+            {'error': 'invalid header frame', 'reasons': reasons}, status=400)
+
+    path, stored = _api_header_paths(directory, page)
+    if not path:
+        return aiohttp_web.json_response(
+            {'error': 'directory has no folder on disk'}, status=409)
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as f:
+        f.write(raw)
+    json_path = _api_directory_json_path(directory, page)
+    data = _api_load_dir_json(json_path)
+    data['header'] = stored
+    _api_write_dir_json(json_path, data)
+
+    audit_log('header_set', user=user_id, page=page.page_num,
+              title=page.title, bytes=len(raw))
+    log.info('HEADER: %s set header on page %d "%s" (%d bytes)',
+             user_id, page.page_num, page.title, len(raw))
+    return aiohttp_web.json_response(
+        {'ok': True, 'header': stored,
+         'describe': header_frame.describe_header_frame(raw)})
+
+
+async def api_delete_directory_header(request):
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+
+    resolved, err = _api_resolve_target(
+        request, body.get('user') or request.query.get('user'))
+    if err:
+        return err
+    page, directory, user_id = resolved
+
+    json_path = _api_directory_json_path(directory, page)
+    data = _api_load_dir_json(json_path)
+    if 'header' in data:
+        del data['header']
+        _api_write_dir_json(json_path, data)
+    path, _ = _api_header_paths(directory, page)
+    if path and os.path.exists(path):
+        os.remove(path)
+
+    audit_log('header_removed', user=user_id, page=page.page_num,
+              title=page.title)
+    return aiohttp_web.json_response({'ok': True})
+
+
+async def api_directory_header_png(request):
+    """A rendition of the header currently on this directory, as a PNG.
+
+    Rendered from the same palette and font the real clients use (§A.3, §A.5 via
+    assets.json) so the preview cannot disagree with them about what the header
+    looks like. Only the directory's OWN header — an inherited one belongs to an
+    ancestor the user may not own, and offering to preview it here would imply
+    they can change it.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+
+    resolved, err = _api_resolve_target(request, request.query.get('user'))
+    if err:
+        return err
+    page, directory, _user_id = resolved
+
+    json_path = _api_directory_json_path(directory, page)
+    header_file = _api_load_dir_json(json_path).get('header')
+    if not header_file:
+        return aiohttp_web.json_response({'error': 'no header'}, status=404)
+
+    assets = header_preview.load_assets(SERVER_DIR, WEB_CLIENT_DIR)
+    if not assets:
+        # The font ships in assets.json; without it there is nothing to draw
+        # with, and guessing a substitute font would misrepresent the header.
+        log.warning('HEADER: assets.json not found — no preview available')
+        return aiohttp_web.json_response(
+            {'error': 'preview unavailable'}, status=503)
+
+    # ⚠ Imported here, not at module scope. api_binding is deliberately a lazy
+    # import (see main()): importing it eagerly once took the whole framed
+    # protocol down with it when a dependency was missing, putting every vintage
+    # client offline. A preview is the last thing that should be able to do that.
+    try:
+        import api_binding
+    except ImportError:
+        return aiohttp_web.json_response(
+            {'error': 'preview unavailable'}, status=503)
+
+    frame = api_binding.render_header_file(header_file)
+    if not frame:
+        return aiohttp_web.json_response({'error': 'no header'}, status=404)
+
+    png = header_preview.cells_to_png(frame['cells'], assets)
+    return aiohttp_web.Response(
+        body=png, content_type='image/png',
+        # The file can be replaced at any moment by an upload, and it is small.
+        headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+async def api_set_directory_settings(request):
+    """`owner_only` — whether others may upload here, and so whether they can
+    create directories beneath it (a sub-directory is created by descending
+    into an uploaded page, which _can_upload_here gates).
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_target(request, body.get('user'))
+    if err:
+        return err
+    page, directory, user_id = resolved
+
+    json_path = _api_directory_json_path(directory, page)
+    data = _api_load_dir_json(json_path)
+    if body.get('owner_only'):
+        # An explicit `false` STOPS the inherited flag for this directory and
+        # everything beneath it. Absent would merely defer to the ancestor,
+        # which in an open area means "open" — the opposite of what was asked.
+        data['open_upload'] = False
+    else:
+        data.pop('open_upload', None)
+    _api_write_dir_json(json_path, data)
+
+    audit_log('directory_settings', user=user_id, page=page.page_num,
+              owner_only=bool(body.get('owner_only')))
+    return aiohttp_web.json_response(
+        {'ok': True, 'owner_only': data.get('open_upload') is False})
+
+
+# ============================================================
 # Main
 # ============================================================
 
@@ -3645,6 +4848,22 @@ async def main():
         app.router.add_post('/api/broadcast', api_broadcast)
         app.router.add_get('/api/audit', api_get_audit)
         app.router.add_post('/api/audit', api_post_audit)
+        app.router.add_get('/api/tree', api_get_tree)
+        app.router.add_post('/api/pages/{page_num}/rename', api_rename_page)
+        app.router.add_post('/api/pages/{page_num}/move', api_move_page)
+        app.router.add_delete('/api/pages/{page_num}', api_delete_page)
+        app.router.add_post('/api/pages/{page_num}/reorder', api_reorder_page)
+        app.router.add_get('/api/pages/{page_num}/frame/{index}.png',
+                           api_page_frame_png)
+        app.router.add_get('/api/directories', api_list_directories)
+        app.router.add_post('/api/directories/{page_num}/header',
+                            api_set_directory_header)
+        app.router.add_delete('/api/directories/{page_num}/header',
+                              api_delete_directory_header)
+        app.router.add_get('/api/directories/{page_num}/header.png',
+                           api_directory_header_png)
+        app.router.add_put('/api/directories/{page_num}/settings',
+                           api_set_directory_settings)
         app.router.add_get('/ws/partyline', api_ws_partyline)
         runner = aiohttp_web.AppRunner(app)
         await runner.setup()

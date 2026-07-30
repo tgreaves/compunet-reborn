@@ -170,8 +170,14 @@ void net_set_rcvtimeo(LONG secs)
     setsockopt(g_sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof tv);
 }
 
+static void rd_discard(void);            /* framing read-ahead buffer, defined below */
+
 void net_close(void)
 {
+    /* Drop any read-ahead before the socket goes: on reconnect the next framed read
+     * would otherwise be served the previous session's bytes. */
+    rd_discard();
+
     if (g_sock >= 0) {
         CloseSocket(g_sock);
         g_sock = -1;
@@ -202,6 +208,51 @@ LONG net_recv_raw(void *buf, ULONG len)
     return recv(g_sock, buf, len, 0);   /* count, 0 = EOF, -1 = error */
 }
 
+/* ---- Buffered byte reader for the framing layer ----------------------------
+ * net_recv_frame scans the wire a byte at a time (sync to $01, collect to $02), and
+ * doing that with one recv() per byte costs 203x: a 169,966-byte download took 36.4 s
+ * against 0.179 s for the same file uploaded, because the receive side made ~187,000
+ * syscalls where the send side made ~43. At ~0.195 ms per trap through the emulated
+ * bsdsocket.library that IS the transfer time — the inter-packet gap was flat at
+ * 21 ms with no stalls, which is per-byte overhead, not waiting on anything.
+ *
+ * Note this is NOT fixed by larger packets: the syscall count tracks wire BYTES, not
+ * frames, so a 40x bigger payload would still make ~187,000 calls.
+ *
+ * Over the original cnet.device at 1200 baud the per-byte read cost nothing — the line
+ * was ~400x slower than the syscall. Re-pointing to TCP inverted that.
+ *
+ * ⚠ net_recv_raw stays genuinely raw, and net_avail keeps reporting the SOCKET only.
+ * serial_io_variant (modem.c) and the link viewer read the socket directly, and
+ * modem_read_status hands net_avail's count straight to serial_io_variant as "read
+ * exactly this many raw bytes" — so making net_avail count buffered bytes would have it
+ * block forever waiting for bytes that are in g_rd, not in the socket. The buffer is
+ * instead kept empty whenever those paths can run: every command transaction begins
+ * with net_reset_stream (which discards it), and net_close discards it too.
+ */
+static UBYTE g_rd[4096];
+static int   g_rd_have = 0;             /* bytes valid in g_rd */
+static int   g_rd_pos  = 0;             /* read cursor */
+
+static LONG rd_byte(UBYTE *out)
+{
+    if (g_rd_pos >= g_rd_have) {
+        LONG n = net_recv_raw(g_rd, (ULONG)sizeof g_rd);
+        if (n <= 0)
+            return n;                   /* 0 = EOF, -1 = error; same as before */
+        g_rd_have = (int)n;
+        g_rd_pos  = 0;
+    }
+    *out = g_rd[g_rd_pos++];
+    return 1;
+}
+
+static void rd_discard(void)
+{
+    g_rd_have = 0;
+    g_rd_pos  = 0;
+}
+
 LONG net_avail(void)
 {
     LONG n = 0;
@@ -209,7 +260,7 @@ LONG net_avail(void)
         return -1;
     if (IoctlSocket(g_sock, FIONREAD, (char *)&n) < 0)
         return -1;                      /* socket error/closed */
-    return n;
+    return n;                           /* socket only — see the note above g_rd */
 }
 
 /* ---- X.25 framing over the socket ------------------------------------------ */
@@ -272,13 +323,13 @@ LONG net_recv_frame(UBYTE *out_token, UBYTE *out_seq, void *payload, ULONG maxle
 
     /* Sync to start marker. */
     do {
-        if (net_recv_raw(&b, 1) != 1)
+        if (rd_byte(&b) != 1)            /* buffered: one recv() per ~4K, not per byte */
             return -1;
     } while (b != 0x01);
 
     /* Collect to end marker. */
     for (;;) {
-        if (net_recv_raw(&b, 1) != 1)
+        if (rd_byte(&b) != 1)
             return -1;
         if (b == 0x02)
             break;
@@ -340,12 +391,45 @@ void net_unread_byte(UBYTE b)
  * UPLOAD). Note: the pushback/frame state is only ever populated after login, so calling
  * this during the login COM send is a harmless no-op (the connect handshake reads via a
  * separate g_hs_read buffer, not net_read_stream).
+ *
+ * ⚠ RESETTING THE PARSE STATE IS NOT ENOUGH — IT MUST DRAIN THE SOCKET TOO.
+ * Clearing g_rx_have/g_rx_pos/g_pb_valid only discards the bytes this module is already
+ * holding. A whole unread *response* still sits in the TCP receive buffer, survives the
+ * reset untouched, and is then parsed as the next command's reply. Observed 2026-07-30
+ * on a download issued after an upload: the client read the previous listing's first 8
+ * bytes as the download descriptor and wrote the remaining 893 bytes of that listing to
+ * disk as the "program", reporting success. The real 169966 bytes stayed queued behind
+ * it. This is the failure the comment above already described — the guard was in the
+ * right place, at the wrong layer.
+ *
+ * Draining a single time is sufficient here rather than racy: this runs when the user
+ * issues a new command, which is at minimum hundreds of milliseconds after the previous
+ * response finished arriving, so nothing is still in flight. It is NOT a general-purpose
+ * barrier — it cannot discard bytes the server has not yet sent.
  */
 void net_reset_stream(void)
 {
+    LONG avail, want;
+    int  guard = 0;
+
     g_rx_have  = 0;
     g_rx_pos   = 0;
     g_pb_valid = 0;
+    rd_discard();                        /* the framing read-ahead is stale residue too */
+
+    /* g_rx_frame is scratch here: its contents were just discarded above. */
+    while ((avail = net_avail()) > 0) {
+        want = (LONG)sizeof g_rx_frame;
+        if (avail < want)
+            want = avail;
+        if (net_recv_raw(g_rx_frame, (ULONG)want) <= 0)
+            break;                       /* closed or error — let the next read report it */
+        if (++guard >= 1024)
+            break;                       /* ~8 MB ceiling; never spin on a live stream */
+    }
+
+    g_rx_have = 0;
+    g_rx_pos  = 0;
 }
 
 LONG net_read_stream(void *buf, ULONG maxlen, UBYTE *eof, UBYTE *token)

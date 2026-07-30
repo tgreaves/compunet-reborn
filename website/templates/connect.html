@@ -64,7 +64,7 @@
                 <td>LHA archive</td>
             </tr>
         </table>
-        <p><small>Workbench / Kickstart 2.1+ and a bsdsocket TCP/IP stack (Roadshow, AmiTCP, Miami&hellip;). See the Amiga setup below.</small></p>
+        <p><small>Needs a bsdsocket TCP/IP stack (Roadshow, AmiTCP, Miami&hellip;), so Kickstart 2.04 or later. See the Amiga setup below.</small></p>
     </div>
 </div>
 
@@ -118,8 +118,10 @@
 <details>
     <summary><strong>Amiga Setup</strong> (click to expand)</summary>
     <ol>
-        <li>You need Workbench / Kickstart <strong>2.1 or higher</strong> and a TCP/IP stack that
-            provides <code>bsdsocket.library</code> (Roadshow, AmiTCP, Miami&hellip;), installed and online.</li>
+        <li>You need a TCP/IP stack that provides <code>bsdsocket.library</code> (Roadshow, AmiTCP,
+            Miami&hellip;), installed and online. Those stacks need <strong>Kickstart 2.04 or
+            later</strong>, which is what sets the requirement &mdash; the client itself runs on 1.3,
+            it just cannot get online there.</li>
         <li>Un-archive <a href="{{ url_for('static', filename='compunet-reborn-amiga.lha') }}">compunet-reborn-amiga.lha</a>
             (<code>lha x compunet-reborn-amiga.lha</code>) &mdash; it extracts a <strong>Compunet</strong> drawer.</li>
         <li>The <code>TCPHOST</code> file inside is preset to <code>vme.compunet.live:6400</code>. Edit it only if you

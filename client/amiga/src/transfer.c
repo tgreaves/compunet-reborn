@@ -90,6 +90,25 @@ LONG file_download_xfer(void)
     serial_read(g_dl_header, 8, &ser_flags, &status_hi, &actual);
     drain_header_eos(ser_flags);                     /* TCP: consume the header's EOS */
 
+    /*
+     * Ground truth — relocated disassembly of FUN_0010b174 — branches THREE ways on
+     * byte 0, and falls through for anything else:
+     *
+     *   10b1d8  cmpi.w #$2,d0 ; beq 10b236   ST     -> prompt(2)
+     *   10b1de  cmpi.w #$1,d0 ; beq 10b22e   Amiga  -> no prompt
+     *   10b1e4  tst.w  d0     ; bne 10b26e   other  -> straight to file open, NO prompt
+     *   10b1ea  (fall through)              C64    -> prompt(0)
+     *
+     * ⚠ DELIBERATE DEVIATION in the "other" case. The original proceeds silently, and
+     * with an uninitialised size — only the 0/1/2 paths write the size local at -$a(a5).
+     * We refuse instead, through the prompt's own "Unrecognised machine type" branch,
+     * which exists in the original binary but no call site can currently reach.
+     *
+     * Rationale: byte 0 is only ever not 0/1/2 when the stream has already desynchronised.
+     * Proceeding there is how an 893-byte directory listing got written to disk and
+     * reported as a completed 166K download (byte 0 was $8E). This cannot fire on a
+     * well-formed stream, so faithful operation is unchanged.
+     */
     if (g_dl_header[0] == 2) {                       /* ST file */
         if (download_machine_prompt(2) == 0) {
             serial_write("A", 1, 1, 0x41);           /* abort */
@@ -97,6 +116,11 @@ LONG file_download_xfer(void)
         }
     } else if (g_dl_header[0] == 0) {                /* C64 file */
         if (download_machine_prompt(0) == 0) {
+            serial_write("A", 1, 1, 0x41);
+            return 0;
+        }
+    } else if (g_dl_header[0] != 1) {                /* not a machine we know about */
+        if (download_machine_prompt(g_dl_header[0]) == 0) {
             serial_write("A", 1, 1, 0x41);
             return 0;
         }

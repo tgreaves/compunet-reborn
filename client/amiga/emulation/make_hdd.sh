@@ -97,8 +97,11 @@ done
 if [ -n "$PY" ]; then
     echo "== building distribution LHA =="
     ( cd "$HERE" && "$PY" make_lha.py )
-    rm -f "$HDD"/CompunetReborn-Amiga-*.lha
-    cp "$HERE"/../dist/CompunetReborn-Amiga-*.lha "$HDD/" 2>/dev/null || true
+    # The archives are named without a version (Aminet keys on the filename), so this
+    # is an exact copy rather than a glob — the old CompunetReborn-Amiga-*.lha pattern
+    # silently matched nothing after the rename and left a stale archive on the HD.
+    rm -f "$HDD"/CompunetReborn*.lha
+    cp "$HERE"/../dist/CompunetReborn.lha "$HDD/" 2>/dev/null || true
 else
     echo "(python not found — skipping distribution LHA)"
 fi

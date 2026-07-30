@@ -43,11 +43,78 @@ extern void close_window_tracked(APTR win);
  * selecting About did nothing. It is now a real reconstruction; the blob binds
  * 0x104000 -> about_dialog.
  */
+/* build.sh passes -DCLIENT_VERSION_ID=1.3.0 unquoted (vc.exe on Windows strips quotes
+ * out of -D values), so stringify it here. */
+#ifndef CLIENT_VERSION_ID
+#define CLIENT_VERSION_ID dev
+#endif
+#define _CV_STR(x)  #x
+#define CV_STR(x)   _CV_STR(x)
+#define CLIENT_VERSION CV_STR(CLIENT_VERSION_ID)
+
+/*
+ * Reborn additions to the About window, applied at RUNTIME rather than by editing
+ * g_data_blob.asm — the blob is byte-identical to the original binary and is the
+ * evidence the reconstruction is checked against, so it stays untouched.
+ *
+ * The original's first line reads literally "Amiga Compunet Terminal x.xx" (the
+ * placeholder was never filled in), so substituting our version there loses nothing.
+ * The 1987 credits — Mike Bolley, Dave Parkinson, Ariadne Software — are left exactly
+ * as they are; ours is appended below them, clearly separated.
+ *
+ * ⚠ THE WINDOW HAS NO FREE SPACE — the lower half must move down. Measured from the
+ * blob rather than eyeballed:
+ *
+ *   text lines   top = 15 | 30, 40, 50 | 66, 76      (8px font; 76 occupies 76..83)
+ *   OK gadget    0x11d714  top=95 h=11               (rows 95..105, cols 17..51)
+ *   box border   0x11d798  rectangle (2,10)-(247,110)
+ *   Image        0x11d740  top=11 h=99
+ *   NewWindow    0x11d6e4  250 x 112
+ *
+ * Only 11 rows separate the last text line from the OK gadget, so two more lines placed
+ * in the gap would be drawn straight over the button. Instead we keep the original's own
+ * rhythm — 10px within a group, a 16px step between groups, 11px before OK — and shift
+ * everything below our addition down by 26px:
+ *
+ *   ours         top = 92, 102     (76 + 16 for the group break, then 10)
+ *   OK gadget    95  -> 121        (102 + 8 + 11, the original's pre-button gap)
+ *   border       110 -> 136        (121 + 11 + 5, the original's below-button margin)
+ *   Image h      99  -> 125
+ *   window h     112 -> 138        (top=13, so the bottom lands at 151: fits a 200-line screen)
+ *
+ * Absolute values, not deltas — About can be reopened, and += would walk the layout
+ * down the screen a little further each time.
+ */
+static char about_version[] = "Amiga Compunet Terminal " CLIENT_VERSION;
+
+static struct IntuiText about_credit_name = {
+    7, 6, 1, 12, 102, NULL, (UBYTE *)"Tristan Greaves", NULL
+};
+static struct IntuiText about_credit_head = {
+    7, 6, 1, 12, 92, NULL, (UBYTE *)"Compunet Reborn by", &about_credit_name
+};
+
 LONG about_dialog(void)
 {
     struct Window *w;
     struct IntuiMessage *msg;
     LONG done = 0;
+
+    /* Point the version line at our string, and hang our credit off the end of the
+     * original's IntuiText chain (last node 0x11d7c4 = "& Compunet Teleservices Ltd"). */
+    ((struct IntuiText *)DATA(0x11d894))->IText    = (UBYTE *)about_version;
+    ((struct IntuiText *)DATA(0x11d7c4))->NextText = &about_credit_head;
+
+    /* Make room for them: grow the window and box, and push OK below our lines. See the
+     * measurements above. All absolute, so reopening About is idempotent. Applied before
+     * OpenWindow because NewWindow.Height is read there. */
+    ((struct NewWindow *)DATA(0x11d6e4))->Height   = 138;
+    ((struct Image *)DATA(0x11d740))->Height       = 125;
+    ((struct Gadget *)DATA(0x11d714))->TopEdge     = 121;
+    /* Border rectangle (2,10)-(247,110)-(2,110): the two bottom corners' Y. The XY pairs
+     * are WORDs at 0x11d754; points 2 and 3 are at +8 and +12, each Y at +2. */
+    *(WORD *)DATA(0x11d75e) = 136;
+    *(WORD *)DATA(0x11d762) = 136;
 
     /* Patch the About NewWindow's Screen field (NewWindow 0x11d6e4 + 0x1e = 0x11d702)
      * with our custom screen (recon: DAT_0011d702 = g_screen). */

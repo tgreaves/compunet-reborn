@@ -397,10 +397,10 @@ the original — the mail menu's `DONE` handler at `$B164` is `LDA #$4E / LDY #$
 and on success it pulls two bytes off the stack, discarding the return address so that control
 leaves the mail menu loop entirely.
 
-*(This section previously said `DONE` was `B` on the wire and required a client to repeat it
-"until the session is out of mail mode". That describes a workaround, not the original: `B` does
-unwind stepwise, but `DONE` is not `B`. Corrected against `$B164`; `docs/PROTOCOL.md` carries the
-full mail dispatch table.)*
+**⚠ `DONE` is not `B`.** Repeating `B` "until the session leaves mail mode" reaches a similar
+place by unwinding stepwise, but it is a workaround rather than the original behaviour, and a
+client **MUST NOT** substitute it for the single `N`. (`docs/PROTOCOL.md` carries the full mail
+dispatch table.)
 
 **⚠ `B` inside mail is stepwise, and that is a separate thing.** `BACK` is not offered in the
 mail row (§4.8), but a client may still reach `B` — and there it unwinds one level per command:
@@ -422,9 +422,8 @@ sends.
 the directory row. Binding A pages when the user selects the **synthetic pagination row** §7.6
 puts at the bottom of a truncated page; a binding without that row (Binding B) reaches the same
 place when the **selection moves past the last entry**. Either way it is a *selection* gesture,
-so nothing is added to the closed vocabulary of §4.7 and this table stays authoritative.
-(VALIDATION.md, F35 — the API document briefly instructed clients to add a `MORE` command here,
-which contradicted this row.)
+so nothing is added to the closed vocabulary of §4.7 and this table stays authoritative. **This
+holds for Binding B too** — a JSON client does not gain a `MORE` command for listings.
 
 **⚠ Choosing between the two reading rows uses the more-pages flag — and that is allowed.**
 §4.5/§6.5 forbid trusting bit 7 to *drive paging*: a client **MUST** decide whether another frame

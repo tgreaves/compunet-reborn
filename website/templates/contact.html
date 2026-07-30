@@ -8,6 +8,7 @@
 <h2>SEND A MESSAGE</h2>
 
 <form method="POST">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <div class="form-group">
         <label for="name">YOUR NAME</label>
         <input type="text" id="name" name="name" required>

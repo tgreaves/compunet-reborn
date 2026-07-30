@@ -93,7 +93,15 @@ body {
 
 .nav-links {
     display: flex;
-    gap: 16px;               /* 20px put the ADMIN menu 1px over the row */
+    /* 20px put the ADMIN menu 1px over the row; 16px then left it with nothing
+       to spare, and adding NEWS (#35) took it over again — the GitHub icon
+       dropped to a second line. Reducing the gap rather than accepting that is
+       deliberate: the two-line admin menu was #115, fixed in 1.2.1, and letting
+       a new link put it back would undo that fix.
+       Measured in the browser at 1280px signed in as ADMIN, which is the widest
+       the menu ever gets: 13px is the largest gap that still holds one row, so
+       12px is one step inside it rather than balanced on the edge again. */
+    gap: 12px;
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
@@ -391,6 +399,387 @@ pre {
 
 .info-box p {
     margin-bottom: 0;
+}
+
+/* A page that needs more than the site's reading width. Only DIRECTORIES uses
+   this — a 640px frame beside the tree does not fit in 860px. */
+.content-wide {
+    max-width: 1500px;
+}
+
+/* Directory hierarchy (#121) */
+.tree-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 672px;
+    gap: 32px;
+    align-items: start;
+}
+
+.frame-pane {
+    position: sticky;
+    top: 24px;
+    /* Tall pages run to several frames; keep the pane on screen and scroll
+       inside it rather than dragging the tree away. */
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    border-left: 2px solid var(--c64-surface-light);
+    padding-left: 24px;
+}
+
+/* Only ever one panel here, fetched when asked for, so nothing hides anything.
+   An earlier version rendered every panel and revealed one with `:target`; that
+   is gone, and so is the `display: none` that went with it — leaving it in made
+   the injected panel invisible and its frames 0x0, which meant the backgrounds
+   were never even requested. */
+.frame-panel {
+    display: block;
+}
+
+.frame-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+}
+
+.frame-panel-head h2 {
+    margin: 0;
+}
+
+.frame-close {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+}
+
+/* A rendered frame. A CSS background rather than an <img> so a panel that is not
+   on screen costs nothing: a browser does not fetch the background of an element
+   it is not painting, and fetches it the moment one appears.
+
+   ⚠ The size must be stated here. Without it the div is 0x0, nothing paints, and
+   the background is therefore never requested — an entirely blank panel with no
+   error anywhere. */
+/* A header frame is the six-row region only (§7.7), so 640x96 rather than a full
+   40x24 screen. Same mechanism, different shape.
+   ⚠ Two classes deliberately, not one: with equal specificity the LATER rule
+   wins, so a single `.frame-shot-header` placed above `.frame-shot` would be
+   silently overridden by it. */
+.frame-shot.frame-shot-header {
+    aspect-ratio: 640 / 96;
+}
+
+.frame-shot {
+    width: 640px;
+    max-width: 100%;
+    aspect-ratio: 640 / 384;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    border: 2px solid var(--c64-surface-light);
+    image-rendering: pixelated;
+    margin-bottom: 16px;
+}
+
+/* Below the width where a 640px frame can sit beside anything, stack them: the
+   panel appears under the tree instead of beside it. */
+@media (max-width: 1200px) {
+    .tree-layout {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .frame-pane {
+        position: static;
+        max-height: none;
+        overflow-y: visible;
+        border-left: none;
+        border-top: 2px solid var(--c64-surface-light);
+        padding-left: 0;
+        padding-top: 20px;
+    }
+}
+
+.tree,
+.tree ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tree ul {
+    /* Indent by depth, with a rule showing which parent a run belongs to. */
+    margin-left: 12px;
+    padding-left: 12px;
+    border-left: 2px solid var(--c64-surface-light);
+}
+
+.tree-entry {
+    margin: 0;
+}
+
+.tree summary {
+    cursor: pointer;
+}
+
+.tree summary::marker {
+    color: var(--c64-ink-soft);
+}
+
+.tree-row {
+    display: inline-flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 3px 0;
+    flex-wrap: wrap;
+}
+
+.tree-num {
+    color: var(--c64-ink-soft);
+    font-variant-numeric: tabular-nums;
+    min-width: 3.5em;
+}
+
+.tree-title {
+    font-weight: 700;
+}
+
+.tree-kind,
+.tree-author {
+    color: var(--c64-ink-soft);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.tree-actions {
+    display: inline-flex;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.tree-locked > .tree-row .tree-title,
+.tree-locked > details > summary .tree-title {
+    /* Present but not editable — visible rather than hidden, so an admin who
+       knows the page exists does not think the view has lost it. */
+    font-weight: 400;
+    color: var(--c64-ink-soft);
+}
+
+.tree-why {
+    color: var(--c64-ink-soft);
+    cursor: help;
+    border-bottom: 1px dotted var(--c64-ink-soft);
+}
+
+.tree-edit {
+    margin: 2px 0 8px 24px;
+}
+
+.tree-edit > summary {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--c64-ink-soft);
+}
+
+.tree-edit-body {
+    border-left: 2px solid var(--c64-surface-light);
+    padding: 12px 0 4px 16px;
+    margin-top: 8px;
+}
+
+.tree-edit-body form {
+    margin-bottom: 16px;
+}
+
+.tree-edit-body label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+}
+
+.tree-edit-body input,
+.tree-edit-body select {
+    margin-right: 8px;
+}
+
+.tree-edit-body .hint {
+    margin-top: 4px;
+}
+
+/* A button that has to sit where a link used to.
+   Approving a registration, deleting one, and logging out all changed state on a
+   GET, so they are POST forms now — but they still belong inline in a nav bar and
+   a table cell, and should read as they always did. */
+.inline-form {
+    display: inline;
+    margin: 0;
+}
+
+button.as-link {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: var(--c64-ink-soft);
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+}
+
+.nav-links button.as-link {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+button.as-link:hover {
+    color: var(--c64-red);
+    text-decoration: underline;
+}
+
+button.as-link.link-danger {
+    color: var(--c64-red);
+}
+
+/* Destructive actions read differently from the rest (#121). */
+button.danger {
+    background-color: var(--c64-red);
+    border-color: var(--c64-red);
+}
+
+/* Rendered page frames (#121) */
+.frame-view {
+    margin-bottom: 24px;
+}
+
+.frame-view img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 2px solid var(--c64-surface-light);
+    image-rendering: pixelated;
+}
+
+/* Header frame preview (#120) */
+.header-preview {
+    margin-bottom: 20px;
+}
+
+.header-preview img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 2px solid var(--c64-surface-light);
+    /* The PNG is drawn at 2x from 8x8 glyphs. If a narrow screen scales it, keep
+       the pixels square rather than letting the browser smooth PETSCII into
+       mush. */
+    image-rendering: pixelated;
+}
+
+.header-preview .hint {
+    margin-top: 8px;
+}
+
+/* News (#35) */
+.news-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 40px;
+    align-items: start;
+}
+
+.news-item {
+    border-bottom: 2px solid var(--c64-surface-light);
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+}
+
+.news-item:last-of-type {
+    border-bottom: none;
+}
+
+.news-item h1,
+.news-item h2 {
+    margin-top: 0;
+}
+
+.news-item h2 a {
+    text-decoration: none;
+}
+
+/* The date leads the entry — it is the first thing worth knowing about a news
+   item, so it sits above the title rather than under it in small grey text. */
+.news-date {
+    color: var(--c64-red);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.news-index {
+    border-left: 2px solid var(--c64-surface-light);
+    padding-left: 20px;
+    position: sticky;
+    top: 24px;
+}
+
+.news-index h2 {
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+}
+
+.news-index ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.news-index li {
+    margin-bottom: 14px;
+}
+
+.news-index a {
+    text-decoration: none;
+    display: block;
+}
+
+.news-index a:hover .news-index-title {
+    text-decoration: underline;
+}
+
+.news-index-date {
+    display: block;
+    color: var(--c64-ink-soft);
+    font-size: 12px;
+}
+
+.news-index-title {
+    display: block;
+    font-size: 14px;
+}
+
+.news-index li.current .news-index-title {
+    color: var(--c64-red);
+    font-weight: 700;
+}
+
+/* One column on narrow screens: a 220px rail beside the text stops being a
+   convenience well before the phone breakpoint. */
+@media (max-width: 800px) {
+    .news-layout {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .news-index {
+        border-left: none;
+        border-top: 2px solid var(--c64-surface-light);
+        padding-left: 0;
+        padding-top: 20px;
+        position: static;
+    }
 }
 
 /* Download table */

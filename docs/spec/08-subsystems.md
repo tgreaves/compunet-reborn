@@ -184,7 +184,7 @@ which is the normal case for anything longer than a screen.
 *(This is a **user-facing** requirement, not a wire one. Binding A transmits frame by frame, so
 the two map onto the wire directly. Binding B's `mail.send` carries all the frames in one message,
 so `SEND` appends to a pending list and `FINISH` emits the single call — the behaviour above is
-preserved and only the transport differs, which is what a binding is for. VALIDATION.md, F32.)*
+preserved and only the transport differs, which is what a binding is for.)*
 
 **There is always a frame to show.** The editor buffer holds **at least one page** — a blank one
 when nothing has been composed or captured (§8.4) — so this context is reachable with an empty
@@ -205,12 +205,43 @@ request the body:
 
 | Byte | Meaning |
 |---|---|
-| 0 | machine type (`0` = C64, `1` = Amiga) |
+| 0 | machine type (`0` = C64, `1` = Amiga, `2` = ST) |
 | 1–3 | reserved (`0`) |
-| 4 | load address low |
-| 5 | load address high |
-| 6 | size low |
-| 7 | size high |
+| 4–7 | **machine-dependent — see below** |
+
+**Bytes 4–7 depend on the machine**, exactly as they do on upload (§8.3.2). A client reads the
+body size from a *different field* according to byte 0:
+
+| | byte 0 | bytes 4–5 | bytes 6–7 | body size is read from |
+|---|---|---|---|---|
+| **C64** | `0` | **load address**, little-endian | size | the 16-bit word at **6–7** |
+| **Amiga** | `1` | *(no load address)* | | the 32-bit **big-endian** longword at **4–7** |
+| **ST** | `2` | *(no load address)* | | the 32-bit **big-endian** longword at **4–7** |
+
+The split is by CPU, not by brand: both 68k machines take a big-endian longword, the 6502 a
+16-bit word. A C64 **cannot** put its size in 4–7, because 4–5 carry the load address, which is
+not recoverable from the body. A 68k program has no load address, so it uses all four bytes —
+and needs them, since 16 bits cannot express the size of a typical Amiga program at all.
+
+A server **MUST** select the layout from byte 0. Serving the C64 layout to a 68k client does
+not merely lose precision: the size is truncated to 16 bits *and* byte-swapped, so a
+169,966-byte file is described as 61,079.
+
+> **⚠ This section was wrong until 2026-07-30**, and the reference server was wrong with it. It
+> prescribed a single layout — load address at 4–5, 16-bit size at 6–7 — for every machine,
+> mirroring only the C64 case, even though §8.3.2 had documented the machine-dependence of the
+> *upload* header correctly for months. Anyone implementing a 68k client from this text would
+> have read a wrong size.
+>
+> **Evidence.** The relocated disassembly of the original Amiga client's `file_download_xfer`
+> (`FUN_0010b174`) branches three ways on byte 0 and reads a different field in each:
+> `10b21c: moveq #$6,d0; move.w (a0,d0.l),d1` for C64, `10b22e: move.l $45ec(a4),-$a(a5)` for
+> Amiga, and the same instruction at `10b268` for ST. `g_dl_header` is `$45e8(a4)`, so `$45ec`
+> is `header+4`. Covered by `ProgramDownloadDescriptor` in `server/tests/test_api_binding.py`,
+> which pins all three machines plus the absent-`machine_type` default.
+>
+> The reconstructed Amiga client does not read the size at all — it streams until EOS — which
+> is why the defect stayed invisible on the only 68k client in existence.
 
 Exchange:
 
@@ -224,8 +255,9 @@ A client that offers downloads **MUST** implement the `$40`/`$41` control tokens
 values are meaningful only within this exchange. Each is an ordinary framed packet (§2.2–2.4)
 with that token, the client's current sequence number, and an **empty payload** — i.e. content
 `[length=$05][token=$40 or $41][seq][crc_hi][crc_lo]`, byte-stuffed and framed like any packet.
-*(Non-normative: for a C64 program the load address is honoured; for an Amiga program the body
-is the raw relocatable HUNK executable and the load field is 0 — the client `LoadSeg`s it. Note
+*(Non-normative: for a C64 program the load address is honoured; for a 68k program the body is
+the raw relocatable executable — a HUNK image on the Amiga, which the client `LoadSeg`s — and
+there is no load field at all, those bytes being the size. Note
 some development-server content is stored as placeholder text frames rather than real
 programs, in which case a selected `P`/`PP`/`S` entry returns a normal frame instead of the
 8-byte header; a client should fall back to rendering it as a frame if the response is not
@@ -486,9 +518,8 @@ A client implementing the editor **SHOULD** capture viewed frames into the buffe
   page with `LDA $8017 / STA $8019` (`$849B`), writing the newly allocated address straight into
   the **current-page pointer**.
 
-  *(An earlier version of this passage said capture "**MUST NOT** move the current page
-  position". That was written for the two-pane case and is not what the C64 does; the reference
-  client followed it and left the user reading one page while the editor showed another.)*
+  A client **MUST NOT** leave the current position where it was — in a two-pane layout that
+  shows the user reading one page while the editor displays another.
 - **Capture must not INTERRUPT.** It **MUST NOT** steal focus — the user is reading, and the
   editor following along is the point — and it **MUST NOT** disturb an **edit in progress**. The
   original could not be in that state, having one screen: you cannot read and edit at once. A
@@ -609,9 +640,9 @@ it does everywhere else. What a client may choose is **how** they are invoked an
 string table at `$83AA` and its **offset table** at `$83FE` — the offsets are
 `$00 $06 $0C $12 $18 $1E $24 $2A $30 $36 $3C $42 $4E $48`, and the last two are
 **non-monotonic**: `$4E` (`RETURN`) precedes `$48` (`DOS`). That inversion is the proof this
-table is a *display order* and not merely the order the strings happen to be stored in. Reading
-the strings in storage order yields `… FREE DOS RETURN`, which is **wrong** — and is the error
-this specification and `docs/PROTOCOL.md` both previously carried.
+table is a *display order* and not merely the order the strings happen to be stored in. ⚠ Reading
+the strings in **storage** order yields `… FREE DOS RETURN`, which is **wrong**; the offset table
+is what a client must follow.
 
 | # | Command | Function |
 |---|---|---|
@@ -793,6 +824,55 @@ equivalents (a file picker, the system print dialogue, browser download/upload) 
 disable any it genuinely cannot provide — a sandboxed web client has no `DOS`. What it
 **MUST NOT** do is rename them, merge them, or invent replacements: a disabled `DOS` is
 conforming, a `SAVE AS…` that replaces `PUT` and `STORE` is not.
+
+### 8.4.4 The local storage format
+
+`PUT`, `STORE` and `GET` (§8.4.1) move frames between the editor buffer and local storage. This
+section defines what they write, because a client that invents its own layout produces files the
+original cannot read — and, more to the point, misreads the ones it is given.
+
+Everything below is verified from the original C64 client's disassembly (`$8580`–`$85CC` for
+`STORE`, `$8541`–`$856E` for `PUT`, `$8500`–`$8534` for `GET`, and the byte source at `$8A94`).
+
+**There is no container.** `STORE` writes the frames of the buffer **back-to-back** into one
+file, each as `[4-byte header][body][$00]` exactly as §6.2/§6.3 define them — no file header, no
+frame count, no index, no directory. `PUT` writes a single frame in the same form. `GET` reads
+frames one after another **until end of file**; the file's structure is recovered purely by
+parsing, which is why §6.3 requires a reader to continue past a `$00`.
+
+A client **MUST** write frames concatenated in this way and **MUST** read to end of file rather
+than stopping at the first terminator. The original wrote plain CBM **sequential** files
+(`,S,W` / `,S,R` on device 8); a client **SHOULD** use whatever its host offers, but the byte
+layout inside the file is normative.
+
+**⚠ A frame boundary is TWO bytes, not one (normative).** Each frame's **flags byte** (§6.2
+offset 0) is emitted by the *save* routine rather than copied from the buffer: on passing a
+terminator, the writer emits the terminator and then writes a freshly generated flags byte for
+the frame that follows (`$85C4`/`$85C7` → `$85D4`). So consecutive frames are separated by the
+`$00` terminator **immediately followed by** the next frame's flags byte, and a reader consumes
+both — the terminator ends the frame, the next byte begins the next header. A reader that
+resynchronises by scanning for `$00` alone, or that assumes one byte between bodies, will parse
+every frame after the first at a one-byte offset.
+
+**⚠ `$01` in a stored file reads back as `$00` (normative).** The original's disc byte source
+substitutes `$00` for `$01` on **every** byte it reads — not only at boundaries
+(`$8A94`: `JSR $FFCF` / `CMP #$01` / `BNE` / `LDA #$00`). Two consequences a client **MUST**
+honour:
+
+- A stored frame **body cannot carry a literal `$01`**. Written, it loads as `$00` and therefore
+  **ends the frame early**, silently truncating the page.
+- The **flags byte always arrives as `$00`** in memory regardless of which value the file holds,
+  so a reader **MUST NOT** derive the §6.5 "more pages" bit from a stored file's flags byte.
+
+This is the trap in the whole section, and it is invisible to the obvious test: a client that
+writes `$00` and reads its own files back never meets it. It bites only on a file written by a
+real C64 — precisely the files a user has kept since 1993. A client **SHOULD** therefore treat
+`$01` and `$00` as equivalent when reading, and **MUST NOT** emit `$01` inside a body.
+
+*(Non-normative: the value the original writes is `$00`, or `$01` when bit 7 of its disc-status
+flag `$C156` is set. What condition that is meant to encode is not determinable from the
+disassembly, and a client does not need it — reading `$01` as `$00` and never emitting `$01` in a
+body is the complete rule.)*
 
 ## 8.5 Partyline
 

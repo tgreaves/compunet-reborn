@@ -38,6 +38,29 @@ no `$00` terminator of its own** (see the boundary note after the table).
 | **5 — Column headers** | The column titles, comma-separated, `CR`-terminated, then a `$00` separator byte | one line ended by `$0D`, then a `$00` |
 | **6 — Entries** | The directory entries, one per line (§7.3) | the stream ends (EOS) after the last entry's `$0D` |
 
+### What a Part-1 header may contain (normative)
+
+Earlier revisions of this section described where the header is *composed*
+(§7.7) but placed no constraints on its *content*, which read as "anything a
+frame may contain is fine here". It is not, and the omission mattered: a server
+may now accept header frames from users (they are no longer operator-authored
+only), and each rule below exists because a specific renderer misbehaves without
+it. A header frame **MUST**:
+
+| Rule | Why |
+|---|---|
+| Draw only on **rows 0–5** | Part 1 is printed **over** the already-drawn template (§7.5). There is no clipping in the reference clients: printing on row 6 destroys the frame's top border, and lower still overwrites the breadcrumb, entries and footer. Past row 23 the C64 KERNAL scrolls the whole screen |
+| Contain **no `$00`**, not even as an RLE operand (§6.4) | The C64 copies Part 1 with a **byte-level** loop that stops at the first `$00` and has no RLE awareness, so a `$00` used merely as a repeat count still ends the part — and everything after it is read as Part 2/3/4, desynchronising the six-part stream. This is the general §6.4 rule, and Part 1 is where its absence bit hardest |
+| Contain **no `$93`** (clear screen) | The template is drawn first, so a clear-screen erases the entire directory — border, breadcrumb, entries and all — leaving only what the header itself then draws |
+| Leave the character set as it found it | Nothing re-issues `$8E` after Part 1, so a `$0E` leaks the lower-case set into the rest of the screen |
+| Leave reverse video off | An unmatched `$12` reverses the start of the next line drawn |
+| Fit within the header buffer | The C64 stores Part 1 at `$D000` with **no length counter and no bounds check**; the next part's buffer begins at `$D300`, so **768 bytes** is the point at which a header silently corrupts the parts after it. A server accepting user-supplied headers should enforce a limit well below that |
+
+⚠ **These are constraints on what a server may SEND, not licence for a client to
+assume them.** A client is still responsible for its own display: bounding Part 1
+to rows 0–5 costs little and turns a hostile or simply broken header into a
+cosmetic problem rather than an unusable screen.
+
 **Part 2 → Part 3 boundary — do not consume a `$00` after the footer (normative).** The footer
 is exactly **two `$0D`-terminated lines** (empty lines if there is no advert); Part 2 does *not*
 emit a `$00`. The very next `$00` in the stream is **Part 3's** terminator (its empty
@@ -195,10 +218,6 @@ dispatches on the response byte as *linking* (`$4C`), *ACK* (`$41`), or **anythi
 follows**, so an error response is rendered like any other page: it paints over the screen. That
 is a visible change, and therefore not inert.
 
-*(Resolved: the Reborn server previously fell back to entering the sub-directory here, and
-returned `NO CONTENT` when there was no sub-directory either. Both are corrected — `_cmd_dir`
-now returns the unchanged listing.)*
-
 The table above is the **SHOW** action (`D`+index, §4.7) — reading an entry. **Entering** an
 entry *as a directory* is a separate command, **DIR** (`P`+index): DIR works on **any** entry,
 not just base `D`. On a `T+` the two differ — SHOW reads its text frame(s) while DIR descends
@@ -251,9 +270,8 @@ it calls a `D` entry "a dummy page; cannot be shown; use DIR to access the direc
 > **⚠ This is why §8.3.2 caps uploads at 11.** The cap looks arbitrary until you see that a
 > directory *displays* 11 and there is no second page — the limit is the display, and the
 > `MORE` entry is the user's answer to it. A specification that describes automatic paging makes
-> that cap inexplicable. (Earlier revisions of this section described a server-side pager with a
-> synthetic MORE row; it was wrong, and both Binding-B clean-room runs reported downstream
-> symptoms of it — VALIDATION.md, F15/F26/F35.)
+> that cap inexplicable. **Authored directories have no server-side pager and no synthetic `MORE`
+> row** — do not implement one; the exceptions are the generated listings below.
 
 **Generated listings are the exception.** UCAT (§8.6) and the mailbox (§8.2) are *assembled by the
 server*, so their owner cannot author a `MORE` entry into them. Those, and only those, may
@@ -289,7 +307,28 @@ right-hand column, and the column-cycle indicator; the parts overlay onto it:
 | 7 | Breadcrumb line 1, aligned with the entry columns (left) | Part 4 |
 | 8 | Breadcrumb line 2, e.g. `100 WELCOME`, same alignment (left); **selected column header** e.g. `PRICE` (right column, one column in — see below) | Part 4 / Part 5 |
 | 10–20 | The entry list — up to 11 entries, one per row (see below) | Part 6 (+ selected Part 5 column) |
-| 22–23 | Footer / advert — Part 2's two lines, **centred** on their rows | Part 2 |
+| 22–23 | Footer / advert — Part 2's two lines, **verbatim from column 0** (⚠ *not* centred — see below) | Part 2 |
+
+**⚠ The footer / advert is drawn VERBATIM from column 0 — a client MUST NOT centre it
+(normative).** Centring is the tempting mistake here, because it looks like a courtesy: the two
+lines are printed exactly as Part 2 delivers them, and **any positioning is the author's**,
+expressed as leading spaces.
+
+Verified in the vintage binaries. Centring requires computing `(40 − length) / 2`, and across
+**both** originals — the 8 KB ROM and the 7,699-byte terminal — there is not a single
+instruction that halves a value, nor a division routine to call. Every `$4A`/`$6A` byte in them
+is a `J` inside a string or the low byte of an address operand; the only genuine shifts are four
+consecutively to print a hex nibble, and one `LDA #$00 / ROR` building a flag. The original
+does not centre differently from us — **it cannot centre at all.**
+
+Two consequences a client author should keep in mind:
+
+- **Re-centring an already-centred line moves it.** Authors centre by padding, so a client that
+  also centres adds the padding twice and shifts the text right — by a different amount per
+  line, which makes the two rows look misaligned with each other rather than merely offset.
+- **Centring is lossy.** Because Part 2 arrives as typed, an author can left-align, right-align
+  or indent deliberately. A client that centres takes that away and offers no means to express
+  it.
 
 **Breadcrumb alignment.** Part 4's two lines are **not** drawn at column 1. They share the
 entry columns: the leading **page number is right-justified** in the same left column the entry
@@ -379,10 +418,8 @@ per-cell background gets a *visibly* different result (white text instead of bac
 and, worse, builds a page model the hardware cannot produce, which then leaks into everything
 that touches cell backgrounds (§8.4.3).
 
-*(This passage previously specified white text and asserted that "colour bar + white text cannot
-be expressed with a single PETSCII cell attribute". Both were wrong: it is precisely one
-attribute. The reference client followed the spec and drew white until the disassembly was
-read.)*
+**The glyphs keep their own colour — they do not turn white.** A bar of positional colour with
+white text on it is *not* what the original draws, and a client **MUST NOT** render it that way.
 
 > **The bar must not overwrite the vertical divider (normative).** The template's divider at
 > **column 30** (§7.7 geometry) stays visible *through* the highlighted row: the bar is drawn in
@@ -394,9 +431,8 @@ read.)*
 > colour), and the red-first / blue-rest entry colouring is **required** either way — it is part
 > of the authored Compunet look.
 >
-> *(The original's loop runs `LDY #$26` down to 1 with `CPY #$1E / BEQ` skipping the divider —
-> columns 1–38 except 30, which is exactly the extent above. An earlier wording said "all 40
-> columns", which contradicted it; VALIDATION.md, F25.)*
+> *(Verified: the original's loop runs `LDY #$26` down to 1 with `CPY #$1E / BEQ` skipping the
+> divider — columns 1–38 except 30, which is exactly the extent above. ⚠ Not all 40 columns.)*
 
 > **Draw the bar with per-cell reverse video, setting the whole row to one colour.** For each
 > cell in the extent: set **bit 7** of the screen code and write the **bar colour** to that
@@ -410,11 +446,9 @@ read.)*
 > shares one foreground. Reverse video plus a uniform row colour is the mechanism; reverse video
 > by itself is the failure.
 >
-> *(An earlier version of this passage said the opposite — "do not fake the bar with per-cell
-> reverse-video… fill the row's background with the positional colour, then render the glyphs in
-> white over it" — and justified it with the stripe argument above, which only applies when the
-> row colour is left alone. A background fill is not available to the hardware at all: there is
-> one background register for the whole screen. Corrected against `$A6DC`.)*
+> **⚠ Do not reach for a background fill instead.** Filling the row's background with the
+> positional colour and rendering white glyphs over it is not available to the hardware at all:
+> there is **one** background register for the whole screen (§5.5). Verified at `$A6DC`.
 
 ### The selected column header
 

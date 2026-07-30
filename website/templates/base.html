@@ -14,6 +14,7 @@
                 <a href="{{ url_for('about') }}">ABOUT</a>
                 <a href="{{ url_for('connect') }}">CONNECT</a>
                 <a href="{{ url_for('guide') }}">GUIDE</a>
+                <a href="{{ url_for('news') }}">NEWS</a>
                 <a href="{{ url_for('extras') }}">EXTRAS</a>
                 <a href="{{ url_for('contact') }}">CONTACT</a>
                 {% if session.get('user_id') %}
@@ -21,7 +22,10 @@
                     {% if session.get('user_id') == 'ADMIN' %}
                         <a href="{{ url_for('admin_users') }}">ADMIN</a>
                     {% endif %}
-                    <a href="{{ url_for('logout') }}">LOGOUT</a>
+                    <form method="POST" action="{{ url_for('logout') }}" class="inline-form">
+                        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                        <button type="submit" class="as-link">LOGOUT</button>
+                    </form>
                 {% else %}
                     <a href="{{ url_for('register') }}">REGISTER</a>
                     <a href="{{ url_for('login') }}">LOGIN</a>
@@ -35,7 +39,9 @@
         </div>
     </nav>
 
-    <main class="content">
+    {# A page can widen itself — the directory tree needs room for a 640px frame
+       beside it. Every other page keeps the site's reading width. #}
+    <main class="content {% block content_class %}{% endblock %}">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -50,5 +56,7 @@
     <footer class="footer">
         <p>COMPUNET REBORN v{{ version }} &mdash; THE LIVE ONE LIVES ON</p>
     </footer>
+    {# Only the directory tree uses this, and only as an enhancement. #}
+    {% block scripts %}{% endblock %}
 </body>
 </html>

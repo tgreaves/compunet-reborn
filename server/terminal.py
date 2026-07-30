@@ -678,37 +678,14 @@ class TerminalSession:
         await self.send(bytes(out))
 
     def _archive_page_standalone(self, cs, page, reason='replaced'):
-        """Archive a page's files and metadata before removal."""
-        import shutil, json as json_mod
-        archive_dir = os.path.join(cs.DATA_DIR, 'archive')
-        slug = cs.CompunetDirectory._make_slug(page.title)
-        timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-        dest = os.path.join(archive_dir, f'{page.page_num}-{slug}-{timestamp}')
-        os.makedirs(dest, exist_ok=True)
+        """Archive a page before removal.
 
-        page_dir = getattr(page, '_dir_path', '')
-        frame_files = getattr(page, '_frame_files', [])
-        for frame_file in frame_files:
-            src_path = os.path.join(page_dir, frame_file)
-            if os.path.exists(src_path):
-                shutil.copy2(src_path, os.path.join(dest, frame_file))
-
-        metadata = {
-            'page_num': page.page_num,
-            'title': page.title,
-            'type': page.page_type,
-            'author': page.author,
-            'price': page.price,
-            'life': page.life,
-            'uploaded': getattr(page, 'uploaded', None),
-            'archived': timestamp,
-            'reason': reason,
-        }
-        with open(os.path.join(dest, 'metadata.json'), 'w') as f:
-            json_mod.dump(metadata, f, indent=2)
-
-        logger.info('ARCHIVE: page %d "%s" by %s → %s (%s)',
-                    page.page_num, page.title, page.author, dest, reason)
+        Was a hand-copied second implementation that, like the original, copied
+        only the page's own frames — so archiving a DIRECTORY left its whole
+        subtree on disk, unreachable and unarchived. Both now call the one
+        archiver, which recurses.
+        """
+        cs.archive_page(page, cs.DATA_DIR, reason=reason)
 
     def _format_upload_date(self, child):
         """Format upload date as DD-MMM, right-justified so hyphens align."""
@@ -1975,8 +1952,8 @@ class TerminalSession:
         if existing:
             page_num = existing.page_num
         else:
-            all_pages = list(self.directory.pages.keys())
-            page_num = max(all_pages) + 1 if all_pages else 1000
+            # Unique against the whole tree, not just the lookup table.
+            page_num = self.directory.next_page_num()
 
         size = len(send['frames'])
 
@@ -2008,8 +1985,9 @@ class TerminalSession:
             page.children.append(new_page)
             self.directory.pages[page_num] = new_page
 
-        # Save directory
-        self._save_directory_tree(cs)
+        # This directory gained an entry; its parent may need the `directory`
+        # key, since a latent directory becomes real on first upload (§7.3).
+        self._save_directories(cs, page, getattr(page, 'parent', None))
 
         action = 'replaced' if existing else 'uploaded'
         cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
@@ -2109,8 +2087,8 @@ class TerminalSession:
         if existing:
             page_num = existing.page_num
         else:
-            all_pages = list(self.directory.pages.keys())
-            page_num = max(all_pages) + 1 if all_pages else 1000
+            # Unique against the whole tree, not just the lookup table.
+            page_num = self.directory.next_page_num()
 
         # Calculate size in K
         size = (len(prg_data) - 2 + 1023) // 1024 if len(prg_data) > 2 else 1
@@ -2140,7 +2118,7 @@ class TerminalSession:
             page.children.append(new_page)
             self.directory.pages[page_num] = new_page
 
-        self._save_directory_tree(cs)
+        self._save_directories(cs, page, getattr(page, 'parent', None))
 
         action = 'replaced' if existing else 'uploaded'
         cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
@@ -2156,52 +2134,21 @@ class TerminalSession:
         self.duck_pos = getattr(self, '_saved_duck_pos', 0)
         await self.render_directory()
 
-    def _save_directory_tree(self, cs):
-        """Save directory tree to JSON files (same logic as CompunetSession._save_directory)."""
-        import json
+    def _save_directories(self, cs, *pages):
+        """Persist only the directories this command changed.
 
-        def _save_dir_json(page, json_path):
-            data = {}
-            if hasattr(page, 'header') and page.header:
-                data['header'] = page.header
-            if hasattr(page, '_adverts') and page._adverts:
-                data['adverts'] = page._adverts
-            if hasattr(page, 'shortcuts') and page.shortcuts:
-                data['shortcuts'] = page.shortcuts
-            if hasattr(page, 'open_upload') and page.open_upload:
-                data['open_upload'] = True
-            pages_list = []
-            for child in page.children:
-                node = {
-                    'page_num': child.page_num,
-                    'title': child.title,
-                    'type': child.page_type,
-                    'author': child.author,
-                    'price': child.price,
-                    'life': child.life,
-                }
-                if child.keyword:
-                    node['keyword'] = child.keyword
-                if getattr(child, 'dynamic', None):
-                    node['dynamic'] = child.dynamic
-                if getattr(child, 'uploaded', None):
-                    node['uploaded'] = child.uploaded
-                frame_files = getattr(child, '_frame_files', [])
-                if frame_files:
-                    node['frames'] = frame_files
-                if child.children:
-                    child_dir = getattr(child, '_dir_path', '')
-                    dir_json_path = os.path.join(child_dir, 'directory.json')
-                    node['directory'] = os.path.relpath(dir_json_path, cs.ROOT_DIR)
-                    _save_dir_json(child, dir_json_path)
-                pages_list.append(node)
-            data['pages'] = pages_list
-            os.makedirs(os.path.dirname(json_path), exist_ok=True)
-            with open(json_path, 'w') as f:
-                json.dump(data, f, indent=2)
-
-        root_json_path = os.path.join(cs.ROOT_DIR, 'root.json')
-        _save_dir_json(self.directory.root, root_json_path)
+        Was a second, hand-copied implementation of the serializer that had
+        drifted — it wrote `open_upload` only when true, omitted `machine_type`,
+        and used the narrow `if child.children` test the other copy was already
+        fixed for, so which keys survived depended on whether the user was on the
+        terminal or the C64. It then became a call to the one serializer, which
+        still rewrote the WHOLE tree from this session's copy and so discarded
+        other sessions' committed work. Now it writes only what changed.
+        """
+        for page in pages:
+            if page is None:
+                continue
+            cs.save_one_directory(page, cs.ROOT_DIR)
 
     async def _xmodem_receive(self):
         """Receive a file via XMODEM-CRC (supports both 128-byte and 1K blocks)."""
@@ -2970,8 +2917,9 @@ class TerminalSession:
                         users_path = os.path.join(os.path.dirname(__file__), 'cfg', 'users.json')
                         with open(users_path, 'w') as f:
                             json.dump(users, f)
-                    # Save directory and audit
-                    self._save_directory_tree(cs)
+                    # `life` lives in the child's node inside its own
+                    # directory's JSON — that one file, not the tree.
+                    self._save_directories(cs, getattr(child, 'parent', None))
                     cs.audit_log('extend', user=self.user_id, ip=self.client_ip,
                                  page=child.page_num, title=child.title,
                                  extend_by=extend_by, new_life=child.life)

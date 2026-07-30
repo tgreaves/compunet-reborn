@@ -1,3 +1,55 @@
+# 1.3.0 (2026-07-30)
+
+* C64 client:
+	* Fixed: client banner now correctly shows the version it was built from.
+	  Every release since 1.0.0 announced itself as `COMPUNET REBORN 1.0.0`.
+* Amiga Client:
+	* Fixed: a download taken after any other action wrote the previous screen to
+	  disk instead of the file, and reported it as complete. The saved file was
+	  unusable (#123).
+	* Fixed: downloads are around 40 times faster — a 166K program took 36 seconds
+	  and now takes under one (#124).
+	* Fixed: a download interrupted by a lost connection left the file locked, so
+	  every retry failed with "Can't open file" until the client was restarted
+	  (#124).
+	* New: the About window shows the client version, and credits the Reborn
+	  project alongside the 1989 authors.
+* Web / Electron Client:
+	* New: an application icon for the desktop app — the Commodore 64 `C`, in the
+	  Compunet red and light grey of the service's own header. Windows previously
+	  showed the stock Electron icon on the desktop shortcut, taskbar and
+	  installer.
+	* Fixed: advert lines at the bottom of a directory now appear exactly where
+	  their author placed them. The client was re-centring text that was already
+	  centred, shifting each line by a different amount.
+* Website:
+	* Security: CSRF protection.
+	* New: Compunet hierarchy browsing (Includes frame rendering).
+	* New: Users can upload their own directory headers.
+	* New: Users can delete via the DIRECTORIES page (Archived - can be recovered).
+	* New: Users can move content via the DIRECTORIES page.
+	* New: Users can retitle and reorder content via the DIRECTORIES page.
+	* New: Users can set 'owner only' on their directories so only they can add to
+	  it.
+	* New: A NEWS section (#35).
+* Server:
+	* Fixed: Uploads and edits no longer silently discard each other's changes.
+	* Fixed: Saving a directory no longer drops settings it did not recognise —
+	  shortcuts, upload permissions and machine type were each lost this way.
+	* Fixed: Deleting directories no longer orphans the content inside it.
+	  Everything is now correctly archived.
+	* Fixed: Page numbers now forced to be unique.  Example content fixed.
+	* Fixed: Amiga and ST downloads now carry the correct file size. The header
+	  used the C64's 16-bit field, so anything over 64K was truncated and
+	  byte-swapped — a 169,966-byte file was described as 61,079 (#123).
+* Historical archive:
+	* New: 43 SEQ frames recovered from 35 original Compunet demo disks,
+	  contributed by ZILDAC (`historical/seq/zildac/`).
+	* New: 160 GOTO keywords with the operators' own one-line descriptions, as
+	  the live system listed them c.1987, transcribed to
+	  `historical/original-keywords.txt`. Records what Compunet actually held,
+	  area by area, and which areas were open for user uploads.
+
 # 1.2.1 (2026-07-28)
 
 * Website:

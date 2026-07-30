@@ -407,9 +407,15 @@ the audit. In priority order:
    **host:port config surface** (repurpose existing config fields — e.g. modem-name →
    hostname — to avoid inventing UI the original lacked).
 2. **Environment prerequisites for 2b (not code):**
-   - **Kickstart 2.04** minimum — every Amiga TCP/IP stack requires it. The current
-     binary is expected to run unchanged on 2.04 (RELOC32 + minstart.o + old-style
-     Intuition are all backward-compatible); verify by booting on KS2.04.
+   - **Kickstart 2.04** minimum — every Amiga TCP/IP stack requires it, and
+     `bsdsocket.library` is supplied by the stack rather than by the OS, so the stack is
+     what sets the floor. The client binary itself targets 1.3 and `net_open()` fails
+     gracefully without a stack, so 1.3 still gets the offline UI. Expected to run
+     unchanged on 2.04 (RELOC32 + minstart.o + old-style Intuition are all
+     backward-compatible); **still to be confirmed by booting a 2.04 ROM** with a stack.
+     ⚠ Note there is no such thing as a *Kickstart* 2.1: AmigaOS 2.1 was a software-only
+     release (V38) running on the 2.04/2.05 ROM. Public docs said "Kickstart 2.1+" for a
+     while, which was both a category error and stricter than anything here needs.
    - **Emulator with guest networking** — FS-UAE cannot pass TCP from the emulated
      environment to the host, so the network dev loop needs **WinUAE or Amiberry** with
      an emulated Ethernet NIC (e.g. `a2065.device`) bridged to the host, pointed at the

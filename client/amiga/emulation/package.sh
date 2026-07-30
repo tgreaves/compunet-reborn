@@ -33,8 +33,23 @@ mkdir -p "$HDD/devs/cnet_modems" "$HDD/s" "$HDD/l" "$HDD/libs"
 cp "$BIN"                       "$HDD/Compunet"
 cp "$VINTAGE/devs/cnet.device"  "$HDD/devs/cnet.device"
 cp "$VINTAGE/cnet-configuration" "$HDD/cnet-configuration"
-cp "$VINTAGE/CnetEditor"        "$HDD/CnetEditor"       2>/dev/null || true
-cp "$VINTAGE/CNETTTY"           "$HDD/CnetTty"          2>/dev/null || true
+# ⚠ DECRUNCHED, not the crunched originals in $VINTAGE — matching make_hdd.sh, which has
+# always done this and documents why: the crunched PowerPacker stub for CnetEditor gurus at
+# CreateProc time, and the decrunched CnetTty avoids running a self-decruncher at LoadSeg.
+# This script used to copy the crunched pair, which mattered more than it looked: make_lha.py
+# packages whatever is in hdd/, so running package.sh then make_lha.py shipped a CnetEditor
+# that gurus (14,476 bytes) in place of the working one every release has carried (33,124) —
+# same filename, no error. Fall back to crunched only if a decrunched copy is missing.
+if [ -f "$VINTAGE/decrunched/CnetEditor" ]; then
+    cp "$VINTAGE/decrunched/CnetEditor" "$HDD/CnetEditor"
+else
+    cp "$VINTAGE/CnetEditor"            "$HDD/CnetEditor" 2>/dev/null || true
+fi
+if [ -f "$VINTAGE/decrunched/CnetTty" ]; then
+    cp "$VINTAGE/decrunched/CnetTty"    "$HDD/CnetTty"
+else
+    cp "$VINTAGE/CNETTTY"               "$HDD/CnetTty"    2>/dev/null || true
+fi
 cp "$VINTAGE"/devs/cnet_modems/* "$HDD/devs/cnet_modems/" 2>/dev/null || true
 
 # Minimal startup-sequence: assign DEVS: locally then run the client.

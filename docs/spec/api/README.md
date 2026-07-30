@@ -373,17 +373,13 @@ treats it as a token, not as content.
 
 Precedence when a page carries more than one form: **`raw` wins, then `cells`, then `lines`.**
 
-*(This resolves what was previously recorded here as a §1.8 gap: pages composed through this
-binding were monochrome, so Binding B could express meaningfully less than Binding A of what the
-editor exists to produce.)*
-
 **Upload** (`upload`) carries `title`, `kind` (`"T"`/`"P"`), `price`, `life`, and `frames`.
 Unlike Binding A's multi-step wire dance (`U` → validation → frame DATs → finishing `P`), it is
 **one message**: the server performs the same commit through the same core routine and replies
 with the **refreshed directory** (the equivalent of the finishing `P`). For `kind: "P"` the
 frames are base64 program blobs rather than editor pages.
 
-> **The program blob, precisely** (this was previously left undefined, and it is not guessable).
+> **The program blob, precisely** (⚠ this is not guessable — follow it exactly).
 > Each element of `frames` is a **bare base64 string**, not a `{raw}` page object — the server
 > discriminates on the JSON type, so an object takes the editor-page path and never reaches the
 > program writer. Decoded, the blob is an **8-byte header followed by the body**:
@@ -394,6 +390,13 @@ frames are base64 program blobs rather than editor pages.
 > | 1–3 | reserved, `0` |
 > | 4–5 | **C64 load address**, little-endian (`0` for Amiga) |
 > | 6–7 | body size, little-endian — informational here, since the blob's length is known |
+>
+> ⚠ **This is the Binding-B *upload* blob; do not implement anything else from it.** The size
+> here is inert because the blob carries its own length. Binding A's **download descriptor** is
+> machine-dependent and its size field is load-bearing — 16-bit at 6–7 for the C64, 32-bit
+> big-endian at 4–7 for Amiga and ST (§8.3.1) — and Binding A's *upload* header differs again
+> (§8.3.2). Three similar-looking headers; copying one into another's place has caused a
+> shipped bug in each direction.
 >
 > For a **C64** `.prg`, bytes 4–5 are the file's own first two bytes and the body is the file
 > **from offset 2**: the server rebuilds the stored program as `header[4:6] + blob[8:]`, so this
@@ -454,10 +457,8 @@ server then streams `partyline` events and accepts `partyline.*` commands until 
 > So implement §5.3 (screen codes), §5.6 (control codes), §6.3 (the processing loop) and §6.4
 > (RLE) regardless. The upside: §A.9, §A.10 and §A.11 each print their expected render in the
 > specification, so a decoder can be **verified against the document before it ever touches the
-> server** — including §A.10's colon at column 12. (Earlier revisions also advertised a
-> "body-only header trap" in §A.8/§A.9. There was no trap in the originals, only in the retyped
-> files this specification used to carry; both are now extracted from the vintage binaries and
-> are rendered raw like everything else.)
+> server** — including §A.10's colon at column 12. ⚠ Note that **every** appendix frame asset
+> carries its own 4-byte header and is rendered raw; none of them is body-only (§A).
 >
 > *(A clean-room build called this "the single biggest thing this document gets wrong about its
 > own client's obligations" — VALIDATION.md, F24.)*

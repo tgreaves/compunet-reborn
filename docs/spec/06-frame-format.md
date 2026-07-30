@@ -83,6 +83,19 @@ A client **MUST** implement this loop (or an equivalent producing the same cell 
 **MUST** stop at the `$00` terminator regardless of any remaining bytes in the current
 packet, and **MUST** decode the RLE runs with the `1 + N` semantics of §6.4.
 
+**⚠ The `$00` terminator ends a FRAME, not a FILE (normative).** The rule above applies to a
+frame arriving on the **wire**, where one DAT stream (§6.1) carries one frame and the terminator
+is therefore also the end of the data. It does **not** apply to frames in **local storage**: a
+stored file may hold several complete frames written back-to-back — each
+`[4-byte header][body][$00]` — with **no count, no index and no container**. A client reading
+local storage **MUST** continue parsing after a `$00`, treat the bytes that follow as the next
+frame's header, and end only at **end of file**. A reader that stops at the first terminator
+loads the first page of a multi-page file and reports success, which is why the distinction is
+called out here rather than left to §8.4.4.
+
+The storage layout — including the boundary encoding and the `$01` substitution, both of which a
+naive reader gets wrong — is specified in §8.4.4 ([§8 — Subsystems](08-subsystems.md)).
+
 **Initial text colour.** A frame's body **SHOULD** set the text colour with a colour control
 (§5.6) before printing text, and Compunet frames do so at the start of the body (typically
 right after the charset byte). The text colour that applies *before* any colour control is
@@ -105,6 +118,23 @@ characters:
 **MUST** decode both escapes with the `1 + N` semantics; an off-by-one corrupts every
 compressed run. `$06` and `$07` never appear as literal content — they are always RLE
 escapes.
+
+**⚠ No operand byte may be `$00` (normative).** Neither the count `N` nor the run byte `c`
+may be `$00`. An encoder **MUST NOT** emit one, and a decoder that meets one **MUST** treat it
+as the frame terminator (§6.3) — stopping there, exactly as it would for a `$00` outside a run.
+
+Earlier revisions did not say this, and the omission made the specification contradict itself.
+`$06 $00` is "one space" by the `1 + N` rule above, while §6.3 makes `$00` the terminator and
+§6.1 permits a client to end a frame at the first in-band `$00` it finds. Both readings are
+conforming, so the same bytes rendered as a space by one client and as end-of-frame by another
+— and on the C64 the divergence is not theoretical: it copies the directory's Part 1 with a
+byte-level loop that stops at the first `$00` and has no notion of RLE at all, so everything
+after the operand is misread as the following part.
+
+Nothing is lost by forbidding it, which is why the rule can be this blunt: **a zero count is
+always longer than the literal it encodes** — `$06 $00` spends two bytes on the one byte `$20`,
+and `$07 c $00` spends three on one `c`. No encoder that is trying to compress would ever
+choose it, so the ban costs no expressiveness and removes the ambiguity outright.
 
 **The run byte `c` is processed exactly as it would be outside a run** (§6.3): if `c` is a
 printable character it is drawn `1 + N` times; **if `c` is a control code** (§5.6, ranges
@@ -138,7 +168,8 @@ subsequent frames rather than assuming a page is a single frame.
 
 Some directory entries are not text frames. When the selected entry is a **program /
 download page**, the server sends — in place of the frame above — a small binary header
-(load address and size) and then, on the client's request, the program bytes. Link pages
+describing the program (its size, and on the C64 its load address; the layout depends on the
+machine, §8.3.1) and then, on the client's request, the program bytes. Link pages
 behave differently again. These are specified in [§8 — Subsystems](08-subsystems.md)
 (downloads, uploads, Partyline). A client determines which case applies from the directory
 entry type (§7); a text frame is the default and is what this section describes.
