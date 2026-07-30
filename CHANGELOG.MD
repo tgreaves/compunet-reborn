@@ -1,4 +1,4 @@
-# 1.2.2 (unreleased)
+# 1.3.0 (unreleased)
 
 * C64 client:
 	* Fixed: client banner now correctly shows the version it was built from.

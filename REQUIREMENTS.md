@@ -112,7 +112,7 @@ against it, because uploads and mail would write into it.)
 ⚠ **`./server.sh` does not work on Windows.** It selects `venv/bin/python3`, which a Windows venv
 does not have (`venv/Scripts/python.exe`), falls back to `python3` — the Store stub above — and
 the server dies at once. It now reports that correctly (`Server failed to start`, followed by the
-tail of `server/logs/compunet-server.log`, and no PID file); until 1.2.2 it printed
+tail of `server/logs/compunet-server.log`, and no PID file); until 1.3.0 it printed
 `Server started (PID …)` regardless, because it backgrounded the process and recorded the PID
 without checking it survived. `./server.sh status` still fails separately on `pgrep`, which Git
 Bash does not provide. On Windows, run the server directly and check the ports:
