@@ -1,23 +1,27 @@
 # A native Amiga client
 
-Compunet shipped an Amiga client in 1989. That original binary has been recovered,
-reverse-engineered and reconstructed — and it now connects to Compunet Reborn over TCP/IP.
+Hi everyone,
 
-It is the real thing rather than a lookalike: the recovered code was mapped function by function,
-its OS calls resolved, and its PETSCII frame handling decoded, before being reconstructed as
-recompilable C. Only the transport was changed. Where it used to drive a modem through
-`cnet.device`, it now speaks to us over a bsdsocket TCP/IP stack.
+Most of you will remember Compunet from the C64 perspective and all its glorious PETSCII glory.
 
-Everything the C64 client offers is there — directories and the duckshoot, frames, mail,
-telesoftware, Partyline — because it speaks exactly the same protocol.
+There was also a client for the Amiga. I'd been trying to track it down for AGES but failed.
+Aminet? Nope. Web searches? Nope. Linked on any forum threads about Compunet? Nope. I assumed it
+was lost forever.
 
-## What you need
+**MW20 to the rescue**: He found the client on a 17-Bit Software Public Domain disc!
 
-- Workbench / Kickstart **2.1 or higher**
-- A bsdsocket TCP/IP stack: Roadshow, AmiTCP, Miami and others all work
-- A real Amiga or an emulator
+As with the C64 client, this had a hard requirement on a real modem. I have disassembled it,
+converted it back to C, and added TCP/IP support. This means that if you have an Amiga with a
+TCP/IP stack (Kickstart 2.04+) you can connect to Compunet Reborn.
 
-Download `compunet-reborn-amiga.lha` from the
-[Connect](/connect) page, un-archive it, and double-click the **Compunet** icon. The bundled
-`TCPHOST` file already points at the live service, so there is nothing to configure unless you
-are connecting somewhere else.
+The Amiga client was released in the days of the Workbench 1.3, so it has a very dated look by
+Amiga standards (no modern GUI elements). It also relies on Amiga-style fonts for PETSCII
+rendering so everything is vertically stretched. All of that is authentic to the Amiga original!
+
+The client can be found on the Compunet Reborn web site and, of course, on Aminet!
+
+Enjoy,
+
+Tristan // ADMIN
+
+https://compunet.live/
