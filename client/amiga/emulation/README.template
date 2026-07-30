@@ -17,9 +17,11 @@ REGISTRATION (required)
       https://compunet.live/
 
 REQUIREMENTS
-  * An Amiga running Workbench / Kickstart 2.1 or higher.
   * A TCP/IP stack that provides bsdsocket.library (AmiTCP, Roadshow, Miami, ...),
-    installed and online.
+    installed and online. These require Kickstart 2.04 or higher, which is what
+    sets the floor.
+  * The client itself runs on Kickstart 1.3 or higher, as the 1989 original did.
+    Without a stack it keeps its offline UI rather than refusing to start.
 
 SETUP
   * Edit the "TCPHOST" file to point at the server. Format:  host  or  host:port

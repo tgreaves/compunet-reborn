@@ -8,7 +8,7 @@ A recreation of the Compunet online service for the Commodore 64, faithfully pre
 
 Users connected via a custom 1200/75 baud modem (the "brick") that plugged into the C64's cartridge port. The modem contained an 8K ROM that bootstrapped the system — the full terminal software was downloaded from the server during each session ("LINKING"), or cached locally via the CNSAVE command.
 
-Compunet also shipped a native **Amiga** client in 1989. That original binary has been recovered and reverse-engineered, reconstructed as recompilable C (vbcc), and re-pointed from its modem/`cnet.device` transport to native TCP/IP — so a real or emulated Amiga running Workbench/Kickstart 2.1+ can connect to Compunet Reborn today. See [Connection Methods](#connection-methods) and [docs/amiga-client.md](docs/amiga-client.md).
+Compunet also shipped a native **Amiga** client in 1989. That original binary has been recovered and reverse-engineered, reconstructed as recompilable C (vbcc), and re-pointed from its modem/`cnet.device` transport to native TCP/IP — so a real or emulated Amiga running Kickstart 2.04 or later can connect to Compunet Reborn today. See [Connection Methods](#connection-methods) and [docs/amiga-client.md](docs/amiga-client.md).
 
 ## Live Service
 
@@ -39,7 +39,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 |--------|------|-------------|
 | **C64 Client (CRT)** | 6400 | 8K cartridge — attach and boot. Recommended for VICE / C64 Ultimate. |
 | **C64 Client (PRG)** | 6400 | LOAD + RUN. For real hardware with SwiftLink. |
-| **Amiga Client** | 6400 | Native Amiga client (LHA download). Needs Workbench/Kickstart 2.1+ and a bsdsocket TCP/IP stack. |
+| **Amiga Client** | 6400 | Native Amiga client (LHA download). Needs a bsdsocket TCP/IP stack, so Kickstart 2.04+. |
 | **PETSCII Terminal** | 6401 | Server-rendered. Works with SyncTerm, CCGMS, StrikeTerm, UltimateTerm. |
 | **Web / Desktop client** | 6404 | Modern client over the JSON API (Binding B). Runs in a browser or as an Electron desktop app. |
 
@@ -85,7 +85,13 @@ Connect with SyncTerm or any PETSCII terminal:
 4. Double-click the **Compunet** icon (or run it from a Shell)
 5. Login with your registered account
 
-Requires Workbench / Kickstart 2.1 or higher. The bundled `TCPHOST` file is preset to `vme.compunet.live:6400` — edit it only to point at a different server.
+The client itself runs on **Kickstart 1.3** or later — it is built against the 1.3 NDK, as the
+1989 original was, and without a TCP/IP stack it simply keeps its offline UI. To go online you
+need a **bsdsocket TCP/IP stack** (Roadshow, AmiTCP, Miami), and those require **Kickstart 2.04 or
+later** — that, not the client, is what sets the floor.
+
+The bundled `TCPHOST` file is preset to `vme.compunet.live:6400` — edit it only to point at a
+different server.
 
 ## Docker Deployment
 
@@ -299,7 +305,10 @@ Historical SEQ file sources:
   including the service's own `INDEX` page, transcribed to
   [historical/original-keywords.txt](historical/original-keywords.txt))
 
-Thanks to Mark Wilson for providing the Welcome screen, music, and other historical frames.
+Thanks to Mark Wilson (MW20) for finding the original 1989 **Amiga client** — on 17-Bit
+Software's "Comms Disc III", after it had failed to turn up on Aminet, in forum threads or
+anywhere else and was assumed lost — and for providing the Welcome screen, music, and other
+historical frames.
 
 Thanks to Richard Hawkins (RH18 FROODLE) for helping source some of these files.
 

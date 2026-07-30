@@ -31,9 +31,11 @@ Features:
   * LIFE / VOTE / user catalogue
 
 Requirements:
-  * Workbench / Kickstart 2.1 or higher
   * A TCP/IP stack providing bsdsocket.library (Roadshow, AmiTCP, Miami, ...),
-    installed and online
+    installed and online - these need Kickstart 2.04 or higher, which is what
+    sets the floor
+  * The client itself runs on Kickstart 1.3 or higher, as the 1989 original did;
+    with no stack it keeps its offline UI
   * A free Compunet Reborn account - register at https://compunet.live/
 
 Usage:
