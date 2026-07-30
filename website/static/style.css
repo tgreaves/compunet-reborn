@@ -401,7 +401,93 @@ pre {
     margin-bottom: 0;
 }
 
+/* A page that needs more than the site's reading width. Only DIRECTORIES uses
+   this — a 640px frame beside the tree does not fit in 860px. */
+.content-wide {
+    max-width: 1500px;
+}
+
 /* Directory hierarchy (#121) */
+.tree-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 672px;
+    gap: 32px;
+    align-items: start;
+}
+
+.frame-pane {
+    position: sticky;
+    top: 24px;
+    /* Tall pages run to several frames; keep the pane on screen and scroll
+       inside it rather than dragging the tree away. */
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    border-left: 2px solid var(--c64-surface-light);
+    padding-left: 24px;
+}
+
+/* Only ever one panel here, fetched when asked for, so nothing hides anything.
+   An earlier version rendered every panel and revealed one with `:target`; that
+   is gone, and so is the `display: none` that went with it — leaving it in made
+   the injected panel invisible and its frames 0x0, which meant the backgrounds
+   were never even requested. */
+.frame-panel {
+    display: block;
+}
+
+.frame-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+}
+
+.frame-panel-head h2 {
+    margin: 0;
+}
+
+.frame-close {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+}
+
+/* A rendered frame. A CSS background rather than an <img> so a panel that is not
+   on screen costs nothing: a browser does not fetch the background of an element
+   it is not painting, and fetches it the moment one appears.
+
+   ⚠ The size must be stated here. Without it the div is 0x0, nothing paints, and
+   the background is therefore never requested — an entirely blank panel with no
+   error anywhere. */
+.frame-shot {
+    width: 640px;
+    max-width: 100%;
+    aspect-ratio: 640 / 384;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    border: 2px solid var(--c64-surface-light);
+    image-rendering: pixelated;
+    margin-bottom: 16px;
+}
+
+/* Below the width where a 640px frame can sit beside anything, stack them: the
+   panel appears under the tree instead of beside it. */
+@media (max-width: 1200px) {
+    .tree-layout {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .frame-pane {
+        position: static;
+        max-height: none;
+        overflow-y: visible;
+        border-left: none;
+        border-top: 2px solid var(--c64-surface-light);
+        padding-left: 0;
+        padding-top: 20px;
+    }
+}
+
 .tree,
 .tree ul {
     list-style: none;

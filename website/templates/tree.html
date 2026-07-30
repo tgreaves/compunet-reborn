@@ -1,29 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Directories — Compunet Reborn{% endblock %}
+{% block content_class %}content-wide{% endblock %}
 
 {#
-  One macro, recursive, so the whole hierarchy is rendered server-side with no
-  JavaScript — the site has none, and a tree does not need any. <details> gives
-  expand and collapse for free, and keeps working with a keyboard and a screen
-  reader.
+  Rows only. Neither the frame panels nor the edit controls are rendered here —
+  they are fetched per entry when someone asks for one.
 
-  Forms live OUTSIDE <summary>: a form inside a summary element is not reliably
-  operable, and nesting interactive controls in a disclosure's own label is how
-  you end up with a button that toggles the section instead of submitting.
+  ⚠ That is a scaling fix, measured rather than assumed. Rendered inline for every
+  entry, the edit controls came to 61% of a 183 KB page on a 30-entry fixture, and
+  the move <select> inside each made the markup O(n^2) because every entry listed
+  every eligible destination. Production carries 386 entries.
+
+  Recursive macro, <details> for expand and collapse: still no client-side
+  rendering, and the tree itself works with scripting off.
 #}
 {% macro entry(node) %}
 <li class="tree-entry{% if not node.editable %} tree-locked{% endif %}">
     {% if node.is_directory and node.children %}
     <details open>
         <summary>{{ row(node) }}</summary>
-        {{ actions(node) }}
         <ul>
             {% for child in node.children %}{{ entry(child) }}{% endfor %}
         </ul>
     </details>
     {% else %}
     {{ row(node) }}
-    {{ actions(node) }}
     {% endif %}
 </li>
 {% endmacro %}
@@ -35,8 +36,19 @@
     <span class="tree-kind">{{ kind(node) }}</span>
     <span class="tree-author">{{ node.author }}</span>
     <span class="tree-actions">
+        {#
+          Real links, both of them. With scripting off they navigate and still
+          work — VIEW to the page's own screen, CHANGE to this page with that
+          entry's controls opened. The script below intercepts them and fills the
+          panel in place instead, so the tree never moves.
+        #}
         {% if node.viewable %}
-        <a href="{{ url_for('view_page', page_num=node.page_num) }}">VIEW</a>
+        <a href="{{ url_for('view_page', page_num=node.page_num) }}"
+           data-view="{{ node.page_num }}">VIEW</a>
+        {% endif %}
+        {% if node.may_edit %}
+        <a href="{{ url_for('directories') }}?edit={{ node.page_num }}#edit-{{ node.page_num }}"
+           data-edit="{{ node.page_num }}">CHANGE</a>
         {% endif %}
         {% if node.is_directory and node.may_edit %}
         <a href="{{ url_for('directory_settings') }}">HEADER</a>
@@ -46,73 +58,11 @@
         {% endif %}
     </span>
 </span>
-{% endmacro %}
-
-{% macro actions(node) %}
-{% if node.may_edit %}
-<details class="tree-edit">
-    <summary>CHANGE</summary>
-    <div class="tree-edit-body">
-        <form method="POST"
-              action="{{ url_for('rename_page', page_num=node.page_num) }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <label for="t{{ node.page_num }}">TITLE</label>
-            <input type="text" id="t{{ node.page_num }}" name="title"
-                   value="{{ node.title }}" maxlength="{{ max_title }}" required>
-            <button type="submit">RENAME</button>
-            <p class="hint">Up to {{ max_title }} characters. This also renames the
-            folder the entry's files live in.</p>
-        </form>
-
-        {% if node.sibling_count and node.sibling_count > 1 %}
-        <form method="POST"
-              action="{{ url_for('reorder_page', page_num=node.page_num) }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <label for="p{{ node.page_num }}">POSITION IN LISTING</label>
-            <select id="p{{ node.page_num }}" name="index">
-                {% for i in range(node.sibling_count) %}
-                <option value="{{ i }}"
-                    {%- if i == node.position %} selected{% endif %}>{{ i + 1 }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit">REORDER</button>
-            <p class="hint">The order entries appear in on the C64, top to bottom.</p>
-        </form>
-        {% endif %}
-
-        {% set targets = move_targets.get(node.page_num) %}
-        {% if targets %}
-        <form method="POST"
-              action="{{ url_for('move_page', page_num=node.page_num) }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <label for="m{{ node.page_num }}">MOVE INTO</label>
-            <select id="m{{ node.page_num }}" name="dest_page_num">
-                {% for t in targets %}
-                <option value="{{ t.page_num }}">{{ t.page_num }} {{ t.label }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit">MOVE</button>
-            <p class="hint">Only directories you can add to are listed, and only
-            ones with room. The entry keeps its page number, so
-            <code>GOTO {{ node.page_num }}</code> still finds it.</p>
-        </form>
-        {% elif node.may_edit %}
-        <p class="hint">Nowhere to move this to — no other directory you can add to
-        has room for it.</p>
-        {% endif %}
-
-        {# Its own form, and it leads to a confirmation page rather than acting.
-           In a list of near-identical rows the realistic mistake is pressing the
-           control on the wrong one. #}
-        <form method="POST"
-              action="{{ url_for('delete_page', page_num=node.page_num) }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button type="submit" class="danger">DELETE&hellip;</button>
-            <p class="hint">Asks you to confirm first. The files are archived on the
-            server, but only an operator can bring them back.</p>
-        </form>
-    </div>
-</details>
+{% if edit_node and edit_node.page_num == node.page_num %}
+{# The no-script path: the server rendered this one entry's controls inline. #}
+<div class="tree-edit-body" id="edit-{{ node.page_num }}">
+    {% include '_controls.html' %}
+</div>
 {% endif %}
 {% endmacro %}
 
@@ -137,18 +87,32 @@ change has a CHANGE control; everything else is here to browse.</p>
 {% if duplicates %}
 <div class="info-box">
     <h3>⚠ DUPLICATE PAGE NUMBERS</h3>
-    <p>More than one entry is using
+    <p>{{ duplicates|length }} page number{% if duplicates|length != 1 %}s are{% else %} is{% endif %}
+    used by more than one entry:
     {% for n in duplicates %}<strong>{{ n }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}.
-    A page number is how the service identifies an entry — <code>GOTO</code> reaches
-    only one of them, and those entries cannot be changed from here until one is
-    renumbered.</p>
+    A page number is how the service identifies an entry, so <code>GOTO</code> reaches
+    only one of each pair and the other cannot be found by number at all. Those
+    entries cannot be changed from here until one of each pair is renumbered.</p>
 </div>
 {% endif %}
 
-<ul class="tree">
-    {{ entry(tree) }}
-</ul>
+<div class="tree-layout">
+    <div class="tree-main">
+        <ul class="tree">
+            {{ entry(tree) }}
+        </ul>
 
-<p><a href="{{ url_for('directory_settings') }}">HEADER FRAMES AND SETTINGS</a>
-&middot; <a href="{{ url_for('account') }}">BACK TO ACCOUNT</a></p>
+        <p><a href="{{ url_for('directory_settings') }}">HEADER FRAMES AND SETTINGS</a>
+        &middot; <a href="{{ url_for('account') }}">BACK TO ACCOUNT</a></p>
+    </div>
+
+    <aside class="frame-pane" aria-label="Page contents" aria-live="polite">
+        <p class="frame-pane-idle hint">Choose VIEW beside any text page to read it
+        here.</p>
+    </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='tree.js') }}" defer></script>
 {% endblock %}

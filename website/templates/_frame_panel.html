@@ -1,0 +1,24 @@
+{#
+  The frame viewer for one page, as a fragment.
+
+  Fetched when someone clicks VIEW, so the tree page carries none of this. The
+  frames are CSS backgrounds rather than <img> for the same reason as before: a
+  hidden element's background is not fetched, so a panel that is swapped out costs
+  nothing. role="img" + aria-label carries what alt text would.
+#}
+<div class="frame-panel" id="view-{{ node.page_num }}">
+    <div class="frame-panel-head">
+        <h2>{{ node.page_num }} {{ node.title }}</h2>
+        <a href="#" class="frame-close" data-close>CLOSE</a>
+    </div>
+    <p class="hint">By {{ node.author }} &middot;
+    {{ node.frame_count }} frame{% if node.frame_count != 1 %}s{% endif %} &middot;
+    <a href="{{ url_for('view_page', page_num=node.page_num) }}">open on its own page</a></p>
+
+    {% for index in range(node.frame_count) %}
+    {% if node.frame_count > 1 %}<p class="hint">FRAME {{ index + 1 }}</p>{% endif %}
+    <div class="frame-shot" role="img"
+         aria-label="Frame {{ index + 1 }} of {{ node.title }}, as the C64 draws it"
+         style="background-image: url('{{ url_for('page_frame_png', page_num=node.page_num, index=index) }}')"></div>
+    {% endfor %}
+</div>

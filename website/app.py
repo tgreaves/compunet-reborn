@@ -671,10 +671,29 @@ def directories():
     if data is None:
         flash('Could not reach the Compunet server.', 'error')
         return redirect(url_for('account'))
+    # ⚠ Rows only. Frame panels and edit controls are fetched per entry when
+    # someone asks for them (see the two fragment routes below). Rendering them
+    # for every entry made the page grow with the tree: measured on a 30-page
+    # fixture the controls alone were 61% of 183 KB, and the live tree has 269
+    # pages.
+    # ?edit=<n> is the no-script path for CHANGE: the server renders that one
+    # entry's controls inline. With the script running, the same link is
+    # intercepted and the fragment is fetched instead, so the tree never moves.
+    edit_node = targets = None
+    try:
+        edit_num = int(request.args.get('edit', ''))
+    except ValueError:
+        edit_num = None
+    if edit_num is not None:
+        candidate = _find_node(data['tree'], edit_num)
+        if candidate is not None and candidate.get('may_edit'):
+            edit_node = candidate
+            targets = _move_targets_for(data['tree'], edit_num)
+
     return render_template('tree.html', tree=data['tree'],
                            duplicates=data.get('duplicate_page_numbers') or [],
-                           max_title=MAX_TITLE,
-                           move_targets=_move_targets(data['tree']))
+                           edit_node=edit_node, node=edit_node,
+                           targets=targets, max_title=MAX_TITLE)
 
 
 @app.route('/pages/<int:page_num>')
@@ -696,6 +715,39 @@ def view_page(page_num):
     return render_template('page_frames.html', node=node)
 
 
+#: Fragment routes. Both return a piece of HTML rather than a page, so the tree
+#: can fill in a panel without reloading. Server-rendered from the same macros the
+#: page uses — there is no templating on the client, and no JSON to keep in step.
+#:
+#: ⚠ Each degrades to something that works with scripting off: VIEW is a real link
+#: to /pages/<n>, and CHANGE is a real link to /directories?edit=<n>.
+
+@app.route('/pages/<int:page_num>/panel')
+def page_panel(page_num):
+    """The frame viewer for one page."""
+    if 'user_id' not in session:
+        return '', 403
+    data = _tree_for_session()
+    node = _find_node(data['tree'], page_num) if data else None
+    if node is None or not node.get('viewable'):
+        return '', 404
+    return render_template('_frame_panel.html', node=node)
+
+
+@app.route('/pages/<int:page_num>/controls')
+def page_controls(page_num):
+    """The rename / reorder / move / delete controls for one entry."""
+    if 'user_id' not in session:
+        return '', 403
+    data = _tree_for_session()
+    node = _find_node(data['tree'], page_num) if data else None
+    if node is None or not node.get('may_edit'):
+        return '', 404
+    return render_template('_controls.html', node=node,
+                           max_title=MAX_TITLE,
+                           targets=_move_targets_for(data['tree'], page_num))
+
+
 @app.route('/pages/<int:page_num>/frame/<int:index>.png')
 def page_frame_png(page_num, index):
     """Proxy one rendered frame. See directory_header_png for why it is proxied."""
@@ -709,17 +761,19 @@ def page_frame_png(page_num, index):
                     headers={'Cache-Control': 'no-cache, must-revalidate'})
 
 
-def _move_targets(tree):
-    """Where each entry could be moved to: {page_num: [{page_num, label}, ...]}.
+def _move_targets_for(tree, page_num):
+    """Where ONE entry could be moved to: [{page_num, label}, ...].
 
-    Worked out here rather than in the template because the exclusions need the
-    shape of the tree, and a select that offers a destination the server will
-    refuse is worse than one that offers fewer. The server still checks every one
-    of these — this only decides what to show.
+    ⚠ Computed for a single node, on demand. The previous version built this for
+    every node in the tree at once, which is O(n^2) — each of n entries carrying a
+    select listing up to n destinations. On the live tree (269 pages) that was the
+    single largest thing on the page. Now it is fetched when someone opens the
+    controls for one entry.
 
-    Excluded per entry: itself and everything beneath it (a directory cannot be
-    moved inside itself), the directory it is already in, any directory already
-    holding its 11 entries, and any the user may not add to.
+    Excluded: itself and everything beneath it (a directory cannot be moved inside
+    itself), the directory it is already in, any directory already holding its 11
+    entries, and any the user may not add to. The server re-checks all of it —
+    this only decides what to offer.
     """
     directories, parent_of, subtree = [], {}, {}
 
@@ -741,21 +795,12 @@ def _move_targets(tree):
         return below
 
     index(tree, 0, None)
-
-    eligible = [d for d in directories if d['may_add'] and not d['full']]
-    targets = {}
-
-    def walk(node):
-        num = node['page_num']
-        if node.get('editable') and node.get('may_edit'):
-            targets[num] = [d for d in eligible
-                            if d['page_num'] not in subtree[num]
-                            and d['page_num'] != parent_of[num]]
-        for child in node.get('children', []):
-            walk(child)
-
-    walk(tree)
-    return targets
+    if page_num not in subtree:
+        return []
+    return [d for d in directories
+            if d['may_add'] and not d['full']
+            and d['page_num'] not in subtree[page_num]
+            and d['page_num'] != parent_of[page_num]]
 
 
 @app.route('/pages/<int:page_num>/move', methods=['POST'])

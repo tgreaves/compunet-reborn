@@ -1,0 +1,57 @@
+{#
+  Rename / reorder / move / delete for ONE entry, as a fragment.
+
+  ⚠ Fetched on demand, and that is a scaling fix rather than a nicety. Rendered
+  for every entry these were 61% of the directory page — 3.2 KB each, and the move
+  <select> made it O(n^2), since every entry listed every eligible destination.
+  Production carries 386 entries.
+#}
+<form method="POST" action="{{ url_for('rename_page', page_num=node.page_num) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label for="t{{ node.page_num }}">TITLE</label>
+    <input type="text" id="t{{ node.page_num }}" name="title"
+           value="{{ node.title }}" maxlength="{{ max_title }}" required>
+    <button type="submit">RENAME</button>
+    <p class="hint">Up to {{ max_title }} characters. This also renames the folder
+    the entry's files live in.</p>
+</form>
+
+{% if node.sibling_count and node.sibling_count > 1 %}
+<form method="POST" action="{{ url_for('reorder_page', page_num=node.page_num) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label for="p{{ node.page_num }}">POSITION IN LISTING</label>
+    <select id="p{{ node.page_num }}" name="index">
+        {% for i in range(node.sibling_count) %}
+        <option value="{{ i }}"{% if i == node.position %} selected{% endif %}>{{ i + 1 }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">REORDER</button>
+    <p class="hint">The order entries appear in on the C64, top to bottom.</p>
+</form>
+{% endif %}
+
+{% if targets %}
+<form method="POST" action="{{ url_for('move_page', page_num=node.page_num) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label for="m{{ node.page_num }}">MOVE INTO</label>
+    <select id="m{{ node.page_num }}" name="dest_page_num">
+        {% for t in targets %}
+        <option value="{{ t.page_num }}">{{ t.page_num }} {{ t.label }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">MOVE</button>
+    <p class="hint">Only directories you can add to are listed, and only ones with
+    room. The entry keeps its page number, so <code>GOTO {{ node.page_num }}</code>
+    still finds it.</p>
+</form>
+{% else %}
+<p class="hint">Nowhere to move this to — no other directory you can add to has room
+for it.</p>
+{% endif %}
+
+<form method="POST" action="{{ url_for('delete_page', page_num=node.page_num) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button type="submit" class="danger">DELETE&hellip;</button>
+    <p class="hint">Asks you to confirm first. The files are archived on the server,
+    but only an operator can bring them back.</p>
+</form>
