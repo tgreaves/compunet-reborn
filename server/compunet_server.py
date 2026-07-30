@@ -37,6 +37,7 @@ import re
 import glob
 import logging
 import secrets
+import shutil
 import datetime
 from pathlib import Path
 import markdown
@@ -666,6 +667,156 @@ def save_directory_tree(root_page, root_dir):
                 walk(child)
 
     walk(root_page)
+
+
+#: Longest title an entry may carry — the same limit uploads apply (§7.3 gives the
+#: title field 17 columns; the upload path truncates to 16).
+MAX_TITLE = 16
+
+
+class RelocateError(Exception):
+    """A move or rename that must not proceed, with a reason for the user."""
+
+
+def _subtree(page):
+    """This page and every descendant, parents before children."""
+    out = [page]
+    for child in page.children:
+        out.extend(_subtree(child))
+    return out
+
+
+def _rehome_header(page, old_root, new_root, root_dir):
+    """Fix a directory's header path after its folder has moved.
+
+    ⚠ The one thing about a move that breaks silently. A header is stored as a
+    path relative to ROOT_DIR (`jungle/the-zoo/header.seq`, #120), not relative to
+    the directory that owns it — so once the folder moves, the stored path points
+    at nothing and the header simply stops appearing, in every binding, with no
+    error anywhere.
+
+    Only headers that live INSIDE the moved folder are rewritten. A directory
+    whose header points somewhere else entirely — the root's own `header.seq`, say
+    — still resolves, because that file did not move.
+    """
+    header = getattr(page, 'header', None)
+    if not header:
+        return
+    absolute = os.path.normpath(os.path.join(root_dir, header))
+    old_root = os.path.normpath(old_root)
+    if not (absolute == old_root or absolute.startswith(old_root + os.sep)):
+        return                      # outside the moved folder; still valid
+    moved = os.path.join(new_root, os.path.relpath(absolute, old_root))
+    page.header = os.path.relpath(moved, root_dir).replace(os.sep, '/')
+
+
+def relocate_page(directory, page, root_dir, new_parent=None, new_title=None):
+    """Move a page to another directory, rename it, or both.
+
+    ⚠ ONE function for both, because they are one operation on disk: a page's
+    folder is named from its title and sits under its parent
+    (`<parent>/<slug(title)>`), so changing either moves the folder. Implementing
+    them separately would mean two chances to forget the descendants, the header
+    paths, or the collision check.
+
+    Returns the set of directories whose JSON now needs writing. The caller saves
+    them, because only it knows whether anything else changed too.
+
+    Raises RelocateError with a reason the user can act on.
+    """
+    parent = new_parent if new_parent is not None else page.parent
+    if parent is None:
+        raise RelocateError('the root directory cannot be moved or renamed')
+
+    title = (new_title if new_title is not None else page.title).strip()[:MAX_TITLE]
+    if not title:
+        raise RelocateError('a title cannot be empty')
+    slug = CompunetDirectory._make_slug(title)
+
+    old_parent = page.parent
+    moving = parent is not old_parent
+
+    # ⚠ A directory cannot be moved inside itself: the folder would be moved into
+    # its own child, and the subtree would be unreachable from the root while
+    # still existing on disk.
+    if moving and parent in _subtree(page):
+        raise RelocateError('a directory cannot be moved into itself')
+
+    # Two entries in one directory cannot share a folder, and the folder name
+    # comes from the title — so this is a real constraint, not a nicety.
+    for sibling in parent.children:
+        if sibling is page:
+            continue
+        if CompunetDirectory._make_slug(sibling.title) == slug:
+            raise RelocateError(
+                '"%s" already holds an entry that would use the same folder '
+                'as "%s"' % (parent.title, title))
+
+    if moving and len(parent.children) >= 11:
+        raise RelocateError('"%s" is full (11 entries maximum)' % parent.title)
+
+    old_dir = getattr(page, '_dir_path', '')
+    new_dir = os.path.join(getattr(parent, '_dir_path', ''), slug)
+
+    if os.path.normpath(old_dir) != os.path.normpath(new_dir):
+        if os.path.exists(new_dir):
+            raise RelocateError(
+                'there is already something at %s'
+                % os.path.relpath(new_dir, root_dir).replace(os.sep, '/'))
+        if os.path.exists(old_dir):
+            os.makedirs(os.path.dirname(new_dir), exist_ok=True)
+            # Carries the frames and the whole subtree beneath in one operation.
+            shutil.move(old_dir, new_dir)
+
+    # --- in-memory tree ------------------------------------------------
+    if moving:
+        if page in old_parent.children:
+            old_parent.children.remove(page)
+        parent.children.append(page)
+        page.parent = parent
+    page.title = title
+
+    # Every descendant's folder is derived from the parent chain, so all of them
+    # move with it — and each carries its own header path to fix.
+    for node in _subtree(page):
+        if node is page:
+            node._dir_path = new_dir
+        else:
+            node._dir_path = os.path.join(
+                node.parent._dir_path,
+                CompunetDirectory._make_slug(node.title))
+        _rehome_header(node, old_dir, new_dir, root_dir)
+
+    # --- what needs saving ---------------------------------------------
+    #
+    # Both parents (their entry lists and the `directory` relpaths in them), and
+    # every directory inside the moved subtree, because the paths stored in those
+    # files — `header`, and each child's `directory` — are relative to ROOT_DIR
+    # and have all just changed.
+    affected = [parent]
+    if old_parent is not parent:
+        affected.append(old_parent)
+    for node in _subtree(page):
+        if node.children or os.path.exists(
+                os.path.join(getattr(node, '_dir_path', ''), 'directory.json')):
+            affected.append(node)
+    return affected
+
+
+def reorder_child(parent, page, index):
+    """Move `page` to position `index` among its siblings.
+
+    The listing order IS the JSON order — the client renders
+    `children[offset:offset+11]` — so this is the whole operation, and it touches
+    no files on disk.
+    """
+    if page not in parent.children:
+        raise RelocateError('"%s" is not in "%s"' % (page.title, parent.title))
+    if index < 0 or index >= len(parent.children):
+        raise RelocateError('position must be between 1 and %d'
+                            % len(parent.children))
+    parent.children.remove(page)
+    parent.children.insert(index, page)
 
 
 class CompunetSession:
@@ -4014,9 +4165,16 @@ def _api_tree_node(directory, page, user_id, user_data, duplicates=frozenset()):
         # May the user put something INTO this directory? Mirrors
         # _can_upload_here, including the inherited open_upload walk.
         node['may_add'] = _api_may_add_here(page, user_id, user_data)
-        node['children'] = [
+        children = [
             _api_tree_node(directory, child, user_id, user_data, duplicates)
             for child in page.children]
+        # Where each entry sits in the listing, and how many it shares it with —
+        # a reorder control cannot be drawn without both, and the server is the
+        # only side that knows the order is the JSON order.
+        for position, child in enumerate(children):
+            child['position'] = position
+            child['sibling_count'] = len(children)
+        node['children'] = children
     return node
 
 
@@ -4120,6 +4278,111 @@ async def api_page_frame_png(request):
     return aiohttp_web.Response(
         body=png, content_type='image/png',
         headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+def _api_resolve_editable(request, body):
+    """Find the page an edit names, and check the caller may change it.
+
+    Refuses a duplicated number rather than guessing: with two entries sharing it,
+    acting on "whichever loaded second" means the user asks to change one page and
+    a different one changes.
+    """
+    try:
+        page_num = int(request.match_info['page_num'])
+    except (KeyError, ValueError):
+        return None, aiohttp_web.json_response(
+            {'error': 'bad page number'}, status=400)
+    user_id = str(body.get('user') or '').upper()
+    if not user_id:
+        return None, aiohttp_web.json_response(
+            {'error': 'no user supplied'}, status=400)
+    users = _api_load_users()
+    if user_id not in users:
+        return None, aiohttp_web.json_response(
+            {'error': 'unknown user'}, status=404)
+
+    directory = CompunetDirectory()
+    page = directory.pages.get(page_num)
+    if page is None:
+        return None, aiohttp_web.json_response(
+            {'error': 'no such page'}, status=404)
+    editable, why_not = _api_is_editable(
+        directory, page, _api_duplicate_page_nums(directory))
+    if not editable:
+        return None, aiohttp_web.json_response(
+            {'error': 'that entry cannot be changed: %s' % why_not}, status=409)
+    if not _api_may_edit(page, user_id, users[user_id]):
+        return None, aiohttp_web.json_response(
+            {'error': 'you may not change that entry'}, status=403)
+    return (directory, page, user_id, users[user_id]), None
+
+
+async def api_rename_page(request):
+    """Change an entry's title — which also renames its folder."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_editable(request, body)
+    if err:
+        return err
+    directory, page, user_id, _user_data = resolved
+
+    was = page.title
+    try:
+        affected = relocate_page(directory, page, ROOT_DIR,
+                                 new_title=str(body.get('title', '')))
+    except RelocateError as exc:
+        return aiohttp_web.json_response({'error': str(exc)}, status=409)
+    except OSError as exc:
+        log.error('RENAME: %s', exc)
+        return aiohttp_web.json_response(
+            {'error': 'could not rename the files on disk'}, status=500)
+
+    for node in affected:
+        save_one_directory(node, ROOT_DIR)
+    audit_log('page_renamed', user=user_id, page=page.page_num,
+              title=page.title, was=was)
+    log.info('RENAME: %s renamed page %d "%s" -> "%s"',
+             user_id, page.page_num, was, page.title)
+    return aiohttp_web.json_response({'ok': True, 'title': page.title, 'was': was})
+
+
+async def api_reorder_page(request):
+    """Move an entry up or down the listing its directory shows."""
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return aiohttp_web.json_response({'error': 'invalid JSON'}, status=400)
+
+    resolved, err = _api_resolve_editable(request, body)
+    if err:
+        return err
+    directory, page, user_id, _user_data = resolved
+
+    parent = page.parent
+    if parent is None:
+        return aiohttp_web.json_response(
+            {'error': 'the root cannot be reordered'}, status=409)
+    try:
+        index = int(body.get('index'))
+    except (TypeError, ValueError):
+        return aiohttp_web.json_response({'error': 'bad position'}, status=400)
+
+    try:
+        reorder_child(parent, page, index)
+    except RelocateError as exc:
+        return aiohttp_web.json_response({'error': str(exc)}, status=409)
+
+    save_one_directory(parent, ROOT_DIR)
+    audit_log('page_reordered', user=user_id, page=page.page_num,
+              title=page.title, index=index)
+    return aiohttp_web.json_response({'ok': True, 'index': index})
 
 
 async def api_list_directories(request):
@@ -4344,6 +4607,8 @@ async def main():
         app.router.add_get('/api/audit', api_get_audit)
         app.router.add_post('/api/audit', api_post_audit)
         app.router.add_get('/api/tree', api_get_tree)
+        app.router.add_post('/api/pages/{page_num}/rename', api_rename_page)
+        app.router.add_post('/api/pages/{page_num}/reorder', api_reorder_page)
         app.router.add_get('/api/pages/{page_num}/frame/{index}.png',
                            api_page_frame_png)
         app.router.add_get('/api/directories', api_list_directories)

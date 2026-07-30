@@ -15,6 +15,12 @@
 	  the controls to change something appear only where you have permission.
 	  Header frames and the owner-only setting moved to their own page, linked
 	  from each directory you can configure.
+	* New: entries can be retitled and reordered from the DIRECTORIES page
+	  (#121), wherever you have permission. Reordering changes the order they
+	  appear in on the C64, top to bottom. Retitling also renames the folder the
+	  entry's files live in, so two entries in the same directory cannot be given
+	  titles that would collide — you are told which one is in the way rather than
+	  finding out later.
 	* New: a NEWS section (#35), listing what has changed on the service with a
 	  permanent link for each item and an index alongside for jumping between
 	  them. It opens with four: terminal support, the first stable release, the

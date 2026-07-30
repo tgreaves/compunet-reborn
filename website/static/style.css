@@ -474,6 +474,42 @@ pre {
     border-bottom: 1px dotted var(--c64-ink-soft);
 }
 
+.tree-edit {
+    margin: 2px 0 8px 24px;
+}
+
+.tree-edit > summary {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--c64-ink-soft);
+}
+
+.tree-edit-body {
+    border-left: 2px solid var(--c64-surface-light);
+    padding: 12px 0 4px 16px;
+    margin-top: 8px;
+}
+
+.tree-edit-body form {
+    margin-bottom: 16px;
+}
+
+.tree-edit-body label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+}
+
+.tree-edit-body input,
+.tree-edit-body select {
+    margin-right: 8px;
+}
+
+.tree-edit-body .hint {
+    margin-top: 4px;
+}
+
 /* Rendered page frames (#121) */
 .frame-view {
     margin-bottom: 24px;

@@ -555,6 +555,10 @@ def change_password():
 #: is refused before it is read into memory and base64'd.
 MAX_HEADER_BYTES = 512
 
+#: Longest entry title. The server enforces the same limit (compunet_server
+#: MAX_TITLE); repeated here only so the form can stop over-typing at the source.
+MAX_TITLE = 16
+
 
 def _directories_for_session():
     """Directories the signed-in user may configure, or None on failure."""
@@ -598,7 +602,8 @@ def directories():
         flash('Could not reach the Compunet server.', 'error')
         return redirect(url_for('account'))
     return render_template('tree.html', tree=data['tree'],
-                           duplicates=data.get('duplicate_page_numbers') or [])
+                           duplicates=data.get('duplicate_page_numbers') or [],
+                           max_title=MAX_TITLE)
 
 
 @app.route('/pages/<int:page_num>')
@@ -631,6 +636,40 @@ def page_frame_png(page_num, index):
         return '', resp.status_code
     return Response(resp.content, mimetype='image/png',
                     headers={'Cache-Control': 'no-cache, must-revalidate'})
+
+
+@app.route('/pages/<int:page_num>/rename', methods=['POST'])
+def rename_page(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    title = request.form.get('title', '')
+    resp = _api_post('/api/pages/%d/rename' % page_num,
+                     {'user': session['user_id'], 'title': title})
+    if resp.status_code == 200:
+        body = resp.json()
+        flash('Renamed "%s" to "%s".' % (body.get('was'), body.get('title')),
+              'success')
+    else:
+        flash(_api_error(resp, 'Could not rename that entry.'), 'error')
+    return redirect(url_for('directories'))
+
+
+@app.route('/pages/<int:page_num>/reorder', methods=['POST'])
+def reorder_page(page_num):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    try:
+        index = int(request.form.get('index', ''))
+    except ValueError:
+        flash('Choose a position.', 'error')
+        return redirect(url_for('directories'))
+    resp = _api_post('/api/pages/%d/reorder' % page_num,
+                     {'user': session['user_id'], 'index': index})
+    if resp.status_code == 200:
+        flash('Moved to position %d in the listing.' % (index + 1), 'success')
+    else:
+        flash(_api_error(resp, 'Could not reorder that entry.'), 'error')
+    return redirect(url_for('directories'))
 
 
 @app.route('/directories/settings')

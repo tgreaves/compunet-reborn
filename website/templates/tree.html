@@ -6,18 +6,24 @@
   JavaScript — the site has none, and a tree does not need any. <details> gives
   expand and collapse for free, and keeps working with a keyboard and a screen
   reader.
+
+  Forms live OUTSIDE <summary>: a form inside a summary element is not reliably
+  operable, and nesting interactive controls in a disclosure's own label is how
+  you end up with a button that toggles the section instead of submitting.
 #}
 {% macro entry(node) %}
 <li class="tree-entry{% if not node.editable %} tree-locked{% endif %}">
     {% if node.is_directory and node.children %}
     <details open>
         <summary>{{ row(node) }}</summary>
+        {{ actions(node) }}
         <ul>
             {% for child in node.children %}{{ entry(child) }}{% endfor %}
         </ul>
     </details>
     {% else %}
     {{ row(node) }}
+    {{ actions(node) }}
     {% endif %}
 </li>
 {% endmacro %}
@@ -33,13 +39,47 @@
         <a href="{{ url_for('view_page', page_num=node.page_num) }}">VIEW</a>
         {% endif %}
         {% if node.is_directory and node.may_edit %}
-        <a href="{{ url_for('directory_settings') }}#d{{ node.page_num }}">HEADER</a>
+        <a href="{{ url_for('directory_settings') }}">HEADER</a>
         {% endif %}
         {% if not node.editable %}
         <span class="tree-why" title="{{ node.not_editable_because }}">LOCKED</span>
         {% endif %}
     </span>
 </span>
+{% endmacro %}
+
+{% macro actions(node) %}
+{% if node.may_edit %}
+<details class="tree-edit">
+    <summary>CHANGE</summary>
+    <div class="tree-edit-body">
+        <form method="POST"
+              action="{{ url_for('rename_page', page_num=node.page_num) }}">
+            <label for="t{{ node.page_num }}">TITLE</label>
+            <input type="text" id="t{{ node.page_num }}" name="title"
+                   value="{{ node.title }}" maxlength="{{ max_title }}" required>
+            <button type="submit">RENAME</button>
+            <p class="hint">Up to {{ max_title }} characters. This also renames the
+            folder the entry's files live in.</p>
+        </form>
+
+        {% if node.sibling_count and node.sibling_count > 1 %}
+        <form method="POST"
+              action="{{ url_for('reorder_page', page_num=node.page_num) }}">
+            <label for="p{{ node.page_num }}">POSITION IN LISTING</label>
+            <select id="p{{ node.page_num }}" name="index">
+                {% for i in range(node.sibling_count) %}
+                <option value="{{ i }}"
+                    {%- if i == node.position %} selected{% endif %}>{{ i + 1 }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">MOVE</button>
+            <p class="hint">The order entries appear in on the C64, top to bottom.</p>
+        </form>
+        {% endif %}
+    </div>
+</details>
+{% endif %}
 {% endmacro %}
 
 {% macro kind(node) %}
@@ -58,7 +98,7 @@
 <h1>DIRECTORIES</h1>
 
 <p>The whole of Compunet, as the service sees it. Anything you have permission to
-change is marked; everything else is here to browse.</p>
+change has a CHANGE control; everything else is here to browse.</p>
 
 {% if duplicates %}
 <div class="info-box">
@@ -66,7 +106,7 @@ change is marked; everything else is here to browse.</p>
     <p>More than one entry is using
     {% for n in duplicates %}<strong>{{ n }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}.
     A page number is how the service identifies an entry — <code>GOTO</code> reaches
-    only one of them, and those entries cannot be edited from here until one is
+    only one of them, and those entries cannot be changed from here until one is
     renumbered.</p>
 </div>
 {% endif %}

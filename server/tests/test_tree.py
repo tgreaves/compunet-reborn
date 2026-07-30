@@ -175,6 +175,194 @@ class ADuplicatePageNumberIsRefused(unittest.TestCase):
         self.assertNotIn(d.next_page_num(), used)
 
 
+class RenamingMovesTheFolderToo(unittest.TestCase):
+    """A page's folder is named from its title (`<parent>/<slug(title)>`), so a
+    rename is a filesystem operation — which is why rename and move are one
+    function. These run against a temp copy of the fixture."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix='compunet-rename-')
+        shutil.copytree(os.path.join(_SERVER, 'data', 'content.test', 'root'),
+                        os.path.join(self._tmp, 'root'))
+        self._saved_root = srv.ROOT_DIR
+        srv.ROOT_DIR = os.path.join(self._tmp, 'root')
+        self.d = tree()
+
+    def tearDown(self):
+        import shutil
+        srv.ROOT_DIR = self._saved_root
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _rel(self, path):
+        return os.path.relpath(path, srv.ROOT_DIR).replace(os.sep, '/')
+
+    def _save(self, affected):
+        for node in affected:
+            srv.save_one_directory(node, srv.ROOT_DIR)
+
+    def test_the_folder_follows_the_title(self):
+        page = self.d.pages[ASH_AND_DAVE]
+        old_dir = page._dir_path
+        self.assertTrue(os.path.isdir(old_dir), 'fixture precondition')
+
+        self._save(srv.relocate_page(self.d, page, srv.ROOT_DIR,
+                                     new_title='ASH PLUS DAVE'))
+
+        self.assertFalse(os.path.exists(old_dir), 'the old folder is still there')
+        self.assertTrue(os.path.isdir(page._dir_path))
+        self.assertEqual('jungle/ash-plus-dave', self._rel(page._dir_path))
+
+    def test_a_renamed_directory_keeps_its_header(self):
+        """⚠ THE failure this rewrite exists to stop.
+
+        A header is stored as a path relative to ROOT_DIR (#120), not relative to
+        the directory that owns it. Rename the directory and the folder moves, so
+        the stored path points at nothing — and the header simply stops appearing,
+        in every binding, with nothing logged. Nothing else in the tree stores a
+        path like that, which is exactly why it is easy to miss.
+        """
+        page = self.d.pages[ASH_AND_DAVE]
+        self.assertEqual('jungle/ash-and-dave/header.seq', page.header,
+                         'fixture precondition')
+
+        self._save(srv.relocate_page(self.d, page, srv.ROOT_DIR,
+                                     new_title='ASH PLUS DAVE'))
+
+        self.assertEqual('jungle/ash-plus-dave/header.seq', page.header)
+        self.assertTrue(
+            os.path.exists(os.path.join(srv.ROOT_DIR, *page.header.split('/'))),
+            'the header path does not resolve to a file')
+
+        # And it survives a reload — the value was persisted, not just patched
+        # in memory.
+        reloaded = tree().pages[ASH_AND_DAVE]
+        self.assertEqual('jungle/ash-plus-dave/header.seq', reloaded.header)
+
+    def test_descendants_follow_and_stay_loadable(self):
+        page = self.d.pages[THE_ZOO]
+        before = {p.page_num for p in srv._subtree(page)}
+        self.assertGreater(len(before), 1, 'fixture precondition: ZOO has children')
+
+        self._save(srv.relocate_page(self.d, page, srv.ROOT_DIR,
+                                     new_title='THE ZOO ANNEX'))
+
+        reloaded = tree()
+        after = {p.page_num for p in srv._subtree(reloaded.pages[THE_ZOO])}
+        self.assertEqual(before, after,
+                         'the subtree did not survive the rename')
+        for node in srv._subtree(reloaded.pages[THE_ZOO]):
+            self.assertTrue(os.path.isdir(node._dir_path),
+                            '%s has no folder' % node.title)
+
+    def test_a_colliding_title_is_refused(self):
+        """Two entries in one directory cannot share a folder."""
+        jungle = self.d.pages[JUNGLE]
+        victim = self.d.pages[ASH_AND_DAVE]
+        other = next(c for c in jungle.children if c is not victim)
+        with self.assertRaises(srv.RelocateError) as caught:
+            srv.relocate_page(self.d, victim, srv.ROOT_DIR,
+                              new_title=other.title)
+        self.assertIn('same folder', str(caught.exception))
+
+    def test_an_empty_title_is_refused(self):
+        with self.assertRaises(srv.RelocateError):
+            srv.relocate_page(self.d, self.d.pages[ASH_AND_DAVE], srv.ROOT_DIR,
+                              new_title='   ')
+
+    def test_a_title_is_truncated_not_rejected(self):
+        page = self.d.pages[ASH_AND_DAVE]
+        srv.relocate_page(self.d, page, srv.ROOT_DIR,
+                          new_title='A' * 40)
+        self.assertEqual(srv.MAX_TITLE, len(page.title))
+
+    def test_the_root_cannot_be_renamed(self):
+        with self.assertRaises(srv.RelocateError):
+            srv.relocate_page(self.d, self.d.root, srv.ROOT_DIR, new_title='NOPE')
+
+    def test_renaming_touches_only_the_directories_involved(self):
+        """The Phase 2 rule still holds for a rename: everything it writes is
+        something it changed."""
+        def mtimes():
+            found = {}
+            for base, _dirs, files in os.walk(srv.ROOT_DIR):
+                for name in files:
+                    if name in ('directory.json', 'root.json'):
+                        p = os.path.join(base, name)
+                        found[p] = os.stat(p).st_mtime_ns
+            return found
+
+        before = mtimes()
+        page = self.d.pages[ASH_AND_DAVE]
+        self._save(srv.relocate_page(self.d, page, srv.ROOT_DIR,
+                                     new_title='ASH PLUS DAVE'))
+        touched = {p for p, t in mtimes().items() if before.get(p) != t}
+        # Its parent (the entry list) and its own JSON (moved, so its child
+        # `directory` paths changed). Not the root, not its siblings' subtrees.
+        allowed = {os.path.join(srv.ROOT_DIR, 'jungle', 'directory.json'),
+                   os.path.join(srv.ROOT_DIR, 'jungle', 'ash-plus-dave',
+                                'directory.json')}
+        self.assertFalse(touched - allowed,
+                         'rename rewrote unrelated directories: %s'
+                         % sorted(self._rel(p) for p in touched - allowed))
+
+
+class ReorderingChangesTheListing(unittest.TestCase):
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix='compunet-reorder-')
+        shutil.copytree(os.path.join(_SERVER, 'data', 'content.test', 'root'),
+                        os.path.join(self._tmp, 'root'))
+        self._saved_root = srv.ROOT_DIR
+        srv.ROOT_DIR = os.path.join(self._tmp, 'root')
+        self.d = tree()
+
+    def tearDown(self):
+        import shutil
+        srv.ROOT_DIR = self._saved_root
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_an_entry_moves_to_the_position_asked_for(self):
+        jungle = self.d.pages[JUNGLE]
+        last = jungle.children[-1]
+        srv.reorder_child(jungle, last, 0)
+        self.assertIs(last, jungle.children[0])
+
+    def test_the_new_order_survives_a_reload(self):
+        """The listing order IS the JSON order, so this is the whole feature."""
+        jungle = self.d.pages[JUNGLE]
+        last = jungle.children[-1]
+        srv.reorder_child(jungle, last, 0)
+        srv.save_one_directory(jungle, srv.ROOT_DIR)
+
+        reloaded = tree().pages[JUNGLE]
+        self.assertEqual(last.page_num, reloaded.children[0].page_num)
+
+    def test_nothing_is_lost_or_duplicated(self):
+        jungle = self.d.pages[JUNGLE]
+        before = [c.page_num for c in jungle.children]
+        srv.reorder_child(jungle, jungle.children[2], 0)
+        self.assertEqual(sorted(before),
+                         sorted(c.page_num for c in jungle.children))
+
+    def test_a_position_outside_the_listing_is_refused(self):
+        jungle = self.d.pages[JUNGLE]
+        for bad in (-1, len(jungle.children)):
+            with self.assertRaises(srv.RelocateError):
+                srv.reorder_child(jungle, jungle.children[0], bad)
+
+    def test_reordering_writes_no_files_on_disk(self):
+        """It changes one list. Nothing moves."""
+        jungle = self.d.pages[JUNGLE]
+        folders = sorted(d for d, _s, _f in os.walk(srv.ROOT_DIR))
+        srv.reorder_child(jungle, jungle.children[-1], 0)
+        srv.save_one_directory(jungle, srv.ROOT_DIR)
+        self.assertEqual(folders, sorted(d for d, _s, _f in os.walk(srv.ROOT_DIR)))
+
+
 class WhoMayEditWhat(unittest.TestCase):
 
     def setUp(self):
