@@ -6,6 +6,7 @@
 <p>Log in to manage your account settings.</p>
 
 <form method="POST">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <div class="form-group">
         <label for="user_id">USER ID</label>
         <input type="text" id="user_id" name="user_id" maxlength="8" value="{{ user_id|default('') }}" required>

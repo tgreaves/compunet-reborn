@@ -2,9 +2,11 @@
 
 import base64
 import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import time
 
 import requests
@@ -20,6 +22,27 @@ app.secret_key = config.get('WEBSITE_SECRET_KEY', 'dev-secret-change-me')
 # exceed 512 bytes. Cap the request body well below anything worth buffering so
 # an oversized or hostile POST is refused by Flask before a handler sees it.
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
+
+# ============================================================
+# Session cookie policy
+#
+# ⚠ Set explicitly rather than inherited. Browsers now default cookies to
+# SameSite=Lax, which does block a cross-site POST from carrying the session — so
+# the forms here were protected in practice by a default the site never stated.
+# Relying on that is not a control: it is invisible, it varies by browser, and
+# Lax deliberately still sends cookies on top-level GET navigation, which is why
+# the two admin routes that changed state on GET were genuinely exposed (they are
+# POST now).
+#
+# SECURE follows the scheme the site is actually published on. Hardcoding True
+# breaks a local checkout — the cookie is never sent over http://localhost, so
+# login silently fails and looks like a broken password. Hardcoding False ships a
+# session cookie that will travel in clear.
+# ============================================================
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SECURE'] = config.get(
+    'WEBSITE_BASE_URL', 'http://localhost:6464').strip().lower().startswith('https://')
 
 _version_file = os.path.join(os.path.dirname(__file__), 'VERSION')
 if not os.path.exists(_version_file):
@@ -37,7 +60,54 @@ CLIENT_URL = config.get('COMPUNET_CLIENT_URL', '').strip().rstrip('/')
 
 @app.context_processor
 def inject_version():
-    return {'version': APP_VERSION, 'client_url': CLIENT_URL}
+    return {'version': APP_VERSION, 'client_url': CLIENT_URL,
+            'csrf_token': _csrf_token}
+
+
+# ============================================================
+# CSRF
+#
+# A cross-site request forgery is a page on another site causing YOUR browser to
+# send a request here. The browser attaches the session cookie based on where the
+# request is going, not where it came from, so the server sees a properly
+# authenticated request and obeys — and the attacker never needs to read the
+# reply, because the damage is the side effect.
+#
+# The defence is a secret the other site cannot obtain: a token this site issues,
+# puts in its own forms, and checks on submission.
+#
+# ⚠ Checked centrally, in before_request, NOT per handler. This codebase has
+# already been bitten by the other approach: `_api_check_auth` is called by hand
+# at the top of every API handler, and the one that forgot it shipped unguarded
+# (see the ⚠ on POST /api/audit). A new form here cannot forget a check it does
+# not have to remember.
+# ============================================================
+
+def _csrf_token():
+    """The token for this session, minted on first use."""
+    token = session.get('_csrf')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['_csrf'] = token
+    return token
+
+
+@app.before_request
+def _check_csrf():
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return None
+    sent = request.form.get('_csrf') or request.headers.get('X-CSRF-Token', '')
+    expected = session.get('_csrf', '')
+    # compare_digest, not ==, so a wrong token cannot be discovered one character
+    # at a time from how long the comparison takes.
+    if not expected or not sent or not hmac.compare_digest(str(sent), str(expected)):
+        app.logger.warning('CSRF check failed for %s %s from %s',
+                           request.method, request.path, _client_ip())
+        flash('That form could not be submitted — it was probably left open too '
+              'long. Please try again.', 'error')
+        return redirect(url_for('account') if 'user_id' in session
+                        else url_for('login'))
+    return None
 
 USERID_RE = re.compile(r'^[A-Z0-9]{1,8}$')
 PASSWORD_RE = re.compile(r'^[A-Z0-9]{1,6}$')
@@ -491,7 +561,7 @@ def login():
     return redirect(url_for('account'))
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
     return redirect(url_for('home'))
@@ -998,7 +1068,7 @@ def admin_edit_user(user_id):
     return redirect(url_for('admin_edit_user', user_id=user_id))
 
 
-@app.route('/admin/pending/<token>/approve')
+@app.route('/admin/pending/<token>/approve', methods=['POST'])
 def admin_approve_pending(token):
     denied = _require_admin()
     if denied:
@@ -1027,7 +1097,7 @@ def admin_approve_pending(token):
     return redirect(url_for('admin_users'))
 
 
-@app.route('/admin/pending/<token>/delete')
+@app.route('/admin/pending/<token>/delete', methods=['POST'])
 def admin_delete_pending(token):
     denied = _require_admin()
     if denied:

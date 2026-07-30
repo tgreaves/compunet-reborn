@@ -8,6 +8,16 @@
 	* Fixed: client banner now correctly shows the version it was built from.
 	  Every release since 1.0.0 announced itself as `COMPUNET REBORN 1.0.0`.
 * Website:
+	* Fixed: another site could act on your behalf here. Because a browser attaches
+	  your sign-in cookie to any request arriving at this site — whoever caused it
+	  — a page elsewhere could quietly make your browser submit something here, and
+	  the site would carry it out as you. Every form now carries a token that only
+	  this site can issue, and anything without one is refused.
+	  Worst affected were APPROVE and DELETE on the pending-registrations page:
+	  those acted on a plain link, so an admin merely *following a link* from
+	  anywhere — or opening a page that loaded one as an image — approved or
+	  deleted a registration. Both, and signing out, are now buttons that act only
+	  when pressed here.
 	* New: the whole Compunet hierarchy is now browsable on the website (#121),
 	  under DIRECTORIES — every directory and entry, who wrote it, and what it
 	  holds, laid out as a tree you can expand and collapse. Any text page can be

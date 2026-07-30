@@ -24,6 +24,7 @@ allowance, the same as running its life down to zero from the C64.</p>
 {% endif %}
 
 <form method="POST" action="{{ url_for('delete_page', page_num=node.page_num) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="confirm" value="yes">
     <button type="submit">DELETE {{ node.title }}</button>
 </form>

@@ -55,6 +55,7 @@
     <div class="tree-edit-body">
         <form method="POST"
               action="{{ url_for('rename_page', page_num=node.page_num) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <label for="t{{ node.page_num }}">TITLE</label>
             <input type="text" id="t{{ node.page_num }}" name="title"
                    value="{{ node.title }}" maxlength="{{ max_title }}" required>
@@ -66,6 +67,7 @@
         {% if node.sibling_count and node.sibling_count > 1 %}
         <form method="POST"
               action="{{ url_for('reorder_page', page_num=node.page_num) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <label for="p{{ node.page_num }}">POSITION IN LISTING</label>
             <select id="p{{ node.page_num }}" name="index">
                 {% for i in range(node.sibling_count) %}
@@ -82,6 +84,7 @@
         {% if targets %}
         <form method="POST"
               action="{{ url_for('move_page', page_num=node.page_num) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <label for="m{{ node.page_num }}">MOVE INTO</label>
             <select id="m{{ node.page_num }}" name="dest_page_num">
                 {% for t in targets %}
@@ -103,6 +106,7 @@
            control on the wrong one. #}
         <form method="POST"
               action="{{ url_for('delete_page', page_num=node.page_num) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <button type="submit" class="danger">DELETE&hellip;</button>
             <p class="hint">Asks you to confirm first. The files are archived on the
             server, but only an operator can bring them back.</p>

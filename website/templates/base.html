@@ -22,7 +22,10 @@
                     {% if session.get('user_id') == 'ADMIN' %}
                         <a href="{{ url_for('admin_users') }}">ADMIN</a>
                     {% endif %}
-                    <a href="{{ url_for('logout') }}">LOGOUT</a>
+                    <form method="POST" action="{{ url_for('logout') }}" class="inline-form">
+                        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                        <button type="submit" class="as-link">LOGOUT</button>
+                    </form>
                 {% else %}
                     <a href="{{ url_for('register') }}">REGISTER</a>
                     <a href="{{ url_for('login') }}">LOGIN</a>

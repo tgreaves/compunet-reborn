@@ -510,6 +510,41 @@ pre {
     margin-top: 4px;
 }
 
+/* A button that has to sit where a link used to.
+   Approving a registration, deleting one, and logging out all changed state on a
+   GET, so they are POST forms now — but they still belong inline in a nav bar and
+   a table cell, and should read as they always did. */
+.inline-form {
+    display: inline;
+    margin: 0;
+}
+
+button.as-link {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: var(--c64-ink-soft);
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+}
+
+.nav-links button.as-link {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+button.as-link:hover {
+    color: var(--c64-red);
+    text-decoration: underline;
+}
+
+button.as-link.link-danger {
+    color: var(--c64-red);
+}
+
 /* Destructive actions read differently from the rest (#121). */
 button.danger {
     background-color: var(--c64-red);

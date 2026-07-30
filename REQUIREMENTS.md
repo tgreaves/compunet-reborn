@@ -45,8 +45,14 @@ cd website; python -m venv venv ; venv\Scripts\pip install -r requirements.txt
 Tests run under `unittest`; there is no pytest in this tree:
 
 ```bash
-cd server && python -m unittest discover -s tests -q
+cd server  && python -m unittest discover -s tests -q
+cd website && python -m unittest discover -s tests -q
 ```
+
+Each uses its own virtualenv — the website's tests import `app.py`, which needs
+Flask. Neither suite touches the network: the server's drives in-process objects
+against the tracked fixture tree, and the website's exercises only routes that are
+refused before their handler runs.
 
 ⚠ **On Windows, `python --version` does not tell you whether Python is installed.** Windows
 ships alias stubs at `%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe`, so with no interpreter

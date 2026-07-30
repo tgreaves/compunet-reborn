@@ -51,8 +51,20 @@
             <td>{{ entry.name }}</td>
             <td>{{ entry.email }}</td>
             <td>
-                <a href="{{ url_for('admin_approve_pending', token=entry.token) }}">APPROVE</a>
-                <a href="{{ url_for('admin_delete_pending', token=entry.token) }}" class="link-danger">DELETE</a>
+                {# Forms, not links. As links these approved or deleted a
+                   registration on a GET — which SameSite=Lax still permits on a
+                   top-level navigation, so following a link from anywhere, or
+                   loading a page with an <img> pointing here, did it. #}
+                <form method="POST" class="inline-form"
+                      action="{{ url_for('admin_approve_pending', token=entry.token) }}">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <button type="submit" class="as-link">APPROVE</button>
+                </form>
+                <form method="POST" class="inline-form"
+                      action="{{ url_for('admin_delete_pending', token=entry.token) }}">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <button type="submit" class="as-link link-danger">DELETE</button>
+                </form>
             </td>
         </tr>
         {% endfor %}

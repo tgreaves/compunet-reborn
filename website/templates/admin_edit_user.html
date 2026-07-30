@@ -11,6 +11,7 @@
 </div>
 
 <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <div class="form-group">
         <label for="name">NAME</label>
         <input type="text" id="name" name="name" value="{{ user.name }}">

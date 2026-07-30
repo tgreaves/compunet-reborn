@@ -53,6 +53,7 @@ the standard frame.</p>
     <form method="POST"
           action="{{ url_for('set_directory_header', page_num=d.page_num) }}"
           enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="header-{{ d.page_num }}">HEADER FRAME</label>
             <input type="file" id="header-{{ d.page_num }}" name="header"
@@ -74,6 +75,7 @@ the standard frame.</p>
 
     <form method="POST"
           action="{{ url_for('set_directory_settings', page_num=d.page_num) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="owner-{{ d.page_num }}">
                 <input type="checkbox" id="owner-{{ d.page_num }}"

@@ -4,6 +4,7 @@
 <h1>SEND BROADCAST</h1>
 
 <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <div class="form-group">
         <label for="subject">SUBJECT</label>
         <input type="text" id="subject" name="subject" class="mixed-case" value="{{ subject or '' }}" style="max-width:800px;font-family:'Courier New',Courier,monospace;font-size:14px;">
