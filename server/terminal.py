@@ -678,37 +678,14 @@ class TerminalSession:
         await self.send(bytes(out))
 
     def _archive_page_standalone(self, cs, page, reason='replaced'):
-        """Archive a page's files and metadata before removal."""
-        import shutil, json as json_mod
-        archive_dir = os.path.join(cs.DATA_DIR, 'archive')
-        slug = cs.CompunetDirectory._make_slug(page.title)
-        timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-        dest = os.path.join(archive_dir, f'{page.page_num}-{slug}-{timestamp}')
-        os.makedirs(dest, exist_ok=True)
+        """Archive a page before removal.
 
-        page_dir = getattr(page, '_dir_path', '')
-        frame_files = getattr(page, '_frame_files', [])
-        for frame_file in frame_files:
-            src_path = os.path.join(page_dir, frame_file)
-            if os.path.exists(src_path):
-                shutil.copy2(src_path, os.path.join(dest, frame_file))
-
-        metadata = {
-            'page_num': page.page_num,
-            'title': page.title,
-            'type': page.page_type,
-            'author': page.author,
-            'price': page.price,
-            'life': page.life,
-            'uploaded': getattr(page, 'uploaded', None),
-            'archived': timestamp,
-            'reason': reason,
-        }
-        with open(os.path.join(dest, 'metadata.json'), 'w') as f:
-            json_mod.dump(metadata, f, indent=2)
-
-        logger.info('ARCHIVE: page %d "%s" by %s → %s (%s)',
-                    page.page_num, page.title, page.author, dest, reason)
+        Was a hand-copied second implementation that, like the original, copied
+        only the page's own frames — so archiving a DIRECTORY left its whole
+        subtree on disk, unreachable and unarchived. Both now call the one
+        archiver, which recurses.
+        """
+        cs.archive_page(page, cs.DATA_DIR, reason=reason)
 
     def _format_upload_date(self, child):
         """Format upload date as DD-MMM, right-justified so hyphens align."""

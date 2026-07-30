@@ -13,6 +13,7 @@ identifies the website rather than a person, so the website is told what a user
 may do and never decides it. These tests are the check on that answer.
 """
 
+import json
 import os
 import sys
 import unittest
@@ -505,6 +506,160 @@ class ReorderingChangesTheListing(unittest.TestCase):
         srv.reorder_child(jungle, jungle.children[-1], 0)
         srv.save_one_directory(jungle, srv.ROOT_DIR)
         self.assertEqual(folders, sorted(d for d, _s, _f in os.walk(srv.ROOT_DIR)))
+
+
+class DeletingArchivesEverythingFirst(unittest.TestCase):
+    """Delete follows the path negative `LIFE` already took — archive, then
+    remove — so the same act through two interfaces leaves the same trace.
+
+    ⚠ The archiver did NOT recurse. It copied a page's own frames and stopped, so
+    removing a *directory* left its whole subtree on disk: unreachable and
+    unarchived, content silently lost, from a command users already had. That
+    became urgent once a directory's owner could delete the directory with other
+    people's pages inside it.
+    """
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix='compunet-del-')
+        shutil.copytree(os.path.join(_SERVER, 'data', 'content.test', 'root'),
+                        os.path.join(self._tmp, 'root'))
+        self._saved_root = srv.ROOT_DIR
+        srv.ROOT_DIR = os.path.join(self._tmp, 'root')
+        self._data = self._tmp                 # archive/ lands beside root/
+        self.d = tree()
+
+    def tearDown(self):
+        import shutil
+        srv.ROOT_DIR = self._saved_root
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _archived(self):
+        base = os.path.join(self._data, 'archive')
+        return sorted(os.listdir(base)) if os.path.isdir(base) else []
+
+    def test_a_leaf_is_archived_and_removed(self):
+        page = next(c for c in self.d.pages[THE_ZOO].children if not c.children)
+        num, title, parent = page.page_num, page.title, page.parent
+
+        archived, _refunds = srv.delete_page(self.d, page, self._data, srv.ROOT_DIR)
+        # The caller persists, exactly as relocate_page leaves it to the caller —
+        # without this the entry is gone from memory and disk while its parent's
+        # JSON still lists it, so a reload brings back a page with no files.
+        srv.save_one_directory(parent, srv.ROOT_DIR)
+
+        self.assertEqual(1, len(archived))
+        self.assertNotIn(num, tree().pages)
+        self.assertTrue(any(str(num) in name for name in self._archived()),
+                        '%s was not archived' % title)
+
+    def test_a_directory_takes_its_whole_subtree_to_the_archive(self):
+        """The regression. Every descendant gets its own archive folder, so the
+        subtree arrives as recoverable entries rather than vanishing."""
+        page = self.d.pages[ASH_AND_DAVE]
+        doomed = srv._subtree(page)
+        self.assertGreater(len(doomed), 1, 'fixture precondition')
+        expected = {p.page_num for p in doomed}
+
+        archived, _refunds = srv.delete_page(self.d, page, self._data, srv.ROOT_DIR)
+
+        self.assertEqual(len(expected), len(archived),
+                         'not every entry in the subtree was archived')
+        names = ' '.join(self._archived())
+        for num in expected:
+            self.assertIn(str(num), names, 'page %d missing from the archive' % num)
+
+    def test_every_archived_entry_carries_metadata(self):
+        page = self.d.pages[ASH_AND_DAVE]
+        archived, _ = srv.delete_page(self.d, page, self._data, srv.ROOT_DIR)
+        for dest in archived:
+            meta_path = os.path.join(dest, 'metadata.json')
+            self.assertTrue(os.path.exists(meta_path), dest)
+            with open(meta_path) as f:
+                meta = json.load(f)
+            for key in ('page_num', 'title', 'author', 'life', 'reason'):
+                self.assertIn(key, meta)
+            self.assertEqual('deleted', meta['reason'])
+
+    def test_a_descendant_records_where_it_sat(self):
+        """Nothing reads the archive back, so the metadata has to be enough to
+        rebuild the shape by hand — not just the files."""
+        page = self.d.pages[ASH_AND_DAVE]
+        archived, _ = srv.delete_page(self.d, page, self._data, srv.ROOT_DIR)
+        found = []
+        for dest in archived:
+            with open(os.path.join(dest, 'metadata.json')) as f:
+                meta = json.load(f)
+            if meta['page_num'] != ASH_AND_DAVE:
+                found.append(meta)
+        self.assertTrue(found, 'expected descendants')
+        for meta in found:
+            self.assertIn('was_inside', meta)
+            self.assertIn('was_inside_page', meta)
+
+    def test_a_directory_header_is_archived_too(self):
+        """A header is the directory's own artwork, and would otherwise be the one
+        thing not recoverable."""
+        page = self.d.pages[ASH_AND_DAVE]
+        self.assertTrue(page.header, 'fixture precondition')
+        header_name = page.header.split('/')[-1]
+
+        archived, _ = srv.delete_page(self.d, page, self._data, srv.ROOT_DIR)
+
+        own = next(d for d in archived if ('%d-' % ASH_AND_DAVE) in os.path.basename(d))
+        self.assertTrue(os.path.exists(os.path.join(own, header_name)),
+                        'the header was not archived')
+
+    def test_the_files_are_gone_afterwards(self):
+        page = self.d.pages[ASH_AND_DAVE]
+        page_dir = page._dir_path
+        self.assertTrue(os.path.isdir(page_dir), 'fixture precondition')
+        srv.delete_page(self.d, page, self._data, srv.ROOT_DIR)
+        self.assertFalse(os.path.exists(page_dir))
+
+    def test_the_tree_reloads_clean(self):
+        page = self.d.pages[ASH_AND_DAVE]
+        gone = {p.page_num for p in srv._subtree(page)}
+        srv.delete_page(self.d, page, self._data, srv.ROOT_DIR)
+        srv.save_one_directory(page.parent if page.parent else self.d.root,
+                              srv.ROOT_DIR)
+
+        reloaded = tree()
+        self.assertEqual(set(), gone & set(reloaded.pages),
+                         'deleted entries came back after a reload')
+        self.assertEqual(set(), srv._api_duplicate_page_nums(reloaded))
+
+    def test_storage_is_refunded_to_each_author_not_the_deleter(self):
+        """⚠ An admin clearing someone's directory must not credit or charge
+        themselves. The quota the content consumed belongs to its author."""
+        page = self.d.pages[ASH_AND_DAVE]
+        authors = {p.author for p in srv._subtree(page) if p.life > 0}
+        self.assertTrue(authors, 'fixture precondition: something has life')
+
+        _archived, refunds = srv.delete_page(self.d, page, self._data,
+                                             srv.ROOT_DIR)
+
+        self.assertTrue(refunds)
+        self.assertTrue(set(refunds) <= authors,
+                        'refunded someone who did not author the content')
+        for author, units in refunds.items():
+            self.assertGreater(units, 0)
+
+    def test_the_refund_matches_frames_times_life(self):
+        """The same formula negative LIFE uses, so the two routes agree."""
+        page = next(c for c in self.d.pages[THE_ZOO].children
+                    if not c.children and c.life > 0 and c.frames)
+        expected = len(page.frames) * page.life
+        author = page.author
+
+        _archived, refunds = srv.delete_page(self.d, page, self._data,
+                                             srv.ROOT_DIR)
+        self.assertEqual(expected, refunds.get(author))
+
+    def test_the_root_cannot_be_deleted(self):
+        with self.assertRaises(srv.RelocateError):
+            srv.delete_page(self.d, self.d.root, self._data, srv.ROOT_DIR)
 
 
 class WhoMayEditWhat(unittest.TestCase):

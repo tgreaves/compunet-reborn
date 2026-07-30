@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ node.title }}? — Compunet Reborn{% endblock %}
+{% block content %}
+<h1>DELETE THIS ENTRY?</h1>
+
+<div class="info-box">
+    <h3>{{ node.page_num }} {{ node.title }}</h3>
+    <p>By {{ node.author }}{% if node.uploaded %}, uploaded {{ node.uploaded }}{% endif %}</p>
+    {% if node.is_directory and node.child_count %}
+    <p><strong>This is a directory holding {{ node.child_count }}
+    entr{% if node.child_count == 1 %}y{% else %}ies{% endif %}.</strong>
+    Everything inside it goes too, including anything written by other people.</p>
+    {% endif %}
+</div>
+
+<p>A copy of the files and their details is kept in the server's archive, so this
+is recoverable — but <strong>not by you, and not from this site</strong>. Getting
+it back means an operator restoring it by hand. Treat it as final.</p>
+
+{% if node.life %}
+<p class="hint">The storage this was using is returned to
+{% if node.author == session.get('user_id') %}your{% else %}{{ node.author }}'s{% endif %}
+allowance, the same as running its life down to zero from the C64.</p>
+{% endif %}
+
+<form method="POST" action="{{ url_for('delete_page', page_num=node.page_num) }}">
+    <input type="hidden" name="confirm" value="yes">
+    <button type="submit">DELETE {{ node.title }}</button>
+</form>
+
+<p><a href="{{ url_for('directories') }}">NO, GO BACK</a></p>
+{% endblock %}

@@ -15,6 +15,16 @@
 	  the controls to change something appear only where you have permission.
 	  Header frames and the owner-only setting moved to their own page, linked
 	  from each directory you can configure.
+	* New: entries can be deleted from the DIRECTORIES page (#121), after a
+	  confirmation that names what is going and, for a directory, how many entries
+	  are inside it. The storage the entry was using comes back to whoever wrote
+	  it, exactly as running its life down to zero from the C64 does.
+	* Fixed: removing a directory used to abandon everything inside it. Running a
+	  directory's life down to zero took the directory away but left its contents
+	  on the server — unreachable, and not in the archive that every other removal
+	  puts a copy in. Anything inside was simply gone. Removing a directory now
+	  archives it and everything within, each with a note of what it was and which
+	  directory it came from.
 	* New: entries can be moved from one directory to another from the
 	  DIRECTORIES page (#121) — the point of the whole thing, for tidying up. An
 	  entry keeps its page number, so `GOTO` and keywords still find it wherever

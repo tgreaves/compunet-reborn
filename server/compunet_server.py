@@ -678,6 +678,111 @@ class RelocateError(Exception):
     """A move or rename that must not proceed, with a reason for the user."""
 
 
+def archive_page(page, data_dir, reason='replaced', timestamp=None):
+    """Copy a page's files and metadata aside before it is removed.
+
+    ⚠ THE ONLY archiver, and it RECURSES. There were two copies of this — here
+    and in `terminal.py` — and neither descended into a directory's contents: they
+    copied `_frame_files` and stopped. So reducing a *directory* page's life to
+    zero removed it and left its whole subtree on disk, unreachable and
+    unarchived. Content silently lost, from a command users already had.
+
+    That mattered more once a directory's owner could delete the directory with
+    other people's pages inside it (#121): without recursion the safety net does
+    not cover the material most likely to be missed.
+
+    Each page gets its own folder under `archive/`, so a subtree arrives as a set
+    of entries rather than one opaque blob, and each carries the `metadata.json`
+    that says what it was and why it went. Nothing reads the archive back — it is
+    a safety net for an operator, not an undo button — so the metadata has to be
+    enough to rebuild an entry by hand.
+
+    Returns the archive directories written, newest-first order irrelevant.
+    """
+    stamp = timestamp or datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+    written = []
+    for node in _subtree(page):
+        slug = CompunetDirectory._make_slug(node.title)
+        dest = os.path.join(data_dir, 'archive',
+                            '%d-%s-%s' % (node.page_num, slug, stamp))
+        os.makedirs(dest, exist_ok=True)
+
+        node_dir = getattr(node, '_dir_path', '')
+        for frame_file in getattr(node, '_frame_files', []):
+            src = os.path.join(node_dir, frame_file)
+            if os.path.exists(src):
+                shutil.copy2(src, os.path.join(dest, frame_file))
+
+        # A directory's header is its own artwork and would otherwise be the one
+        # thing not recoverable.
+        header = getattr(node, 'header', None)
+        if header:
+            src = os.path.join(ROOT_DIR, *header.split('/'))
+            if os.path.exists(src):
+                shutil.copy2(src, os.path.join(dest, os.path.basename(src)))
+
+        metadata = {
+            'page_num': node.page_num,
+            'title': node.title,
+            'type': node.page_type,
+            'author': node.author,
+            'price': node.price,
+            'life': node.life,
+            'uploaded': getattr(node, 'uploaded', None),
+            'archived': stamp,
+            'reason': reason,
+        }
+        if node is not page:
+            # So an operator can see where a descendant sat, and rebuild the
+            # shape rather than just the files.
+            metadata['was_inside'] = node.parent.title
+            metadata['was_inside_page'] = node.parent.page_num
+        with open(os.path.join(dest, 'metadata.json'), 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        log.info('ARCHIVE: page %d "%s" by %s -> %s (%s)',
+                 node.page_num, node.title, node.author, dest, reason)
+        written.append(dest)
+    return written
+
+
+def delete_page(directory, page, data_dir, root_dir, reason='deleted'):
+    """Archive a page and everything beneath it, then remove it from the tree.
+
+    Follows the path negative `LIFE` already takes — archive, then remove — so the
+    same act through two interfaces has the same effect. Returns
+    `(archived_dirs, refunds)`, where refunds is `{user_id: units}` for the caller
+    to credit: storage is refunded to each page's OWN author, never to whoever
+    pressed the button, so an admin clearing a directory does not credit or charge
+    the wrong person.
+    """
+    parent = page.parent
+    if parent is None:
+        raise RelocateError('the root directory cannot be deleted')
+
+    doomed = _subtree(page)
+    refunds = {}
+    for node in doomed:
+        frames = len(node.frames) if node.frames else 1
+        units = frames * max(0, node.life)
+        if units:
+            refunds[node.author] = refunds.get(node.author, 0) + units
+
+    archived = archive_page(page, data_dir, reason=reason)
+
+    page_dir = getattr(page, '_dir_path', '')
+    if page_dir and os.path.isdir(page_dir):
+        shutil.rmtree(page_dir, ignore_errors=True)
+
+    if page in parent.children:
+        parent.children.remove(page)
+    for node in doomed:
+        if directory.pages.get(node.page_num) is node:
+            del directory.pages[node.page_num]
+
+    return archived, refunds
+
+
 def _subtree(page):
     """This page and every descendant, parents before children."""
     out = [page]
@@ -2095,39 +2200,10 @@ class CompunetSession:
         return b''
 
     def _archive_page(self, page, reason='replaced'):
-        """Archive a page's files and metadata before removal."""
-        archive_dir = os.path.join(DATA_DIR, 'archive')
-        slug = CompunetDirectory._make_slug(page.title)
-        timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-        dest = os.path.join(archive_dir, f'{page.page_num}-{slug}-{timestamp}')
-        os.makedirs(dest, exist_ok=True)
-
-        # Copy frame files
-        page_dir = getattr(page, '_dir_path', '')
-        frame_files = getattr(page, '_frame_files', [])
-        for frame_file in frame_files:
-            src_path = os.path.join(page_dir, frame_file)
-            if os.path.exists(src_path):
-                import shutil
-                shutil.copy2(src_path, os.path.join(dest, frame_file))
-
-        # Save metadata
-        metadata = {
-            'page_num': page.page_num,
-            'title': page.title,
-            'type': page.page_type,
-            'author': page.author,
-            'price': page.price,
-            'life': page.life,
-            'uploaded': getattr(page, 'uploaded', None),
-            'archived': timestamp,
-            'reason': reason,
-        }
-        with open(os.path.join(dest, 'metadata.json'), 'w') as f:
-            json.dump(metadata, f, indent=2)
-
-        log.info('ARCHIVE: page %d "%s" by %s → %s (%s)',
-                 page.page_num, page.title, page.author, dest, reason)
+        """Archive a page before removal. See module-level `archive_page`, which
+        is shared with the terminal and — unlike the two copies this replaces —
+        descends into a directory's contents instead of leaving them orphaned."""
+        archive_page(page, DATA_DIR, reason=reason)
 
     def _complete_content_upload(self, send):
         """Add or replace uploaded page in the current directory."""
@@ -4401,6 +4477,57 @@ async def api_move_page(request):
         {'ok': True, 'title': page.title, 'was': was, 'now': dest.title})
 
 
+async def api_delete_page(request):
+    """Delete an entry — archived first, storage refunded, then removed.
+
+    Deliberately the same shape as reducing an entry's life to zero, which is how
+    the C64 has always removed content: the same act through two interfaces should
+    leave the same trace.
+    """
+    if not _api_check_auth(request):
+        return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+
+    resolved, err = _api_resolve_editable(request, body)
+    if err:
+        return err
+    directory, page, user_id, _user_data = resolved
+
+    doomed = _subtree(page)
+    try:
+        archived, refunds = delete_page(directory, page, DATA_DIR, ROOT_DIR)
+    except RelocateError as exc:
+        return aiohttp_web.json_response({'error': str(exc)}, status=409)
+    except OSError as exc:
+        log.error('DELETE: %s', exc)
+        return aiohttp_web.json_response(
+            {'error': 'could not remove the files on disk'}, status=500)
+
+    # ⚠ Refunded to each page's OWN author, not to whoever pressed the button. An
+    # admin clearing someone's directory must not charge or credit themselves,
+    # and the authors are the ones whose quota the content was consuming.
+    if refunds:
+        async with _lock_users:
+            users = _api_load_users()
+            for author, units in refunds.items():
+                if author in users:
+                    used = users[author].get('free_storage_used', 0)
+                    users[author]['free_storage_used'] = max(0, used - units)
+            _api_save_users(users)
+
+    save_one_directory(page.parent, ROOT_DIR)
+    audit_log('page_deleted', user=user_id, page=page.page_num, title=page.title,
+              entries=len(doomed), refunds=refunds)
+    log.info('DELETE: %s deleted page %d "%s" (%d entries archived)',
+             user_id, page.page_num, page.title, len(doomed))
+    return aiohttp_web.json_response(
+        {'ok': True, 'title': page.title, 'entries': len(doomed),
+         'archived': len(archived), 'refunds': refunds})
+
+
 async def api_reorder_page(request):
     """Move an entry up or down the listing its directory shows."""
     if not _api_check_auth(request):
@@ -4659,6 +4786,7 @@ async def main():
         app.router.add_get('/api/tree', api_get_tree)
         app.router.add_post('/api/pages/{page_num}/rename', api_rename_page)
         app.router.add_post('/api/pages/{page_num}/move', api_move_page)
+        app.router.add_delete('/api/pages/{page_num}', api_delete_page)
         app.router.add_post('/api/pages/{page_num}/reorder', api_reorder_page)
         app.router.add_get('/api/pages/{page_num}/frame/{index}.png',
                            api_page_frame_png)

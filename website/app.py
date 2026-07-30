@@ -708,6 +708,42 @@ def move_page(page_num):
     return redirect(url_for('directories'))
 
 
+@app.route('/pages/<int:page_num>/delete', methods=['POST'])
+def delete_page(page_num):
+    """Delete an entry.
+
+    ⚠ Two-step on purpose. A tree view is a list of near-identical rows and the
+    realistic mistake is pressing the control on the wrong one, so the first press
+    shows what would go and the second carries it out. The confirmation names the
+    page number and title, and says the archive is not an undo button — which is
+    true: nothing reads it back, so recovery means an operator restoring files by
+    hand.
+    """
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    if request.form.get('confirm') != 'yes':
+        data = _tree_for_session()
+        node = _find_node(data['tree'], page_num) if data else None
+        if node is None:
+            flash('No such entry.', 'error')
+            return redirect(url_for('directories'))
+        return render_template('confirm_delete.html', node=node)
+
+    resp = _api_delete_json('/api/pages/%d' % page_num,
+                            {'user': session['user_id']})
+    if resp.status_code == 200:
+        body = resp.json()
+        entries = body.get('entries', 1)
+        flash('Deleted "%s"%s. %s archived — ask an admin if you need it back.'
+              % (body.get('title'),
+                 '' if entries == 1 else ' and the %d entries inside it' % (entries - 1),
+                 'A copy was' if entries == 1 else 'Copies were'), 'success')
+    else:
+        flash(_api_error(resp, 'Could not delete that entry.'), 'error')
+    return redirect(url_for('directories'))
+
+
 @app.route('/pages/<int:page_num>/rename', methods=['POST'])
 def rename_page(page_num):
     if 'user_id' not in session:

@@ -510,6 +510,12 @@ pre {
     margin-top: 4px;
 }
 
+/* Destructive actions read differently from the rest (#121). */
+button.danger {
+    background-color: var(--c64-red);
+    border-color: var(--c64-red);
+}
+
 /* Rendered page frames (#121) */
 .frame-view {
     margin-bottom: 24px;

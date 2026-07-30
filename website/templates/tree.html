@@ -97,6 +97,16 @@
         <p class="hint">Nowhere to move this to — no other directory you can add to
         has room for it.</p>
         {% endif %}
+
+        {# Its own form, and it leads to a confirmation page rather than acting.
+           In a list of near-identical rows the realistic mistake is pressing the
+           control on the wrong one. #}
+        <form method="POST"
+              action="{{ url_for('delete_page', page_num=node.page_num) }}">
+            <button type="submit" class="danger">DELETE&hellip;</button>
+            <p class="hint">Asks you to confirm first. The files are archived on the
+            server, but only an operator can bring them back.</p>
+        </form>
     </div>
 </details>
 {% endif %}
