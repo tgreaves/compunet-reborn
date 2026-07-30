@@ -18,9 +18,15 @@ preferences:
     fine" in the web client can destroy the C64 screen. Validation therefore
     targets the STRICTEST consumer, which is always the real hardware.
 
-Everything here is a pure function over bytes: no I/O, no server imports. That
-keeps it directly unit-testable (see tests/test_header_frame.py) and usable from
-the REST handler without dragging the server module in.
+Everything here is a pure function over bytes and does no I/O, which keeps it
+directly unit-testable (see tests/test_header_frame.py) and usable from the REST
+handler without dragging the server module in.
+
+One exception, added with #126: `_invisible_cells` imports `frame_to_cells` from
+`api_binding` to find ink drawn in the background colour. Deliberately reusing the
+renderer rather than writing a second cursor walk — a warning that disagreed with
+the real renderer about where a character landed would be worse than none. The
+import is local and guarded, so the validator still works standalone.
 """
 
 #: Largest accepted header. The hard ceiling is 768: the C64 stores Part 1 at
@@ -57,7 +63,125 @@ def _hx(b):
     return '$%02X' % b
 
 
-def validate_header_frame(data):
+def normalise_header_frame(data):
+    """Make an editor-saved page frame usable as a header. Returns `(body, notes)`.
+
+    ⚠ THE ONLY PETSCII TOOL USERS HAVE IS THE CLIENT'S OWN EDITOR, AND IT SAVES
+    PAGE FRAMES, NOT HEADER BODIES. A frame begins with the three-byte
+    `[flags][border][background]` prefix (§7.2); a header body starts straight
+    into PETSCII. Requiring authors to strip that by hand made the feature
+    effectively operator-only, which is the opposite of what it was built for.
+
+    Two adjustments, both safe, both reported back so nothing happens silently:
+
+    1. **A leading frame header is removed.** Detection is unambiguous: a valid
+       header body can never contain `$00` anywhere (see the validator), so a
+       first byte of `$00`/`$80` — the only two flag values — cannot be artwork.
+       There is no false positive to trade against.
+
+    2. **A trailing `$92` is appended if reverse video is left on.** Design a
+       header ending in a reversed bar to the screen edge and the editor has no
+       reason to emit one; rejecting the file taught the author nothing they
+       could act on, and the fix is a single byte the server can add itself.
+
+    Everything genuinely dangerous is still REJECTED by the validator and never
+    repaired here: `$00` inside the artwork, `$93`, `$0E`, ink below row 5, a
+    truncated RLE escape. The rule is: repair what is merely untidy, refuse what
+    would corrupt the screen.
+
+    Reported by ZARD (#126) on the first real user attempt at the feature — one
+    file, both problems.
+    """
+    notes = []
+    body = data
+
+    if body[:1] in (b'\x00', b'\x80') and len(body) >= 3:
+        body = body[3:]
+        notes.append(
+            'Removed the 3-byte page-frame header your editor saved '
+            '(flags/border/background) - a directory header holds the PETSCII '
+            'only.')
+
+    # Only append when the stream is otherwise well-formed; on a malformed frame
+    # the validator's reasons are what the author needs, not a tacked-on byte.
+    if body and not validate_header_frame(body, _skip_reverse_check=True):
+        if _ends_reversed(body):
+            body += b'\x92'
+            notes.append(
+                'Added $92 at the end to switch reverse video off, so it does '
+                'not carry into the directory listing below your header.')
+
+        hidden = _invisible_cells(body)
+        if hidden:
+            notes.append(
+                'Warning: %d character%s on row%s %s drawn in light grey, which '
+                'is the directory background colour ($0F, set by the client at '
+                'compunet.s:3785) - they will be invisible. Design against light '
+                'grey, not the white or black your editor may be showing you.'
+                % (sum(hidden.values()),
+                   's' if sum(hidden.values()) != 1 else '',
+                   's' if len(hidden) != 1 else '',
+                   ', '.join(str(r) for r in sorted(hidden))))
+
+    return body, notes
+
+
+#: The directory screen's background, fixed by the C64 client (`LDA #$0F` /
+#: `STA $D021`, compunet.s:3785). A header CANNOT change it — the C64 has one
+#: background register for the whole screen (§7 / §8.4.3) — which is why a header
+#: is stored body-only and any border/background an editor saved is discarded.
+DIRECTORY_BACKGROUND = 0x0F
+
+
+def _invisible_cells(body):
+    """`{row: count}` for ink drawn in the background colour, which cannot be seen.
+
+    Not a rejection — it is a legitimate design choice on some other background,
+    and nothing about it corrupts the screen. But it is invisible on the one
+    background it will actually be drawn against, and an author working in the
+    client's editor has no way to discover that: the editor shows their page's
+    own background, not the directory's.
+    """
+    try:
+        from api_binding import frame_to_cells
+    except ImportError:                       # validator used standalone
+        return {}
+    cells = frame_to_cells(
+        bytes([0x00, 0x0F, 0x0F]) + body + b'\x00')['cells']
+    hidden = {}
+    for row in range(LAST_HEADER_ROW + 1):
+        n = sum(1 for col in range(40)
+                for c in (cells[row * 40 + col],)
+                if c['g'] != 32 and not c['rv']
+                and c['fg'] == DIRECTORY_BACKGROUND)
+        if n:
+            hidden[row] = n
+    return hidden
+
+
+def _ends_reversed(data):
+    """True if the stream leaves reverse video on. Walks tokens so an RLE
+    operand that happens to equal $12/$92 is not mistaken for the control code."""
+    reverse = False
+    i, n = 0, len(data)
+    while i < n:
+        b = data[i]
+        if b == 0x12:
+            reverse = True
+            i += 1
+        elif b == 0x92:
+            reverse = False
+            i += 1
+        elif b == 0x06:          # $06 <count> — run of spaces
+            i += 2
+        elif b == 0x07:          # $07 <char> <count> — repeated character
+            i += 3
+        else:
+            i += 1
+    return reverse
+
+
+def validate_header_frame(data, _skip_reverse_check=False):
     """Check user-supplied header bytes.
 
     `data` is the frame BODY only — no 4-byte frame header (§7.2) and no
@@ -233,7 +357,10 @@ def validate_header_frame(data):
             'that overwrites the entry list.'
             % (bad_row, offset, LAST_HEADER_ROW, LAST_HEADER_ROW + 1))
 
-    if reverse:
+    # normalise_header_frame appends the $92 itself and passes the flag while it
+    # decides whether the stream is otherwise sound, so this must not fire then —
+    # it would report a fault the caller is about to repair.
+    if reverse and not _skip_reverse_check:
         reasons.append(
             'Ends with reverse video still switched on. Add $92 to turn it off, '
             'or the next line drawn starts reversed.')

@@ -1,3 +1,17 @@
+# 1.3.1 (2026-07-30)
+
+* Website:
+	* Fixed: a header frame saved straight from the client's editor is now
+	  accepted. The editor writes a page frame, whose first three bytes the
+	  uploader read as artwork and refused — so the only PETSCII tool most people
+	  have produced a file the upload would not take (#126).
+	* Fixed: a header ending in reverse video no longer has to be corrected by
+	  hand. Anything adjusted on upload is now listed back, so nothing is changed
+	  silently.
+	* New: a warning when part of a header is drawn in light grey, the directory
+	  background colour, and would be invisible. Editors show their own page
+	  colour, so this was impossible to spot before uploading.
+
 # 1.3.0 (2026-07-30)
 
 * C64 client:

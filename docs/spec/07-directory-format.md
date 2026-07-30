@@ -61,6 +61,26 @@ assume them.** A client is still responsible for its own display: bounding Part 
 to rows 0–5 costs little and turns a hostile or simply broken header into a
 cosmetic problem rather than an unusable screen.
 
+**A header cannot set the background, and authors must design against the one it
+gets.** The C64 has a single background register for the whole screen (§8.4.3), so
+Part 1 has no way to colour its own rows — it is printed onto the directory screen
+the template already established. The reference client fixes that background at
+**`$0F`, light grey** (`LDA #$0F` / `STA $D021`, `compunet.s:3785`), so ink in
+colour 15 is invisible in a header, however it looked where it was drawn.
+
+Two consequences for anyone building an authoring tool:
+
+- **A header is stored as the frame BODY only** — no `[flags][border][background]`
+  prefix (§7.2). Those three bytes are meaningless for Part 1, since it cannot
+  apply them. An editor that saves whole page frames therefore produces a file
+  that is *not* a header, and its flags byte is `$00`, which the "no `$00`" rule
+  above rejects at offset 0. Strip the prefix before validating; the leading byte
+  is unambiguous, because a valid header body can never contain `$00` at all.
+- **Preview against light grey, not the editor's page colour.** An author designing
+  on white or black will produce artwork whose contrast is wrong, and in the worst
+  case a line that vanishes entirely, with nothing to warn them. Both traps were
+  hit on the first real user submission (#126) — in the same file.
+
 **Part 2 → Part 3 boundary — do not consume a `$00` after the footer (normative).** The footer
 is exactly **two `$0D`-terminated lines** (empty lines if there is no advert); Part 2 does *not*
 emit a `$00`. The very next `$00` in the stream is **Part 3's** terminator (its empty

@@ -967,11 +967,18 @@ def set_directory_header(page_num):
                      {'user': session['user_id'],
                       'data': base64.b64encode(raw).decode('ascii')})
     if resp.status_code == 200:
-        described = resp.json().get('describe') or {}
+        payload = resp.json()
+        described = payload.get('describe') or {}
         flash('Header set — %d bytes, %s. It appears the next time the '
               'directory is opened.'
               % (described.get('bytes', len(raw)),
                  _rows_phrase(described.get('rows_used'))), 'success')
+        # Anything the server adjusted or wants to warn about (#126): the frame
+        # header stripped off an editor save, a $92 appended, ink that will be
+        # invisible against the directory background. Shown so an accepted upload
+        # is never a silent edit — the author is told exactly what was changed.
+        for note in payload.get('notes') or []:
+            flash(note, 'warning' if note.startswith('Warning') else 'info')
         return _header_return()
 
     # A rejected frame comes back with one reason per problem, each naming the

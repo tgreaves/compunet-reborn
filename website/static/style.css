@@ -27,6 +27,7 @@
     --c64-green: #007a1f;
     --c64-red: var(--cnet-red);
     --c64-cyan: #006e6e;
+    --c64-amber: #8a5200;       /* warnings: accepted, but read this (#126) */
 
     --font-pixel: 'Press Start 2P', monospace;
     --font-body: 'Inter', -apple-system, sans-serif;
@@ -212,6 +213,15 @@ ul li, ol li {
     border-color: var(--c64-blue);
     color: var(--c64-light-blue);
     background: color-mix(in srgb, var(--cnet-blue) 8%, transparent);
+}
+
+/* Accepted, but with something the author should know — e.g. a header whose ink
+   matches the directory background and will be invisible (#126). Distinct from
+   error: the upload succeeded. */
+.flash-warning {
+    border-color: var(--c64-amber);
+    color: var(--c64-amber);
+    background: color-mix(in srgb, var(--c64-amber) 10%, transparent);
 }
 
 /* Forms */

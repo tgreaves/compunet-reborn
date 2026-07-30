@@ -35,11 +35,16 @@
             <label for="hdr{{ node.page_num }}">HEADER FRAME</label>
             <input type="file" id="hdr{{ node.page_num }}" name="header"
                    accept=".seq,application/octet-stream">
-            <p class="hint">A raw PETSCII sequence — frame body only, no load
-            address and no frame header. At most {{ max_bytes }} bytes, drawing only
-            on rows 0 to 5, with no clear-screen. A file that breaks those is
-            refused and the reason says which byte is at fault; nothing you upload
-            is altered to fit.</p>
+            <p class="hint">A PETSCII sequence. <strong>Save straight from the
+            client's editor</strong> — the page header it writes is removed for
+            you, and you will be told it was. At most {{ max_bytes }} bytes,
+            drawing only on rows 0 to 5, with no clear-screen. A file that breaks
+            those is refused, and the reason says which byte is at fault.</p>
+            <p class="hint">⚠ <strong>Design against light grey.</strong> The
+            directory background is fixed at light grey and a header cannot change
+            it — the C64 has one background colour for the whole screen. Light-grey
+            ink is invisible there, whatever your editor's page is set to. You will
+            get a warning if any of yours would disappear.</p>
         </div>
         <button type="submit">UPLOAD HEADER</button>
         {% if node.has_header %}

@@ -257,5 +257,113 @@ class PreviewRendersFromTheSpecFont(unittest.TestCase):
         self.assertNotEqual(blank, png, 'the preview rendered nothing')
 
 
+class EditorFramesAreAccepted(unittest.TestCase):
+    """The client's editor saves PAGE FRAMES, and it is the only PETSCII tool
+    users have. normalise_header_frame turns that into a header body.
+
+    From #126 — the first real user attempt at the feature. One file, both
+    problems: the editor's 3-byte [flags][border][background] prefix tripped the
+    "no $00 anywhere" rule at offset 0, and behind it a design ending in a
+    reversed bar tripped "reverse still on". Neither was anything the author did
+    wrong, and neither is dangerous.
+    """
+
+    def test_the_editor_frame_header_is_stripped(self):
+        body = bytes([0x8E, 0x9C]) + b'HELLO'
+        frame = bytes([0x00, 0xF1, 0xF1]) + body
+        out, notes = hf.normalise_header_frame(frame)
+        self.assertEqual(out, body)
+        self.assertTrue(any('page-frame header' in n for n in notes))
+
+    def test_a_more_pages_flag_is_also_a_frame(self):
+        """$80 is the other legal flags value — bit 7 means more pages follow."""
+        body = bytes([0x8E]) + b'HI'
+        out, _ = hf.normalise_header_frame(bytes([0x80, 0x06, 0x00]) + body)
+        self.assertEqual(out, body)
+
+    def test_a_real_header_body_is_left_alone(self):
+        """Detection must not fire on artwork. A header body can never contain
+        $00, so a leading $00/$80 is unambiguous — anything else is untouched."""
+        body = bytes([0x1F, 0xBC, 0x12]) + b'\xA2' * 10 + bytes([0x92])
+        out, notes = hf.normalise_header_frame(body)
+        self.assertEqual(out, body)
+        self.assertEqual(notes, [])
+
+    def test_reverse_left_on_gets_its_92(self):
+        body = bytes([0x8E, 0x12]) + b'BAR'
+        out, notes = hf.normalise_header_frame(body)
+        self.assertEqual(out, body + b'\x92')
+        self.assertTrue(any('$92' in n for n in notes))
+        self.assertEqual(hf.validate_header_frame(out), [])
+
+    def test_reverse_already_off_is_not_touched(self):
+        body = bytes([0x8E, 0x12]) + b'BAR' + bytes([0x92])
+        out, notes = hf.normalise_header_frame(body)
+        self.assertEqual(out, body)
+        self.assertEqual(notes, [])
+
+    def test_an_rle_operand_of_12_is_not_a_reverse_code(self):
+        """$06/$07 operands are data. Counting them as control codes would append
+        a $92 that the author never needed."""
+        body = bytes([0x8E, 0x06, 0x12])          # a run of $12 spaces, not RVS-on
+        out, notes = hf.normalise_header_frame(body)
+        self.assertEqual(out, body)
+        self.assertEqual(notes, [])
+
+    def test_dangerous_frames_are_still_refused_after_normalising(self):
+        """Repair what is untidy; refuse what corrupts the screen."""
+        for name, body in (
+                ('clear screen', bytes([0x8E, 0x93]) + b'X'),
+                ('lowercase',    bytes([0x8E, 0x0E]) + b'X'),
+                ('nul inside',   bytes([0x8E]) + b'AB' + bytes([0x00]) + b'CD'),
+                ('below row 5',  bytes([0x8E]) + (b'X' + bytes([0x0D])) * 8),
+        ):
+            frame = bytes([0x00, 0xF1, 0xF1]) + body
+            out, _ = hf.normalise_header_frame(frame)
+            self.assertTrue(hf.validate_header_frame(out),
+                            '%s should still be rejected' % name)
+
+    def test_ink_in_the_background_colour_is_warned_about(self):
+        """The directory background is $0F light grey, fixed by the client
+        (compunet.s:3785), and a header cannot change it — one background register
+        for the whole screen. Light-grey ink is therefore invisible, and an author
+        working in the editor sees their own page background instead, so nothing
+        tells them. A warning, not a rejection: it corrupts nothing."""
+        body = bytes([0x8E, 0x9B]) + b'HIDDEN'      # $9B = grey 3 = the background
+        out, notes = hf.normalise_header_frame(body)
+        self.assertEqual(hf.validate_header_frame(out), [], 'must not be rejected')
+        self.assertTrue(any('invisible' in n for n in notes), notes)
+
+    def test_visible_ink_is_not_warned_about(self):
+        body = bytes([0x8E, 0x05]) + b'VISIBLE'     # $05 = white
+        _, notes = hf.normalise_header_frame(body)
+        self.assertFalse([n for n in notes if 'invisible' in n], notes)
+
+    def test_the_notes_are_plain_ascii(self):
+        """They travel through JSON and get shown beside PETSCII previews."""
+        raw = _read(os.path.join(_HERE, 'fixtures', 'issue126-head.seq'))
+        _, notes = hf.normalise_header_frame(raw)
+        for n in notes:
+            self.assertTrue(n.isascii(), n)
+
+    def test_the_file_from_issue_126(self):
+        """The actual upload: 206 bytes of editor output, previously two
+        rejections deep, now stored as a valid 204-byte header."""
+        path = os.path.join(_HERE, 'fixtures', 'issue126-head.seq')
+        if not os.path.exists(path):
+            self.skipTest('fixture not present')
+        raw = _read(path)
+        out, notes = hf.normalise_header_frame(raw)
+        # Three: frame header stripped, $92 appended, and the light-grey warning
+        # for his bottom fade line, which is the background colour.
+        self.assertEqual(len(notes), 3, notes)
+        self.assertTrue(any('page-frame header' in n for n in notes))
+        self.assertTrue(any('$92' in n for n in notes))
+        self.assertTrue(any('invisible' in n for n in notes))
+        self.assertEqual(hf.validate_header_frame(out), [])
+        self.assertLessEqual(hf.describe_header_frame(out)['rows_used'],
+                             hf.LAST_HEADER_ROW + 1)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2 if '-v' in sys.argv else 1)

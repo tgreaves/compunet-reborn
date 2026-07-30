@@ -4678,11 +4678,16 @@ async def api_set_directory_header(request):
     except Exception:
         return aiohttp_web.json_response({'error': 'invalid base64'}, status=400)
 
+    # Accept what the client's editor actually saves — a page frame — rather than
+    # demanding a hand-stripped header body (#126). Anything adjusted is reported
+    # back in `notes`, so this is not silent sanitising: the author is told.
+    raw, notes = header_frame.normalise_header_frame(raw)
+
     reasons = header_frame.validate_header_frame(raw)
     if reasons:
-        # The whole point of rejecting rather than sanitising: the author gets
-        # to know what is wrong with their artwork instead of quietly receiving
-        # something else back.
+        # Still rejecting what would corrupt the screen, rather than guessing at
+        # a repair: the author gets to know what is wrong with their artwork
+        # instead of quietly receiving something else back.
         return aiohttp_web.json_response(
             {'error': 'invalid header frame', 'reasons': reasons}, status=400)
 
@@ -4705,6 +4710,7 @@ async def api_set_directory_header(request):
              user_id, page.page_num, page.title, len(raw))
     return aiohttp_web.json_response(
         {'ok': True, 'header': stored,
+         'notes': notes,
          'describe': header_frame.describe_header_frame(raw)})
 
 
