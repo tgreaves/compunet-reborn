@@ -29,7 +29,7 @@
 #include "compunet.h"
 
 extern APTR GfxBase;
-extern UWORD g_state;           /* DAT_0011d070 */
+extern LONG g_state;           /* DAT_0011d070 */
 
 extern UBYTE g_data[];
 #define DATA_BASE 0x11d000
@@ -38,6 +38,7 @@ extern UBYTE g_data[];
 /* Row actions dispatched on a click while navigable (recon FUN_0010956c/963c/a484). */
 extern LONG goto_page(void);       /* FUN_0010a1e2 — state 2/3, click 1 */
 extern LONG download_check(void);  /* FUN_0010b730 — state 2/3, click 2 */
+extern LONG hook_dir_0963c(APTR gadget);   /* dispatch.c — the Dnld action hook */
 extern LONG validate_login(void);  /* FUN_0010e0fc — state 5, click 2 */
 extern void link_lock(APTR dir_page, int row);   /* FUN_00109520 — toggle row box */
 
@@ -83,7 +84,18 @@ LONG dir_select(APTR gadget, LONG mode)
         switch (g_state) {
         case 2:
         case 3:
-            if (mode == 2) return download_check();
+            /* ⚠ THROUGH THE ROW'S ACTION GADGET, not straight to the handler. The
+             * original passes the gadget at page+0xf52 to the Dnld hook, which wraps the
+             * call in link_lock() either side — that is what shows the busy state while
+             * the download runs. Calling download_check() bare skipped the lock:
+             *   1093ba  movea.l -$8(a5), a0     ; the directory page
+             *   1093be  adda.w  #$f52, a0       ; its Dnld action gadget
+             *   1093c4  move.l  a0, -(a7)
+             *   1093c6  bsr.w   $10963c         ; hook_dir_0963c -> download_check
+             * Note the original dispatches BEFORE updating the highlight, so a
+             * double-click acts on the row that was already selected — a real quirk,
+             * preserved. */
+            if (mode == 2) return hook_dir_0963c((UBYTE *)page + 0xf52);
             if (mode == 1) return goto_page();
             break;
         case 5:

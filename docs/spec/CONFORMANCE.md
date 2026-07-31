@@ -108,6 +108,13 @@ marked **⚠** are the ones known to have been got wrong in practice.
 
 - [ ] **⚠ `SHOW` refuses a paid page** with `PLEASE USE BUY`, sending nothing (§8.6.4).
 - [ ] **⚠ `BUY` confirms** with `BUY FOR {price} - SURE?` and sends only on acceptance (§8.6.4).
+- [ ] **⚠ EVERY downloadable type is charge-gated, text included** (§8.6.4). Put a priced entry
+      of each base type your client handles — `T`, `P`, `S`, `L`, and `F`/`A` if you serve them —
+      in a directory and select each one. Did every single one ask before charging? The reference
+      Amiga client gated five of its six types for four releases: `T` went straight through, so a
+      priced **text** page was fetched and billed silently. Text is the one that gets missed,
+      because reading feels free. If you dispatch on the base type, the check belongs **before**
+      the branch, not inside each arm.
 - [ ] **`DIR` vs `SHOW`** — `DIR` enters an entry as a directory, `SHOW` only reads frames;
       on a `T+` entry the two do different things (§4.7).
 - [ ] **`FINISH` returns the current directory**, not "home"; `BACK` ascends (§4.7).
@@ -216,6 +223,20 @@ The server does not report these; a client that ignores them looks fine and lose
 - [ ] **An unrecognised machine type is an error, not a default.** If byte 0 is not one your
       client handles, refuse — do not fall through to "probably mine". Falling through means a
       desynchronised descriptor is accepted as valid and its garbage written to disk.
+- [ ] **⚠ An unrecognised directory *base type* is inert, not fed somewhere unsafe** (§7.4,
+      §7.4.1). The base-type set is open — beyond the six this client implements the service uses
+      `F` (IFF picture) and the protocol also defines `A` (action), and a future producer may use
+      more. On SHOW of a base you do not handle, do **nothing** (behave as for `D`): do not run
+      it, do not write it, do not feed the bytes to your page renderer. The frozen C64 client
+      fails this — it would garbage-render an `F` and runs an `A` as 6502 with no machine guard —
+      which is exactly the behaviour a new client must **not** reproduce (its being era-accurate
+      and feature-locked, §1.8, does not excuse yours).
+- [ ] **⚠ A server serving `F` (IFF) guards it per machine** (§7.4.1). An `F` is Amiga content
+      and downloads through the very descriptor an Amiga `P` uses, so a client that cannot decode
+      ILBM must be **refused the download**, not handed the bytes. The reference server refuses an
+      `F` to the C64 with a message it paints as a page, and serves it to the Amiga and to
+      Binding B (which decodes ILBM itself). If your server serves `F`, it owns this guard —
+      the frozen C64 cannot refuse for itself.
 - [ ] **Upload into a full directory is refused by the client** (11 entries) rather than
       attempted — the server discards it with no error (§8.3.2).
 - [ ] **Upload prompts for type *and* price** — omitting type makes program upload impossible

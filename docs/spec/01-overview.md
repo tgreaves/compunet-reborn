@@ -150,3 +150,13 @@ deprecated. Because every binding projects the *same* model, a constrained clien
 one see the same Compunet; Binding B must therefore never introduce content behaviour Binding A
 cannot express. **Conformance is stated per binding** — a client declares its binding *and* its
 tier (§1.4), e.g. "Binding A, Tier 1".
+
+**⚠ The C64 client is feature-locked (normative for this project).** The reference C64 client
+(`client/c64/src/compunet.s`) is treated as **era-accurate and complete**: it receives
+correctness fixes only, and **no new features are ever added to it**. It stands for the 1980s
+ROM client, whose behaviour is a fixed historical fact — including its rough edges, such as
+garbage-rendering a directory entry type it does not implement (§7.4.1). New capabilities land
+in the modern clients (web / Electron) and, where the wire format allows, the Amiga client;
+they do **not** extend the C64. Anything a new feature needs the C64 to do that it does not
+already do is out of scope by definition. This keeps the C64 an honest reference point for what
+the period hardware actually did, rather than a modern client wearing a PETSCII costume.

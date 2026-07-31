@@ -48,6 +48,19 @@ you rely on MUST be confirmed against ground truth before you write or change co
 
 ## Client Rules
 
+**The C64 client is FEATURE-LOCKED. Read this before proposing any change to it.** The reference
+C64 client (`client/c64/src/compunet.s`) is era-accurate and **complete**: it stands for the
+1980s ROM client, whose behaviour is a fixed historical fact. It receives **correctness fixes
+only** — bugs that make it diverge from what the original actually did — and **NO new features,
+ever**. Its rough edges are part of the record and are kept, not smoothed: e.g. it garbage-renders
+a directory entry type it does not implement and runs an `A` (action) payload with no machine
+guard (`docs/spec/07-directory-format.md` §7.4.1). When a new capability needs behaviour the C64
+does not already have, the answer is **not** to extend `compunet.s` — it lands in the modern
+clients (web / Electron) and, where the frozen wire format allows, the Amiga client, or its safety
+lives server-side. "The C64 would need to…" means the feature stops at the C64, by design. This is
+normative in the spec too (§1.8) and in CONFORMANCE (a new client must degrade safely where the
+era C64 does not). If a task appears to require a C64 feature, STOP and raise it — do not build it.
+
 0. **Before building anything, read [REQUIREMENTS.md](REQUIREMENTS.md).** It lists the toolchain
    each component needs and how to check it is present — a build that fails for a missing
    `ca65`, `make` or `c1541` is a component to install, not a bug to debug. It also carries the
@@ -87,6 +100,7 @@ you rely on MUST be confirmed against ground truth before you write or change co
 ## Server Rules
 
 1. The server must ALWAYS be restarted after any change to server Python code. It does not hot-reload. Use `./server.sh restart`. Content files (SEQ frames, directory JSON files, adverts.json) in `server/data/` are re-read on each request and do not require a restart.
+2. **On Windows `./server.sh` does not work** — see *Running the server locally* in [REQUIREMENTS.md](REQUIREMENTS.md) for the PowerShell equivalent. Do not run `compunet_server.py` directly without loading `.env` first: the server starts fine and silently serves the **wrong content tree**, because `COMPUNET_CONTENT_DIR` lives in `.env` and `server.sh` is what loads it.
 
 ## Audit Rules
 

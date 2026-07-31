@@ -53,10 +53,14 @@ UBYTE  g_link_char = 0;          /* DAT_001230bc — 1-byte link read scratch (s
 UBYTE  g_config[0x36];
 
 /* ---- Connection / session state ---- */
-UWORD  g_state        = 0;      /* DAT_0011d070 */
-UWORD  g_online       = 0;      /* DAT_0011d074 */
-UWORD  g_state_shadow = 0xffff; /* DAT_0011d46e */
-UWORD  g_online_shadow= 0xffff; /* DAT_0011d472 */
+/* ⚠ LONG. The original uses move.l/tst.l/cmpi.l on all four of these (set_connection_state
+ * 0x1023f0-0x102406, read_frame_byte 0x108010, 0x1130ce). Declaring them UWORD is the same
+ * class of defect that broke the Diagnostics flag: a 32-bit access read through a 16-bit
+ * name. Harmless while every value stays small — which is exactly why it would ship. */
+LONG   g_state        = 0;      /* DAT_0011d070 */
+LONG   g_online       = 0;      /* DAT_0011d074 */
+LONG   g_state_shadow = 0xffff; /* DAT_0011d46e — image bytes are ff ff ff ff */
+LONG   g_online_shadow= 0;      /* DAT_0011d472 — image bytes are 00 00 00 00 */
 APTR   g_dir_page     = NULL;   /* DAT_0011d07c — points at g_dir_page_buf when open */
 APTR   g_frame_page   = NULL;   /* DAT_0011d078 — points at g_frame_page_buf when open */
 
@@ -70,7 +74,13 @@ APTR   g_frame_page   = NULL;   /* DAT_0011d078 — points at g_frame_page_buf w
  * Window* — any write past byte 4 corrupted adjacent globals, which broke directory
  * population and likely caused frame-rendering imperfections.
  */
-UBYTE  g_dir_page_buf[0x1478];   /* DAT_001203bc — directory page struct (BSS) */
+/* ⚠ EXTENT CORRECTED. The 0x1478 came from "distance to the next object", which was
+ * wrong: init_directory (0x1099ca) puts the gadget chain head at page+0xFEE, and eight
+ * further globals (0x12157e, 0x121580, 0x121588, 0x1215c4 …) lie INSIDE the old extent.
+ * The provable extent is 0x11C2. Over-declaring by ~1.1 KB was harmless here (this is a
+ * separate C object) but it MASKED those globals from the address survey — an audit is
+ * only as good as the map it works from. */
+UBYTE  g_dir_page_buf[0x11c2];   /* DAT_001203bc — directory page struct (BSS) */
 /* Size is 0x8c8, NOT ~0x800: frame_gadgets_enable (FUN_00102354) walks 6 gadgets
  * at frame+0x790 stride 0x34, so the last (row 5) gadget spans frame+0x894..0x8c8.
  * The recon confirms DAT_001220fc (= frame 0x121834 + 0x8c8) is the next global, and
@@ -87,7 +97,9 @@ char   g_ack_text[64];          /* DAT_0012021a — status text passed to acks *
 /* ---- Login record fields (separate buffers at 0x120244, filled from config) ---- */
 char   g_login_userid[16];      /* DAT_00120244 */
 char   g_login_scratch[16];     /* DAT_0012024d */
-UBYTE  g_frame_indent = 0;      /* placeholder for DAT_0011d078 indent check */
+/* (g_frame_indent removed — 0x11d078 is NOT an "indent check"; it IS g_frame_page, the
+ * "is the frame window open" pointer, accessed as a LONG from 24 sites. Declaring a byte
+ * placeholder over another global was the same fabrication as g_link_code.) */
 
 /* ---- Connect handshake scratch (wait_connect_handshake, recon FUN_00103162) ---- */
 char   g_hs_line[0x2a];         /* DAT_001201c4 — accumulated logon-text line (<=0x28) */
@@ -96,30 +108,50 @@ UBYTE  g_hs_read[0x2a];         /* DAT_001201f2 — per-chunk serial_io_variant 
 
 /* ---- Frame display state (recon 0x1203a0-0x1203bb, 0x120258, charset) ---- */
 UBYTE *g_font_base = NULL;      /* 0x120258 */
-UBYTE  c64_charset_upper[0x400];/* 0x11d9c0 — filled at build/link (font ROM) */
-UBYTE  c64_charset_lower[0x400];/* 0x11ddc0 */
+/* ⚠ REMOVED — 2 KB of BSS that was NEVER FILLED. build_font reads the charset straight
+ * out of the data blob (0x11d9c0 / 0x11ddc0), which is what fixed the all-blank font;
+ * these two arrays stayed behind, still exported, still zero. The next caller to reach
+ * for them would reproduce the blank-font bug exactly. Use the blob. */
 
 UBYTE (*g_frame_getbyte)(void) = NULL; /* DAT_001203b6 */
-UWORD  g_frame_pos = 0;         /* DAT_001203a0 */
-UWORD  g_frame_len = 0;         /* DAT_001203a4 */
+LONG   g_frame_pos = 0;         /* DAT_001203a0 — move.l/cmp.l at 0x108010 */
+LONG   g_frame_len = 0;         /* DAT_001203a4 — passed AS serial_read's actual out-ptr */
 UBYTE  g_frame_eof = 0;         /* DAT_001203ac */
 UBYTE *g_frame_capture = NULL;  /* DAT_001203ae */
 UBYTE  g_frame_buf[0x100];      /* DAT_00120310 (0x8f read window) */
-UWORD  g_frame_hdr_more = 0;    /* DAT_001203b2 */
+LONG   g_frame_hdr_more = 0;    /* DAT_001203b2 — move.l 0x1081be, tst.l 0x1130ba */
 UBYTE  g_rle_char = 0;          /* DAT_001203ba */
 UBYTE  g_rle_run  = 0;          /* DAT_001203bb */
 
-UBYTE  g_offscreen = 0;         /* DAT_0011d9a8 */
+LONG   g_offscreen = 0;         /* DAT_0011d9a8 — clr.l/move.l/tst.l 0x106162.. */
 UBYTE *g_plane_src[4];          /* DAT_00120264 */
 UBYTE *g_plane_dst[4];          /* DAT_0012028c */
 
-/* Frame output buffer shared by login/mail/validate. */
-char   g_frame_out[4096];       /* DAT_001220fc */
+/* Frame output buffer shared by login/mail/validate.
+ *
+ * ⚠ SIZED FROM THE ORIGINAL'S LAYOUT, NOT GUESSED. In the original this buffer starts at
+ * 0x1220fc and the next global (0x12309c) is 0x2FA0 = 12192 bytes later, so that is the
+ * space frame_display has to write into. It was reconstructed as 4096, which is a
+ * silent 8096-byte overflow for any frame output larger than that — it would corrupt
+ * whatever the linker happened to place next, with no diagnostic. Nothing observed has
+ * exceeded 4096 yet, which is why it has not bitten; the fix is free, so take it. */
+char   g_frame_out[12192];      /* DAT_001220fc, 0x12309c - 0x1220fc = 0x2FA0 */
 APTR   g_frame_out_end = NULL;  /* DAT_0012309c */
 
 /* ---- Navigation / directory scratch ---- */
-short  g_goto_page_no = 0;      /* DAT_0012157e */
-char   g_link_code[16];         /* DAT_00121580 */
+/* ⚠ A 6-CHARACTER BUFFER, NOT A NUMBER — and not two globals.
+ *
+ * 0x12157e is a single link-code string in the original: goto_page_prompt (0x10a2e2)
+ * passes it to the string requester with maxlen 6, and link_goto formats it with
+ * "L%.6s". Every reference in the whole binary is to $457e(a4); NOTHING references
+ * 0x121580, so `g_link_code` was a fabrication.
+ *
+ * Declared here as `short`, the prompt wrote up to SEVEN bytes (6 + NUL) through a
+ * two-byte object and the formatter read six back. It only ever worked because the
+ * fabricated `g_link_code` happened to be emitted immediately after it and absorbed the
+ * overrun — any change to declaration order, alignment or `-fdata-sections` turns a
+ * Goto Page into silent corruption of whatever lands there instead. */
+char   g_goto_page_no[8] = {0}; /* DAT_0012157e — 6 chars + NUL, padded to a word */
 char   g_vote_choice[8];        /* DAT_0012164c */
 char   g_extend_days[8];        /* DAT_00121648 */
 
@@ -140,9 +172,21 @@ char   g_dl_filename[128];      /* DAT_001215c6 */
 char   g_dl_header[16];         /* DAT_001215e8 */
 APTR   g_dl_file = NULL;        /* DAT_001215f0 */
 char   g_ul_name[128];          /* DAT_0012161e */
-char   g_xfer_buf[4096];        /* DAT_001220fc region (reuses frame_out area on HW) */
+/* ⚠ ALIASES g_frame_out ON REAL HARDWARE — in the original both names are the SAME
+ * 12192-byte buffer at 0x1220fc. Kept separate here deliberately: every audited path uses
+ * one or the other within a single function, never both, so the split is safe and avoids
+ * one subsystem silently trampling another's scratch. Sized to match the block reads that
+ * use it (4000-byte transfers) with headroom. If a path is ever found that RELIES on the
+ * alias, these must become one array. */
+char   g_xfer_buf[4096];        /* DAT_001220fc region (aliases frame_out on HW) */
 char   g_ul_hdr[8];             /* DAT_00121640 */
-LONG   g_dl_link_a = 0;         /* DAT_001215ec — link header word (checked ==0)   */
+/* ⚠ NOT A REAL GLOBAL. 0x1215ec is not a variable of its own in the original — it is
+ * `g_dl_header + 4`, the SECOND longword of the 8-byte link header. Declaring it
+ * separately gave download_link a value that was initialised to 0 and never written, so
+ * its `== 0` check was constant-true and the received header's second longword went
+ * unexamined. download_link now reads g_dl_header+4 directly. Kept only so the address
+ * comment above stays discoverable; nothing references it. */
+LONG   g_dl_link_a = 0;         /* DAT_001215ec — ALIAS of g_dl_header+4, do not use  */
 
 /* ---- IFF/ILBM decoder working state (recon BSS 0x1216cc..0x1217xx) ----
  * The 'F' (picture) download path streams an IFF ILBM image through a chunk state
@@ -176,13 +220,24 @@ UBYTE  g_iff_rowimg[0x14];      /* DAT_001217d8 — temp Image for per-row DrawI
 /* ---- Mail fields ---- */
 char        g_mail_subject[24];      /* DAT_00121658 */
 char        g_mail_names[5 * 9];     /* DAT_00121669 */
-char        g_mail_cmd[8] = "M";     /* DAT_0011ea5e — mail-enter command */
+/* ⚠ TWO BYTES, NOT EIGHT. 0x11ea5e is one of FOUR adjacent 2-byte command strings
+ * ("M","M","N","N" at 0x11ea5e/60/62/64), each lea'd separately by mail_prepare and
+ * mail_done. Declaring 8 bytes here spilled zeros over the three that follow. */
+char        g_mail_cmd[2] = "M";     /* DAT_0011ea5e — mail-enter command */
 static const char *mail_title_str = "Mail Upload";
 const char **g_mail_title = &mail_title_str; /* PTR_s_Mail_Upload_0011eae2 */
 
 /* ---- Extra / abort signal + device-message logging ---- */
 ULONG  g_extra_sig = 0;         /* DAT_00120104 */
-BOOL   g_log_device_messages = 0;/* DAT_0011fd74 */
+/* ⚠ ONE GLOBAL, ONE VARIABLE. 0x11fd74 is a single LONG in the original: diagnostics_open
+ * sets it (0x11909a), diagnostics_close clears it (0x1190a8), and all three transport wait
+ * loops test it (serial_write 0x1195de, serial_read 0x1196dc, serial_io_c 0x1197f4) to
+ * decide whether to render the device message. This tree declared it TWICE — as
+ * `g_log_device_messages` here and `g_diag_active` below — so the flag was set on one
+ * variable and tested on the other, and the test was permanently false: turning on
+ * Diagnostics opened a window that then stayed blank for the whole session. The duplicate
+ * has been removed; `g_diag_active` is now a macro alias for this. */
+LONG   g_log_device_messages = 0;/* DAT_0011fd74 — diagnostics active / log device msgs */
 
 /* ---- Top-level UI bring-up state (launch.c / ui.c) ---- */
 APTR   g_main_uport      = NULL; /* DAT_00120100 — main window UserPort         */
@@ -228,7 +283,8 @@ APTR   g_courier_win  = NULL;   /* DAT_00121650 — courier/mail window        *
 APTR   g_dir2_win     = NULL;   /* DAT_00121698 — secondary directory window */
 APTR   g_diag_win    = NULL;    /* DAT_0011fd70 — Diagnostics window          */
 APTR   g_diag_screen = NULL;    /* DAT_0011fda2 — screen ptr copy for diag    */
-UBYTE  g_diag_active = 0;       /* DAT_0011fd74 — Diagnostics active flag      */
+/* (g_diag_active removed — it was a SECOND declaration of 0x11fd74. See
+ * g_log_device_messages above; diagnostics.c now sets that one.) */
 APTR   g_sess_a       = NULL;   /* DAT_0011f120 — session buffer/handle A    */
 APTR   g_sess_b       = NULL;   /* DAT_0011f124 — session buffer/handle B    */
 APTR   g_sess_c       = NULL;   /* DAT_0011f128 — session buffer/handle C    */
@@ -247,4 +303,6 @@ UBYTE *g_mem_src = 0;          /* DAT_001203a8 — in-memory frame read cursor *
  * non-zero code to trigger disconnect(). Sized for PC + 14 saved regs (15 longs). */
 ULONG  g_jmpbuf[16];           /* DAT_00120170 — abort jmp_buf */
 APTR   g_edit_frame = 0;       /* DAT_0011d080 — frame being published */
-APTR   g_frame_out_ptr = 0;    /* DAT_0012309c — mail output write cursor */
+/* (g_frame_out_ptr removed — it was a SECOND declaration of 0x12309c. One address, one
+ * name: everything now uses g_frame_out_end above. Same defect shape as g_dl_link_a and
+ * g_diag_active — writer and reader ending up on different variables.) */

@@ -202,6 +202,21 @@ static LONG run_requester(APTR newwindow, APTR glist, APTR box_image, APTR text_
     AddGList(w, (struct Gadget *)glist, 0, ~0, NULL);
     RefreshGList((struct Gadget *)glist, w, NULL, ~0);
 
+    /* ⚠ PUT THE CURSOR IN THE FIELD. The string-prompt core opens with
+     *   110284  jsr $11054c(pc)   ; ActivateGadget(gadget, window, NULL)  (LVO -462)
+     * Omitting it meant every text prompt — Goto Page, Download/Upload filename, Vote,
+     * Extend By — appeared with no active field, so typing did nothing until the user
+     * clicked into it first. Only the string flavour activates: the yes/no core passes
+     * its OK/Cancel list here, and activating a boolean gadget is meaningless, so this
+     * keys off the gadget actually being a string gadget. */
+    {
+        struct Gadget *g0 = (struct Gadget *)glist;
+        /* KS1.3 intuition.h: the gadget KIND is the low 3 bits (BOOLGADGET 1 …
+         * STRGADGET 4); 0xFC00 is the separate system-gadget mask. */
+        if (g0 != NULL && (g0->GadgetType & 0x0007) == STRGADGET)
+            ActivateGadget(g0, w, NULL);
+    }
+
     /* Block until user clicks a gadget, then drain all queued messages and return
      * the last one's gadget id (recon: WaitPort + drain loop + read IAddress+0x26). */
     WaitPort(w->UserPort);
@@ -221,14 +236,22 @@ static LONG run_requester(APTR newwindow, APTR glist, APTR box_image, APTR text_
  * box image (0x11fcfc), border (0x11fd24) and RETRY/SKIP/CANCEL gadget list (0x11fcd0).
  * Returns the clicked gadget's id: 0 = RETRY, 1 = SKIP, 2 = CANCEL.
  */
-LONG frame_busy_requester(void)
+LONG frame_busy_requester(const char *op)
 {
     struct Window       *w;
     struct IntuiMessage *msg;
     struct Gadget       *last = NULL;
     struct IntuiText    *ti = (struct IntuiText *)DATA(0x11fd5c);
 
-    /* recon FUN_001104d8: centre the "Frame being edited" text within the 0xd0-wide box. */
+    /* ⚠ THE TOP LINE IS A PARAMETER, and without it this printed from address 0.
+     *   1180c0  move.l $8(a5), $2d68(a4)   ; arg1 -> IntuiText(0x11fd5c).IText
+     * That field is 0 in the image — it is set at RUNTIME from the caller, which passes
+     * "NEXT" (0x11fb34) or "LAST" (0x11fb3a). Reconstructed with no argument, IText
+     * stayed NULL and both IntuiTextLength() and PrintIText() dereferenced it, so the
+     * requester rendered whatever bytes sit at $0 and centred on a garbage width.
+     * Line 2 ("Frame being edited") is the fixed chained IntuiText at 0x11fd48. */
+    ti->IText = (UBYTE *)op;
+    /* recon FUN_001104d8: centre the top line within the 0xd0-wide box. */
     ti->LeftEdge = (WORD)((0xd0 - IntuiTextLength(ti)) / 2);
 
     /* recon FUN_00118000: patch this requester's NewWindow.Screen (+0x1e), open, draw body. */
@@ -311,8 +334,22 @@ static LONG number_prompt(const char *title, char *buf, int width)
     /* Centre the title label (recon FUN_001104d8): LeftEdge = (0x100 - textlen)/2. */
     ti->LeftEdge = (WORD)((0x100 - IntuiTextLength(ti)) / 2);
 
-    /* string-prompt core: box 0x11f10c, centred title 0x11eeb0 (recon FUN_001101a6). */
-    return run_requester(DATA(0x11ee80), DATA(0x11f0e0), DATA(0x11f10c), DATA(0x11eeb0)) == 1;
+    /* string-prompt core: box 0x11f10c, centred title 0x11eeb0 (recon FUN_001101a6).
+     *
+     * ⚠ GADGET ID 2 IS ALSO "OK" — pressing RETURN in the field must accept.
+     *   1102d0  cmpi.w #$1, d0 ; beq accept
+     *   1102d6  cmpi.w #$2, d0 ; beq accept      <-- the string gadget itself
+     *   1102de  bne    wait-again                ; anything else: keep waiting
+     * The string gadget at 0x11f0e0 has GadgetID 2 and Activation RELVERIFY, and the
+     * requester's IDCMP is GADGETDOWN|GADGETUP, so RETURN arrives as a GADGETUP whose
+     * IAddress is the field. Testing only `== 1` made Return behave exactly like Cancel
+     * in Goto Page, Download filename, Upload filename, Vote and Extend By — the value
+     * was typed and then silently thrown away. */
+    {
+        LONG id = run_requester(DATA(0x11ee80), DATA(0x11f0e0),
+                                DATA(0x11f10c), DATA(0x11eeb0));
+        return (id == 1 || id == 2);
+    }
 }
 
 /* string_prompt — recon FUN_00110390: number_prompt with a fixed width of 0x20 (32). */
@@ -321,12 +358,40 @@ static LONG string_prompt(const char *title, char *buf)
     return number_prompt(title, buf, 0x20);
 }
 
+/*
+ * numeric_prompt — recon FUN_001103b0: number_prompt with the string gadget switched to
+ * LONGINT for the duration, so Intuition itself rejects anything that is not a number.
+ *
+ * ⚠ Vote and Extend By use THIS core, not the plain one (their veneer 0x10c6a2 jumps to
+ * 0x1103b0, not 0x110306). Reconstructed as plain number_prompt, both fields accepted
+ * arbitrary text: Vote merely re-looped on a non-digit, but EXTEND BY did not validate at
+ * all and sent whatever was typed to the server as a lifetime.
+ *   110416  Activation |= $800   (LONGINT)   ; gadget 0x11f0e0 + 0x0e
+ *   110442  Activation &= $f7ff              ; cleared again afterwards
+ */
+static LONG numeric_prompt(const char *title, char *buf, int width)
+{
+    UWORD *activation = (UWORD *)DATA(0x11f0ee);   /* string gadget Activation */
+    LONG   ok;
+    *activation |= 0x0800;
+    ok = number_prompt(title, buf, width);
+    *activation &= 0xf7ff;
+    return ok;
+}
+
 /* ---- per-command prompt wrappers (the stubs, now real) ---- */
 
 LONG goto_page_prompt(void)          /* recon FUN_0010a2e2 "Goto Page" */
 {
-    extern short g_goto_page_no;
-    return number_prompt("Goto Page", (char *)&g_goto_page_no, 6);
+    extern char g_goto_page_no[];
+    extern void str_upper(char *s);              /* recon FUN_0011513a */
+    if (number_prompt("Goto Page", g_goto_page_no, 6) == 0)
+        return 0;
+    /* ⚠ UPPER-CASED BEFORE USE (recon 0x10a302: jsr $10a534 -> $11513a). Omitting it
+     * meant a lowercase page name was sent verbatim in "L%.6s" and simply did not
+     * resolve, with nothing to tell the user why. */
+    str_upper(g_goto_page_no);
+    return 1;
 }
 
 LONG vote_choice_prompt(void)        /* recon FUN_0010c4ca */
@@ -334,7 +399,7 @@ LONG vote_choice_prompt(void)        /* recon FUN_0010c4ca */
     extern char g_vote_choice[];
     /* recon loops until a single digit 1-9 is entered */
     do {
-        if (number_prompt("Vote", g_vote_choice, 1) == 0)
+        if (numeric_prompt("Vote", g_vote_choice, 1) == 0)
             return 0;
     } while (g_vote_choice[0] < '1' || g_vote_choice[0] > '9' || g_vote_choice[1] != '\0');
     return 1;
@@ -343,12 +408,19 @@ LONG vote_choice_prompt(void)        /* recon FUN_0010c4ca */
 LONG extend_by_prompt(void)          /* recon FUN_0010c404 "Extend By" */
 {
     extern char g_extend_days[];
-    return number_prompt("Extend By", g_extend_days, 3);
+    return numeric_prompt("Extend By", g_extend_days, 3);
 }
 
 LONG upload_filename_prompt(void)    /* recon FUN_0010c000 "Upload filename" */
 {
     extern char g_ul_name[];
+    extern char g_put_name[];
+    /* ⚠ PRE-FILLED FROM THE PUBLISH NAME. Original 0x10c000 does
+     *   pea $45f4(a4) (g_put_name) / pea $461e(a4) (g_ul_name) / jsr strcpy
+     * before prompting. Without it the requester opened showing whatever g_ul_name last
+     * held — an uninitialised buffer on first use — instead of the frame name the user
+     * had just typed into the publish dialog moments earlier. */
+    strcpy(g_ul_name, g_put_name);
     return string_prompt("Upload filename", g_ul_name);
 }
 
@@ -424,6 +496,21 @@ LONG download_filename_prompt(void)
         g_dl_filename[i] = '\0';
 
     return string_prompt("Download filename", g_dl_filename);
+}
+
+/* action_filename_prompt — the 'A' (action) path's prompt.
+ *
+ * ⚠ NOT the same prompt as a download. action_download strcpy's "RAM:temp" into
+ * g_dl_filename and then calls the GENERIC string prompt on it, titled "Action
+ * filename" (original 0x10b384-0x10b39e). Calling download_filename_prompt() there
+ * instead — as this reconstruction did — overwrites that default with the directory
+ * row's TITLE, so the executable was written into the icon's drawer under the entry's
+ * name rather than to RAM:, and the requester carried the wrong caption. The point of
+ * RAM:temp is that an action is fetched, run and discarded. */
+LONG action_filename_prompt(void)
+{
+    extern char g_dl_filename[];
+    return string_prompt("Action filename", g_dl_filename);
 }
 
 /* ------------------------------------------------------------------ *

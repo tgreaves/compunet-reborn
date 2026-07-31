@@ -22,6 +22,7 @@ extern APTR SysBase;
 extern APTR AbsExecBase;             /* set by the runtime startup */
 extern void open_dos_library(void);  /* recon FUN_001001c4 */
 
+
 int main(void)
 {
     /* The runtime (vbcc minstart.o) has set SysBase and the a4 small-data base and

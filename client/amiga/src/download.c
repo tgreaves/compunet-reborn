@@ -12,10 +12,12 @@
  *   'L'  link/sub-program    -> download_link     (FUN_0010b66a)
  *   else                     -> "Can't download this"
  *
- * Every branch EXCEPT 'T' is first gated by download_charged_prompt (FUN_0010b000):
- * a charged page shows "WARNING - CHARGED ITEM / Buy for £<price>?" and only proceeds
- * if the user confirms. (The earlier transfer.c reconstruction of download_check was
- * an invented 3-way 'C'/'S'/'A' switch with no charged gate — replaced by this.)
+ * EVERY branch — including 'T' — is first gated by download_charged_prompt
+ * (FUN_0010b000): a charged page shows "WARNING - CHARGED ITEM / Buy for £<price>?"
+ * and only proceeds if the user confirms. (The earlier transfer.c reconstruction of
+ * download_check was an invented 3-way 'C'/'S'/'A' switch with no charged gate —
+ * replaced by this. This comment previously claimed 'T' was ungated, and the code
+ * matched the comment rather than the binary: a charged text page billed silently.)
  *
  * The 'F' path decodes a streamed IFF/ILBM image live: action_download_run feeds each
  * downloaded byte to iff_feed_byte (FUN_00111024), a chunk state machine that parses
@@ -46,14 +48,14 @@ extern APTR  g_frame_page;               /* DAT_0011d078 */
 extern short g_sel_row;                  /* DAT_001215c4 */
 extern APTR  g_dl_file;                  /* DAT_001215f0 */
 extern char  g_dl_header[];              /* DAT_001215e8 */
-extern LONG  g_dl_link_a;                /* DAT_001215ec */
+extern BOOL  g_tcp_mode;                 /* net.h — TCP transport active */
 extern char  g_xfer_buf[];               /* DAT_001220fc */
 extern ULONG g_tty_seg_bptr;             /* DAT_0012016c — CnetTty viewer entry */
 extern ULONG g_jmpbuf[];                 /* DAT_00120170 — abort jmp_buf         */
 
 /* Transport-fed frame reader state (frame.c / globals.c). */
-extern UWORD  g_frame_pos;               /* DAT_001203a0 */
-extern UWORD  g_frame_len;               /* DAT_001203a4 */
+extern LONG  g_frame_pos;               /* DAT_001203a0 */
+extern LONG  g_frame_len;               /* DAT_001203a4 */
 extern UBYTE  g_frame_eof;               /* DAT_001203ac */
 extern UBYTE *g_frame_capture;           /* DAT_001203ae */
 extern UBYTE  read_frame_byte(void);     /* FUN_0010800c */
@@ -74,6 +76,8 @@ extern void  frame_display_done(APTR out, APTR len);        /* FUN_0011754e */
 extern APTR  alloc_tracked(ULONG size, ULONG flags);        /* FUN_0011a1ee */
 extern APTR  open_screen_tracked(APTR ns);                  /* FUN_0011a4e0 */
 extern APTR  open_window_tracked(APTR nw);                  /* FUN_0011a534 */
+extern void  close_window_tracked(APTR win);                /* FUN_0011a568 (ui.c) */
+extern void  close_screen_tracked(APTR scr);                /* FUN_0011a514 (ui.c) */
 extern void  load_screen_palette(APTR vp, APTR ct, ULONG n);/* GfxBase.LoadRGB4 FUN_0012a01c */
 extern void  set_connection_error(int code);               /* longjmp FUN_00101638 */
 
@@ -114,8 +118,8 @@ LONG download_charged_prompt(void)
  * follow (g_frame_hdr_more via frame_display's return being non-empty) it sets state=3
  * so the top-level loop re-invokes download_text_continue for the next page.
  */
-extern UWORD g_frame_hdr_more;           /* DAT_001203b2 — more-frames flag */
-extern APTR  g_frame_out_ptr;            /* DAT_0012309c — frame output cursor */
+extern LONG g_frame_hdr_more;           /* DAT_001203b2 — more-frames flag */
+extern APTR  g_frame_out_end;            /* DAT_0012309c — frame output cursor */
 extern char  g_frame_out[];              /* DAT_001220fc region output buffer */
 extern char  g_ack_text[];               /* DAT_0012021a */
 extern char  g_cmd_buf[];                /* DAT_00121588 */
@@ -126,8 +130,8 @@ LONG download_text(void)
     serial_write(g_cmd_buf, strlen(g_cmd_buf), 1, TOKEN_COM);
     if (serial_io_c(g_ack_text) != ACK_OK)
         return 0;
-    g_frame_out_ptr = frame_display(g_frame_page, g_frame_out);
-    frame_display_done(g_frame_out, g_frame_out_ptr);
+    g_frame_out_end = frame_display(g_frame_page, g_frame_out);
+    frame_display_done(g_frame_out, g_frame_out_end);
     if (g_frame_hdr_more != 0)
         g_state = 3;                         /* more pages: continue */
     return 1;
@@ -142,8 +146,8 @@ LONG download_text_continue(void)
         g_state = STATE_GOTO;
         return 0;
     }
-    g_frame_out_ptr = frame_display(g_frame_page, g_frame_out);
-    frame_display_done(g_frame_out, g_frame_out_ptr);
+    g_frame_out_end = frame_display(g_frame_page, g_frame_out);
+    frame_display_done(g_frame_out, g_frame_out_end);
     if (g_frame_hdr_more == 0)
         g_state = STATE_GOTO;
     return 1;
@@ -197,19 +201,43 @@ extern UBYTE  g_iff_rowimg[];            /* 0x1217d8 — temp Image for per-row 
  * a re-decode never leaks the previous image's screen. */
 static void iff_free_all(void)
 {
-    if (IFF_WINDOW)  { CloseWindow(IFF_WINDOW);   IFF_WINDOW = NULL; }
-    if (IFF_SCREEN)  { CloseScreen(IFF_SCREEN);   IFF_SCREEN = NULL; }
-    IFF_BITMAP = NULL;
+    /* ⚠ THE *TRACKED* CLOSES, and the bitmap is genuinely FREED. Ground truth,
+     * FUN_00111270, is three calls through veneers that resolve to the tracked
+     * helpers — not the raw Intuition functions:
+     *   111276  $2128 (window) -> $1117aa -> $11a568  close_window_tracked
+     *   11128a  $2124 (screen) -> $11179e -> $11a514  close_screen_tracked
+     *   11129e  $2120 (bitmap) -> $1117b0 -> $11a238  free_tracked
+     * We called raw CloseWindow/CloseScreen, which close the object but LEAVE the
+     * node that open_*_tracked registered — so exit cleanup closed each a second
+     * time (the "Recoverable Error" / crash on QUIT), and the chip row buffer was
+     * merely forgotten rather than freed. */
+    if (IFF_WINDOW)  { close_window_tracked(IFF_WINDOW);   IFF_WINDOW = NULL; }
+    if (IFF_SCREEN)  { close_screen_tracked(IFF_SCREEN);   IFF_SCREEN = NULL; }
+    if (IFF_BITMAP)  { free_tracked(IFF_BITMAP);           IFF_BITMAP = NULL; }
 }
 
-/* iff_free_window — recon FUN_001116ee: close just the decoder window (the streamed
+/* iff_free_bitmap — recon FUN_001116ee: free the decoder row buffer (the streamed
  * download path closes only the window; the screen/bitmap live in the tracked-resource
  * list and are released at connection teardown). */
-static void iff_free_window(void)
+static void iff_free_bitmap(void)
 {
-    if (IFF_WINDOW) {
-        CloseWindow(IFF_WINDOW);
-        IFF_WINDOW = NULL;
+    /* ⚠ THIS FREES THE ROW BUFFER. IT DOES NOT CLOSE THE WINDOW.
+     *
+     * Reconstructed as "iff_free_window" (CloseWindow) — wrong, and it is why a
+     * decoded picture vanished the instant it finished: the streamed path calls this
+     * at the END of the download, so the viewer was torn down at the exact moment the
+     * image was complete. Ground truth, FUN_001116ee:
+     *   1116ee  tst.l  $2120(a4)     ; IFF_BITMAP  (NOT $2128 = IFF_WINDOW)
+     *   1116f8  jsr    $1117b0(pc)   ; -> $11a238 = free_tracked
+     *   1116fe  clr.l  $2120(a4)
+     * $1117b0 is the same veneer iff_free_all uses for the bitmap, and a DIFFERENT one
+     * from the window ($1117aa) and screen ($11179e) — so the operand and the callee
+     * both say bitmap. The original leaves the picture's screen AND window open after
+     * the transfer; they are released by iff_free_all on the next picture, or at
+     * connection teardown. */
+    if (IFF_BITMAP) {
+        free_tracked(IFF_BITMAP);
+        IFF_BITMAP = NULL;
     }
 }
 
@@ -264,6 +292,7 @@ static void iff_setup(void)
 
     iff_free_all();                          /* recon FUN_00111270: full teardown first */
 
+
     g_iff_compress = BMHD_COMPRESS;
     if (g_iff_compress > 1) {                 /* only 0 / 1 (ByteRun1) supported */
         g_iff_error = 1;
@@ -293,6 +322,7 @@ static void iff_setup(void)
     g_iff_rowbytes = (UWORD)(rowwords * 2);
     nplanes = BMHD_NPLANES;
     planebytes = (ULONG)g_iff_rowbytes * nplanes;
+
 
     base = alloc_tracked(planebytes, 2 /*MEMF_CHIP*/);
     IFF_BITMAP = (APTR)base;                  /* recon stores at 0x2120 */
@@ -333,12 +363,59 @@ static void iff_setup(void)
         g_iff_error = 1;
         return;
     }
-    /* Patch NewWindow.Screen (blob 0x11f158 + 0x1e) and open. */
-    *(APTR *)DATA(0x11f176) = IFF_SCREEN;
+
+    /* ⚠ THE PICTURE SCREEN OPENS *BEHIND*, ON PURPOSE — AND MUST BE PULLED FORWARD.
+     *
+     * The blob's NewScreen at 0x11f138 has Type = 0x008F = CUSTOMSCREEN | SCREENBEHIND,
+     * and iff_setup overwrites only Width/Height/Depth/ViewModes — never Type. So
+     * OpenScreen deliberately creates the screen at the BACK of the display, and the
+     * original's explicit ScreenToFront is the only thing that ever makes it visible.
+     *
+     * Omitting these two calls is why a picture stayed invisible even once the decoder
+     * ran to completion: the bitmap was allocated, the palette loaded and all 256 rows
+     * DrawImage'd correctly onto a screen parked permanently behind the Compunet one.
+     * Nothing errors, so there is no symptom to chase — the log said rows=256, error=0.
+     *
+     * Ground truth, FUN_001112ae, between the OpenScreen NULL check and the NewWindow
+     * patch below:
+     *   111426  pea $40.w / clr.l -(a7) / move.l $2124(a4),-(a7)
+     *   111430  jsr $111798(pc)   -> $12b0bc -> IntuitionBase LVO -162 = MoveScreen(s,0,64)
+     *   111438  move.l $2124(a4),-(a7)
+     *   11143c  jsr $111786(pc)   -> $12b184 -> IntuitionBase LVO -252 = ScreenToFront(s)
+     * (LVOs checked against fd1.3/intuition_lib.fd.)
+     */
+    MoveScreen(IFF_SCREEN, 0, 0x40);
+    ScreenToFront(IFF_SCREEN);
+
+    /* Patch NewWindow.Screen (blob 0x11f158 + 0x1e) and open.
+     *
+     * ⚠ THE WINDOW IS SIZED FROM THE SCREEN JUST OPENED — and omitting that was a real
+     * reconstruction bug (#129). The blob's NewWindow is a fixed 640x256, while the
+     * screen above is 320 wide for any picture with pageWidth <= 320. A window cannot
+     * be larger than its screen, so OpenWindow returned NULL for every lowres picture,
+     * iff_setup flagged an error, and iff_feed_byte — which begins `if (g_iff_error)
+     * return;` — silently discarded the entire image while the file still saved
+     * perfectly. Only pictures wider than 320 (which force a 640 hires screen) worked.
+     *
+     * Ground truth, relocated disassembly of FUN_001112ae:
+     *   111442  move.l  $2124(a4), $2176(a4)   ; NewWindow.Screen = IFF_SCREEN
+     *   111448  movea.l $2124(a4), a0          ; a0 = the screen
+     *   11144c  move.w  $c(a0), $215c(a4)      ; NewWindow.Width  = Screen.Width
+     *   111452  move.w  $e(a0), $215e(a4)      ; NewWindow.Height = Screen.Height
+     *   11145c  jsr     OpenWindow
+     * $215c/$215e(a4) are NewWindow+4/+6; $c/$e(a0) are Screen.Width/Height.
+     */
+    {
+        struct NewWindow *nw = (struct NewWindow *)DATA(0x11f158);
+        nw->Screen = IFF_SCREEN;
+        nw->Width  = IFF_SCREEN->Width;
+        nw->Height = IFF_SCREEN->Height;
+    }
     IFF_WINDOW = (struct Window *)open_window_tracked(DATA(0x11f158));
     if (IFF_WINDOW == NULL) {
         iff_free_all();
         g_iff_error = 1;
+        return;
     }
 }
 
@@ -536,7 +613,7 @@ LONG iff_view_file(const char *name)
     iff_init();
     for (i = 0; i < size; i++)
         iff_feed_byte(buf[i]);
-    iff_free_window();
+    iff_free_bitmap();
     free_tracked(buf);                        /* FUN_0011a238 */
     return 1;
 }
@@ -560,10 +637,12 @@ LONG action_download_run(void)
     ULONG i;
     LONG  done;
 
-    if (download_filename_prompt() == 0)
+    if (download_filename_prompt() == 0) {
         return 0;
-    if (file_download_xfer() == 0)
+    }
+    if (file_download_xfer() == 0) {
         return 0;
+    }
 
     g_frame_pos     = 0;
     g_frame_len     = 0;
@@ -596,7 +675,11 @@ LONG action_download_run(void)
         }
     } while (!done);
 
-    iff_free_window();
+    /* #129 trace summary. `rows` is the number the decoder actually blitted: 0 with
+     * no FAIL line above means the BODY never started; short of the picture height
+     * means the stream ended early. */
+
+    iff_free_bitmap();
     if (g_dl_file == NULL) {
         show_status_message(1, "No room for file");
         return 0;
@@ -680,9 +763,26 @@ LONG download_link(void)
         return 0;
 
     serial_read(g_dl_header, 8, &ser_flags, &status_hi, &actual);
-    if (status_hi == 0 ||
+    /* The two CONTENT checks are the faithful ones, and both were wrong before:
+     *   10b6c6  cmpi.l #$1000001, $45e8(a4)  ; g_dl_header[0..3]
+     *   10b6d0  tst.l  $45ec(a4)             ; g_dl_header+4 — the SECOND longword
+     * We used to test `g_dl_link_a`, which in this tree is a standalone LONG that is
+     * initialised to 0 and never written — in the ORIGINAL that address IS
+     * g_dl_header+4. So the header's second longword went unexamined and the clause was
+     * constant-true. These now read the received bytes.
+     *
+     * ⚠ DELIBERATE DEVIATION — the end-of-message test is SKIPPED over TCP.
+     *   10b6c0  tst.b -$2(a5)   ; ser_flags == 0 -> "Invalid link"
+     * On the real modem the fixed 8-byte read reports end-of-message and this is a
+     * genuine validity check. Over TCP the flag is not set until the EOS is consumed,
+     * and the link stream does NOT have one to consume here: an attempt to drain it
+     * (which is what file_download_xfer legitimately does for a program header) blocks
+     * forever on a read that never returns — it HUNG the client the moment a Partyline
+     * link was selected. The transport flag carries no meaning on this path, so it is
+     * not tested there; the two content checks above still reject a malformed header. */
+    if ((!g_tcp_mode && ser_flags == 0) ||
         *(LONG *)g_dl_header != 0x01000001L ||
-        g_dl_link_a != 0) {
+        *(LONG *)(g_dl_header + 4) != 0) {
         show_status_message(1, "Invalid link");
         return 0;
     }
@@ -704,7 +804,12 @@ LONG download_link(void)
              (APTR)modem_read_status,
              (APTR)serial_io_variant,
              (APTR)modem_send_delayed);
-    if (rc == 0) {
+    /* ⚠ TESTED AS A WORD (original 0x10b706 `tst.w d0`), and CnetTty returns a WORD in
+     * d0 (cnettty-re.md:52). Testing the full LONG means junk left in the high half by
+     * any exit path that does not `moveq` would read as "not zero" and silently suppress
+     * the carrier-loss report and its longjmp — the connection would appear alive. Every
+     * documented exit does moveq, so this cannot bite today; it is free to be exact. */
+    if ((WORD)rc == 0) {
         show_status_message(0x42, "Carrier lost");
         set_connection_error(1);
     }
@@ -724,9 +829,23 @@ LONG download_check(void)
     type = ROW_TYPE(g_dir_page, g_sel_row);
     sprintf(g_cmd_buf, "D%02d", (int)g_sel_row);
 
+    /* #129 trace: proves download_check was REACHED, and with which row/type. If the
+     * log shows no line here after a double-click, the click never dispatched a row
+     * action at all (dir_select only does so "while navigable") — which is a very
+     * different problem from the type being wrong. */
+
     switch (type) {
-    case 'T':                                 /* text/frame page (no charge gate) */
-        return download_text();
+    case 'T':
+        /* ⚠ A CHARGED TEXT PAGE IS GATED TOO. Reconstructed without the prompt, which
+         * meant a priced `T` entry was fetched — and the user BILLED — with no
+         * "WARNING - CHARGED ITEM / Buy for £x?" confirmation. All six types are gated
+         * in the original; this was the one that was not. Ground truth 0x10b7a4:
+         *   10b7a4  bsr.w $10b000     ; download_charged_prompt
+         *   10b7a8  tst.l d0
+         *   10b7aa  beq.b $10b7b2     ; declined -> moveq #0,d0 ; rts
+         *   10b7ac  jsr   $10b86e(pc) ; -> $113000 download_text
+         * The header comment on this file asserted the opposite and has been corrected. */
+        return download_charged_prompt() ? download_text() : 0;
     case 'F':                                 /* IFF picture */
         return download_charged_prompt() ? action_download_run() : 0;
     case 'P':

@@ -74,11 +74,18 @@ pass `via=` and `ip=` explicitly.
 | Value | Surface |
 |---|---|
 | `c64` | Binding A, C64 client |
-| `amiga` | Binding A, native Amiga client. Inferred from `session.is_amiga` during identification |
+| `amiga` | Binding A, native Amiga client. Set at identification by `identify_binding_a_client()`, which writes `is_amiga` **and** this label together |
 | `terminal` | PETSCII terminal, port 6401 |
 | `api` | Binding B — the web client, the Electron app, and any third-party client |
 | `web` | The website itself (registration, password reset) |
 | `admin` | An administrative action through the REST API |
+
+⚠ **Entries written before 1.4.0 record every Amiga session as `c64`.** The label was set
+to `c64` when the socket opened and identification updated only `session.is_amiga`, which
+`audit_via()` never consults once an explicit value is present — so the two Binding-A
+machines are indistinguishable in the older history. Nothing can recover it retroactively:
+a `via: c64` entry from before the fix may have come from either machine. Filtering
+`via=amiga` over that period returns nothing, which is an artefact, not a fact about usage.
 
 ---
 

@@ -59,3 +59,7 @@ client/c64/logs/
 # Local scripts
 transfer-repo.sh
 client/c64/src/partyline/build/
+
+# Web client build artifacts (only app.bundle.js is tracked)
+client/web/dist/*.map
+client/web/dist/iff.test.mjs

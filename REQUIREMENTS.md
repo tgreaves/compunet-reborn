@@ -117,11 +117,45 @@ the server dies at once. It now reports that correctly (`Server failed to start`
 tail of `server/logs/compunet-server.log`, and no PID file); until 1.3.0 it printed
 `Server started (PID …)` regardless, because it backgrounded the process and recorded the PID
 without checking it survived. `./server.sh status` still fails separately on `pgrep`, which Git
-Bash does not provide. On Windows, run the server directly and check the ports:
+Bash does not provide.
+
+⚠ **Running the server directly does NOT load `.env` — `server.sh` does.** This is the part that
+bites, because nothing fails: the server starts perfectly and serves the **wrong content tree**.
+`.env` is where `COMPUNET_CONTENT_DIR` usually points at a working copy rather than
+`server/data/content`, so a server launched without it silently serves a different (often nearly
+empty) set of directories, and you debug missing content that is really just a different tree. It
+also drops `COMPUNET_API_KEY`, so the website cannot talk to the server at all. Load `.env`
+first — this is what `server.sh` does on Linux, and the Windows equivalent:
 
 ```powershell
-cd server ; .\venv\Scripts\python.exe compunet_server.py
-Get-NetTCPConnection -State Listen -LocalPort 6400,6401,6403,6404
+$p = (Get-Location).Path
+Get-Content "$p\.env" | ForEach-Object {
+  $line = $_.Trim()
+  if ($line -and -not $line.StartsWith('#') -and $line.Contains('=')) {
+    $i = $line.IndexOf('='); Set-Item -Path "env:$($line.Substring(0,$i).Trim())" -Value $line.Substring($i+1).Trim()
+  }
+}
+"content: $env:COMPUNET_CONTENT_DIR"      # confirm it is the tree you meant
+Set-Location "$p\server"
+.\venv\Scripts\python.exe compunet_server.py
+```
+
+That runs in the foreground. To run it detached, with the logs `server.sh` would have written:
+
+```powershell
+Start-Process -FilePath "$p\server\venv\Scripts\python.exe" -ArgumentList "compunet_server.py" `
+  -RedirectStandardOutput "$p\server\logs\stdout.log" `
+  -RedirectStandardError  "$p\server\logs\stderr.log" -WindowStyle Hidden
+```
+
+⚠ **Startup output goes to stderr, not stdout** — `stdout.log` stays empty and `stderr.log` holds
+the `Compunet server vX.Y.Z ready` banner and the four `... on port` lines. Read the wrong one and
+a healthy server looks like it produced nothing. Check it started, then stop it:
+
+```powershell
+foreach ($port in 6400,6401,6403,6404) { "$port : $(Test-NetConnection 127.0.0.1 -Port $port -InformationLevel Quiet)" }
+Get-CimInstance Win32_Process -Filter "Name like '%python%'" |
+  Where-Object { $_.CommandLine -match 'compunet_server' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 ```
 
 ## Running the website locally

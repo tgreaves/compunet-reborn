@@ -218,6 +218,21 @@ def _audit_diff(before, after):
     return changes
 
 
+def identify_binding_a_client(session, is_amiga):
+    """Record WHICH machine a Binding-A session turned out to be.
+
+    ⚠ Both fields, in one place, on purpose. `is_amiga` drives behaviour (packet
+    size, LINKING, the IFF guard) and `audit_via` drives the log, and they were set
+    at different points by different code: the socket set `audit_via = 'c64'` before
+    identification could know better, and the handler then set only `is_amiga`. Since
+    audit_via() returns an explicit value before consulting is_amiga, the label never
+    caught up and EVERY Amiga session was logged as a C64 (#127 shipped that).
+    Setting one without the other is the bug, so nothing may set just one.
+    """
+    session.is_amiga = bool(is_amiga)
+    session.audit_via = 'amiga' if is_amiga else 'c64'
+
+
 def audit_via(session):
     """Which surface an action came through: c64, amiga, terminal, api, web, admin.
 
@@ -225,9 +240,14 @@ def audit_via(session):
     `page_read` from a C64 was indistinguishable from one through the web client
     except by whether `ip` happened to be present.
 
-    `audit_via` is set explicitly where a session is created; `is_amiga` is the one
-    case the server infers for itself, during the Binding-A identification
-    handshake, so it is read here rather than duplicated at every call site.
+    `audit_via` is set explicitly where a session is created.
+
+    ⚠ AN EXPLICIT VALUE WINS, so a session that sets it must KEEP IT TRUE. The
+    is_amiga fallback below is a safety net for sessions that never set one — it is
+    NOT a correction. A Binding-A session sets `audit_via = 'c64'` the moment the
+    socket opens, before it can know better, so setting `is_amiga` later did nothing
+    and every Amiga was recorded as a C64. The identification handler now updates
+    `audit_via` itself; this reading order is why it has to.
     """
     if session is None:
         return None
@@ -646,6 +666,9 @@ class CompunetDirectory:
         # For program pages, calculate size in KB from file data
         if page.page_type == 'P' and page.frames:
             page.size = (len(page.frames[0]) - 2 + 1023) // 1024
+        # An IFF picture ('F') is stored whole — no 2-byte load address to discount.
+        elif page.page_type == 'F' and page.frames:
+            page.size = (len(page.frames[0]) + 1023) // 1024
 
         # If page is also a directory, load sub-directory JSON
         if 'directory' in node:
@@ -1504,12 +1527,33 @@ class CompunetSession:
         """
         self.last_response_type = RESP_FRAME
         if self.show_page and self.show_frame_index < len(self.show_page.frames):
-            # Program download: send header, wait for proceed token
-            if self.show_page.page_type == 'P':
+            page_type = self.show_page.page_type
+            # 'P' (program) and 'F' (IFF picture) both download through the 8-byte
+            # descriptor and the $40 proceed handshake. Verified: the Amiga's F handler
+            # action_download_run reuses the SAME file_download_xfer() that programs use
+            # (client/amiga/src/download.c / transfer.c) — identical negotiation and
+            # descriptor. They differ only in what the client does with the delivered
+            # bytes: a P is saved, an F is fed to the ILBM decoder.
+            if page_type in ('P', 'F'):
+                # §7.4.1 guard. An F is Amiga content by definition. A client that cannot
+                # render it must NOT be handed the descriptor: the feature-locked C64 has
+                # no IFF decoder and would garbage-render the bitmap through its frame
+                # interpreter (§7.4.1). Refuse it a message the C64 paints as a page. The
+                # native Amiga (is_amiga) and Binding B — our own client, which carries the
+                # renderer, audit_via 'api' — can display it and proceed.
+                if page_type == 'F':
+                    can_render_iff = (getattr(self, 'is_amiga', False)
+                                      or getattr(self, 'audit_via', None) == 'api')
+                    if not can_render_iff:
+                        return self._make_error(ascii_to_petscii('PICTURE - AMIGA ONLY'))
                 prg_data = self.show_page.frames[self.show_frame_index]
-                # Header byte 0 = machine type (0=C64, 1=Amiga, 2=ST) from the page's stored
-                # platform; absent/unknown -> C64. The client's download dialog keys off it.
-                machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
+                # Header byte 0 = machine type (0=C64, 1=Amiga, 2=ST). A program carries its
+                # stored platform (absent/unknown -> C64); an F is always Amiga. The client's
+                # download dialog keys off it.
+                if page_type == 'F':
+                    machine = 1
+                else:
+                    machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
                 # ⚠ BYTES 4-7 ARE MACHINE-DEPENDENT, exactly as they are on upload (§8.3.2).
                 # Verified against the relocated disassembly of the original Amiga client's
                 # file_download_xfer (FUN_0010b174), which reads the body size from a
@@ -1544,7 +1588,8 @@ class CompunetSession:
                 self._download_title = self.show_page.title
                 # 68k machines have no load address, so report the descriptor rather than a
                 # field that does not exist for them (and load_lo/load_hi are unbound there).
-                log.info('PROGRAM: page=%d "%s" %s size=%d bytes (%dK), header sent [%s]',
+                log.info('%s: page=%d "%s" %s size=%d bytes (%dK), header sent [%s]',
+                         'PICTURE' if page_type == 'F' else 'PROGRAM',
                          self.show_page.page_num, self.show_page.title,
                          'no load addr' if is_68k else 'load=$%02X%02X' % (load_hi, load_lo),
                          size, (size + 1023) // 1024, header.hex())
@@ -2336,6 +2381,15 @@ class CompunetSession:
         title = getattr(self, '_download_title', '')
         self._program_download_pending = False
         self._program_download_data = None
+        # ⚠ The download is OVER, so the session must stop showing that page.
+        # Leaving `show_page` set left the binary page current after its bytes had
+        # been handed over, and the next MORE re-entered _send_current_frame and
+        # re-sent the 8-byte DESCRIPTOR — the user finished a download and the
+        # client was immediately offered the same one again. The abort path (0x41)
+        # already cleared it; success did not, so the two ends of the same
+        # transfer disagreed about what the session was doing.
+        self.show_page = None
+        self.show_frame_index = 0
         audit_log('page_downloaded', session=self, page=page_num, title=title,
                   bytes=len(data))
         return data
@@ -2457,11 +2511,16 @@ class CompunetSession:
         page_dir = os.path.join(parent_dir, page_slug)
         os.makedirs(page_dir, exist_ok=True)
 
-        # Save frames into page folder. Program frames are [8-byte header][body]; the
-        # header's byte 0 is the machine type (0=C64, 1=Amiga, 2=ST).
+        # Save frames into page folder. Binary uploads — a program ('P') or an IFF
+        # picture ('F') — arrive as [8-byte header][body]; the header's byte 0 is the
+        # machine type (0=C64, 1=Amiga, 2=ST). An F is stored exactly like an Amiga
+        # program (whole body, no load address) but with a .iff name and page_type 'F',
+        # because on the wire an F download IS an Amiga program download (§7.4.1) — the
+        # type letter is all that tells the client to decode rather than save.
         frame_files = []
-        is_program = send['type'] == 'P'
-        prog_machine = send['frames'][0][0] if (is_program and send['frames']) else None
+        is_picture = send['type'] == 'F'
+        is_blob = send['type'] in ('P', 'F')
+        prog_machine = send['frames'][0][0] if (is_blob and send['frames']) else None
         # ⚠ The split is by CPU, not by brand — 68k machines have no load address,
         # the 6502 does. Upload used to test `== 1` and so folded ST into the C64
         # branch, which would strip two bytes off the front of an ST file and store
@@ -2471,14 +2530,15 @@ class CompunetSession:
         # — it removes a trap rather than adding a feature.
         prog_is_68k = prog_machine in (1, 2)
         for i, frame_data in enumerate(send['frames']):
-            if is_program:
+            if is_blob:
                 if prog_is_68k:
                     # 68k: no C64-style load address to strip. Store the body whole.
                     frame_data = bytes(frame_data[8:])
                 else:
                     # C64: prepend the 2-byte load address (header bytes 4-5) to the body.
                     frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
-                frame_file = f'{page_slug}.prg' if i == 0 else f'{page_slug}-{i+1}.prg'
+                ext = 'iff' if is_picture else 'prg'
+                frame_file = f'{page_slug}.{ext}' if i == 0 else f'{page_slug}-{i+1}.{ext}'
             else:
                 frame_file = f'frame-{i+1}.seq'
             frame_path = os.path.join(page_dir, frame_file)
@@ -2486,7 +2546,7 @@ class CompunetSession:
                 f.write(frame_data)
             frame_files.append(frame_file)
 
-        if is_program and send['frames']:
+        if is_blob and send['frames']:
             hdr = send['frames'][0]
             if prog_is_68k:
                 size = (len(hdr) - 8 + 1023) // 1024   # raw body length (KB)
@@ -2505,7 +2565,10 @@ class CompunetSession:
             life=send['lifetime'],
         )
         new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        if is_program and prog_machine is not None:
+        if is_picture:
+            # An IFF picture is Amiga content by definition, whatever the header byte said.
+            new_page.machine_type = 'amiga'
+        elif is_blob and prog_machine is not None:
             # Program uploads carry their machine type in the header byte (authoritative).
             # Reverse of MACHINE_CODES, so the stored value round-trips whatever the
             # client declared instead of collapsing everything that is not 1 to C64.
@@ -3148,7 +3211,10 @@ async def tcp_handler(reader, writer):
     directory = CompunetDirectory()
     session = CompunetSession(directory)
     session.client_ip = addr[0] if addr else ''
-    # 'c64' until identification says otherwise; audit_via reads is_amiga.
+    # 'c64' until identification says otherwise — and identification MUST overwrite
+    # this (see the ident handler below). It is not derived: audit_via() returns an
+    # explicit value before it consults is_amiga, so leaving this to be "corrected"
+    # by setting is_amiga alone silently labelled every Amiga session a C64.
     session.audit_via = 'c64'
     x25 = X25Connection()
 
@@ -3296,7 +3362,8 @@ async def tcp_handler(reader, writer):
                 if not has_slash and not is_amiga:
                     continue   # identification incomplete — keep buffering
 
-                session.is_amiga = is_amiga
+                # Sets is_amiga AND the audit label together — see the function.
+                identify_binding_a_client(session, is_amiga)
                 ident_received = True
                 rx_buffer.clear()
 

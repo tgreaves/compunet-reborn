@@ -253,8 +253,17 @@ Exchange:
 
 A client that offers downloads **MUST** implement the `$40`/`$41` control tokens; these two
 values are meaningful only within this exchange. Each is an ordinary framed packet (§2.2–2.4)
-with that token, the client's current sequence number, and an **empty payload** — i.e. content
-`[length=$05][token=$40 or $41][seq][crc_hi][crc_lo]`, byte-stuffed and framed like any packet.
+with that token, the client's current sequence number, and a **one-byte payload**: `"O"`
+($4F) with `$40` (proceed), `"E"` ($45) with `$41` (abort) — i.e. content
+`[length=$06][token][seq][payload][crc_hi][crc_lo]`, byte-stuffed and framed like any packet.
+
+> **⚠ This section previously said the payload was EMPTY, and it was wrong.** The original
+> Amiga client sends one character (verified from the literals it passes to its write
+> routine: `"O"` at `0x11e4f0`, `"E"` at `0x11e4b8`/`0x11e4bc`/`0x11e4ec`). A receiver
+> **MUST** dispatch on the **token**, not the payload — the reference server does, which is
+> precisely why the reconstruction sent the token characters `"@"`/`"A"` as the payload for
+> a year without anything noticing. A client that emits an empty payload will still work
+> against a token-dispatching server, but it is not what the original does.
 *(Non-normative: for a C64 program the load address is honoured; for a 68k program the body is
 the raw relocatable executable — a HUNK image on the Amiga, which the client `LoadSeg`s — and
 there is no load field at all, those bytes being the size. Note
@@ -1038,6 +1047,20 @@ re-requested, so an entry just bought may still display its price until the next
 A client **MUST** implement both commands with this gate. Offering only `SHOW` makes paid content
 unreachable; offering only `BUY`, or letting `SHOW` open paid pages, charges the user without the
 confirmation the original always gave them.
+
+> **⚠ The REQUIREMENT is the confirmation, not the two-command shape.** The server charges on
+> `D`+index whatever the client's UI looks like, so what a client **MUST** guarantee is that a
+> priced entry is never selected without the user having agreed to pay. The `SHOW`/`BUY` split
+> above is how the **C64** realises it. The native **Amiga** client realises the same rule with a
+> single confirmation requester — `WARNING - CHARGED ITEM` / `Buy for £<price>?` — raised from its
+> download dispatcher, and it applies that gate to **every** downloadable base type (§7.4), text
+> included. Either shape is conformant; no gate on any path is not.
+>
+> **⚠ Gate EVERY type, not just the binary ones.** A charged **text** page is as chargeable as a
+> program, and it is the easy one to miss because reading text feels free. The reference Amiga
+> client shipped for four releases gating five of its six types — `T` went straight through, so a
+> priced text page was fetched and billed with no confirmation at all. If your dispatcher
+> branches on the base type, the charge check belongs **before** the branch.
 
 > **⚠ The server will charge without asking — the gate is the client's job and nothing else's.**
 > Measured: opening a £1.50 page took the credit from 97.50 to 96.00 with no prompt and no error,

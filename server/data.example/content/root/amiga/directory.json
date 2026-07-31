@@ -1,0 +1,17 @@
+{
+  "pages": [
+    {
+      "page_num": 952,
+      "title": "COLOUR BARS",
+      "type": "F",
+      "author": "ADMIN",
+      "price": 0,
+      "life": 0,
+      "machine_type": "amiga",
+      "uploaded": "2026-07-31T00:00:00",
+      "frames": [
+        "colour-bars.iff"
+      ]
+    }
+  ]
+}

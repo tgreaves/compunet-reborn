@@ -102,13 +102,49 @@ class ViaAndIpComeFromTheSession(AuditTestCase):
         self.assertEqual(entry['user'], USER)
 
     def test_amiga_is_distinguished_from_c64(self):
-        """The one surface the server infers for itself, during identification."""
+        """The one surface the server infers for itself, during identification.
+
+        ⚠ This test USED TO PASS while the server was wrong, because it cleared
+        `audit_via` before checking the is_amiga fallback — a sequence the real code
+        never performs. It now drives identification the way the handler does."""
+        s = self.api_session()
+        s.audit_via = 'c64'                       # what the socket sets on connect
+        self.assertEqual(srv.audit_via(s), 'c64')
+        srv.identify_binding_a_client(s, True)    # what identification then learns
+        self.assertEqual(srv.audit_via(s), 'amiga')
+        self.assertTrue(s.is_amiga)
+
+    def test_identification_labels_a_c64_as_c64(self):
         s = self.api_session()
         s.audit_via = 'c64'
+        srv.identify_binding_a_client(s, False)
         self.assertEqual(srv.audit_via(s), 'c64')
-        s.is_amiga = True
-        s.audit_via = None
-        self.assertEqual(srv.audit_via(s), 'amiga')
+        self.assertFalse(s.is_amiga)
+
+    def test_an_identified_amiga_is_logged_as_amiga(self):
+        """⚠ The regression, end to end: every Amiga action was recorded `via: c64`,
+        so the log could not tell the two Binding-A machines apart at all. Asserted on
+        a written ENTRY, not just the helper — the helper was never the broken part."""
+        s = self.api_session('192.0.2.7')
+        s.audit_via = 'c64'
+        srv.identify_binding_a_client(s, True)
+        srv.audit_log('page_downloaded', session=s, page=952,
+                      title='COLOUR BARS', bytes=30800)
+        entry = self.events('page_downloaded')[0]
+        self.assertEqual(entry['via'], 'amiga',
+                         'an identified Amiga must not be recorded as a C64')
+        self.assertEqual(entry['ip'], '192.0.2.7')
+
+    def test_setting_is_amiga_alone_is_not_how_it_is_done(self):
+        """Guards the fix itself. Setting only `is_amiga` leaves the label stale,
+        which is exactly what shipped; the shared function exists so no call site
+        can do half the job. If this ever returns 'amiga', someone has made
+        audit_via() infer again and the two fields can drift apart once more."""
+        s = self.api_session()
+        s.audit_via = 'c64'
+        s.is_amiga = True                          # the half-update that caused #127
+        self.assertEqual(srv.audit_via(s), 'c64',
+                         'explicit still wins — which is why the helper is required')
 
     def test_an_explicit_value_wins(self):
         srv.audit_log('user_updated', user='X', via='admin', ip='10.0.0.1')

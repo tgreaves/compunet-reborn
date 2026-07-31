@@ -52,7 +52,6 @@ extern LONG  frame_has_more_pages(void); /* tests DAT_001203b2 (top bit of frame
 
 extern char g_login_userid[];  /* DAT_00120244 — userid for login record */
 extern char g_login_scratch[]; /* DAT_0012024d — scratch/password region  */
-extern UBYTE g_frame_indent;   /* DAT_0011d078 == 0 check region          */
 
 /* Frame-parse output buffer + trailing state the frame code shares. */
 extern char  g_frame_out[];    /* DAT_001220fc */
