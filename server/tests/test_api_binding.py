@@ -1042,7 +1042,7 @@ class AuditWriteEndpoint(unittest.TestCase):
     def test_requires_the_api_key(self):
         """It writes to the security log — an unguarded writer lets anyone
         forge the record of a password reset."""
-        self.assertEqual(self._post({'event': 'x'}, auth=False), 401)
+        self.assertEqual(self._post({'event': 'page_read'}, auth=False), 401)
         self.assertEqual(self._stored(), [])
 
     def test_rejects_a_missing_event(self):
@@ -1053,13 +1053,21 @@ class AuditWriteEndpoint(unittest.TestCase):
     def test_rejects_malformed_json(self):
         self.assertEqual(self._post(None, raw='not json'), 400)
 
+    def test_rejects_an_undeclared_event(self):
+        """The vocabulary is enforced at the boundary (#127). An unknown name used
+        to be accepted, written, and then invisible to every filter that knows the
+        event set — a record that exists but cannot be found."""
+        self.assertEqual(self._post({'event': 'something_made_up'}), 400)
+        self.assertEqual(self._stored(), [])
+
     def test_records_the_event(self):
-        self.assertEqual(self._post({'event': 'password_reset_request',
+        self.assertEqual(self._post({'event': 'password_reset_requested',
                                      'user': 'TEST',
                                      'details': {'ip': '10.0.0.9'}}), 200)
         entries = self._stored()
         self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0]['event'], 'password_reset_request')
+        self.assertEqual(entries[0]['event'], 'password_reset_requested')
+        self.assertEqual(entries[0]['kind'], 'session')
         self.assertEqual(entries[0]['user'], 'TEST')
         self.assertEqual(entries[0]['ip'], '10.0.0.9')
         self.assertIn('time', entries[0])

@@ -142,16 +142,35 @@ class EveryFormCarriesAToken(unittest.TestCase):
     """
 
     def test_no_template_has_a_form_without_a_token(self):
+        """⚠ GET forms are exempt, and that is not a loophole. CSRF protects
+        requests that CHANGE something; a GET form (the audit log's filters,
+        #128) changes nothing, and its fields become the query string — so a
+        token there would be copied into browser history, bookmarks and referer
+        headers. That is strictly worse than omitting it. Anything that mutates
+        must be POST, and every POST form is still checked below.
+        """
         missing = []
         for path in sorted(glob.glob(os.path.join(TEMPLATES, '*.html'))):
             with open(path, encoding='utf-8') as f:
                 src = f.read()
             for m in re.finditer(r'<form\b.*?</form>', src, re.S | re.I):
-                if 'name="_csrf"' not in m.group(0):
+                form = m.group(0)
+                opening = form[:form.find('>') + 1]
+                if re.search(r'method\s*=\s*["\']?get\b', opening, re.I):
+                    continue
+                if 'name="_csrf"' not in form:
                     line = src[:m.start()].count('\n') + 1
                     missing.append('%s:%d' % (os.path.basename(path), line))
         self.assertEqual([], missing,
                          'forms with no CSRF token: %s' % ', '.join(missing))
+
+    def test_a_get_form_is_the_only_exemption(self):
+        """Guards the exemption: a form with no method at all defaults to GET in
+        HTML but is almost certainly a mistake, so it must still be flagged."""
+        sample = '<form action="/x"><input name="a"></form>'
+        opening = sample[:sample.find('>') + 1]
+        self.assertIsNone(re.search(r'method\s*=\s*["\']?get\b', opening, re.I),
+                          'a form with no explicit method must not be exempt')
 
     def test_the_templates_really_do_contain_forms(self):
         """Guards the guard: a glob that matched nothing would pass silently."""

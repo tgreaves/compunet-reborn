@@ -3,14 +3,89 @@
 {% block content %}
 <h1>AUDIT LOG</h1>
 
-<p>Recent system events (newest first). Page {{ page }} of {{ total_pages }}.</p>
+{#
+  Filters are GET fields, so a filtered view is a plain URL — bookmarkable, and
+  linkable to someone else. The form changes nothing, which is also why it carries
+  no CSRF token (#128).
+#}
+<form method="GET" class="audit-filters">
+    <div class="audit-filter-row">
+        <label>USER
+            <input type="text" name="user" value="{{ filters.user }}"
+                   placeholder="any" size="10">
+        </label>
+        <label>KIND
+            <select name="kind">
+                <option value="">any</option>
+                {% for k in all_kinds %}
+                <option value="{{ k }}" {% if filters.kind == k %}selected{% endif %}>{{ k }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>EVENT
+            <select name="event">
+                <option value="">any</option>
+                {% for e in all_events %}
+                <option value="{{ e }}" {% if filters.event == e %}selected{% endif %}>{{ e }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>VIA
+            <input type="text" name="via" value="{{ filters.via }}"
+                   placeholder="any" size="8">
+        </label>
+    </div>
+    <div class="audit-filter-row">
+        <label>FROM
+            <input type="date" name="from" value="{{ filters['from'] }}">
+        </label>
+        <label>TO
+            <input type="date" name="to" value="{{ filters.to }}">
+        </label>
+        <label>IP
+            <input type="text" name="ip" value="{{ filters.ip }}"
+                   placeholder="any" size="14">
+        </label>
+        <label>SEARCH
+            <input type="text" name="q" value="{{ filters.q }}"
+                   placeholder="any text in the entry" size="20">
+        </label>
+        <label>PER PAGE
+            <select name="per_page">
+                {% for n in [25, 50, 100, 250] %}
+                <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </div>
+    <div class="audit-filter-row">
+        <button type="submit">FILTER</button>
+        {% if active %}
+        <a href="{{ url_for('admin_audit') }}">CLEAR FILTERS</a>
+        {% endif %}
+    </div>
+</form>
 
+<p class="hint">
+{% if active %}
+    {# Exact, because a filtered request asks the server to scan for the count.
+       Unfiltered it does not, and claiming a total we did not establish would be
+       worse than not showing one. #}
+    {{ matched }} matching event{% if matched != 1 %}s{% endif %} — page {{ page }}.
+{% else %}
+    All events, newest first — page {{ page }}.
+{% endif %}
+</p>
+
+{% if entries %}
 <table class="admin-table">
     <thead>
         <tr>
             <th>TIME</th>
             <th>EVENT</th>
+            <th>KIND</th>
             <th>USER</th>
+            <th>VIA</th>
             <th>IP</th>
             <th>DETAILS</th>
         </tr>
@@ -20,11 +95,13 @@
         <tr>
             <td>{{ entry.time }}</td>
             <td>{{ entry.event }}</td>
+            <td>{{ entry.get('kind', '') }}</td>
             <td>{{ entry.get('user', '') }}</td>
+            <td>{{ entry.get('via', '') }}</td>
             <td>{{ entry.get('ip', '') }}</td>
             <td>
                 {% for key, val in entry.items() %}
-                    {% if key not in ('time', 'event', 'user', 'ip') %}
+                    {% if key not in ('time', 'event', 'kind', 'user', 'ip', 'via') %}
                         {{ key }}={{ val }}{% if not loop.last %}, {% endif %}
                     {% endif %}
                 {% endfor %}
@@ -33,17 +110,16 @@
         {% endfor %}
     </tbody>
 </table>
-
-{% if not entries %}
-<p>No audit events recorded yet.</p>
+{% else %}
+<p>{% if active %}No events match those filters.{% else %}No audit events recorded yet.{% endif %}</p>
 {% endif %}
 
 <div style="margin-top: 24px;">
     {% if page > 1 %}
-        <a href="{{ url_for('admin_audit', page=page-1) }}" class="btn">&lt; NEWER</a>
+    <a class="btn" href="?page={{ page - 1 }}&amp;per_page={{ per_page }}{% if base_query %}&amp;{{ base_query }}{% endif %}">&lt; NEWER</a>
     {% endif %}
-    {% if page < total_pages %}
-        <a href="{{ url_for('admin_audit', page=page+1) }}" class="btn">OLDER &gt;</a>
+    {% if has_more %}
+    <a class="btn" href="?page={{ page + 1 }}&amp;per_page={{ per_page }}{% if base_query %}&amp;{{ base_query }}{% endif %}">OLDER &gt;</a>
     {% endif %}
 </div>
 

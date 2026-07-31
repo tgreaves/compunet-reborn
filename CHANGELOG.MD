@@ -1,3 +1,24 @@
+# 1.4.0 (unreleased)
+
+* Website:
+	* New: the audit log can be filtered and searched — by user, event, kind,
+	  client, IP, date range, or any text in the entry. Finding a particular
+	  action meant paging through 137 pages by eye (#128).
+* Server:
+	* Fixed: actions taken from the web and Electron clients were missing from
+	  the audit log. Sending mail, downloading a program, entering Partyline and
+	  disconnecting were all recorded from a C64, an Amiga or the terminal, and
+	  silently not recorded from the JSON API (#127).
+	* Fixed: administrator actions were not recorded at all — editing or deleting
+	  an account, granting editor rights, adjusting credit, sending a broadcast,
+	  and approving or rejecting a registration. An account edit now also records
+	  what changed (#127).
+	* Fixed: web and Electron client sessions stayed listed on WHO IS ONLINE
+	  after disconnecting.
+	* New: creating a directory is recorded; it never was, on any client.
+	* New: every entry says which client it came from and carries the user's
+	  address.
+
 # 1.3.1 (2026-07-30)
 
 * Website:

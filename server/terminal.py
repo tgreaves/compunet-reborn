@@ -174,6 +174,10 @@ class TerminalSession:
         self.show_page = None
         self.show_frame_idx = 0
         self.client_ip = ''
+        # Surface marker for the audit log's `via` field (see cs.audit_via).
+        # Set here too so a TerminalSession built outside handle_session — the
+        # tests do this — still audits with an origin.
+        self.audit_via = 'terminal'
         self.telnet = False
         self.charset = 'upper'  # 'upper' = unshifted (default), 'lower' = shifted
         self.terminal_type = 'c64'  # 'c64' or 'pc'
@@ -348,8 +352,10 @@ class TerminalSession:
         self.authenticated = True
         self.client_ip = self.writer.get_extra_info('peername', ('', 0))[0]
 
-        cs._online_users.add(user_id)
-        cs.audit_log('connect', user=user_id, ip=self.client_ip)
+        # _user_connect rather than touching the set directly, matching the
+        # disconnect side which now audits.
+        cs._user_connect(user_id)
+        cs.audit_log('session_started', session=self)
 
         # Build welcome frame using same logic as protocol server
         await self.send(CLR)
@@ -1116,8 +1122,14 @@ class TerminalSession:
             await self.render_duckshoot()
             return
 
-        cs.audit_log('download', user=self.user_id, ip=self.client_ip,
-                     page=page.page_num, title=page.title)
+        # ⚠ Kept here rather than moved to CompunetSession.take_program_download,
+        # which the other two bindings share. The terminal does not use the staged
+        # download mechanism at all — it XMODEMs page.frames[0] directly — so there
+        # is nothing shared to move it into. It also audits on SUCCESS, after the
+        # transfer completes, where the others audit on acceptance; that is a real
+        # difference in what is known at the time, not an inconsistency to iron out.
+        cs.audit_log('page_downloaded', session=self,
+                     page=page.page_num, title=page.title, bytes=len(prg_data))
 
         await self.cursor_to(24, 0)
         await self.send(COL_WHITE)
@@ -1153,8 +1165,6 @@ class TerminalSession:
         """Enter partyline with a custom terminal UI."""
         import partyline as pl
         cs = _get_server()
-
-        cs.audit_log('partyline', user=self.user_id, ip=self.client_ip)
 
         # Check ban
         if pl._is_banned(self.user_id):
@@ -1717,7 +1727,7 @@ class TerminalSession:
             with open(dest_mail_file, 'w') as f:
                 json.dump(dest_inbox, f, indent=2)
 
-        cs.audit_log('mail_send', user=self.user_id, ip=self.client_ip,
+        cs.audit_log('mail_sent', session=self,
                      subject=send['subject'], to=send['to'])
 
         # Email notification for each recipient
@@ -1990,7 +2000,7 @@ class TerminalSession:
         self._save_directories(cs, page, getattr(page, 'parent', None))
 
         action = 'replaced' if existing else 'uploaded'
-        cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
+        cs.audit_log('page_uploaded', session=self,
                      title=send['title'], page=page_num, type='T', action=action)
 
         await self.cursor_to(24, 0)
@@ -2121,7 +2131,7 @@ class TerminalSession:
         self._save_directories(cs, page, getattr(page, 'parent', None))
 
         action = 'replaced' if existing else 'uploaded'
-        cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
+        cs.audit_log('page_uploaded', session=self,
                      title=send['title'], page=page_num, type=send['type'], action=action)
 
         await self.cursor_to(24, 0)
@@ -2294,7 +2304,7 @@ class TerminalSession:
                 break
         with open(mail_file, 'w') as f:
             json.dump(mail_data, f)
-        cs.audit_log('mail_read', user=self.user_id, ip=self.client_ip, msg_id=msg_id)
+        cs.audit_log('mail_opened', session=self, msg_id=msg_id)
 
         # Display frames
         for i, frame_data in enumerate(frames):
@@ -2491,7 +2501,7 @@ class TerminalSession:
         if not self.show_page or not self.show_page.frames:
             return
         cs = _get_server()
-        cs.audit_log('read', user=self.user_id, ip=self.client_ip,
+        cs.audit_log('page_read', session=self,
                      page=self.show_page.page_num, title=self.show_page.title,
                      type=self.show_page.page_type,
                      frame=self.show_frame_idx + 1)
@@ -2773,7 +2783,7 @@ class TerminalSession:
                         votes[page_key][self.user_id] = score
                         with open(votes_path, 'w') as f:
                             json.dump(votes, f)
-                        cs.audit_log('vote', user=self.user_id, ip=self.client_ip,
+                        cs.audit_log('page_voted', session=self,
                                      page=child.page_num, title=child.title, score=score)
                 except (ValueError, TypeError):
                     pass
@@ -2920,7 +2930,7 @@ class TerminalSession:
                     # `life` lives in the child's node inside its own
                     # directory's JSON — that one file, not the tree.
                     self._save_directories(cs, getattr(child, 'parent', None))
-                    cs.audit_log('extend', user=self.user_id, ip=self.client_ip,
+                    cs.audit_log('page_life_extended', session=self,
                                  page=child.page_num, title=child.title,
                                  extend_by=extend_by, new_life=child.life)
             await self.render_directory()
@@ -2955,7 +2965,7 @@ class TerminalSession:
                     users_path = os.path.join(os.path.dirname(__file__), 'cfg', 'users.json')
                     with open(users_path, 'w') as f:
                         json.dump(users, f)
-                    cs.audit_log('buy', user=self.user_id, ip=self.client_ip,
+                    cs.audit_log('page_bought', session=self,
                                  page=child.page_num, title=child.title, price=child.price)
                 # Type L (link): enter partyline
                 if child.page_type == 'L':
@@ -3391,6 +3401,7 @@ async def terminal_handler(reader, writer):
     directory = cs.CompunetDirectory()
     session = TerminalSession(reader, writer, directory)
     session.client_ip = addr[0] if addr else ''
+    session.audit_via = 'terminal'
 
     # Auto-detect Telnet vs Raw: wait briefly for client IAC
     try:
@@ -3438,8 +3449,7 @@ async def terminal_handler(reader, writer):
         logger.info('Terminal client disconnected: %s (%s)', addr, e)
     finally:
         if session.user_id:
-            cs._online_users.discard(session.user_id)
-            cs.audit_log('disconnect', user=session.user_id, ip=session.client_ip)
+            cs._user_disconnect(session.user_id, session)   # audits the session end
         try:
             writer.close()
             await writer.wait_closed()

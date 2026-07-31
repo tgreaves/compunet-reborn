@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import time
+from urllib.parse import urlencode
 
 import requests
 from flask import (Flask, Response, flash, get_flashed_messages, redirect,
@@ -152,9 +153,19 @@ def _api_create_pending(data):
         headers=_api_headers(), json=data)
 
 
-def _api_consume_pending(token):
+def _api_consume_pending(token, outcome='rejected'):
+    """Retrieve and delete a pending registration.
+
+    ⚠ `outcome` matters. This one endpoint serves BOTH approval and rejection:
+    approving consumes the token and then creates the account, rejecting consumes
+    it and creates nothing. Without being told, the server cannot distinguish them
+    and would record every approval as a rejection as well.
+
+    Both current callers are approvals — the admin button, and the user following
+    their own verification link."""
     return requests.delete(
-        f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}/api/pending/{token}',
+        f'{config.get("COMPUNET_API_URL", "http://localhost:6403")}/api/pending/{token}'
+        f'?outcome={outcome}',
         headers=_api_headers())
 
 
@@ -505,7 +516,7 @@ def register():
 
 @app.route('/verify/<token>')
 def verify(token):
-    consume_resp = _api_consume_pending(token)
+    consume_resp = _api_consume_pending(token, outcome='approved')
     if consume_resp.status_code != 200:
         flash('Invalid or expired verification link.', 'error')
         return redirect(url_for('register'))
@@ -600,7 +611,8 @@ def change_password():
         flash('Password must be 1-6 characters, A-Z and 0-9 only.', 'error')
         return render_template('password.html')
 
-    resp = _api_put(f'/api/users/{session["user_id"]}', {'password': new_password})
+    resp = _api_put(f'/api/users/{session["user_id"]}',
+                    {'password': new_password, 'self_service': True})
     if resp.status_code == 200:
         flash('Password changed successfully.', 'success')
         return redirect(url_for('account'))
@@ -1210,7 +1222,7 @@ def admin_approve_pending(token):
     if denied:
         return denied
 
-    consume_resp = _api_consume_pending(token)
+    consume_resp = _api_consume_pending(token, outcome='approved')
     if consume_resp.status_code != 200:
         flash('Pending registration not found or already consumed.', 'error')
         return redirect(url_for('admin_users'))
@@ -1306,15 +1318,43 @@ def admin_audit():
     if denied:
         return denied
 
-    page = int(request.args.get('page', 1))
-    per_page = 50
-    resp = _api_get(f'/api/audit?page={page}&per_page={per_page}')
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except ValueError:
+        page = 1
+    try:
+        per_page = min(500, max(10, int(request.args.get('per_page', 50))))
+    except ValueError:
+        per_page = 50
+
+    # ⚠ Filtering happens SERVER-SIDE. Pulling the log here to filter it locally
+    # would mean shipping the whole thing over the wire on every page view, and
+    # it only grows (#128).
+    filters = {k: request.args.get(k, '').strip()
+               for k in ('user', 'event', 'kind', 'via', 'ip', 'from', 'to', 'q')}
+    active = {k: v for k, v in filters.items() if v}
+
+    query = urlencode({'page': page, 'per_page': per_page, **active})
+    # An exact match count costs a full scan of the log, so ask for one only when
+    # a filter is set — that is when the number is worth knowing. Unfiltered, the
+    # pager is enough and the request stays cheap.
+    if active:
+        query += '&count=exact'
+    resp = _api_get(f'/api/audit?{query}')
     data = resp.json() if resp.status_code == 200 else {}
-    entries = data.get('entries', [])
-    total = data.get('total', 0)
-    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
-    return render_template('admin_audit.html', entries=entries,
-                           page=page, total_pages=total_pages)
+
+    return render_template(
+        'admin_audit.html',
+        entries=data.get('entries', []),
+        page=page, per_page=per_page,
+        matched=data.get('matched', 0),
+        matched_exact=data.get('matched_exact', False),
+        has_more=data.get('has_more', False),
+        all_events=data.get('events', []),
+        all_kinds=data.get('kinds', []),
+        filters=filters, active=active,
+        # For building page links without losing the filters.
+        base_query=urlencode(active))
 
 
 @app.route('/admin/partyline-log')
@@ -1418,7 +1458,7 @@ def forgot_password():
                 subject='Compunet Reborn — Password Reset',
                 body_html=body_html,
             )
-            _audit_event('password_reset_request', user=user_id, ip=_client_ip())
+            _audit_event('password_reset_requested', user=user_id, ip=_client_ip())
 
     return render_template('forgot_password.html')
 

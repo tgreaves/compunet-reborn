@@ -83,14 +83,110 @@ if os.path.exists(_env_file):
 # Audit log
 AUDIT_LOG_PATH = os.path.join(os.path.dirname(__file__), 'data', 'audit.jsonl')
 
-def audit_log(event, user=None, **details):
-    """Append an event to the audit log (JSON-lines format)."""
+#: Every audit event, mapped to the `kind` it belongs to. THE AUTHORITATIVE LIST —
+#: `audit_log` refuses an event that is not here, so a typo or an undeclared event
+#: fails loudly at the call site instead of appearing in the log as a name nothing
+#: filters on. Documented in docs/audit-log.md.
+#:
+#: Names are `noun_verbed`, past tense, throughout. The vocabulary previously grew
+#: ad hoc — `page_deleted` and `header_removed` against `upload` and `vote` — with
+#: no documented set for a new feature to conform to.
+#:
+#: `kind` exists so the viewer can separate the signal from the volume: `browse` is
+#: every page view from three surfaces and dominates the log, while `admin` is the
+#: handful of events anyone auditing actually wants.
+AUDIT_KINDS = ('content', 'mail', 'session', 'admin', 'partyline', 'browse',
+               'operational')
+
+AUDIT_EVENTS = {
+    # Reading. High volume, deliberately its own kind so it can be excluded.
+    'page_read':            'browse',
+    'mail_opened':          'browse',
+
+    # Content changes.
+    'page_uploaded':        'content',
+    'page_bought':          'content',
+    'page_voted':           'content',
+    'page_life_extended':   'content',
+    'page_downloaded':      'content',
+    'page_renamed':         'content',
+    'page_moved':           'content',
+    'page_reordered':       'content',
+    'page_deleted':         'content',
+    'directory_created':    'content',
+    'directory_settings_changed': 'content',
+    'header_set':           'content',
+    'header_removed':       'content',
+
+    # Mail.
+    'mail_sent':            'mail',
+
+    # Sessions and accounts.
+    'session_started':      'session',
+    'session_ended':        'session',
+    'login_succeeded':      'session',
+    'login_failed':         'session',
+    'signup_completed':     'session',
+    'password_changed':     'session',
+    'password_reset_requested': 'session',
+    'password_reset':       'session',
+
+    # Administration. The events an audit log exists for.
+    'user_updated':         'admin',
+    'user_deleted':         'admin',
+    'broadcast_sent':       'admin',
+    'registration_requested': 'admin',
+    'registration_rejected': 'admin',
+
+    # Partyline.
+    'partyline_entered':    'partyline',
+    'partyline_kicked':     'partyline',
+    'partyline_banned':     'partyline',
+    'partyline_unbanned':   'partyline',
+
+    # Server faults, not user actions. No `user`.
+    'missing_frame':        'operational',
+}
+
+
+def audit_log(event, user=None, session=None, **details):
+    """Append an event to the audit log (JSON-lines format).
+
+    ⚠ CALL THIS FROM THE FUNCTION THAT PERFORMS THE ACTION, not from the command
+    handler that reached it. Auditing used to sit at the caller, so whether an
+    action was recorded depended on which door the user came through: mail sent
+    from a C64 or the terminal was logged, and the same mail sent through the JSON
+    API was not, because Binding B calls the shared `_complete_mail_send` directly.
+    `_complete_content_upload` had it right and uploads were recorded everywhere.
+    Same file, seventy lines apart (#127).
+
+    Pass `session` and both `ip` and `via` are derived from it, so a new call site
+    cannot omit them — they were previously per-call-site arguments, present on all
+    ten of terminal.py's events and on almost none of Binding A's.
+    """
+    kind = AUDIT_EVENTS.get(event)
+    if kind is None:
+        # Loud, not silent: an unknown name would be written and then be invisible
+        # to every filter that knows the vocabulary.
+        raise ValueError(
+            'unknown audit event %r — add it to AUDIT_EVENTS with its kind' % event)
+
     entry = {
         'time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'event': event,
+        'kind': kind,
     }
     if user:
         entry['user'] = user
+    if session is not None:
+        if user is None and getattr(session, 'user_id', None):
+            entry['user'] = session.user_id
+        ip = getattr(session, 'client_ip', None)
+        if ip and 'ip' not in details:
+            entry['ip'] = ip
+        via = audit_via(session)
+        if via and 'via' not in details:
+            entry['via'] = via
     entry.update(details)
     try:
         os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
@@ -98,6 +194,49 @@ def audit_log(event, user=None, **details):
             f.write(json.dumps(entry) + '\n')
     except OSError:
         log.warning('Failed to write audit log entry: %s', entry)
+
+
+#: Never written to the audit log, whatever an admin changed.
+_AUDIT_SECRET_FIELDS = frozenset(('password',))
+
+
+def _audit_diff(before, after):
+    """`['credit: 10.0 -> 25.0', 'editor: False -> True']` for what an edit changed.
+
+    Secrets are named but never valued: recording a password hash — before or
+    after — would put credential material in a log an admin reads in a browser.
+    """
+    changes = []
+    for key in sorted(set(before) | set(after)):
+        old, new = before.get(key), after.get(key)
+        if old == new:
+            continue
+        if key in _AUDIT_SECRET_FIELDS:
+            changes.append('%s: changed' % key)
+        else:
+            changes.append('%s: %r -> %r' % (key, old, new))
+    return changes
+
+
+def audit_via(session):
+    """Which surface an action came through: c64, amiga, terminal, api, web, admin.
+
+    Without this the log cannot answer "what did this user do, and from where" — a
+    `page_read` from a C64 was indistinguishable from one through the web client
+    except by whether `ip` happened to be present.
+
+    `audit_via` is set explicitly where a session is created; `is_amiga` is the one
+    case the server infers for itself, during the Binding-A identification
+    handshake, so it is read here rather than duplicated at every call site.
+    """
+    if session is None:
+        return None
+    explicit = getattr(session, 'audit_via', None)
+    if explicit:
+        return explicit
+    if getattr(session, 'is_amiga', False):
+        return 'amiga'
+    return None
 
 # Server configuration
 TCP_PORT = 6400
@@ -154,8 +293,17 @@ def _user_connect(user_id):
     _online_users.add(user_id)
 
 
-def _user_disconnect(user_id):
-    """Mark a user as offline (called on LEAVE, disconnect, or timeout)."""
+def _user_disconnect(user_id, session=None):
+    """Mark a user as offline (called on LEAVE, disconnect, or timeout).
+
+    ⚠ Audits the session end HERE so every surface records it. Binding A audited
+    it in tcp_handler and the terminal in its own teardown; Binding B did neither,
+    so a web-client session simply stopped appearing (#127). It also never called
+    this at all, which left those users listed on WHO IS ONLINE indefinitely —
+    the same omission, with a second symptom.
+    """
+    if user_id and user_id in _online_users:
+        audit_log('session_ended', user=user_id, session=session)
     _online_users.discard(user_id)
 
 WHO_PAGE_DIR = os.path.join(ROOT_DIR, 'who-is-online')  # slug of "WHO IS ONLINE?"
@@ -949,6 +1097,11 @@ class CompunetSession:
         self.mail_frame_index = 0
         self.pending_send = None
         self.last_response_type = None  # Set by response methods for WS prefix detection
+        # Which surface this session belongs to, for the audit log's `via` field.
+        # Set by whoever creates the session; Binding A refines 'c64' to 'amiga'
+        # once identification tells it which (see audit_via).
+        self.audit_via = None
+        self.client_ip = None
         self._users = self._load_users()
     
     def _load_users(self):
@@ -985,7 +1138,7 @@ class CompunetSession:
         self.is_admin = user.get('admin', False)
         self.is_editor = user.get('editor', False)
         log.info('Login OK: %s (credit=%.2f, purchased=%s)', user_id, self.credit, self.purchased)
-        audit_log('connect', user=user_id, ip=self.client_ip)
+        audit_log('session_started', session=self)
         _user_connect(user_id)
         return self._make_welcome_frame(user)
     
@@ -1225,11 +1378,11 @@ class CompunetSession:
                     log.info('BUY: user=%s page=%d ("%s") price=%.2f credit=%.2f',
                              self.user_id, child.page_num, child.title,
                              child.price, self.credit)
-                    audit_log('buy', user=self.user_id, page=child.page_num,
+                    audit_log('page_bought', session=self, page=child.page_num,
                               title=child.title, price=child.price)
                 self.show_page = child
                 self.show_frame_index = 0
-                audit_log('read', user=self.user_id, page=child.page_num,
+                audit_log('page_read', session=self, page=child.page_num,
                           title=child.title, type=child.page_type)
                 return self._send_current_frame()
             # No frames: SHOW is INERT (spec §7.4). It must NOT fall back to
@@ -1290,6 +1443,11 @@ class CompunetSession:
                             return self._make_dir_response()
                         log.info('P cmd: creating new sub-directory under "%s" (page %d)',
                                  child.title, child.page_num)
+                        # Was recorded nowhere, on any surface (#127). A page
+                        # becoming a directory is how ownership of a branch is
+                        # established, so it is worth knowing who did it and when.
+                        audit_log('directory_created', session=self,
+                                  page=child.page_num, title=child.title)
                     self.current_page = child
                     self.selected_entry = 0
                     self.dir_page_offset = 0
@@ -1537,7 +1695,7 @@ class CompunetSession:
             self._save_directory_containing(self.current_page)
             log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
                      self.user_id, child.page_num, child.title, extend_by, child.life)
-            audit_log('extend', user=self.user_id, page=child.page_num,
+            audit_log('page_life_extended', session=self, page=child.page_num,
                       title=child.title, extend_by=extend_by, new_life=child.life)
 
         elif extend_by < 0:
@@ -1677,7 +1835,7 @@ class CompunetSession:
             votes[page_key] = {}
         votes[page_key][self.user_id] = score
         self._save_votes(votes)
-        audit_log('vote', user=self.user_id, page=page.page_num,
+        audit_log('page_voted', session=self, page=page.page_num,
                   title=page.title, score=score)
 
         avg = round(sum(votes[page_key].values()) / len(votes[page_key]))
@@ -1903,7 +2061,7 @@ class CompunetSession:
             self.mail_frame_index = 0
             # Mark as read with timestamp for auto-expiry
             if not self.mail_messages[actual_index].get('read'):
-                audit_log('mail_read', user=self.user_id,
+                audit_log('mail_opened', session=self,
                           from_user=self.mail_messages[actual_index].get('from', ''),
                           subject=self.mail_messages[actual_index].get('subject', ''))
             self.mail_messages[actual_index]['read'] = True
@@ -2063,7 +2221,7 @@ class CompunetSession:
 
         log.info('MAIL SEND: from=%s to=%s subject="%s" type=%s',
                  self.user_id, dest_ids, subject, msg_type)
-        audit_log('mail_send', user=self.user_id, to=dest_ids, subject=subject)
+        # Audited by _complete_mail_send, which every binding reaches.
 
         self.pending_send = {
             'mode': 'mail',
@@ -2155,6 +2313,30 @@ class CompunetSession:
         else:
             return self._complete_mail_send(send)
 
+    def take_program_download(self):
+        """Hand over the staged program bytes, clear the pending state, and audit it.
+
+        ⚠ The one place a download is recorded, for every surface. The three
+        bindings deliver the bytes very differently — Binding A streams DAT
+        packets, the terminal runs XMODEM, Binding B returns base64 over the
+        WebSocket — so there was no shared function and each did its own
+        bookkeeping. Two audited it and Binding B did not (#127); this gives them
+        the one thing they genuinely share, which is the moment the user accepts.
+
+        Returns the bytes, or None if nothing was pending. A DECLINED download is
+        deliberately not recorded: the user obtained nothing.
+        """
+        data = self._program_download_data
+        if data is None:
+            return None
+        page_num = getattr(self, '_download_page_num', 0)
+        title = getattr(self, '_download_title', '')
+        self._program_download_pending = False
+        self._program_download_data = None
+        audit_log('page_downloaded', session=self, page=page_num, title=title,
+                  bytes=len(data))
+        return data
+
     def _complete_mail_send(self, send):
         """Deliver mail to recipients."""
         now = datetime.datetime.now()
@@ -2204,6 +2386,16 @@ class CompunetSession:
             })
             with open(dest_mail_file, 'w') as f:
                 json.dump(dest_inbox, f, indent=2)
+
+        # ⚠ HERE, not in the callers. This function is what actually delivers the
+        # mail, and every surface reaches it: Binding A and the terminal through
+        # their own command handlers, Binding B by calling it directly. Auditing
+        # at the call site meant the first two were recorded and the third was
+        # not — the same mail, invisible, depending on which client sent it
+        # (#127). `_complete_content_upload` always had it right, which is why
+        # uploads never had this gap.
+        audit_log('mail_sent', session=self, to=send['to'],
+                  subject=send['subject'], recipients=len(send['to']))
 
         log.info('MAIL: delivered from %s to %s subject="%s" frames=%d',
                  self.user_id, send['to'], send['subject'], len(send['frames']))
@@ -2336,7 +2528,7 @@ class CompunetSession:
         # on the first upload into it (§7.3). Two files, not the whole tree.
         self._save_directory_containing(self.current_page,
                                         getattr(self.current_page, 'parent', None))
-        audit_log('upload', user=self.user_id, title=send['title'],
+        audit_log('page_uploaded', session=self, title=send['title'],
                   page=page_num, type=send['type'])
         return b''
 
@@ -2943,6 +3135,8 @@ async def tcp_handler(reader, writer):
     directory = CompunetDirectory()
     session = CompunetSession(directory)
     session.client_ip = addr[0] if addr else ''
+    # 'c64' until identification says otherwise; audit_via reads is_amiga.
+    session.audit_via = 'c64'
     x25 = X25Connection()
 
     pending_packets = []  # Packets received during ACK wait (non-ACK)
@@ -3352,26 +3546,20 @@ async def tcp_handler(reader, writer):
                                     # Run the raw preamble + ASCII chat + 0x02 teardown.
                                     session._amiga_partyline = False
                                     log.info('TCP: entering AMIGA partyline for user=%s', session.user_id)
-                                    audit_log('partyline', user=session.user_id)
                                     await partyline.handle_amiga_session(reader, writer, session.user_id)
                                     log.info('TCP: exited AMIGA partyline, resuming X.25 for user=%s', session.user_id)
                                     continue
                                 log.info('TCP: entering partyline mode for user=%s', session.user_id)
-                                audit_log('partyline', user=session.user_id)
                                 await asyncio.sleep(1.0)
                                 await partyline.handle_session(reader, writer, session.user_id)
                                 log.info('TCP: exited partyline mode, resuming X.25 for user=%s', session.user_id)
                                 continue
 
                 elif token == 0x40 and session._program_download_pending:
-                    # Client confirms download proceed — send program data
-                    program_data = session._program_download_data
-                    session._program_download_pending = False
-                    session._program_download_data = None
+                    # Client confirms download proceed — send program data.
+                    # take_program_download clears the pending state and audits.
+                    program_data = session.take_program_download()
                     log.info('DOWNLOAD: proceed received, sending %d bytes of program data', len(program_data))
-                    audit_log('download', user=session.user_id,
-                              page=getattr(session, '_download_page_num', 0),
-                              title=getattr(session, '_download_title', ''))
                     # ⚠ THE COST HERE IS PER ROUND TRIP, NOT PER BYTE. Every packet waits
                     # for the client's ACK, and on an emulated Amiga that wait costs one
                     # ~20 ms tick: measured over 1700 packets, 1589 of the 1700 inter-ACK
@@ -3518,8 +3706,7 @@ async def tcp_handler(reader, writer):
         log.info('TCP: connection error: %s', e)
     finally:
         if session.user_id:
-            _user_disconnect(session.user_id)
-            audit_log('disconnect', user=session.user_id, ip=session.client_ip)
+            _user_disconnect(session.user_id, session)   # audits the session end
         writer.close()
         try:
             await writer.wait_closed()
@@ -3673,7 +3860,7 @@ async def api_auth(request):
     # its peer here is the website container. The website resolves the real
     # address from its own forwarded headers and passes it; `request.remote` is
     # only the fallback, and names the website itself.
-    audit_log('login', user=user_id, ip=client_ip)
+    audit_log('login_succeeded', user=user_id, ip=client_ip)
     return aiohttp_web.json_response(_api_user_public(user_id, user))
 
 
@@ -3740,7 +3927,7 @@ async def api_create_user(request):
         _api_save_users(users)
 
     log.info('API: created user %s', user_id)
-    audit_log('signup', user=user_id, ip=request.remote)
+    audit_log('signup_completed', user=user_id, ip=request.remote)
     return aiohttp_web.json_response(
         _api_user_public(user_id, users[user_id]), status=201)
 
@@ -3758,6 +3945,11 @@ async def api_update_user(request):
         users = _api_load_users()
         if user_id not in users:
             return aiohttp_web.json_response({'error': 'not found'}, status=404)
+
+        # ⚠ Record WHAT CHANGED, old -> new. "ADMIN edited ZARD" is close to
+        # useless a month later, and this is the endpoint where credit is
+        # adjusted and editor rights are granted.
+        before = dict(users[user_id])
 
         if 'password' in body:
             password = body['password'].upper().strip()
@@ -3782,7 +3974,17 @@ async def api_update_user(request):
 
         _api_save_users(users)
 
-    log.info('API: updated user %s', user_id)
+    changes = _audit_diff(before, users[user_id])
+    log.info('API: updated user %s (%s)', user_id, ', '.join(changes) or 'no change')
+    # ⚠ Two different acts share this endpoint. A user changing their own password
+    # is not an administrative edit, and recording it as one would put routine
+    # self-service in among the credit adjustments and editor grants — the events
+    # this log exists to make findable. The caller says which it is.
+    if body.get('self_service'):
+        audit_log('password_changed', user=user_id, via='web', ip=request.remote)
+    else:
+        audit_log('user_updated', user=user_id, via='admin', ip=request.remote,
+                  changed=changes or None)
     return aiohttp_web.json_response(_api_user_public(user_id, users[user_id]))
 
 
@@ -3799,6 +4001,7 @@ async def api_delete_user(request):
         _api_save_users(users)
 
     log.info('API: deleted user %s', user_id)
+    audit_log('user_deleted', user=user_id, via='admin', ip=request.remote)
     return aiohttp_web.json_response({'status': 'deleted'})
 
 
@@ -3843,6 +4046,8 @@ async def api_create_pending(request):
         _api_save_pending(pending)
 
     log.info('API: created pending registration for %s', entry['user_id'])
+    audit_log('registration_requested', user=entry['user_id'] or None,
+              via='web', ip=request.remote, email=entry.get('email') or None)
     return aiohttp_web.json_response({'token': token}, status=201)
 
 
@@ -3873,6 +4078,15 @@ async def api_consume_pending(request):
         entry = pending.pop(token)
         _api_save_pending(pending)
 
+    # ⚠ This one endpoint serves BOTH approve and reject: the website consumes the
+    # token, then creates the user only if approving. `signup_completed` records
+    # the approval, so recording an approval here too would double-count. The
+    # caller says which it is; absent that, treat it as a rejection, because a
+    # token consumed and no account created is exactly what a rejection is.
+    outcome = request.query.get('outcome', 'rejected')
+    if outcome != 'approved':
+        audit_log('registration_rejected', user=entry.get('user_id') or None,
+                  via='admin', ip=request.remote)
     return aiohttp_web.json_response(entry)
 
 
@@ -3959,6 +4173,9 @@ async def api_broadcast(request):
 
     log.info('BROADCAST: sent=%d errors=%d test_mode=%s subject="%s"',
              sent, len(errors), test_mode, subject)
+    audit_log('broadcast_sent', via='admin', ip=request.remote, subject=subject,
+              recipients=len(recipients), sent=sent, errors=len(errors),
+              test_mode=test_mode)
     return aiohttp_web.json_response({
         'status': 'sent', 'sent': sent, 'errors': len(errors),
         'test_mode': test_mode
@@ -4000,24 +4217,162 @@ async def api_get_audit(request):
     """
     if not _api_check_auth(request):
         return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
-    page = int(request.query.get('page', '1'))
-    per_page = int(request.query.get('per_page', '50'))
     if not os.path.exists(AUDIT_LOG_PATH):
-        return aiohttp_web.json_response({'entries': [], 'total': 0})
-    all_entries = []
-    with open(AUDIT_LOG_PATH, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    all_entries.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-    total = len(all_entries)
-    all_entries.reverse()
-    start = (page - 1) * per_page
-    entries = all_entries[start:start + per_page]
-    return aiohttp_web.json_response({'entries': entries, 'total': total})
+        return aiohttp_web.json_response(
+            {'entries': [], 'total': 0, 'matched': 0, 'events': [], 'kinds': []})
+
+    try:
+        page = max(1, int(request.query.get('page', '1')))
+        per_page = min(500, max(1, int(request.query.get('per_page', '50'))))
+    except ValueError:
+        return aiohttp_web.json_response({'error': 'page and per_page must be numbers'},
+                                         status=400)
+
+    query = _AuditQuery.from_request(request)
+    # ?count=exact asks for the true match count, at the cost of a full scan. The
+    # viewer requests it only when it wants to show a total.
+    count_all = request.query.get('count') == 'exact'
+    result = _audit_search(query, page, per_page, count_all=count_all)
+    return aiohttp_web.json_response(result)
+
+
+class _AuditQuery:
+    """The filters a caller may apply. Empty fields match everything."""
+
+    __slots__ = ('user', 'events', 'kinds', 'via', 'ip', 'date_from', 'date_to', 'text')
+
+    def __init__(self, user=None, events=None, kinds=None, via=None, ip=None,
+                 date_from=None, date_to=None, text=None):
+        self.user = (user or '').strip().upper() or None
+        self.events = set(e for e in (events or []) if e) or None
+        self.kinds = set(k for k in (kinds or []) if k) or None
+        self.via = (via or '').strip().lower() or None
+        self.ip = (ip or '').strip() or None
+        self.date_from = (date_from or '').strip() or None
+        self.date_to = (date_to or '').strip() or None
+        self.text = (text or '').strip().lower() or None
+
+    @classmethod
+    def from_request(cls, request):
+        q = request.query
+        # Repeatable: ?event=page_read&event=page_bought, or comma-separated.
+        def multi(name):
+            values = []
+            for raw in q.getall(name, []):
+                values.extend(v.strip() for v in raw.split(','))
+            return values
+        return cls(user=q.get('user'), events=multi('event'), kinds=multi('kind'),
+                   via=q.get('via'), ip=q.get('ip'), date_from=q.get('from'),
+                   date_to=q.get('to'), text=q.get('q'))
+
+    def is_empty(self):
+        return not any((self.user, self.events, self.kinds, self.via, self.ip,
+                        self.date_from, self.date_to, self.text))
+
+    def matches(self, entry):
+        if self.user and (entry.get('user') or '').upper() != self.user:
+            return False
+        if self.events and entry.get('event') not in self.events:
+            return False
+        if self.kinds and entry.get('kind') not in self.kinds:
+            return False
+        if self.via and (entry.get('via') or '').lower() != self.via:
+            return False
+        if self.ip and entry.get('ip') != self.ip:
+            return False
+        # `time` is 'YYYY-MM-DD HH:MM:SS', so a plain string compare against a
+        # date is correct and needs no parsing. `to` is inclusive of the whole day.
+        stamp = entry.get('time', '')
+        if self.date_from and stamp[:10] < self.date_from:
+            return False
+        if self.date_to and stamp[:10] > self.date_to:
+            return False
+        if self.text:
+            # Across every field, so page titles, mail subjects and the `changed`
+            # list of an admin edit are all searchable without naming them.
+            haystack = ' '.join(str(v) for v in entry.values()).lower()
+            if self.text not in haystack:
+                return False
+        return True
+
+
+def _audit_iter_reversed(path, chunk_size=64 * 1024):
+    """Yield lines newest-first without loading the file.
+
+    ⚠ Reads BACKWARDS, deliberately. The previous implementation parsed the whole
+    file into memory on every request, reversed it and sliced out one page — fine
+    at 6,838 entries, and the same cost again once filtering was layered on top.
+    Reading from the end means the common case (recent events, however filtered)
+    costs a couple of chunks regardless of how large the log grows, so this does
+    not need revisiting at 100k entries.
+    """
+    with open(path, 'rb') as f:
+        f.seek(0, os.SEEK_END)
+        remaining = f.tell()
+        tail = b''
+        while remaining > 0:
+            read_size = min(chunk_size, remaining)
+            remaining -= read_size
+            f.seek(remaining)
+            block = f.read(read_size) + tail
+            lines = block.split(b'\n')
+            # The first element may be a partial line; carry it to the next block.
+            tail = lines.pop(0)
+            for line in reversed(lines):
+                if line.strip():
+                    yield line
+        if tail.strip():
+            yield tail
+
+
+def _audit_search(query, page, per_page, count_all=False):
+    """Page through the log newest-first, applying `query`.
+
+    ⚠ STOPS AS SOON AS THE PAGE IS FILLED. That is the whole point of reading
+    backwards: the cost of "recent events, filtered" stays flat as the log grows,
+    instead of parsing every line to serve fifty.
+
+    An exact match count is the one thing that cannot be cheap — knowing how many
+    entries match means looking at all of them. So it is not claimed unless it was
+    actually established: `matched_exact` is True only when the scan reached the
+    start of the file. Otherwise `matched` is a floor and `has_more` says whether
+    another page exists, which is what a pager actually needs. `count_all=True`
+    asks for the full scan deliberately, for a caller that wants the real total.
+    """
+    want_end = page * per_page
+    want_start = (page - 1) * per_page
+
+    entries, matched, scanned = [], 0, 0
+    matched_exact = True                 # unless we break out early
+
+    for raw in _audit_iter_reversed(AUDIT_LOG_PATH):
+        scanned += 1
+        try:
+            entry = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if not query.matches(entry):
+            continue
+        matched += 1
+        if want_start < matched <= want_end:
+            entries.append(entry)
+        elif matched > want_end and not count_all:
+            # One past the page proves there is a next one; nothing beyond that
+            # changes what we return, so stop reading.
+            matched_exact = False
+            break
+
+    return {
+        'entries': entries,
+        'matched': matched,
+        'matched_exact': matched_exact,
+        'has_more': matched > want_end,
+        'scanned': scanned,
+        'page': page,
+        'per_page': per_page,
+        'events': sorted(AUDIT_EVENTS),
+        'kinds': list(AUDIT_KINDS),
+    }
 
 
 async def api_post_audit(request):
@@ -4045,12 +4400,20 @@ async def api_post_audit(request):
     event = str(body.get('event', '')).strip()
     if not event:
         return aiohttp_web.json_response({'error': 'event is required'}, status=400)
+    # ⚠ The vocabulary is enforced at the boundary, not left to blow up inside
+    # audit_log. An undeclared name would otherwise 500 here — and before the
+    # registry existed it was worse: it was accepted, written, and then invisible
+    # to every filter that knows the event set (#127).
+    if event not in AUDIT_EVENTS:
+        return aiohttp_web.json_response(
+            {'error': 'unknown event %r — see AUDIT_EVENTS' % event,
+             'known': sorted(AUDIT_EVENTS)}, status=400)
     user = body.get('user')
     # ⚠ Only the caller's own fields — never spread the whole body into the
     # entry, or a caller could overwrite `time` and forge when something
-    # happened.
+    # happened. `kind` is derived from the registry for the same reason.
     details = {k: v for k, v in (body.get('details') or {}).items()
-               if k not in ('time', 'event', 'user')}
+               if k not in ('time', 'event', 'user', 'kind')}
     audit_log(event, user=user, **details)
     return aiohttp_web.json_response({'ok': True})
 
@@ -4821,7 +5184,7 @@ async def api_set_directory_settings(request):
         data.pop('open_upload', None)
     _api_write_dir_json(json_path, data)
 
-    audit_log('directory_settings', user=user_id, page=page.page_num,
+    audit_log('directory_settings_changed', user=user_id, page=page.page_num,
               owner_only=bool(body.get('owner_only')))
     return aiohttp_web.json_response(
         {'ok': True, 'owner_only': data.get('open_upload') is False})
