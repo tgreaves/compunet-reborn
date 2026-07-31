@@ -170,8 +170,6 @@ UBYTE read_frame_byte(void);                         /* was FUN_0010800c */
 char  frame_rle_getchar(void);                       /* was FUN_00108086 */
 
 extern UBYTE *g_font_base;         /* was g_font_base (0x120258)          */
-extern UBYTE  c64_charset_upper[]; /* was c64_charset_upper (0x11d9c0)    */
-extern UBYTE  c64_charset_lower[]; /* was c64_charset_lower (0x11ddc0)    */
 
 /* ------------------------------------------------------------------ *
  *  Navigation / directory commands — navigate.c, directory.c
@@ -242,8 +240,8 @@ extern UBYTE  g_config[];        /* DAT_00120108 — the 0x36-byte config block 
 
 /* editor_set_frame_count — recon FUN_00114050 (see dispatch.c). Sends editor opcode 5. */
 extern LONG editor_set_frame_count(UWORD count);
-extern UWORD  g_state;           /* DAT_0011d070 — connection state enum    */
-extern UWORD  g_online;          /* DAT_0011d074 — online flag              */
+extern LONG  g_state;           /* DAT_0011d070 — connection state enum    */
+extern LONG  g_online;          /* DAT_0011d074 — online flag              */
 extern APTR   g_dir_page;        /* DAT_0011d07c — current directory page   */
 extern APTR   g_frame_page;      /* DAT_0011d078 — current frame page       */
 extern char   g_cmd_buf[];       /* DAT_00121588 — shared command scratch   */

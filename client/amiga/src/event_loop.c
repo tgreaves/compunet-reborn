@@ -46,7 +46,7 @@ extern APTR  g_main_uport;      /* DAT_00120100 — its UserPort           */
 extern APTR  g_menu_pair[2];    /* DAT_001201ae/b2 — [menu list, cmd map]*/
 extern ULONG g_jmpbuf[];        /* DAT_00120170 — abort jmp_buf          */
 extern BYTE  g_res_saved_level; /* DAT_001201ac — resource level to unwind to */
-extern UWORD g_state;           /* DAT_0011d070 — connection state       */
+extern LONG g_state;           /* DAT_0011d070 — connection state       */
 
 /* Last-click state for DoubleClick() (globals.c, recon DAT_0011d548/54c/550). */
 extern ULONG g_click_secs;      /* DAT_0011d548 */
@@ -158,7 +158,7 @@ extern APTR g_edit_frame;       /* DAT_0011d080 — frame being published */
 extern APTR g_edit_proc;        /* DAT_00120168 — the editor process     */
 extern APTR g_dir_page;         /* DAT_0011d07c */
 extern APTR g_frame_page;       /* DAT_0011d078 */
-extern UWORD g_online;          /* DAT_0011d074 */
+extern LONG g_online;          /* DAT_0011d074 */
 
 /* Extra session handles zeroed on disconnect (defined in globals.c). */
 extern APTR g_logon_win_h;      /* DAT_0011d570 */

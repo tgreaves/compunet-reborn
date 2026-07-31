@@ -39,8 +39,14 @@ extern UBYTE g_data[];
 #define DATA_BASE 0x11d000
 #define DATA(off) ((APTR)(g_data + ((off) - DATA_BASE)))
 
+/* ⚠ RAWKEY IS $400. The KS1.3 headers define the un-prefixed `RAWKEY 0x00000400` and do
+ * NOT define IDCMP_RAWKEY, so this fallback was live — and $200 is CLOSEWINDOW. The
+ * ModifyIDCMP below therefore asked for CLOSEWINDOW (a bit the original never sets on
+ * this window) and the class test matched CLOSEWINDOW messages instead of key presses,
+ * making the TAB-between-fields branch dead code. event_loop.c gets this right with
+ * CLS_RAWKEY 0x0400, and the original's own test is `cmpi.l #$400` at 0x11953c. */
 #ifndef IDCMP_RAWKEY
-#define IDCMP_RAWKEY 0x00000200L   /* KS1.3 headers use the un-prefixed name */
+#define IDCMP_RAWKEY 0x00000400L   /* KS1.3 headers spell it RAWKEY */
 #endif
 
 /* Library bases + shared window/screen handles (globals.c / launch.c). */
@@ -113,6 +119,19 @@ void close_window_tracked(APTR win)
     }
 }
 
+/* close_screen_tracked — recon FUN_0011a514, the screen counterpart of the above.
+ * ⚠ Its absence was a real defect: the IFF decoder's teardown called the RAW
+ * CloseScreen(), which leaves the tracker node registered by open_screen_tracked in
+ * place, so exit-time cleanup closed the same screen a SECOND time. That is a guru,
+ * not a leak — it presented as "Recoverable Error" on QUIT (#129). */
+void close_screen_tracked(APTR scr)
+{
+    if (scr) {
+        CloseScreen((struct Screen *)scr);
+        resource_unregister((void (*)())CloseScreen, scr);
+    }
+}
+
 /* ------------------------------------------------------------------ *
  *  Logon window (dial progress) — recon FUN_001030c6 / FUN_00103024 / FUN_00103000
  * ------------------------------------------------------------------ */
@@ -120,6 +139,8 @@ void close_window_tracked(APTR win)
 /* open_logon_window — recon FUN_001030c6: open the logon window from its NewWindow
  * at DATA(0x57a), draw its border Image, set up the scrolling text pen, and reset
  * the text cursor. Returns non-zero on success. */
+static void logon_cursor(void);   /* recon FUN_00103000, defined below */
+
 LONG open_logon_window(void)
 {
     /* Patch NewWindow.Screen (0x11d57a + 0x1e) with our custom screen before opening;
@@ -131,14 +152,66 @@ LONG open_logon_window(void)
         return 0;
     g_logon_rp = g_logon_win->RPort;
     DrawImage(g_logon_rp, (struct Image *)DATA(0x11d5aa), 4, 0xb);
-    SetAPen(g_logon_rp, 1);
+    /* ⚠ PENS: BLUE ON WHITE, and BPen must be set. Ground truth FUN_001030c6:
+     *   10310c  SetDrMd(rp, 1)     ; JAM2
+     *   10311a  SetAPen(rp, 6)     ; pen 6 = $000D BLUE  (we used pen 1)
+     *   103128  SetBPen(rp, 1)     ; pen 1 = $0FFF WHITE (we omitted this entirely)
+     * Pen values decoded from the original 16-colour table at 0x11d0c2, which
+     * launch.c already LoadRGB4s verbatim. The white panel behind the text is
+     * faithful — the Image at 0x11d5aa has PlanePick=0/PlaneOnOff=1, so DrawImage
+     * fills it solid pen 1 — but the text was reconstructed in the SAME pen as its
+     * background, which is why the dialling panel does not read as the original's
+     * blue-on-white. */
+    SetAPen(g_logon_rp, 6);
+    SetBPen(g_logon_rp, 1);
     SetDrMd(g_logon_rp, JAM2);
     g_logon_x = 0;
     g_logon_y = 0xb;
+    logon_cursor();              /* recon 0x103140: bsr.w $103000 */
     return 1;
 }
 
-void close_logon_window(void)   /* recon FUN_00119450 / FUN_0010314c */
+/*
+ * close_logon_window — recon FUN_00119450. ⚠ DESPITE THE NAME, THIS IS THE TRANSPORT
+ * TEARDOWN, not a window close. It was reconstructed as "close the logon window", which
+ * is a DIFFERENT original function (FUN_0010314c, below) — so cnet.device was never
+ * closed and the three MsgPorts and two IORequests were never deleted between
+ * connections. They survived only because their tracker nodes were still queued for the
+ * exit unwind, which means a second connect in one session re-opened the device and
+ * re-created the ports ON TOP of the live ones.
+ *
+ * The names are the original's own (login.c calls them exactly this way); only the
+ * bodies were swapped. Ground truth FUN_00119450, in order:
+ *   119450  bsr  $1190a0                ; diagnostics_close
+ *   119454  jsr  $119af4 -> $11a324     ; close_device_tracked(g_read_req)   [0x1206b4]
+ *   11945e  jsr  $119b18 -> $11a848     ; delete_extio_tracked(g_write_req, 0x36)
+ *   11946c  jsr  $119b18                ; delete_extio_tracked(g_read_req, 0x36)
+ *   11947a  jsr  $119b42 -> $11a79a     ; delete_port_tracked(g_write_port)  [0x1206b0]
+ *   119484  jsr  $119b42                ; delete_port_tracked(g_read_port)   [0x1206ac]
+ *   11948e  jsr  $119b42                ; delete_port_tracked(g_device_port) [0x1206a8]
+ */
+void close_logon_window(void)
+{
+    extern void diagnostics_close(void);
+    extern void close_device_tracked(struct IORequest *req);
+    extern void delete_extio_tracked(struct IORequest *req, ULONG size);
+    extern void delete_port_tracked(struct MsgPort *port);
+    extern struct CnetRequest *g_read_req, *g_write_req;
+    extern struct MsgPort *g_device_port, *g_read_port, *g_write_port;
+
+    diagnostics_close();
+    close_device_tracked((struct IORequest *)g_read_req);
+    delete_extio_tracked((struct IORequest *)g_write_req, 0x36);  g_write_req  = NULL;
+    delete_extio_tracked((struct IORequest *)g_read_req,  0x36);  g_read_req   = NULL;
+    delete_port_tracked(g_write_port);                            g_write_port = NULL;
+    delete_port_tracked(g_read_port);                             g_read_port  = NULL;
+    delete_port_tracked(g_device_port);                           g_device_port = NULL;
+    g_device_sig = 0;
+}
+
+/* close_connection_window — recon FUN_0010314c (22 bytes): close the logon window.
+ * This is the one that actually closes a window; see the note above. */
+void close_connection_window(void)
 {
     if (g_logon_win) {
         close_window_tracked(g_logon_win);
@@ -146,16 +219,31 @@ void close_logon_window(void)   /* recon FUN_00119450 / FUN_0010314c */
     }
 }
 
-void close_connection_window(void)  /* recon FUN_0010314c (alias) */
+/*
+ * logon_cursor — recon FUN_00103000 (36 bytes). The block text cursor on the dialling
+ * panel: an 8x8 filled cell at the current line.
+ *   103000  d0 = g_logon_y ; d1 = d0 + 7
+ *          RectFill(g_logon_rp, 4, d0, 0xb, d1)
+ * Called from exactly two places — open_logon_window (0x103140, after the pens and
+ * origin are set) and logon_text_append (0x1030a6, after the line advance/scroll).
+ * Neither was reconstructed, so the panel had no cursor at all.
+ */
+static void logon_cursor(void)
 {
-    close_logon_window();
+    if (g_logon_rp == NULL) return;
+    RectFill(g_logon_rp, 4, g_logon_y, 0xb, g_logon_y + 7);
 }
 
 /* logon_text_append — recon FUN_00103024: print a string into the logon window's
  * scrolling text area, advancing the y position and scrolling when it fills. */
 void logon_text_append(const char *s, int len)
 {
-    if (len == 0) { s = "\n"; len = 1; }
+    /* ⚠ THE EMPTY LINE IS A SPACE, NOT A NEWLINE. Original 0x10302e points at
+     * DAT_0011d5be, whose bytes are `20 00` — a single space — and passes length 1.
+     * gfx.Text() draws glyphs; it does not interpret control characters, so "\n" was
+     * rendered as the raw char-$0a glyph rather than advancing a line (the advance is
+     * done below, by the y arithmetic). */
+    if (len == 0) { s = " "; len = 1; }
     if (g_logon_rp == NULL) return;
     Move(g_logon_rp, 4, g_logon_y + 6);
     Text(g_logon_rp, (STRPTR)s, len);
@@ -163,6 +251,7 @@ void logon_text_append(const char *s, int len)
         g_logon_y += 8;
     else
         ScrollRaster(g_logon_rp, 0, 8, 4, 0xb, 0x143, 0xaa);
+    logon_cursor();                 /* recon 0x1030a6 */
 }
 
 /* logon_window_ready (recon FUN_0011949a) is reconstructed faithfully in
@@ -170,7 +259,9 @@ void logon_text_append(const char *s, int len)
  * "login ready" command (io_Command 9). */
 
 /* uppercase in place — recon FUN_0011513a (a..z -> A..Z). */
-static void str_upper(char *p)
+/* Shared leaf in the original (FUN_0011513a), used by the login path AND goto_page_prompt
+ * (0x10a306) — so it cannot be static here. */
+void str_upper(char *p)
 {
     for (; *p; p++)
         if (*p >= 'a' && *p <= 'z')
@@ -440,7 +531,15 @@ void show_status_message(UBYTE code, const char *text)
     case 0x41: prefix = "Host error";  break;
     case 0x42: prefix = "Fatal error"; break;
     case 0x01: prefix = "Local error"; break;
-    case 0x02: prefix = "Comms error"; break;
+    case 0x02:
+        prefix = "Comms error";
+        /* ⚠ CODE 0x02 REPLACES THE CALLER'S TEXT. Original 0x115054:
+         *   lea $2800(a4), a1      ; 0x11f800 = "CARRIER LOST"
+         *   move.l a1, $c(a5)      ; overwrite the `text` PARAMETER
+         * A comms error always reports carrier loss, whatever the caller passed —
+         * passing the caller's own string through showed the wrong message. */
+        text = "CARRIER LOST";
+        break;
     default:   prefix = "";            break;   /* recon default: plain requester */
     }
     status_ok_dialog(prefix, text, 2, 1);   /* recon: p4=2, p5=1 (FrontPen 1) */

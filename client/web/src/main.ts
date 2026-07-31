@@ -244,9 +244,19 @@ function onMessage(m: ServerMsg): void {
       // Carry the entry type across the two-step fetch (§8.3.1): an F is displayed as
       // a picture, a P is saved. `machine` cannot tell them apart — both are 'amiga'.
       pendingDownloadKind = d.kind === 'F' ? 'F' : 'P';
-      const verb = pendingDownloadKind === 'F' ? 'View' : 'Download';
-      status(`${verb}: ${d.title} — ${d.size} bytes (${d.machine})`);
-      if (confirm(`${verb} "${d.title}" (${d.size} bytes)?`)) gw.send({ type: 'download.fetch' });
+      // ⚠ A PICTURE IS NOT ASKED ABOUT. SHOW on an `F` means "look at this", and the
+      // user has already said so by running the command — a confirm box in between
+      // is a second question with no second decision behind it. It costs nothing to
+      // view (the overlay closes on any key) and nothing lands on disk, so there is
+      // nothing to consent to. A program download still asks, because that one DOES
+      // write a file the user has to put somewhere.
+      if (pendingDownloadKind === 'F') {
+        status(`Loading ${d.title} — ${d.size} bytes`);
+        gw.send({ type: 'download.fetch' });
+        break;
+      }
+      status(`Download: ${d.title} — ${d.size} bytes (${d.machine})`);
+      if (confirm(`Download "${d.title}" (${d.size} bytes)?`)) gw.send({ type: 'download.fetch' });
       break;
     }
     case 'download.data': {
@@ -1091,6 +1101,13 @@ function showPicture(b64: string, title: string): void {
   const close = (): void => {
     overlay.remove();
     window.removeEventListener('keydown', onKey, true);
+    // ⚠ REDRAW AND TAKE THE KEYBOARD BACK. The listing underneath is still the
+    // client's state, but nothing has repainted it since the picture went up and
+    // the overlay owned the keyboard while it was there. Without this the user is
+    // returned to a screen that looks right and does nothing — no command row, no
+    // response to the duckshoot keys.
+    setFocus('net');
+    render();
   };
   const onKey = (e: KeyboardEvent): void => { e.preventDefault(); e.stopPropagation(); close(); };
   overlay.addEventListener('click', close);

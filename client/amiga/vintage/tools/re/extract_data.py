@@ -51,7 +51,14 @@ CODE_SYM = {
     0x114000: "hook_serial_setup",
     0x102a0a: "hook_main_menu",
     0x10e000: "mail_prepare",
-    0x10a384: "hook_link_entry",
+    # ⚠ 0x10a384 is ucat_command, NOT a link hook. Verified: g_state = 2,
+    # serial_write("C", 1, 1, 'C'), parse_directory_frame, g_online = 1.
+    # The checked-in g_data_blob.asm already binds _ucat_command correctly, so the
+    # shipped client is fine — but regenerating the blob with the old name here would
+    # rebind the UCat menu item to hook_link_entry, which menu_dispatch calls with NO
+    # argument (0x11b49c: jsr (a0)) and which immediately dereferences gadget+0x26 and
+    # +0x30. That is a silent re-break waiting for the next person to regenerate.
+    0x10a384: "ucat_command",
     0x103704: "hook_connect_entry",
     0x10c428: "extend_life",
     0x10c510: "vote",

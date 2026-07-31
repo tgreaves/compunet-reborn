@@ -22,6 +22,11 @@ extern APTR SysBase;
 extern APTR AbsExecBase;             /* set by the runtime startup */
 extern void open_dos_library(void);  /* recon FUN_001001c4 */
 
+/* #129 TEMPORARY diagnostic trace (download.c). Not part of the reconstruction —
+ * remove with the rest of the instrumentation once the IFF display defect is found. */
+extern void cnet_log_open(void);
+extern void cnet_log(const char *s);
+
 int main(void)
 {
     /* The runtime (vbcc minstart.o) has set SysBase and the a4 small-data base and
@@ -33,6 +38,16 @@ int main(void)
                            * so the startup LoadSeg("CnetEditor"/"CnetTty") and TCPHOST/config
                            * reads resolve (minstart.o, unlike the original's SAS/C c.o, does
                            * not do this — hence the guru on double-click). Harmless from CLI. */
+    /* ⚠ AFTER wb_startup_begin(), which sets the cwd to the icon's drawer — that is
+     * what makes the relative log path land beside the executable. Opened here so the
+     * file's mere existence proves the client started and the trace works, which the
+     * download-time version could not: it left nothing behind when the run stopped
+     * before the transfer. */
+    cnet_log_open();
+    /* BUILD TAG: identifies WHICH binary wrote the trace. A stale log was read as a
+     * fresh run once already — the timestamps disagreed but the content looked
+     * plausible. Bump this whenever the debug build changes. */
+    cnet_log("=== CompunetDebug started (#129 IFF trace) build=D9-complete ===");
     client_main();
     return 0;
 }

@@ -983,9 +983,13 @@ function onMessage(m) {
     case "download": {
       const d = m;
       pendingDownloadKind = d.kind === "F" ? "F" : "P";
-      const verb = pendingDownloadKind === "F" ? "View" : "Download";
-      status(`${verb}: ${d.title} \u2014 ${d.size} bytes (${d.machine})`);
-      if (confirm(`${verb} "${d.title}" (${d.size} bytes)?`)) gw.send({ type: "download.fetch" });
+      if (pendingDownloadKind === "F") {
+        status(`Loading ${d.title} \u2014 ${d.size} bytes`);
+        gw.send({ type: "download.fetch" });
+        break;
+      }
+      status(`Download: ${d.title} \u2014 ${d.size} bytes (${d.machine})`);
+      if (confirm(`Download "${d.title}" (${d.size} bytes)?`)) gw.send({ type: "download.fetch" });
       break;
     }
     case "download.data": {
@@ -1639,6 +1643,8 @@ function showPicture(b64, title) {
   const close = () => {
     overlay.remove();
     window.removeEventListener("keydown", onKey, true);
+    setFocus("net");
+    render();
   };
   const onKey = (e) => {
     e.preventDefault();

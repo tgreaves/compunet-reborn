@@ -31,10 +31,10 @@
 extern APTR  g_window;       /* DAT_001200fc — main window            */
 extern APTR  g_frame_page;   /* DAT_0011d078 — frame page (page[0]=win)*/
 extern APTR  g_dir_page;     /* DAT_0011d07c — directory page          */
-extern UWORD g_state;        /* DAT_0011d070 */
-extern UWORD g_online;       /* DAT_0011d074 */
-extern UWORD g_state_shadow; /* DAT_0011d46e */
-extern UWORD g_online_shadow;/* DAT_0011d472 */
+extern LONG g_state;        /* DAT_0011d070 */
+extern LONG g_online;       /* DAT_0011d074 */
+extern LONG g_state_shadow; /* DAT_0011d46e */
+extern LONG g_online_shadow;/* DAT_0011d472 */
 
 extern void  ui_set_title(const char *title);   /* FUN_0010217a (ui.c) */
 

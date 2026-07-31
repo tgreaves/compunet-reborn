@@ -1319,6 +1319,23 @@ class PictureDownloadF(unittest.TestCase):
         self.assertTrue(getattr(s, '_program_download_pending', False),
                         'Binding B carries the renderer, so the fetch must proceed')
 
+    def test_taking_the_download_stops_the_session_showing_that_page(self):
+        """⚠ The regression: `take_program_download` cleared the pending flags but
+        left `show_page` set, so the finished binary page was still 'current' after
+        its bytes had been handed over — and the next command that reached
+        _send_current_frame re-sent the 8-byte DESCRIPTOR, offering the user the
+        download they had just completed. The abort path already cleared it; success
+        did not, so the two ends of one transfer disagreed. Applies to P as much as
+        to F — the fix is in the shared function."""
+        _, s = self._serve('amiga')
+        self.assertTrue(s._program_download_pending, 'staged before the fetch')
+        self.assertIsNotNone(s.show_page)
+        data = s.take_program_download()
+        self.assertEqual(len(data), 5000, 'the bytes are still delivered')
+        self.assertIsNone(s.show_page, 'the session must stop showing a downloaded page')
+        self.assertEqual(s.show_frame_index, 0)
+        self.assertFalse(s._program_download_pending)
+
     def test_the_c64_is_refused_an_f_with_a_message_not_the_descriptor(self):
         hdr, s = self._serve(None)
         # RESP_ERROR ('E', 0x45) + PETSCII message + $00 — the C64 paints it as a page

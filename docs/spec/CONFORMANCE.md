@@ -108,6 +108,13 @@ marked **⚠** are the ones known to have been got wrong in practice.
 
 - [ ] **⚠ `SHOW` refuses a paid page** with `PLEASE USE BUY`, sending nothing (§8.6.4).
 - [ ] **⚠ `BUY` confirms** with `BUY FOR {price} - SURE?` and sends only on acceptance (§8.6.4).
+- [ ] **⚠ EVERY downloadable type is charge-gated, text included** (§8.6.4). Put a priced entry
+      of each base type your client handles — `T`, `P`, `S`, `L`, and `F`/`A` if you serve them —
+      in a directory and select each one. Did every single one ask before charging? The reference
+      Amiga client gated five of its six types for four releases: `T` went straight through, so a
+      priced **text** page was fetched and billed silently. Text is the one that gets missed,
+      because reading feels free. If you dispatch on the base type, the check belongs **before**
+      the branch, not inside each arm.
 - [ ] **`DIR` vs `SHOW`** — `DIR` enters an entry as a directory, `SHOW` only reads frames;
       on a `T+` entry the two do different things (§4.7).
 - [ ] **`FINISH` returns the current directory**, not "home"; `BACK` ascends (§4.7).

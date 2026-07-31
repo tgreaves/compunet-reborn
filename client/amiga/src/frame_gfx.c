@@ -37,7 +37,7 @@ static struct RastPort g_offscreen_rp;   /* DAT_001202ac */
 /* Shared Image used to stamp the border (recon DAT_0011d9ac + its size words). */
 static struct Image    g_border_image;   /* DAT_0011d9ac */
 
-extern UBYTE  g_offscreen;               /* DAT_0011d9a8 — 1 = offscreen active */
+extern LONG  g_offscreen;               /* DAT_0011d9a8 — 1 = offscreen active */
 extern UBYTE *g_plane_dst[4];            /* DAT_0012028c — the 4 plane pointers  */
 
 /* resource_mark / resource_commit / cleanup_resources declared in compunet.h. */

@@ -63,6 +63,7 @@ void frame_redraw(APTR page);           /* FUN_00107156 — re-blit all 40x24 ce
 void frame_clear_region(int r0, int c0, int r1, int c1, APTR page); /* FUN_0010544e */
 void frame_insert_char(APTR page);      /* FUN_0010527e */
 void frame_delete_char(APTR page);      /* FUN_00105376 */
+extern APTR alloc_tracked(ULONG size, ULONG flags); /* FUN_0011a1ee — tracked AllocMem */
 extern void frame_offscreen_begin(void);/* FUN_001060f6 — set up offscreen bitmap */
 extern void frame_offscreen_end(APTR page);/* FUN_0010617c — blit offscreen to window */
 extern void frame_border(int r0, int c0, int r1, int c1, APTR page); /* FUN_001061e8 */
@@ -77,12 +78,12 @@ extern void gfx_scroll_raster(APTR rp, int dx, int dy, int x0, int y0, int x1, i
 extern UBYTE (*g_frame_getbyte)(void);
 
 /* Transport-fed frame buffer state (recon DAT_001203a0..DAT_001203ae). */
-extern UWORD  g_frame_pos;      /* DAT_001203a0 — read cursor into g_frame_buf   */
-extern UWORD  g_frame_len;      /* DAT_001203a4 — valid bytes in g_frame_buf     */
+extern LONG  g_frame_pos;      /* DAT_001203a0 — read cursor into g_frame_buf   */
+extern LONG  g_frame_len;      /* DAT_001203a4 — valid bytes in g_frame_buf     */
 extern UBYTE  g_frame_eof;      /* DAT_001203ac — end-of-frame flag from device  */
 extern UBYTE *g_frame_capture;  /* DAT_001203ae — optional capture sink (or NULL)*/
 extern UBYTE  g_frame_buf[];    /* DAT_00120310 — 0x8f-byte transport read buffer*/
-extern UWORD  g_frame_hdr_more; /* DAT_001203b2 — top bit of first header byte   */
+extern LONG  g_frame_hdr_more; /* DAT_001203b2 — top bit of first header byte   */
 
 /* RLE de-compression state (recon DAT_001203ba/bb). */
 extern UBYTE  g_rle_char;       /* DAT_001203ba — the char being emitted         */
@@ -222,7 +223,13 @@ LONG build_font(void)
     const UBYTE *cs_upper = g_data + (0x11d9c0 - 0x11d000);
     const UBYTE *cs_lower = g_data + (0x11ddc0 - 0x11d000);
 
-    g_font_base = (UBYTE *)AllocMem(0x2000, MEMF_CHIP | MEMF_CLEAR);
+    /* ⚠ THE TRACKED ALLOCATOR, and MEMF_CHIP alone. Original 0x106010:
+     *   jsr $10629c(pc)  ->  jmp $11a1ee.l  = alloc_tracked(0x2000, #$2)
+     * alloc_tracked prefixes a 0x20-byte resource node and registers it, so the exit
+     * cleanup frees it. Calling raw AllocMem left this 8 KB of CHIP RAM unregistered and
+     * therefore never freed — a leak the OS does not reclaim, one per run — and gave the
+     * pointer no −0x20 header, so any later free_tracked() on it would guru. */
+    g_font_base = (UBYTE *)alloc_tracked(0x2000, MEMF_CHIP);
     if (g_font_base == NULL)
         return 0;
     base = g_font_base;
@@ -257,7 +264,7 @@ LONG build_font(void)
  * to reproduce C64 frames; the plane-select constants (0x200/0xa00 blank/solid
  * banks) are as observed. See petscii-frame-format.md.
  */
-extern UBYTE  g_offscreen;         /* DAT_0011d9a8 — 1 = draw to offscreen bitmap */
+extern LONG  g_offscreen;         /* DAT_0011d9a8 — 1 = draw to offscreen bitmap */
 extern UBYTE *g_plane_src[4];      /* DAT_00120264 — per-plane font source ptrs   */
 extern UBYTE *g_plane_dst[4];      /* DAT_0012028c — per-plane offscreen bases     */
 extern void   blt_font_to_rastport(WORD row, WORD col, APTR page); /* direct-draw cell blit */
@@ -537,7 +544,7 @@ void frame_display_done(APTR out, APTR len)
  * "Frame being edited" requester. All fetches every remaining frame of a multi-frame page. */
 extern APTR g_frame_page;             /* DAT_0011d078 — the frame page/render target */
 extern LONG frame_more(void);         /* FUN_00113062 — send "D" to fetch the next frame */
-extern LONG frame_busy_requester(void);/* FUN_001180bc — "Frame being edited": 0 RETRY 1 SKIP 2 CANCEL */
+extern LONG frame_busy_requester(const char *op);/* FUN_001180bc — "Frame being edited": 0 RETRY 1 SKIP 2 CANCEL */
 
 #define FR_SUCC(n)   (*(APTR  *)((UBYTE *)(n) + 0x00))   /* ln_Succ */
 #define FR_PRED(n)   (*(APTR  *)((UBYTE *)(n) + 0x04))   /* ln_Pred */
@@ -568,7 +575,7 @@ LONG frame_next(void)
         if (!(FR_FLAGS(cand) & 0x02))             /* recon 0x117154 btst #1: not locked -> use it */
             break;
         ReleaseSemaphore(ED_SEM());                /* recon 0x117198: locked -> requester */
-        choice = frame_busy_requester();
+        choice = frame_busy_requester("NEXT")   /* recon 0x1171a8: pea $2b34(a4) */;
         if (choice == 2)                           /* CANCEL -> abort, stay */
             return 0;
         ObtainSemaphore(ED_SEM());
@@ -605,7 +612,7 @@ LONG frame_last(void)
         if (!(FR_FLAGS(cand) & 0x02))
             break;
         ReleaseSemaphore(ED_SEM());
-        choice = frame_busy_requester();
+        choice = frame_busy_requester("LAST")   /* recon 0x11729e: pea $2b3a(a4) */;
         if (choice == 2)                           /* CANCEL */
             return 0;
         ObtainSemaphore(ED_SEM());

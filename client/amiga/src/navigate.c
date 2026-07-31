@@ -25,8 +25,7 @@ extern void directory_refresh(APTR dir_page);   /* thunk FUN_00109a5e */
 extern LONG goto_page_prompt(void);             /* FUN_0010a2e2 "Goto Page" */
 extern void link_lock(APTR dir, int n);         /* FUN_00109520 */
 
-extern short g_goto_page_no; /* DAT_0012157e — the number entered in Goto Page */
-extern char  g_link_code[];  /* DAT_00121580 region — 6-char link code buffer  */
+extern char  g_goto_page_no[]; /* DAT_0012157e — 6-char link code from Goto Page */
 
 /*
  * goto_page — recon FUN_0010a1e2. If not yet online (g_online==0), send the
@@ -83,7 +82,7 @@ extern void  frame_display_done(APTR out, APTR len);  /* thunk FUN_0011754e */
 extern APTR  g_frame_page;                            /* DAT_0011d078 */
 extern char  g_frame_out[];                           /* DAT_001220fc */
 extern APTR  g_frame_out_end;                         /* DAT_0012309c */
-extern UWORD g_frame_hdr_more;                        /* DAT_001203b2 — more-frames flag */
+extern LONG g_frame_hdr_more;                        /* DAT_001203b2 — more-frames flag */
 
 /*
  * frame_more — recon FUN_00113062. The "More" frame button: send the bare "D" (the
@@ -147,11 +146,11 @@ LONG link_goto(void)
     ULONG len;
 
     g_state = STATE_GOTO;
-    g_goto_page_no = 0;
+    g_goto_page_no[0] = '\0';    /* recon 0x10a31a: clr.b $457e(a4) — a BYTE, not a word */
     if (goto_page_prompt() == 0)
         return 0;
 
-    sprintf(cmd, "L%.6s", (char *)&g_goto_page_no);
+    sprintf(cmd, "L%.6s", g_goto_page_no);
     len = strlen(cmd);
     serial_write(cmd, len, 1, TOKEN_COM);
     if (serial_io_c(g_ack_text) == ACK_OK) {

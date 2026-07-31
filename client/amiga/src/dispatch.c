@@ -99,7 +99,7 @@ extern BYTE resource_mark(void);
 extern void resource_commit(void);
 extern BYTE cleanup_resources(void);
 extern LONG leave_page(void);           /* the "E" leave/back command (navigate.c) */
-extern UWORD g_state;                   /* DAT_0011d070 */
+extern LONG g_state;                   /* DAT_0011d070 */
 
 /* Editor-message plumbing (globals.c / launch.c). The editor is driven by PutMsg'ing
  * the shared g_editor_msg to g_edit_msgport and waiting for the reply on
@@ -232,7 +232,7 @@ extern LONG put_frame_xfer(void);                    /* FUN_0010c270 — text-up
 extern LONG put_frame_done(void);                    /* FUN_0010c2de — text-upload Done   */
 extern LONG mail_field_send(void);                   /* FUN_0010e398 — courier Send       */
 extern LONG mail_field_next(void);                   /* FUN_0010e402 — courier Done       */
-extern UWORD g_state;                                /* DAT_0011d070 */
+extern LONG g_state;                                /* DAT_0011d070 */
 
 #define FGAD_PAGE(g)  (*(APTR  *)((UBYTE *)(g) + 0x30))
 #define FGAD_ROW(g)   (*(short *)((UBYTE *)(g) + 0x26))
