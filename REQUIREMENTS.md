@@ -175,15 +175,51 @@ cd client/web      && npm install && npm run build     # the bundle
 cd client/electron && npm install && npm run dist:win  # the desktop app
 ```
 
+`npm run typecheck` in `client/web` runs `tsc --noEmit`. **Worth running — `npm run build` does
+not typecheck.** esbuild strips types without checking them, so a type error bundles perfectly
+happily and only shows up at runtime.
+
+⚠ **On Windows, install Node per-user** and note it does not land on `PATH` for an existing
+shell — the same trap as `gh` above:
+
+```powershell
+winget install --id OpenJS.NodeJS.LTS --scope user --accept-source-agreements --accept-package-agreements
+```
+
+It unpacks to `%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_…\node-v<ver>-win-x64`.
+Prepend that to `PATH` for the current session rather than reinstalling when `node` is "not
+found".
+
 ⚠ **Always `dist:win`, never `pack:win`** ([CLAUDE.md](CLAUDE.md), Client Rules). `pack:win`
 writes only `dist/win-unpacked/` and leaves the installer and portable exe at the previous build
 — the two artefacts a tester actually picks up.
 
-⚠ **electron-builder vs. Windows symlinks.** Its `winCodeSign` package contains macOS symlinks
-Windows cannot create, and the download fails. Pre-extract the cache without them:
+⚠ **electron-builder vs. Windows symlinks — turn ON Developer Mode.** Its `winCodeSign`
+package contains macOS symlinks Windows will not create without privilege, and the extraction
+fails hard:
 
 ```
-7z x winCodeSign-<ver>.7z -o"%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\winCodeSign-<ver>" -xr!darwin
+ERROR: Cannot create symbolic link : A required privilege is not held by the client.
+       ...\winCodeSign\<id>\darwin\10.12\lib\libcrypto.dylib
+  • Above command failed, retrying 3 more times
+```
+
+**Settings → System → For developers → Developer Mode.** That permits unprivileged symlink
+creation and the build then runs start to finish. An elevated shell works too. Nothing else is
+needed — signing itself is skipped (`no signing info identified`), so this is purely about
+unpacking a tool we do not use.
+
+⚠ **The pre-extract workaround previously recorded here does NOT work on current
+electron-builder** and cost an hour before that was clear. It said to unpack the cache to
+`winCodeSign-<ver>` with `-xr!darwin`. This version extracts to a **random numeric id per
+download** — eight such directories accumulated from failed attempts, each a different number —
+so there is no name to pre-populate. Every one of them contained a perfectly good `windows-10`
+directory: only the `darwin` symlinks fail, and electron-builder treats that as fatal anyway.
+
+After enabling Developer Mode, clear the debris so the next run starts clean:
+
+```powershell
+Remove-Item "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign\*" -Recurse -Force
 ```
 
 ⚠ **Close the app before packaging.** A running `Compunet Reborn.exe` — especially the portable

@@ -1021,10 +1021,15 @@ function openSubmit(kind) {
   $("submit").hidden = false;
   $("submitTitle").textContent = kind === "upload" ? `Upload into "${dir?.title ?? "this directory"}"` : "Send as mail";
   $("edContentFields").hidden = kind !== "upload";
+  syncMachineField();
   $("edToField").hidden = kind !== "mail";
   $("edHint").textContent = kind === "upload" ? "Type and price are required. The pages come from the editor." : "Recipients: up to five user IDs, comma-separated.";
   $("edTitle").value = "";
   $("edTitle").focus();
+}
+function syncMachineField() {
+  const isProgram = $("edKind").value === "P";
+  $("edMachineField").hidden = !isProgram || $("edContentFields").hidden;
 }
 function closeSubmit() {
   submitMode = null;
@@ -1049,7 +1054,10 @@ function doSubmit() {
       title,
       kind: $("edKind").value,
       price: parseFloat($("edPrice").value) || 0,
-      life: parseInt($("edLife").value, 10) || 0
+      life: parseInt($("edLife").value, 10) || 0,
+      // Carried through the upload sub-context so SEND knows which machine the
+      // user chose; meaningless for a text upload and ignored there.
+      machine: $("edMachine").value
     };
     pendingUpload = meta;
     outgoingUpload = [];
@@ -1352,7 +1360,22 @@ function toBase64(bytes) {
   }
   return btoa(s);
 }
+function sniffMachine(file) {
+  if (file.length >= 4 && file[0] === 0 && file[1] === 0 && file[2] === 3 && file[3] === 243) return "amiga";
+  if (file.length >= 1084) {
+    const sig = String.fromCharCode(file[1080], file[1081], file[1082], file[1083]);
+    if (["M.K.", "M!K!", "M&K!", "FLT4", "FLT8", "4CHN", "6CHN", "8CHN"].includes(sig)) {
+      return "amiga";
+    }
+  }
+  if (file.length >= 2) {
+    const load = file[0] | file[1] << 8;
+    if ([2049, 4097, 1025, 49152, 8192, 12288].includes(load)) return "c64";
+  }
+  return null;
+}
 function sendProgram() {
+  const machine = pendingUpload?.machine ?? "c64";
   const inp = document.createElement("input");
   inp.type = "file";
   inp.onchange = () => {
@@ -1360,7 +1383,7 @@ function sendProgram() {
     if (!f) return;
     void f.arrayBuffer().then((ab) => {
       const file = new Uint8Array(ab);
-      const isC64 = /\.prg$/i.test(f.name);
+      const isC64 = machine !== "amiga";
       const body = isC64 ? file.subarray(2) : file;
       const load = isC64 ? file[0] | file[1] << 8 : 0;
       if (isC64 && file.length < 3) {
@@ -1377,7 +1400,13 @@ function sendProgram() {
       outgoingUpload.push(toBase64(blob));
       const kb = Math.ceil(body.length / 1024);
       rowMessage.net = `${f.name.toUpperCase().slice(0, 20)} ${kb}K ADDED`;
-      status(`${f.name} \u2014 ${body.length} bytes, ${isC64 ? `C64 load $${load.toString(16).toUpperCase().padStart(4, "0")}` : "Amiga"}. FINISH to commit.`);
+      const shown = isC64 ? `C64, load $${load.toString(16).toUpperCase().padStart(4, "0")}` : "Amiga";
+      const detected = sniffMachine(file);
+      const disagrees = detected !== null && detected !== machine;
+      status(
+        `${f.name} \u2014 ${body.length} bytes, ${shown}. ` + (disagrees ? `\u26A0 but this looks like ${detected === "amiga" ? "an Amiga" : "a C64"} file \u2014 CANCEL and start again if the Machine is wrong. ` : "") + "FINISH to commit.",
+        disagrees
+      );
       updateBar();
     });
   };
@@ -2320,6 +2349,7 @@ async function boot() {
   });
   $("edSubmit").onclick = doSubmit;
   $("edCancel").onclick = closeSubmit;
+  $("edKind").onchange = syncMachineField;
   $("chatInput").addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     const input = $("chatInput");

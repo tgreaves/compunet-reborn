@@ -381,6 +381,9 @@ RESP_ERROR = 0x45     # 'E' - error
 # ST). Uploaded 'P' pages record their uploader's platform; absent/unknown -> C64 (0), so
 # all pre-existing content serves exactly as before.
 MACHINE_CODES = {'c64': 0, 'amiga': 1, 'st': 2}
+#: The reverse, for storing what a client declared on upload. An unknown code
+#: falls back to C64, which is also what an absent machine_type means.
+MACHINE_NAMES = {code: name for name, code in MACHINE_CODES.items()}
 
 CMD_ACCNT = 0x41      # 'A'
 CMD_BACK = 0x42       # 'B' (was incorrectly 'C' — verified from terminal disassembly)
@@ -2455,14 +2458,22 @@ class CompunetSession:
         os.makedirs(page_dir, exist_ok=True)
 
         # Save frames into page folder. Program frames are [8-byte header][body]; the
-        # header's byte 0 is the machine type (1=Amiga, 0=C64).
+        # header's byte 0 is the machine type (0=C64, 1=Amiga, 2=ST).
         frame_files = []
         is_program = send['type'] == 'P'
         prog_machine = send['frames'][0][0] if (is_program and send['frames']) else None
+        # ⚠ The split is by CPU, not by brand — 68k machines have no load address,
+        # the 6502 does. Upload used to test `== 1` and so folded ST into the C64
+        # branch, which would strip two bytes off the front of an ST file and store
+        # it as `c64`; the DOWNLOAD side already handled all three correctly
+        # (is_68k, verified against the original client's disassembly, #123). This
+        # makes the two ends agree. Nothing sends a 2 today, so no behaviour changes
+        # — it removes a trap rather than adding a feature.
+        prog_is_68k = prog_machine in (1, 2)
         for i, frame_data in enumerate(send['frames']):
             if is_program:
-                if prog_machine == 1:
-                    # Amiga: relocatable HUNK executable — store the raw body, no prefix.
+                if prog_is_68k:
+                    # 68k: no C64-style load address to strip. Store the body whole.
                     frame_data = bytes(frame_data[8:])
                 else:
                     # C64: prepend the 2-byte load address (header bytes 4-5) to the body.
@@ -2477,7 +2488,7 @@ class CompunetSession:
 
         if is_program and send['frames']:
             hdr = send['frames'][0]
-            if prog_machine == 1:
+            if prog_is_68k:
                 size = (len(hdr) - 8 + 1023) // 1024   # raw body length (KB)
             else:
                 size = (len(hdr) - 2 + 1023) // 1024   # C64 calc (unchanged)
@@ -2496,7 +2507,9 @@ class CompunetSession:
         new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         if is_program and prog_machine is not None:
             # Program uploads carry their machine type in the header byte (authoritative).
-            new_page.machine_type = 'amiga' if prog_machine == 1 else 'c64'
+            # Reverse of MACHINE_CODES, so the stored value round-trips whatever the
+            # client declared instead of collapsing everything that is not 1 to C64.
+            new_page.machine_type = MACHINE_NAMES.get(prog_machine, 'c64')
         else:
             new_page.machine_type = 'amiga' if getattr(self, 'is_amiga', False) else 'c64'
         new_page.parent = self.current_page
