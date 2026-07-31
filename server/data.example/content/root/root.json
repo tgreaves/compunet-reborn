@@ -52,6 +52,16 @@
         "frame-1.seq"
       ],
       "dynamic": "who"
+    },
+    {
+      "page_num": 951,
+      "title": "AMIGA",
+      "type": "D",
+      "author": "ADMIN",
+      "price": 0,
+      "life": 0,
+      "keyword": "AMIGA",
+      "directory": "amiga/directory.json"
     }
   ]
 }

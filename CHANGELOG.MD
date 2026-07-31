@@ -1,10 +1,22 @@
 # 1.4.0 (unreleased)
 
+* Web & desktop client:
+	* New: Amiga pictures. A directory can now hold an IFF/ILBM picture — a new
+	  "F — IFF picture" upload type — and the web and desktop clients show it
+	  full-screen. On a real Amiga the picture paints in as it downloads, just as
+	  it did on the original service. There is a new AMIGA area off the main menu
+	  with a test picture in it (#129).
+	* Changed: uploading a program now asks whether it is for the C64 or the
+	  Amiga, instead of guessing from the file name. A wrong guess used to corrupt
+	  the file when someone downloaded it again, not merely mislabel it (#118).
 * Website:
 	* New: the audit log can be filtered and searched — by user, event, kind,
 	  client, IP, date range, or any text in the entry. Finding a particular
 	  action meant paging through 137 pages by eye (#128).
 * Server:
+	* New: serves IFF pictures (directory type F) to the Amiga and web clients,
+	  and refuses them to the C64 — which has no way to display one — with a clear
+	  message instead of a corrupted screen (#129).
 	* Fixed: actions taken from the web and Electron clients were missing from
 	  the audit log. Sending mail, downloading a program, entering Partyline and
 	  disconnecting were all recorded from a C64, an Amiga or the terminal, and

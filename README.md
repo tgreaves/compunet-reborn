@@ -19,6 +19,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 - Directory browsing with full duckshoot menu
 - Content viewing (multi-page text frames, PETSCII graphics)
 - Telesoftware downloads and uploads
+- Amiga IFF/ILBM pictures — uploaded and viewed from the web and desktop clients, streamed to a real Amiga
 - Electronic mail (Courier) with send/receive and email notifications
 - User-generated content (The Jungle) with voting
 - Custom PETSCII headers on directories you own, uploaded from the website

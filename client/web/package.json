@@ -7,7 +7,8 @@
   "scripts": {
     "build": "esbuild src/main.ts --bundle --format=esm --sourcemap --outfile=dist/app.bundle.js",
     "watch": "esbuild src/main.ts --bundle --format=esm --sourcemap --watch --outfile=dist/app.bundle.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "esbuild tests/iff.test.ts --bundle --platform=node --format=esm --outfile=dist/iff.test.mjs && node dist/iff.test.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",

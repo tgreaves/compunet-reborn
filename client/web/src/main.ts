@@ -5,6 +5,7 @@ import type { Account, Assets, Cell, DirectoryMsg, FrameMsg, ServerMsg } from '.
 import { Renderer, frameIsLower } from './render';
 import { Gateway } from './gateway';
 import { EditorBuffer, frameToPage, MIN_PAGES, DEFAULT_MAX_PAGES } from './editor';
+import { decodeILBM } from './iff';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -239,15 +240,25 @@ function onMessage(m: ServerMsg): void {
       break;
     }
     case 'download': {
-      const d = m as { title: string | null; size: number; machine: string };
-      status(`Download: ${d.title} — ${d.size} bytes (${d.machine})`);
-      if (confirm(`Download "${d.title}" (${d.size} bytes)?`)) gw.send({ type: 'download.fetch' });
+      const d = m as { title: string | null; size: number; machine: string; kind?: string };
+      // Carry the entry type across the two-step fetch (§8.3.1): an F is displayed as
+      // a picture, a P is saved. `machine` cannot tell them apart — both are 'amiga'.
+      pendingDownloadKind = d.kind === 'F' ? 'F' : 'P';
+      const verb = pendingDownloadKind === 'F' ? 'View' : 'Download';
+      status(`${verb}: ${d.title} — ${d.size} bytes (${d.machine})`);
+      if (confirm(`${verb} "${d.title}" (${d.size} bytes)?`)) gw.send({ type: 'download.fetch' });
       break;
     }
     case 'download.data': {
       const d = m as { title: string | null; bytes: string; size: number };
-      saveBase64(d.bytes, (d.title || 'download').replace(/\s+/g, '_').toLowerCase() + '.prg');
-      status(`Saved ${d.title} (${d.size} bytes)`);
+      if (pendingDownloadKind === 'F') {
+        showPicture(d.bytes, d.title || 'picture');
+        status(`Showing ${d.title} (${d.size} bytes)`);
+      } else {
+        saveBase64(d.bytes, (d.title || 'download').replace(/\s+/g, '_').toLowerCase() + '.prg');
+        status(`Saved ${d.title} (${d.size} bytes)`);
+      }
+      pendingDownloadKind = 'P';
       break;
     }
     case 'account': {
@@ -418,6 +429,9 @@ function renderEditor(): void {
 let pendingUpload:
   { title: string; kind: string; price: number; life: number; machine: string }
   | null = null;
+/** The base type of the download the user just confirmed (§8.3.1), carried from the
+ *  `download` descriptor to the `download.data` payload so an F is shown and a P saved. */
+let pendingDownloadKind: 'P' | 'F' = 'P';
 /** Frames the user has SENT into the upload, awaiting FINISH (§8.3.2 step 2). */
 /** Frames staged by SEND, awaiting FINISH. A `kind: 'P'` upload stages base64
  *  PROGRAM BLOBS (bare strings, §8.3.2) rather than editor pages — the server
@@ -871,9 +885,12 @@ function sniffMachine(file: Uint8Array): 'c64' | 'amiga' | null {
 }
 
 function sendProgram(): void {
-  // The machine the user chose in the upload dialog. Defaults to C64 for an
-  // upload begun before this field existed, which is also the commoner case.
-  const machine = pendingUpload?.machine ?? 'c64';
+  // An IFF picture ('F') is Amiga content by definition (§7.4.1) — the Machine
+  // picker is not shown for it and there is nothing to strip, so it is sent whole
+  // with the Amiga machine byte. A program ('P') carries the machine the user
+  // chose (defaulting to C64, the commoner case and the pre-#118 behaviour).
+  const isPicture = pendingUpload?.kind === 'F';
+  const machine = isPicture ? 'amiga' : (pendingUpload?.machine ?? 'c64');
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.onchange = () => {
@@ -924,6 +941,20 @@ function sendProgram(): void {
       // `$6164` is the ASCII "da" of a file that is not a .prg at all, and
       // showing it lets the user recognise their own mistake without being
       // lectured by a validator that would have to be wrong sometimes.
+      if (isPicture) {
+        // An F must be an IFF ILBM. The server rejects a non-IFF (it does not
+        // sanitise), so warn here rather than let the user FINISH into a refusal.
+        const isIFF = file.length >= 12 &&
+          String.fromCharCode(file[0], file[1], file[2], file[3]) === 'FORM' &&
+          String.fromCharCode(file[8], file[9], file[10], file[11]) === 'ILBM';
+        status(
+          `${f.name} — ${body.length} bytes, Amiga IFF picture. ` +
+          (isIFF ? '' : '⚠ this does not look like an IFF ILBM — the server will refuse it. ') +
+          'FINISH to commit.',
+          !isIFF);
+        updateBar();
+        return;
+      }
       const shown = isC64
         ? `C64, load $${load.toString(16).toUpperCase().padStart(4, '0')}`
         : 'Amiga';
@@ -953,7 +984,7 @@ const uploadActions: Record<string, () => void> = {
   // "a client that always uploads as T cannot upload software" failure §8.3.2
   // names, presenting as "it just goes into the editor".
   SEND: () => {
-    if (pendingUpload?.kind === 'P') { sendProgram(); return; }
+    if (pendingUpload?.kind === 'P' || pendingUpload?.kind === 'F') { sendProgram(); return; }
     outgoingUpload.push(buf.toFrames()[buf.cur]);
     status(`Page ${buf.cur + 1} added — ${outgoingUpload.length} page(s) in the upload. FINISH to commit.`);
   },
@@ -1015,15 +1046,56 @@ async function sendMail(): Promise<void> {
   status('SEND each frame of the message, then FINISH. EDITR to compose.');
 }
 
+function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
+  const bin = atob(b64);
+  const buf = new Uint8Array(new ArrayBuffer(bin.length));
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf;
+}
+
 /** Trigger a browser save of base64 payload (program download, §8.3.1). */
 function saveBase64(b64: string, filename: string): void {
-  const bin = atob(b64);
-  const buf = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const buf = base64ToBytes(b64);
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/octet-stream' }));
   const a = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Decode an IFF ILBM (§7.4.1 type `F`) and show it in a dismissable overlay. The web
+ *  client is the only one that renders an F itself — the Amiga has its own viewer and the
+ *  C64 is refused the download server-side. A decode failure is reported, not thrown. */
+function showPicture(b64: string, title: string): void {
+  let img;
+  try {
+    img = decodeILBM(base64ToBytes(b64));
+  } catch (e) {
+    status(`Cannot show ${title}: ${(e as Error).message}`, true);
+    return;
+  }
+  const cv = document.createElement('canvas');
+  cv.width = img.width; cv.height = img.height;
+  cv.style.cssText = 'image-rendering:pixelated;max-width:100%;max-height:78vh;'
+    + 'border:1px solid var(--line);border-radius:6px;background:#000';
+  const ctx = cv.getContext('2d');
+  if (ctx) ctx.putImageData(new ImageData(img.rgba, img.width, img.height), 0, 0);
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:20;background:#000c;display:flex;'
+    + 'flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px';
+  const cap = document.createElement('div');
+  cap.textContent = `${title.toUpperCase()} — ${img.width}×${img.height}  (any key or click to close)`;
+  cap.style.cssText = 'font:12px ui-monospace,monospace;color:var(--dim)';
+  overlay.append(cv, cap);
+
+  const close = (): void => {
+    overlay.remove();
+    window.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = (e: KeyboardEvent): void => { e.preventDefault(); e.stopPropagation(); close(); };
+  overlay.addEventListener('click', close);
+  window.addEventListener('keydown', onKey, true);
+  document.body.appendChild(overlay);
 }
 
 /** ⚠ How long each frame stays on screen during a multi-frame download.
