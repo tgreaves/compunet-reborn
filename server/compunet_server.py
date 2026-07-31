@@ -218,6 +218,21 @@ def _audit_diff(before, after):
     return changes
 
 
+def identify_binding_a_client(session, is_amiga):
+    """Record WHICH machine a Binding-A session turned out to be.
+
+    ⚠ Both fields, in one place, on purpose. `is_amiga` drives behaviour (packet
+    size, LINKING, the IFF guard) and `audit_via` drives the log, and they were set
+    at different points by different code: the socket set `audit_via = 'c64'` before
+    identification could know better, and the handler then set only `is_amiga`. Since
+    audit_via() returns an explicit value before consulting is_amiga, the label never
+    caught up and EVERY Amiga session was logged as a C64 (#127 shipped that).
+    Setting one without the other is the bug, so nothing may set just one.
+    """
+    session.is_amiga = bool(is_amiga)
+    session.audit_via = 'amiga' if is_amiga else 'c64'
+
+
 def audit_via(session):
     """Which surface an action came through: c64, amiga, terminal, api, web, admin.
 
@@ -225,9 +240,14 @@ def audit_via(session):
     `page_read` from a C64 was indistinguishable from one through the web client
     except by whether `ip` happened to be present.
 
-    `audit_via` is set explicitly where a session is created; `is_amiga` is the one
-    case the server infers for itself, during the Binding-A identification
-    handshake, so it is read here rather than duplicated at every call site.
+    `audit_via` is set explicitly where a session is created.
+
+    ⚠ AN EXPLICIT VALUE WINS, so a session that sets it must KEEP IT TRUE. The
+    is_amiga fallback below is a safety net for sessions that never set one — it is
+    NOT a correction. A Binding-A session sets `audit_via = 'c64'` the moment the
+    socket opens, before it can know better, so setting `is_amiga` later did nothing
+    and every Amiga was recorded as a C64. The identification handler now updates
+    `audit_via` itself; this reading order is why it has to.
     """
     if session is None:
         return None
@@ -2361,6 +2381,15 @@ class CompunetSession:
         title = getattr(self, '_download_title', '')
         self._program_download_pending = False
         self._program_download_data = None
+        # ⚠ The download is OVER, so the session must stop showing that page.
+        # Leaving `show_page` set left the binary page current after its bytes had
+        # been handed over, and the next MORE re-entered _send_current_frame and
+        # re-sent the 8-byte DESCRIPTOR — the user finished a download and the
+        # client was immediately offered the same one again. The abort path (0x41)
+        # already cleared it; success did not, so the two ends of the same
+        # transfer disagreed about what the session was doing.
+        self.show_page = None
+        self.show_frame_index = 0
         audit_log('page_downloaded', session=self, page=page_num, title=title,
                   bytes=len(data))
         return data
@@ -3182,7 +3211,10 @@ async def tcp_handler(reader, writer):
     directory = CompunetDirectory()
     session = CompunetSession(directory)
     session.client_ip = addr[0] if addr else ''
-    # 'c64' until identification says otherwise; audit_via reads is_amiga.
+    # 'c64' until identification says otherwise — and identification MUST overwrite
+    # this (see the ident handler below). It is not derived: audit_via() returns an
+    # explicit value before it consults is_amiga, so leaving this to be "corrected"
+    # by setting is_amiga alone silently labelled every Amiga session a C64.
     session.audit_via = 'c64'
     x25 = X25Connection()
 
@@ -3330,7 +3362,8 @@ async def tcp_handler(reader, writer):
                 if not has_slash and not is_amiga:
                     continue   # identification incomplete — keep buffering
 
-                session.is_amiga = is_amiga
+                # Sets is_amiga AND the audit label together — see the function.
+                identify_binding_a_client(session, is_amiga)
                 ident_received = True
                 rx_buffer.clear()
 
