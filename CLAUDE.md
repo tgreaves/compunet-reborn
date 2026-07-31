@@ -88,6 +88,49 @@ you rely on MUST be confirmed against ground truth before you write or change co
 
 1. The server must ALWAYS be restarted after any change to server Python code. It does not hot-reload. Use `./server.sh restart`. Content files (SEQ frames, directory JSON files, adverts.json) in `server/data/` are re-read on each request and do not require a restart.
 
+## Audit Rules
+
+**Any feature that lets a user or an admin DO something must be audited, in the same
+change that adds it.** Not afterwards, not in a follow-up — a feature that ships
+unaudited is invisible for as long as it takes someone to notice, which was three
+releases last time.
+
+1. **Audit inside the function that PERFORMS the action, never in the command
+   handler that reached it.** This is the rule the whole design rests on. Auditing
+   used to sit at the call site, so whether an action was recorded depended on which
+   client the user came through: mail sent from a C64 was logged and the same mail
+   from the web client was not, because Binding B calls the shared
+   `_complete_mail_send` directly. `_complete_content_upload` had its call *inside*
+   it and never had the gap. Put it in the shared function and every present and
+   future binding inherits it for free.
+
+2. **Declare the event in `AUDIT_EVENTS` (`server/compunet_server.py`) with its
+   `kind`.** `audit_log` raises on an undeclared name and `POST /api/audit` returns
+   400 — deliberately. An undeclared event would be written happily and then be
+   invisible to every filter that knows the vocabulary: a record that exists but
+   cannot be found.
+
+3. **Name it `noun_verbed`, past tense** — `page_uploaded`, `header_set`,
+   `user_updated`. The vocabulary grew ad hoc before this and had to be renamed
+   across the whole history to fix it.
+
+4. **Pass `session=` so `via` and `ip` are derived**, rather than passing them by
+   hand. Where there is no session (the admin REST routes), pass `via=` and `ip=`
+   explicitly. They were per-call-site arguments before, which is why they appeared
+   on every terminal event and almost no Binding-A one.
+
+5. **Record enough to be useful a month later.** "ADMIN edited ZARD" answers
+   nothing; `user_updated` carries `changed` with `field: old -> new`. Never log
+   credential material — name the field, not the value.
+
+6. **Update [docs/audit-log.md](docs/audit-log.md) in the same change.** A test
+   asserts the document and the registry agree, in both directions, so drift fails
+   the build rather than misleading whoever trusts it.
+
+7. **Add a test that the event is actually written.** Nothing covered auditing
+   before 1.4.0, which is precisely how the gap shipped: the JSON API was added,
+   every suite passed, and no test asked. See `server/tests/test_audit.py`.
+
 ## Git Rules
 
 1. Only ever commit when instructed to do so by a human.
@@ -102,7 +145,10 @@ you rely on MUST be confirmed against ground truth before you write or change co
    - if the fix revealed something the spec never defined, add it (that gap is why the bug
      shipped);
    - update [docs/spec/CONFORMANCE.md](docs/spec/CONFORMANCE.md) when the mistake is one
-     another client would plausibly repeat.
+     another client would plausibly repeat;
+   - if the change adds or alters something a user or an admin can **do**, it must be
+     audited and documented in the same commit — see **Audit Rules** above. A feature
+     that ships unaudited is invisible until someone happens to look for it.
 3. On any commit, ensure [CHANGELOG.md](CHANGELOG.md) reflects anything a **user** would
    notice. **Its entries describe what differs from the LAST RELEASE — not what happened
    during development.** Two consequences, and they are the ones that get this wrong:
