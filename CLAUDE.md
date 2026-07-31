@@ -100,6 +100,7 @@ era C64 does not). If a task appears to require a C64 feature, STOP and raise it
 ## Server Rules
 
 1. The server must ALWAYS be restarted after any change to server Python code. It does not hot-reload. Use `./server.sh restart`. Content files (SEQ frames, directory JSON files, adverts.json) in `server/data/` are re-read on each request and do not require a restart.
+2. **On Windows `./server.sh` does not work** — see *Running the server locally* in [REQUIREMENTS.md](REQUIREMENTS.md) for the PowerShell equivalent. Do not run `compunet_server.py` directly without loading `.env` first: the server starts fine and silently serves the **wrong content tree**, because `COMPUNET_CONTENT_DIR` lives in `.env` and `server.sh` is what loads it.
 
 ## Audit Rules
 
