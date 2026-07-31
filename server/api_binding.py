@@ -68,6 +68,8 @@ def _new_session(client_ip="api"):
     directory = _srv.CompunetDirectory()
     session = _srv.CompunetSession(directory)
     session.client_ip = client_ip
+    # Everything through this binding — web client, Electron app, third-party.
+    session.audit_via = 'api'
     return session
 
 
@@ -549,12 +551,10 @@ def _download_json(session, msg_id=None):
 def _download_fetch(session, msg_id=None):
     """Deliver the staged program bytes as base64 (§8.3.1 proceed)."""
     import base64
-    data = getattr(session, '_program_download_data', None)
+    data = session.take_program_download()      # clears the state AND audits (#127)
     if not data:
         return {"type": "error", "id": msg_id, "code": "not_found",
                 "message": "no download pending"}
-    session._program_download_pending = False
-    session._program_download_data = None
     return {
         "type": "download.data", "id": msg_id,
         "title": getattr(session, '_download_title', None),
@@ -1585,6 +1585,12 @@ async def ws_gateway(request):
                 await partyline_leave(session)
             except Exception:
                 pass
+        # ⚠ Mark the user offline and audit the session end. This binding did
+        # neither: web-client sessions left no `session_ended` in the audit log
+        # (#127), and — the same omission's second symptom — stayed listed on WHO
+        # IS ONLINE indefinitely, because nothing ever removed them.
+        if session is not None and session.user_id:
+            _srv._user_disconnect(session.user_id, session)
         log.info('API gateway: %s disconnected', session.user_id if session else '?')
     return ws
 

@@ -276,6 +276,7 @@ python server/tests/test_api_binding.py && python server/tests/test_client_confo
 
 **Platform notes & provenance** (non-normative — the spec is authoritative):
 
+- **[docs/audit-log.md](docs/audit-log.md)** — what the service records about who did what: the event vocabulary, where each event is emitted from, and how to filter the log
 - **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — original C64 ROM reference and RE provenance (superseded as protocol authority by the spec)
 - **[docs/TERMINAL.md](docs/TERMINAL.md)** — the separate server-rendered PETSCII terminal product (port 6401)
 - **[docs/MODEM.md](docs/MODEM.md)** — C64 hardware layer (ACIA driver)

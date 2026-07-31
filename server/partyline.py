@@ -22,7 +22,20 @@ PARTYLINE_LOG_PATH = os.path.join(os.path.dirname(__file__), 'data', 'partyline.
 
 
 def partyline_log(event, user=None, **details):
-    """Append an event to the partyline log (JSON-lines format)."""
+    """Append an event to the partyline log (JSON-lines format).
+
+    ⚠ A `join` is ALSO an audit event, recorded here rather than by the callers.
+    All three surfaces reach this line — Binding A through handle_session, the
+    terminal and Binding B by registering themselves — but only the first two
+    audited it, so entering Partyline from the web client left no trace (#127).
+    This is the one point they share.
+    """
+    if event == 'join' and user:
+        try:
+            from compunet_server import audit_log
+            audit_log('partyline_entered', user=user, via=details.get('via'))
+        except ImportError:      # partyline used standalone
+            pass
     entry = {
         'ts': datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
         'event': event,
@@ -490,7 +503,7 @@ async def _cmd_kick(writer, user_id, args):
     await send_line(writer, f"Kicked {target}.")
     await send_line(writer, "")
     from compunet_server import audit_log
-    audit_log('partyline_kick', user=user_id, target=target)
+    audit_log('partyline_kicked', user=user_id, target=target)
     partyline_log('kick', user=user_id, target=target, room=target_room)
     logger.info("User %s kicked %s from partyline", user_id, target)
 
@@ -530,7 +543,7 @@ async def _cmd_ban(writer, user_id, args):
     await send_line(writer, f"Banned {target}.")
     await send_line(writer, "")
     from compunet_server import audit_log
-    audit_log('partyline_ban', user=user_id, target=target)
+    audit_log('partyline_banned', user=user_id, target=target)
     partyline_log('ban', user=user_id, target=target)
     logger.info("User %s banned %s from partyline", user_id, target)
 
@@ -552,7 +565,7 @@ async def _cmd_unban(writer, user_id, args):
     await send_line(writer, f"Unbanned {target}.")
     await send_line(writer, "")
     from compunet_server import audit_log
-    audit_log('partyline_unban', user=user_id, target=target)
+    audit_log('partyline_unbanned', user=user_id, target=target)
     logger.info("User %s unbanned %s from partyline", user_id, target)
 
 
