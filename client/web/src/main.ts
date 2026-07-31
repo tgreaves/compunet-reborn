@@ -415,7 +415,9 @@ function renderEditor(): void {
  *  metadata is validated first, and only then does the client transmit frames.
  *  `pendingUpload` holds the accepted metadata across that boundary, and its
  *  presence IS the upload sub-context (§4.8) — see netContext(). */
-let pendingUpload: { title: string; kind: string; price: number; life: number } | null = null;
+let pendingUpload:
+  { title: string; kind: string; price: number; life: number; machine: string }
+  | null = null;
 /** Frames the user has SENT into the upload, awaiting FINISH (§8.3.2 step 2). */
 /** Frames staged by SEND, awaiting FINISH. A `kind: 'P'` upload stages base64
  *  PROGRAM BLOBS (bare strings, §8.3.2) rather than editor pages — the server
@@ -441,6 +443,7 @@ function openSubmit(kind: 'upload' | 'mail'): void {
     ? `Upload into "${dir?.title ?? 'this directory'}"`
     : 'Send as mail';
   $('edContentFields').hidden = kind !== 'upload';
+  syncMachineField();
   // ⚠ Hide the LABEL WRAPPER, not the input: hiding the bare field would leave
   // its caption behind, so mail composition would show a stray "To" over
   // nothing.
@@ -453,6 +456,13 @@ function openSubmit(kind: 'upload' | 'mail'): void {
     : 'Recipients: up to five user IDs, comma-separated.';
   $<HTMLInputElement>('edTitle').value = '';
   $<HTMLInputElement>('edTitle').focus();
+}
+
+/** The Machine picker only means anything for a program upload — a text page has
+ *  no machine. Hiding the LABEL, not the select, so its caption goes with it. */
+function syncMachineField(): void {
+  const isProgram = $<HTMLSelectElement>('edKind').value === 'P';
+  $('edMachineField').hidden = !isProgram || $('edContentFields').hidden;
 }
 
 function closeSubmit(): void { submitMode = null; $('submit').hidden = true; }
@@ -471,6 +481,9 @@ function doSubmit(): void {
       kind: $<HTMLSelectElement>('edKind').value,
       price: parseFloat($<HTMLInputElement>('edPrice').value) || 0,
       life: parseInt($<HTMLInputElement>('edLife').value, 10) || 0,
+      // Carried through the upload sub-context so SEND knows which machine the
+      // user chose; meaningless for a text upload and ignored there.
+      machine: $<HTMLSelectElement>('edMachine').value,
     };
     // ⚠ Accepting the metadata does NOT transmit anything. It enters the upload
     // sub-context (§4.8), where SEND adds frames and FINISH commits — the same
@@ -829,7 +842,38 @@ function toBase64(bytes: Uint8Array): string {
  *  to know when it ends. Binding B sends one blob whose length is already
  *  known, so the size here is informational. See the note added to §8.3.2.
  */
+/** What the bytes look like, or `null` when they say nothing.
+ *
+ *  ⚠ A HINT, NEVER A DECISION. It exists to catch an obvious mistake — a HUNK
+ *  binary declared C64, or a `$0801` .prg declared Amiga — and to say so before
+ *  FINISH commits the entry. It must NOT choose, and it must NOT reject: most
+ *  Amiga content matches nothing here (modules, IFF pictures, fonts, raw data),
+ *  and "it doesn't look like anything I recognise" is not evidence of a mistake.
+ */
+function sniffMachine(file: Uint8Array): 'c64' | 'amiga' | null {
+  // Amiga HUNK executable: HUNK_HEADER is unambiguous.
+  if (file.length >= 4 && file[0] === 0x00 && file[1] === 0x00 &&
+      file[2] === 0x03 && file[3] === 0xF3) return 'amiga';
+  // ProTracker and friends: the 4-char signature at offset 1080.
+  if (file.length >= 1084) {
+    const sig = String.fromCharCode(file[1080], file[1081], file[1082], file[1083]);
+    if (['M.K.', 'M!K!', 'M&K!', 'FLT4', 'FLT8', '4CHN', '6CHN', '8CHN'].includes(sig)) {
+      return 'amiga';
+    }
+  }
+  // A C64 .prg opens with a load address. $0801 is BASIC start and by far the
+  // commonest; the others are the usual machine-code origins.
+  if (file.length >= 2) {
+    const load = file[0] | (file[1] << 8);
+    if ([0x0801, 0x1001, 0x0401, 0xC000, 0x2000, 0x3000].includes(load)) return 'c64';
+  }
+  return null;
+}
+
 function sendProgram(): void {
+  // The machine the user chose in the upload dialog. Defaults to C64 for an
+  // upload begun before this field existed, which is also the commoner case.
+  const machine = pendingUpload?.machine ?? 'c64';
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.onchange = () => {
@@ -837,9 +881,25 @@ function sendProgram(): void {
     if (!f) return;
     void f.arrayBuffer().then((ab) => {
       const file = new Uint8Array(ab);
-      // A .prg opens with its 2-byte load address; anything else is treated as
-      // an Amiga HUNK executable, which carries no load address at all.
-      const isC64 = /\.prg$/i.test(f.name);
+      // ⚠ THE MACHINE IS DECLARED, NOT DERIVED. This used to be
+      // `/\.prg$/i.test(f.name)` — anything not named .prg was called Amiga.
+      //
+      // It cannot be derived, and sniffing does not rescue it: `machine_type`
+      // says which MACHINE the file is for, not what shape the file is. The
+      // native clients never guess because they cannot be wrong — a C64 client
+      // is uploading C64 content by definition. This is the only multi-platform
+      // client, so it is the only one that has to ask.
+      //
+      // Amiga content is routinely not an executable: a ProTracker module, an
+      // IFF picture, a font. None of those has a signature that says "Amiga",
+      // and refusing them for failing to look like a HUNK binary would reject
+      // most of what people actually upload.
+      //
+      // It matters because byte 0 becomes the page's machine_type, and the
+      // DOWNLOAD path uses it to decide whether to restore a 2-byte load
+      // address — so a wrong value corrupts the file coming back out, not just
+      // its label (#118).
+      const isC64 = machine !== 'amiga';
       const body = isC64 ? file.subarray(2) : file;
       const load = isC64 ? file[0] | (file[1] << 8) : 0;
       if (isC64 && file.length < 3) { status('That .prg is too small to be a program', true); return; }
@@ -854,7 +914,29 @@ function sendProgram(): void {
       outgoingUpload.push(toBase64(blob));
       const kb = Math.ceil(body.length / 1024);
       rowMessage.net = `${f.name.toUpperCase().slice(0, 20)} ${kb}K ADDED`;
-      status(`${f.name} — ${body.length} bytes, ${isC64 ? `C64 load $${load.toString(16).toUpperCase().padStart(4, '0')}` : 'Amiga'}. FINISH to commit.`);
+
+      // ⚠ SAY WHICH MACHINE WAS USED, every time. The whole failure this fixes
+      // was silent: a wrong machine produced a stored entry that only revealed
+      // itself when someone downloaded it and the file would not run. Reporting
+      // it here makes a bad call visible while FINISH is still un-pressed.
+      //
+      // For a C64 the load address is the tell. `$0801` reads as plausible;
+      // `$6164` is the ASCII "da" of a file that is not a .prg at all, and
+      // showing it lets the user recognise their own mistake without being
+      // lectured by a validator that would have to be wrong sometimes.
+      const shown = isC64
+        ? `C64, load $${load.toString(16).toUpperCase().padStart(4, '0')}`
+        : 'Amiga';
+      const detected = sniffMachine(file);
+      const disagrees = detected !== null && detected !== machine;
+      status(
+        `${f.name} — ${body.length} bytes, ${shown}. ` +
+        (disagrees
+          ? `⚠ but this looks like ${detected === 'amiga' ? 'an Amiga' : 'a C64'} file — ` +
+            'CANCEL and start again if the Machine is wrong. '
+          : '') +
+        'FINISH to commit.',
+        disagrees);
       updateBar();
     });
   };
@@ -1853,6 +1935,7 @@ async function boot(): Promise<void> {
   });
   $<HTMLButtonElement>('edSubmit').onclick = doSubmit;
   $<HTMLButtonElement>('edCancel').onclick = closeSubmit;
+  $<HTMLSelectElement>('edKind').onchange = syncMachineField;
   $<HTMLInputElement>('chatInput').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     const input = $<HTMLInputElement>('chatInput');
