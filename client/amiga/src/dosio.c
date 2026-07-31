@@ -83,22 +83,6 @@ APTR file_open_read(const char *name)
     return open_tracked(name, MODE_OLDFILE);
 }
 
-/* file_open_append — NOT part of the reconstruction (#129 diagnostic support).
- * Opens for writing positioned at end, creating the file if absent. The trace it
- * serves must survive a crash and be readable from the HOST while the emulator is
- * still running, so each line is opened, written and closed: a handle held open
- * leaves the writes buffered, the host sees a stale file, and the file stays locked.
- * Remove with the rest of the #129 instrumentation. */
-APTR file_open_append(const char *name)
-{
-    BPTR fh = Open((STRPTR)name, MODE_OLDFILE);
-    if (fh)
-        Seek(fh, 0, OFFSET_END);
-    else
-        fh = Open((STRPTR)name, MODE_NEWFILE);
-    return (APTR)fh;
-}
-
 /* ⚠ THE CALLER'S MODE IS HONOURED (11a3ca move.l $c(a5),-(a7)) — it was discarded and
  * MODE_NEWFILE hardcoded, so every caller got a truncating open whatever it asked for. */
 APTR file_open_write(const char *name, ULONG mode)

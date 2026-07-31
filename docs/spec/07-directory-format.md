@@ -202,8 +202,9 @@ single symbol. It is a **base type**, optionally followed by a **size** and/or a
 
 - **base** — one of `T`, `D`, `P`, `PP`, `S`, `L` (note `PP` is two letters). This letter
   determines what happens when the entry is selected (below). The original service also used
-  `F` (IFF picture) and `A` (action) — documented in §7.4.1; the reference server does not
-  serve them. A client **MUST NOT** assume the set is closed: see the fall-through rule below.
+  `F` (IFF picture) and `A` (action) — both documented in §7.4.1. The reference server **serves
+  `F`**; it does **not** serve `A`. A client **MUST NOT** assume the set is closed: see the
+  fall-through rule below.
 - **size** — optional decimal digits: for programs the size in K, for text pages the page
   count. Informational only.
 - **`+`** — optional marker meaning the entry **also has a sub-directory** beneath it.

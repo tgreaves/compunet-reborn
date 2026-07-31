@@ -81,54 +81,6 @@ extern void  close_screen_tracked(APTR scr);                /* FUN_0011a514 (ui.
 extern void  load_screen_palette(APTR vp, APTR ct, ULONG n);/* GfxBase.LoadRGB4 FUN_0012a01c */
 extern void  set_connection_error(int code);               /* longjmp FUN_00101638 */
 
-/* ================================================================= *
- *  IFF DIAGNOSTIC TRACE  (#129 — temporary instrumentation)
- * ================================================================= *
- * ⚠ NOT part of the reconstruction. The original has none of this, and it must
- * come out (or go behind a build flag) once the IFF display defect is found.
- *
- * Why it exists: on a real Amiga a type-`F` download completes perfectly — the
- * saved file is byte-for-byte correct — and no picture appears. iff_feed_byte
- * begins `if (g_iff_error) return;`, so any failure inside iff_setup silences the
- * decoder for the rest of the transfer while the file still writes. There is no
- * message and no console, so the failure is invisible from outside.
- *
- * The trace goes to "CompunetDebug.log" as a RELATIVE path, opened once at startup
- * (see main()). Relative is deliberate: wb_startup_begin() sets the current directory
- * to the icon's drawer, so the file lands beside the executable with no knowledge of
- * the Amiga's volume names. Opening it at startup rather than mid-download means a
- * run that never reaches the transfer still leaves evidence — the first version
- * logged nothing at all when the dispatch stopped early, which proved only that it
- * had stopped somewhere before the logging began.
- */
-extern char  g_dl_filename[];                               /* DAT_001215c6 */
-extern APTR  file_open_write(const char *name, ULONG mode); /* thunk */
-
-extern APTR  file_open_append(const char *name);            /* dosio.c (#129) */
-
-#define CNET_LOGFILE "CompunetDebug.log"
-static char g_iff_logbuf[160];
-static ULONG g_iff_bytes_fed;      /* how many BODY/chunk bytes reached the decoder */
-
-/* ⚠ OPENED AND CLOSED PER LINE, deliberately. Holding the handle open for the session
- * left every write buffered inside the emulator: the host saw a stale file, could not
- * delete it ("device or resource busy"), and a whole test round was read against the
- * PREVIOUS run's trace. Slow is irrelevant here; visible and crash-proof is not. */
-void cnet_log_open(void)
-{
-    APTR fh = file_open_write(CNET_LOGFILE, 0x3ee);   /* truncate once per run */
-    if (fh) file_close(fh);
-}
-
-void cnet_log(const char *s)
-{
-    APTR fh = file_open_append(CNET_LOGFILE);
-    if (!fh) return;
-    file_write(fh, (APTR)s, (ULONG)strlen(s));
-    file_write(fh, (APTR)"\n", 1);
-    file_close(fh);
-}
-
 /* Row-type table: 0x66 bytes per row, type byte at +0x828 (recon), price at +0x82e. */
 #define ROW_TYPE(p, r)  (*(char *)((UBYTE *)(p) + (r) * 0x66 + 0x828))
 #define ROW_PRICE(p, r) ((char  *)((UBYTE *)(p) + (r) * 0x66 + 0x82e))
@@ -340,14 +292,9 @@ static void iff_setup(void)
 
     iff_free_all();                          /* recon FUN_00111270: full teardown first */
 
-    sprintf(g_iff_logbuf, "BMHD w=%ld h=%ld planes=%ld compress=%ld pageW=%ld pageH=%ld",
-            (long)BMHD_W, (long)BMHD_H, (long)BMHD_NPLANES,
-            (long)BMHD_COMPRESS, (long)BMHD_PAGEW, (long)BMHD_PAGEH);
-    cnet_log(g_iff_logbuf);
 
     g_iff_compress = BMHD_COMPRESS;
     if (g_iff_compress > 1) {                 /* only 0 / 1 (ByteRun1) supported */
-        cnet_log("FAIL: compression > 1");
         g_iff_error = 1;
         return;
     }
@@ -376,19 +323,13 @@ static void iff_setup(void)
     nplanes = BMHD_NPLANES;
     planebytes = (ULONG)g_iff_rowbytes * nplanes;
 
-    sprintf(g_iff_logbuf, "screen w=%ld h=%ld depth=%ld modes=$%lx rowbytes=%ld chip=%ld",
-            (long)ns->Width, (long)ns->Height, (long)ns->Depth,
-            (long)(UWORD)ns->ViewModes, (long)g_iff_rowbytes, (long)planebytes);
-    cnet_log(g_iff_logbuf);
 
     base = alloc_tracked(planebytes, 2 /*MEMF_CHIP*/);
     IFF_BITMAP = (APTR)base;                  /* recon stores at 0x2120 */
     if (base == NULL) {
-        cnet_log("FAIL: no chip RAM for the row buffer");
         g_iff_error = 1;
         return;
     }
-    cnet_log("ok: chip row buffer");
 
     /* Reusable per-row Image (recon 0x11136e..0x1113b8). */
     img->LeftEdge = 0;
@@ -418,12 +359,10 @@ static void iff_setup(void)
     /* Open the screen + window (recon 0x111408 / 0x111458). */
     IFF_SCREEN = (struct Screen *)open_screen_tracked(DATA(0x11f138));
     if (IFF_SCREEN == NULL) {
-        cnet_log("FAIL: OpenScreen returned NULL");
         iff_free_all();
         g_iff_error = 1;
         return;
     }
-    cnet_log("ok: screen opened");
 
     /* ⚠ THE PICTURE SCREEN OPENS *BEHIND*, ON PURPOSE — AND MUST BE PULLED FORWARD.
      *
@@ -447,7 +386,6 @@ static void iff_setup(void)
      */
     MoveScreen(IFF_SCREEN, 0, 0x40);
     ScreenToFront(IFF_SCREEN);
-    cnet_log("ok: screen moved down 64 and brought to front");
 
     /* Patch NewWindow.Screen (blob 0x11f158 + 0x1e) and open.
      *
@@ -475,14 +413,10 @@ static void iff_setup(void)
     }
     IFF_WINDOW = (struct Window *)open_window_tracked(DATA(0x11f158));
     if (IFF_WINDOW == NULL) {
-        cnet_log("FAIL: OpenWindow returned NULL");
         iff_free_all();
         g_iff_error = 1;
         return;
     }
-    sprintf(g_iff_logbuf, "ok: window opened w=%ld h=%ld",
-            (long)IFF_WINDOW->Width, (long)IFF_WINDOW->Height);
-    cnet_log(g_iff_logbuf);
 }
 
 /* iff_cmap — recon FUN_0011147e: convert the gathered CMAP RGB bytes (3 per colour) to
@@ -620,9 +554,7 @@ void iff_feed_byte(UBYTE byte)
         }
         return;
     case 4:                                   /* BMHD gathered */
-        cnet_log("BMHD gathered -> iff_setup");
         iff_setup();
-        if (g_iff_error) cnet_log("iff_setup FAILED — decoder now silent");
         g_iff_state = 5;
         g_iff_need  = 8;                       /* next chunk header */
         g_iff_field = g_iff_field_wr = g_iff_chunk;
@@ -639,7 +571,6 @@ void iff_feed_byte(UBYTE byte)
         }
         return;
     case 6:                                   /* CMAP gathered */
-        cnet_log("CMAP gathered -> load palette");
         iff_cmap();
         g_iff_state = 7;
         g_iff_need  = 8;
@@ -647,9 +578,6 @@ void iff_feed_byte(UBYTE byte)
         return;
     case 7:                                   /* expect BODY; skip anything else (recon 0x111210) */
         if (*(LONG *)g_iff_chunk == 0x424f4459L /* 'BODY' */) {
-            sprintf(g_iff_logbuf, "BODY starts, len=%ld mode=%s",
-                    (long)CHUNK_LEN, g_iff_compress ? "ByteRun1" : "uncompressed");
-            cnet_log(g_iff_logbuf);
             iff_body_start();                 /* switch to per-byte row decode (state 8/9) */
         } else {                              /* not BODY yet (e.g. CAMG/ANNO) — skip, stay in state 7 */
             g_iff_skip  = CHUNK_LEN + (CHUNK_LEN_ODD ? 1 : 0);
@@ -709,14 +637,10 @@ LONG action_download_run(void)
     ULONG i;
     LONG  done;
 
-    cnet_log("action_download_run: asking for a filename");
     if (download_filename_prompt() == 0) {
-        cnet_log("  -> filename prompt cancelled/failed, nothing sent");
         return 0;
     }
-    cnet_log("action_download_run: negotiating transfer");
     if (file_download_xfer() == 0) {
-        cnet_log("  -> file_download_xfer refused (machine type / file open)");
         return 0;
     }
 
@@ -725,8 +649,6 @@ LONG action_download_run(void)
     g_frame_capture = NULL;
     g_frame_eof     = 0;
     iff_init();
-    cnet_log("--- F transfer negotiated, decoding begins ---");
-    g_iff_bytes_fed = 0;
 
     do {
         i = 0;
@@ -741,7 +663,6 @@ LONG action_download_run(void)
                 UBYTE b = read_frame_byte();
                 g_xfer_buf[i] = b;            /* stage into the 0x50fc buffer */
                 iff_feed_byte(b);
-                g_iff_bytes_fed++;
             }
             i++;
         }
@@ -757,10 +678,6 @@ LONG action_download_run(void)
     /* #129 trace summary. `rows` is the number the decoder actually blitted: 0 with
      * no FAIL line above means the BODY never started; short of the picture height
      * means the stream ended early. */
-    sprintf(g_iff_logbuf, "--- end: fed=%ld rows=%ld state=%ld error=%ld screen=%s window=%s",
-            (long)g_iff_bytes_fed, (long)g_iff_row, (long)g_iff_state, (long)g_iff_error,
-            IFF_SCREEN ? "open" : "NULL", IFF_WINDOW ? "open" : "NULL");
-    cnet_log(g_iff_logbuf);
 
     iff_free_bitmap();
     if (g_dl_file == NULL) {
@@ -846,10 +763,6 @@ LONG download_link(void)
         return 0;
 
     serial_read(g_dl_header, 8, &ser_flags, &status_hi, &actual);
-    sprintf(g_iff_logbuf, "link header: eof=%ld hdr0=$%08lx hdr4=$%08lx",
-            (long)ser_flags, (unsigned long)*(LONG *)g_dl_header,
-            (unsigned long)*(LONG *)(g_dl_header + 4));
-    cnet_log(g_iff_logbuf);
     /* The two CONTENT checks are the faithful ones, and both were wrong before:
      *   10b6c6  cmpi.l #$1000001, $45e8(a4)  ; g_dl_header[0..3]
      *   10b6d0  tst.l  $45ec(a4)             ; g_dl_header+4 — the SECOND longword
@@ -920,9 +833,6 @@ LONG download_check(void)
      * log shows no line here after a double-click, the click never dispatched a row
      * action at all (dir_select only does so "while navigable") — which is a very
      * different problem from the type being wrong. */
-    sprintf(g_iff_logbuf, "download_check: row=%ld type='%c' cmd=%s",
-            (long)g_sel_row, (type >= 32 && type < 127) ? type : '?', g_cmd_buf);
-    cnet_log(g_iff_logbuf);
 
     switch (type) {
     case 'T':
@@ -946,7 +856,6 @@ LONG download_check(void)
     case 'L':                                 /* link / sub-program */
         return download_charged_prompt() ? download_link() : 0;
     default:
-        cnet_log("  -> no handler for this type: \"Can't download this\"");
         show_status_message(1, "Can't download this");
         return 0;
     }
