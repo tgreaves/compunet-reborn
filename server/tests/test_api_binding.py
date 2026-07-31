@@ -551,6 +551,74 @@ class ProgramUpload(unittest.TestCase):
         self.assertNotEqual(rebuilt[:2], bytes([0x01, 0x08]))
         self.assertEqual(rebuilt[:2], b'\x00\x00', 'load address lost, as predicted')
 
+    # --- the machine the client DECLARED must survive into machine_type -------
+    # ⚠ The upload path used to test `machine == 1` and fold everything else onto
+    # the C64 branch, so an ST program (2) was stored as `c64` with two bytes of
+    # its body stripped as if they were a load address. The download side already
+    # branched three ways (ProgramDownloadDescriptor), so the two ends disagreed.
+    # These pin the fix: the declared machine byte round-trips, and only the 6502
+    # loses two bytes to a load address.
+
+    def _st_blob(self, exe):
+        """A 68k blob whose machine byte is ST (2). Nothing on the wire produces
+        this today — the picker offers C64 and Amiga — but the server must store a
+        2 as ST rather than mangle it, which is the whole point of the fix."""
+        blob = bytearray(8 + len(exe))
+        blob[0] = 2
+        blob[6] = len(exe) & 0xFF
+        blob[7] = (len(exe) >> 8) & 0xFF
+        blob[8:] = exe
+        return bytes(blob)
+
+    def _upload_to_graphics(self, title, blob):
+        """Drive a full Binding-B program upload into GRAPHICS and return
+        (stored_bytes, machine_type_in_json). machine_type is `None` in the JSON
+        when the server wrote no key — which, per §7, means C64."""
+        import base64
+        import glob
+        import json
+        s = session()
+        send(s, type='goto', target=str(JUNGLE))
+        entered = send(s, type='enter', page=GRAPHICS)
+        self.assertEqual(entered.get('type'), 'directory',
+                         'could not enter GRAPHICS: %r' % (entered.get('message'),))
+        reply = send(s, type='upload', title=title, kind='P', price=0, life=30,
+                     frames=[base64.b64encode(blob).decode('ascii')])
+        self.assertEqual(reply.get('type'), 'directory',
+                         'upload refused: %r' % (reply.get('message'),))
+        with open(os.path.join(srv.ROOT_DIR, 'jungle', 'graphics',
+                               'directory.json')) as f:
+            pages = json.load(f)['pages']
+        entry = next(p for p in pages if p['title'] == title)
+        hits = glob.glob(os.path.join(srv.ROOT_DIR, 'jungle', 'graphics',
+                                      '**', '*.prg'), recursive=True)
+        stored = open(hits[0], 'rb').read()
+        return stored, entry.get('machine_type')
+
+    def test_a_c64_upload_is_stored_as_c64_minus_its_load_address(self):
+        prg = bytes([0x01, 0x08]) + bytes(range(200))
+        stored, machine = self._upload_to_graphics('C64PROG', self._blob(prg, is_c64=True))
+        # C64 stays absent in the JSON — absent means C64 (§7), and existing
+        # content carries no machine_type, so writing one would be noise.
+        self.assertIsNone(machine, 'C64 must not write a machine_type key')
+        self.assertEqual(stored, prg, 'C64 program must round-trip byte-for-byte')
+
+    def test_an_amiga_upload_is_stored_whole_as_amiga(self):
+        exe = bytes([0x00, 0x00, 0x03, 0xF3]) + bytes(range(150))   # HUNK header
+        stored, machine = self._upload_to_graphics('AMIGAPROG', self._blob(exe, is_c64=False))
+        self.assertEqual(machine, 'amiga')
+        # No load address to strip: the stored file is the whole 68k image.
+        self.assertEqual(stored, exe, 'Amiga body must be stored whole')
+
+    def test_an_st_upload_is_stored_whole_as_st_not_folded_into_c64(self):
+        """The trap the fix removed: a 2 used to be stored as `c64` with two body
+        bytes eaten. It must store as `st`, whole."""
+        exe = bytes(range(180))
+        stored, machine = self._upload_to_graphics('STPROG', self._st_blob(exe))
+        self.assertEqual(machine, 'st', 'an ST upload must not be folded into c64')
+        self.assertEqual(stored, exe,
+                         'a 68k body must be stored whole — no load address to strip')
+
 
 class ProgramUploadAccumulator(unittest.TestCase):
     """Binding A's program-upload receive loop (§8.3.2), which had no test — the
