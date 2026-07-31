@@ -201,7 +201,9 @@ single symbol. It is a **base type**, optionally followed by a **size** and/or a
 ```
 
 - **base** — one of `T`, `D`, `P`, `PP`, `S`, `L` (note `PP` is two letters). This letter
-  determines what happens when the entry is selected (below).
+  determines what happens when the entry is selected (below). The original service also used
+  `F` (IFF picture) and `A` (action) — documented in §7.4.1; the reference server does not
+  serve them. A client **MUST NOT** assume the set is closed: see the fall-through rule below.
 - **size** — optional decimal digits: for programs the size in K, for text pages the page
   count. Informational only.
 - **`+`** — optional marker meaning the entry **also has a sub-directory** beneath it.
@@ -218,6 +220,17 @@ letter alone:
 | `PP` | Protected program | download; original required the modem as a dongle |
 | `S` | Sequential file (word-processor format) | download / view |
 | `L` | Link | activate the link subsystem (§8.5 — Partyline on the modern server) |
+| `F` | IFF/ILBM picture (§7.4.1) | download and display the picture — **Amiga only** |
+| `A` | Action: executable, run on arrival (§7.4.1) | download and immediately execute — **machine-specific** |
+
+**⚠ The base-type set is OPEN, and a client MUST fall through safely (normative).** `F` and `A`
+were served by the original system to Amiga users; the reference server does not emit them
+today, and a future producer MAY use a base letter this table does not list. A client
+**MUST NOT** crash, hang, run, or corrupt the screen on a base type it does not implement: it
+**MUST** treat an unrecognised base as inert (behave as for `D` — SHOW does nothing) rather
+than fall into a default that feeds the bytes somewhere unsafe. See §7.4.1 for why this rule is
+written down: the era clients did **not** all obey it, and that is a property of those frozen
+binaries, not a licence for new clients to repeat it.
 
 **⚠ SHOW on an entry with no frames does nothing (normative).** `SHOW` reads an entry's text
 frames; if the entry has none — which is the normal case for a `D` (directory-only) entry — then
@@ -252,6 +265,48 @@ which the **server** opens a fresh **empty** sub-directory under it. That direct
 the directory hierarchy is built: the client issues DIR, the server creates the directory. A
 client **MUST** read the type from screen column 25, dispatch
 SHOW on the base letter, and allow DIR regardless of base or `+`.
+
+### 7.4.1 The `F` and `A` types (non-served; historical record)
+
+**Non-normative for producers, normative for the fall-through rule in §7.4.** The reference
+server does not emit `F` or `A`. They are documented here because the *protocol* the era clients
+speak is larger than the subset this service uses, and a spec that hides that misleads anyone
+building a client against a real Amiga binary — the same class of omission as §8.3.1's
+per-machine download descriptor before #123. Behaviour below is verified against ground truth:
+the original Amiga client's download jump table (relocated disassembly at `0x10b780`) and the
+C64 client source (`client/c64/src/compunet.s`).
+
+**`F` — IFF/ILBM picture, streamed.** On the Amiga, `F` dispatches to a chunk state machine
+(`iff_feed_byte`) that parses FORM/ILBM/BMHD/CMAP/BODY, opens a custom screen sized from the
+BMHD, and blits the image **row by row as the bytes arrive** — both uncompressed and ByteRun1.
+The picture painting in during the download was the point on a 1200-baud line. `F` is
+**Amiga-only**: IFF is a 68k-era bitmap format, and there is no meaningful rendering of it on a
+40-column PETSCII display.
+
+**`A` — action: executable, downloaded and run.** On the Amiga, `A` fetches an executable to
+`RAM:temp`, checks the machine byte is `1`, and `Execute()`s it — printing **"Not for Amiga!"**
+if the machine type is wrong. It differs from `P`: a `P` is *saved* for the user to keep, an `A`
+is *run* immediately. The payload is native code, so `A` is **machine-specific** even though more
+than one client implements it.
+
+**Per-client behaviour (verified):**
+
+| Client | `F` (IFF) | `A` (action) |
+|---|---|---|
+| **Amiga** | dedicated streaming ILBM viewer | runs it; guards on the machine byte (`"Not for Amiga!"`) |
+| **C64** | **no handler — garbage-renders** (feeds the bitmap into its PETSCII frame interpreter) | **runs it as 6502 code, with no machine guard** |
+| **Web / Electron** | not implemented | not implemented |
+
+**⚠ Why the fall-through rule in §7.4 exists.** The C64 client (frozen, era-accurate — see the
+locked-client note below) does **not** degrade safely on `F`: it has no concept of the type, so
+SHOW falls through to its default page-display path and feeds the ILBM bytes to the frame
+interpreter, corrupting the screen. And it will run an `A` payload as 6502 with no "is this for
+me?" check. These are properties of a shipped 1980s binary that **cannot be changed**. A new
+client is therefore held to the higher bar of §7.4: an unrecognised base type is **inert**, never
+executed and never fed to a renderer. Because the era C64 cannot be fixed, any safety for a mixed
+directory that contains Amiga-only content must live **server-side** — a server that chooses to
+serve `F`/`A` is responsible for not offering that download to a machine that would mishandle it
+(`machine_type`, §8.3.1, is the hook).
 
 ## 7.5 The built-in directory template
 

@@ -216,6 +216,14 @@ The server does not report these; a client that ignores them looks fine and lose
 - [ ] **An unrecognised machine type is an error, not a default.** If byte 0 is not one your
       client handles, refuse — do not fall through to "probably mine". Falling through means a
       desynchronised descriptor is accepted as valid and its garbage written to disk.
+- [ ] **⚠ An unrecognised directory *base type* is inert, not fed somewhere unsafe** (§7.4,
+      §7.4.1). The base-type set is open — the original service used `F` (IFF) and `A` (action)
+      beyond the six this client implements, and a future producer may use more. On SHOW of a
+      base you do not handle, do **nothing** (behave as for `D`): do not run it, do not write it,
+      do not feed the bytes to your page renderer. The frozen C64 client fails this — it
+      garbage-renders an `F` and runs an `A` as 6502 with no machine guard — which is exactly the
+      behaviour a new client must **not** reproduce (its being era-accurate and feature-locked,
+      §1.8, does not excuse yours).
 - [ ] **Upload into a full directory is refused by the client** (11 entries) rather than
       attempted — the server discards it with no error (§8.3.2).
 - [ ] **Upload prompts for type *and* price** — omitting type makes program upload impossible
