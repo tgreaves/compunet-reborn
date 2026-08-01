@@ -20,7 +20,7 @@ Names proposed here will be applied in the naming pass. Confidence noted.
 | `FUN_0010b000` | `file_download` | "Download filename", "File download", "Action download", "Invalid link" |
 | `FUN_0010b730` | `download_check` | "Can't download this", "D%02d" |
 | `FUN_0010c000` | `upload` | "Upload filename" |
-| `FUN_0010e0fc` | `validate_login` | "*** No Such User ***", "D%02d" |
+| `FUN_0010e0fc` | `mail_download` (was `validate_login`) | "D%02d", "D" |
 | `FUN_0011956a` | `comms_error_a` | "Carrier lost", "Comms problem" |
 | `FUN_0011967c` | `comms_error_b` | "Carrier lost", "Comms problem" |
 | `FUN_0011979e` | `comms_error_c` | "Carrier lost", "Comms problem" |
@@ -119,7 +119,7 @@ the client (each is called dozens of times):
 |---------|---------------|------|
 | `0x10343c` | `do_connect` | open transport → dispatch status → open logon window |
 | `0x1192b6` | `open_transport` | create ports + IORequests, signal masks; returns status |
-| `0x10e0fc` | `validate_login` | "*** No Such User ***" (server login rejection) |
+| `0x10e0fc` | `mail_download` (was `validate_login`, #131) | state 5 = Courier; reads the selected mail message |
 
 `open_transport` status codes: 0=ok, 10=Modem error, 1=modem msg, else=can't open
 cnet.device. Login packet uses token `0x43` (COM).

@@ -48,7 +48,7 @@
     "0x10f09e": "mail_upload_mode",
     "0x10f116": "id_check_mode",
     "0x10f23a": "mail_event_loop",
-    "0x10e0fc": "validate_login",
+    "0x10e0fc": "mail_download",
     "0x11956a": "serial_write",
     "0x11967c": "serial_read",
     "0x11979e": "serial_io_c",

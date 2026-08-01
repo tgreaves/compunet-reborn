@@ -26,7 +26,10 @@
 #include "compunet.h"
 
 #define STATE_ONLINE 2
-#define STATE_LOGIN_CHECK 5
+/* State 5 is COURIER, not a login check — ui_state.c maps states 5/6 to
+ * "Compunet - courier" with the mail menu. The old name came from an early
+ * mis-identification of FUN_0010e0fc (see #131). */
+#define STATE_COURIER 5
 
 /* Window/dialog helpers into the not-yet-reconstructed UI layer. */
 extern void set_wait_pointer(void);      /* thunk FUN_001020ae */
@@ -122,7 +125,7 @@ LONG mail_done(void)
  */
 LONG mail_more(void)
 {
-    g_state = 5;                                /* recon 0x10e0b6: g_state = 5 (mail-list state) */
+    g_state = STATE_COURIER;                    /* recon 0x10e0b6 (mail-list state) */
     serial_write("M", 1, 1, TOKEN_COM);
     if (serial_io_c(g_ack_text) != ACK_OK)
         return 0;
@@ -137,7 +140,7 @@ LONG mail_more(void)
  */
 LONG mail_download(void)
 {
-    g_state = 5;                                /* recon 0x10e0fe: g_state = 5 */
+    g_state = STATE_COURIER;                    /* recon 0x10e0fe: g_state = 5 */
     sprintf(g_cmd_buf, "D%02d", (int)*(short *)((UBYTE *)g_dir_page + 0xc78));  /* selected row @0xc78 */
     for (;;) {
         serial_write(g_cmd_buf, strlen(g_cmd_buf), 1, TOKEN_COM);
@@ -172,13 +175,13 @@ LONG mail_field_send(void)
     serial_write("U", 1, 1, TOKEN_COM);         /* recon 0x10e3ac: $1a90 = "U" */
     if (serial_io_c(g_ack_text) != ACK_OK) {
         mail_close_window();                    /* recon 0x10e3c8: thunk $10e6c8 = FUN_0010f18e */
-        g_state = 5;
+        g_state = STATE_COURIER;
         return 0;
     }
     send_dat_packet(g_edit_frame);              /* recon 0x10e3d6: $80 = g_edit_frame */
     if (serial_io_c(g_ack_text) != ACK_OK) {
         mail_close_window();
-        g_state = 5;
+        g_state = STATE_COURIER;
         return 0;
     }
     return 1;
@@ -193,7 +196,7 @@ LONG mail_field_next(void)
 {
     serial_write("N", 1, 1, TOKEN_COM);         /* recon 0x10e416: $1a94 = "N" */
     mail_close_window();                        /* recon 0x10e422: thunk $10e6c8 = FUN_0010f18e */
-    g_state = 5;                                /* recon 0x10e426 */
+    g_state = STATE_COURIER;                    /* recon 0x10e426 */
     return 1;
 }
 
@@ -395,7 +398,7 @@ LONG mail_prepare(void)
     if (serial_io_c(g_ack_text) == ACK_OK) {
         directory_refresh(g_dir_page);
         mail_state_enter(g_dir_page);
-        g_state = STATE_LOGIN_CHECK;
+        g_state = STATE_COURIER;
         return 1;
     }
     return 0;

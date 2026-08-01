@@ -9,7 +9,6 @@
  *                          identity record (userid + password + terminal id).
  *   wait_connect_handshake (recon FUN_00103162)  — read modem/host responses,
  *                          succeed on "@ okay", fail on "NO CARRI".
- *   validate_login         (recon FUN_0010e0fc)  — issue the post-login D command.
  *
  * This is the transport's front door. cnet.device does the actual modem dial and
  * the X.25 framing/CRC; a Reborn TCP transport replaces the dial+carrier steps with
@@ -29,7 +28,6 @@
 #define STATE_OFFLINE     0
 #define STATE_LOGGING_ON  1
 #define STATE_ONLINE      2
-#define STATE_LOGIN_CHECK 5
 
 /* Externs into the not-yet-reconstructed UI / directory layer (kept as the recon
  * names' roles). These are the seams do_connect calls out to. */
@@ -346,32 +344,3 @@ LONG do_connect(void)
     return 1;
 }
 
-/*
- * validate_login — after connecting, request the user's home directory with a
- * "D%02d" command and load the returned frame(s), looping while more remain
- * (recon: FUN_0010e0fc). The page's directory number lives at page+0xc78.
- */
-LONG validate_login(void)
-{
-    ULONG len;
-    char  ack;
-
-    g_state = STATE_LOGIN_CHECK;
-    sprintf(g_cmd_buf, "D%02d", (int)*(short *)((UBYTE *)g_dir_page + 0xc78));
-
-    do {
-        len = strlen(g_cmd_buf);
-        serial_write(g_cmd_buf, len, 1, TOKEN_COM);
-        ack = serial_io_c(g_ack_text);
-        if (ack != ACK_OK)
-            return 0;
-
-        g_frame_out_end = frame_display(g_frame_page, g_frame_out);
-        frame_display_done(g_frame_out, g_frame_out_end);
-        /* recon copies the "next" directory command back into g_cmd_buf and loops
-         * while the frame's more-pages flag (DAT_001203b2) is set. */
-        strcpy(g_cmd_buf, "D");   /* recon DAT_0011ea70 seed for the next request */
-    } while (frame_has_more_pages());
-
-    return 1;
-}

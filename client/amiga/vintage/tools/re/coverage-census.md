@@ -40,7 +40,7 @@ client (compare [docs/PROTOCOL.md](../../../../docs/PROTOCOL.md)).
 | Cmd | Format string | Meaning | Issuing function |
 |-----|---------------|---------|------------------|
 | `P` | `P%02d`      | SHOW page (select text frame) | `goto_page` `0x10a1e2` |
-| `D` | `D%02d`      | DIR / open directory | `validate_login` `0x10e0fc`, `download_check` `0x10b730` |
+| `D` | `D%02d`      | DIR / open directory | `mail_download` `0x10e0fc` (was "validate_login"), `download_check` `0x10b730` |
 | `L` | `L%.6s`      | LINK (go to 6-char link code) | `link_follow` `0x1098e8`, `link_goto` `0x10a310` |
 | `V` | `V%02d%s`    | VOTE on a page | `vote` `0x10c510` |
 | `X` | `X%02d%4.4s` | eXtend page LIFE | `extend_life` `0x10c428` |
@@ -71,7 +71,7 @@ Grouped by reconstruction module. `sz` is the decompiled byte size.
 | `0x10343c` | `do_connect` | 662 | dial → login → open frame window |
 | `0x1032fa` | `send_login_record` | 322 | `Z`+userid+pw+`AM21`+version |
 | `0x103162` | `wait_connect_handshake` | 408 | wait `@ okay`, detect `NO CARRI` |
-| `0x10e0fc` | `validate_login` | 140 | `D%02d` after login |
+| `0x10e0fc` | `mail_download` | 140 | `D%02d` + MORE loop; state 5 = Courier. Formerly mis-named `validate_login` (#131) |
 
 ### Frame display (PETSCII) — `frame.c`
 | addr | recon name | sz |

@@ -39,7 +39,10 @@ extern UBYTE g_data[];
 extern LONG goto_page(void);       /* FUN_0010a1e2 — state 2/3, click 1 */
 extern LONG download_check(void);  /* FUN_0010b730 — state 2/3, click 2 */
 extern LONG hook_dir_0963c(APTR gadget);   /* dispatch.c — the Dnld action hook */
-extern LONG validate_login(void);  /* FUN_0010e0fc — state 5, click 2 */
+/* ⚠ FUN_0010e0fc is mail_download, not "validate_login" — state 5 is COURIER
+ * (ui_state.c maps 5/6 to "Compunet - courier"). It was reconstructed TWICE under
+ * two names; the duplicate in login.c is gone. See #131. */
+extern LONG mail_download(void);   /* FUN_0010e0fc — state 5 (Courier), click 2 */
 extern void link_lock(APTR dir_page, int row);   /* FUN_00109520 — toggle row box */
 
 /* Frame text primitives (frame.c). */
@@ -99,7 +102,7 @@ LONG dir_select(APTR gadget, LONG mode)
             if (mode == 1) return goto_page();
             break;
         case 5:
-            if (mode == 2) return validate_login();
+            if (mode == 2) return mail_download();
             break;
         case 8:
             if (mode == 1) return goto_page();
