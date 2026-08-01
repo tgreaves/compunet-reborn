@@ -2,12 +2,25 @@
 
 ```bash
 python server/tests/test_api_binding.py           # the binding — add -v for per-test output
+python server/tests/test_terminal.py              # the PETSCII terminal
+python server/tests/test_audit.py                 # every action is recorded
+python server/tests/test_tree.py                  # directory reads and writes
+python server/tests/test_header_frame.py          # user-supplied header frames
+python server/tests/test_x25.py                   # framing, CRC, sequencing
 python server/tests/test_client_conformance.py    # the reference client vs the spec
 ```
 
 No dependencies — stdlib `unittest`, no sockets, no Electron. `test_api_binding`
 drives `api_binding.handle_message()` directly against the tracked fixture tree
 (`server/data/content.test`), so a full run takes about four seconds.
+
+`test_terminal` covers port 6401. ⚠ **It exists because that surface had no tests
+at all**, which is how it kept its own hand-copied reimplementation of the upload
+writer long enough to drift from the shared one in four separate ways — including
+one a user would meet: an `open_upload: false` directory stayed writable from the
+terminal while the C64 and the web client both refused it. Three of the four were
+found by reading the file, because there was nothing to run. It stubs only the
+screen and the keyboard; everything below that is the real class.
 
 `test_client_conformance` is CONFORMANCE.md §E made mechanical: it parses §4.7's
 vocabulary and §4.8's context table out of `docs/spec/` and diffs them against
@@ -41,10 +54,12 @@ around them rather than around functions:
 that only appears in a *sequence* — a shared session lets one test mask the
 next, which is how they shipped in the first place.
 
-**The suite leaves the fixtures untouched — but only the content tree is
-read-only.** It exercises the validation paths that reject before writing rather
-than the success paths that create content, so `content.test/` is never dirtied
-and the paid-page fixture is never consumed.
+**The suite leaves the fixtures untouched — but a test that writes must copy
+first.** Most of `test_api_binding` exercises the validation paths that reject
+before writing, so `content.test/` is never dirtied and the paid-page fixture is
+never consumed. The ones that genuinely have to write — the upload tests, and all
+of `test_terminal` — copy the tree to a temp directory and repoint `srv.ROOT_DIR`
+in `setUp`. `git status` after a run is the check that this held.
 
 `mail.test/` is different and cannot be: reading a message marks it read and
 rewrites the mailbox JSON. So the suite **copies the mail tree to a temp

@@ -1108,6 +1108,205 @@ def reorder_child(parent, page, index):
     parent.children.insert(index, page)
 
 
+#: Refusal reasons `complete_content_upload` can return, so a caller can tell the user
+#: WHY rather than just that nothing happened. Every one of them was previously either a
+#: silent `return` (Binding A and B) or a hand-written duplicate of the same test (the
+#: terminal). Callers that have no screen ignore these and log.
+UPLOAD_REFUSALS = {
+    'bad_type': 'INVALID PAGE TYPE',
+    'not_permitted': 'UPLOAD NOT PERMITTED',
+    'not_owner': 'CANNOT REPLACE (NOT OWNER)',
+    'directory_full': 'DIRECTORY FULL',
+    'not_iff': 'NOT AN IFF PICTURE',
+}
+
+
+def complete_content_upload(session, send):
+    """Write an uploaded page into `session.current_page`. THE writer — all three
+    surfaces go through this one.
+
+    ⚠ It was three. Binding A and Binding B shared this; the PETSCII terminal carried
+    two hand-copied reimplementations of it (`_complete_text_upload` and the tail of
+    `_cmd_upload_send`), and they had drifted exactly as duplicated code does. Verified
+    differences, not suspected ones: the terminal never recorded `machine_type`; it was
+    unaware of the 8-byte binary-upload header, so it always wrote a `.prg` and could
+    not have stored an `F` at all; its permission walk treated an explicit
+    `open_upload: false` as "keep looking upwards" instead of "stop here", so a user's
+    OWN-ONLY directory inside an open Jungle was writable from the terminal and refused
+    everywhere else; and only its copy recorded whether an upload replaced an existing
+    page. Which surface you happened to use decided what got written. The same shape as
+    the audit gap in the project rules, and the same fix: put it in the shared function
+    and every present and future surface inherits the behaviour for free.
+
+    Returns 'uploaded' or 'replaced' on success, or a key of UPLOAD_REFUSALS. Callers
+    with a screen turn that into a message; callers without one ignore it.
+
+    `session` needs: current_page, directory, user_id, is_admin, is_editor,
+    _can_upload_here(), _archive_page(), _save_directory_containing(). TerminalSession
+    provides those as thin adapters over what it already had.
+    """
+    # ⚠ The backstop for the type gate, HERE, so every surface — present and future —
+    # inherits it, exactly as the audit rule requires of the actions it covers. Callers
+    # also refuse earlier, where they can report a reason before a file is streamed;
+    # this catches anything reaching the writer by another route. Belt and braces is the
+    # point: the thing being kept out of the tree is an executable (§7.4.1).
+    if send['type'] not in UPLOAD_TYPES:
+        log.warning('UPLOAD DISCARDED: user=%s "%s" type=%r is not uploadable',
+                    session.user_id, send['title'], send['type'])
+        return 'bad_type'
+    if not session._can_upload_here():
+        log.info('UPLOAD DISCARDED: user=%s cannot upload to page owned by %s',
+                 session.user_id, session.current_page.author)
+        return 'not_permitted'
+
+    # Check for existing page with same title
+    page_slug = CompunetDirectory._make_slug(send['title'])
+    existing = None
+    for child in session.current_page.children:
+        if CompunetDirectory._make_slug(child.title) == page_slug:
+            existing = child
+            break
+
+    if existing:
+        # Check ownership — only author, admin, or editor can replace
+        if (existing.author != session.user_id and
+                not session.is_admin and not session.is_editor):
+            log.info('UPLOAD REJECTED: user=%s cannot replace "%s" owned by %s',
+                     session.user_id, existing.title, existing.author)
+            return 'not_owner'
+        # Archive the old version
+        session._archive_page(existing, reason='replaced')
+    elif len(session.current_page.children) >= 11:
+        log.info('UPLOAD DISCARDED: user=%s directory full (%d entries)',
+                 session.user_id, len(session.current_page.children))
+        return 'directory_full'
+
+    # Determine page number (reuse existing or allocate new)
+    if existing:
+        page_num = existing.page_num
+    else:
+        # Unique against the whole tree, not just the lookup table.
+        page_num = session.directory.next_page_num()
+
+    # Create page folder
+    parent_dir = getattr(session.current_page, '_dir_path', ROOT_DIR)
+    page_dir = os.path.join(parent_dir, page_slug)
+    os.makedirs(page_dir, exist_ok=True)
+
+    # Save frames into page folder. Binary uploads — a program ('P') or an IFF
+    # picture ('F') — arrive as [8-byte header][body]; the header's byte 0 is the
+    # machine type (0=C64, 1=Amiga, 2=ST). An F is stored exactly like an Amiga
+    # program (whole body, no load address) but with a .iff name and page_type 'F',
+    # because on the wire an F download IS an Amiga program download (§7.4.1) — the
+    # type letter is all that tells the client to decode rather than save.
+    frame_files = []
+    is_picture = send['type'] == 'F'
+    is_blob = send['type'] in ('P', 'F')
+    prog_machine = send['frames'][0][0] if (is_blob and send['frames']) else None
+
+    # ⚠ VALIDATED HERE, IN THE SHARED FUNCTION, so EVERY surface gets it. Binding B
+    # checks before calling; Binding A had no check at all, so an Amiga could publish
+    # any file as an `F` and it would be stored as a picture that nothing can decode —
+    # discovered as a blank screen much later, by someone else. The body follows the
+    # 8-byte header, and an ILBM begins "FORM"????"ILBM". Reject rather than sanitise:
+    # there is no sensible repair for "this is not the format you said it was".
+    if is_picture:
+        body = bytes(send['frames'][0][8:]) if send['frames'] else b''
+        if body[0:4] != b'FORM' or body[8:12] != b'ILBM':
+            log.warning('UPLOAD DISCARDED: user=%s "%s" declared type F but is not '
+                        'an IFF ILBM (starts %r)', session.user_id, send['title'], body[:12])
+            return 'not_iff'
+    # ⚠ The split is by CPU, not by brand — 68k machines have no load address,
+    # the 6502 does. Upload used to test `== 1` and so folded ST into the C64
+    # branch, which would strip two bytes off the front of an ST file and store
+    # it as `c64`; the DOWNLOAD side already handled all three correctly
+    # (is_68k, verified against the original client's disassembly, #123). This
+    # makes the two ends agree. Nothing sends a 2 today, so no behaviour changes
+    # — it removes a trap rather than adding a feature.
+    prog_is_68k = prog_machine in (1, 2)
+    for i, frame_data in enumerate(send['frames']):
+        if is_blob:
+            if prog_is_68k:
+                # 68k: no C64-style load address to strip. Store the body whole.
+                frame_data = bytes(frame_data[8:])
+            else:
+                # C64: prepend the 2-byte load address (header bytes 4-5) to the body.
+                frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
+            ext = 'iff' if is_picture else 'prg'
+            frame_file = f'{page_slug}.{ext}' if i == 0 else f'{page_slug}-{i+1}.{ext}'
+        else:
+            frame_file = f'frame-{i+1}.seq'
+        frame_path = os.path.join(page_dir, frame_file)
+        with open(frame_path, 'wb') as f:
+            f.write(frame_data)
+        frame_files.append(frame_file)
+
+    if is_blob and send['frames']:
+        hdr = send['frames'][0]
+        if prog_is_68k:
+            size = (len(hdr) - 8 + 1023) // 1024   # raw body length (KB)
+        else:
+            size = (len(hdr) - 2 + 1023) // 1024   # C64 calc (unchanged)
+    else:
+        size = len(send['frames'])
+
+    new_page = CompunetPage(
+        page_num=page_num,
+        title=send['title'],
+        page_type=send['type'],
+        size=size,
+        author=session.user_id,
+        price=send['price'],
+        life=send['lifetime'],
+    )
+    new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    if is_picture:
+        # An IFF picture is Amiga content by definition, whatever the header byte said.
+        new_page.machine_type = 'amiga'
+    elif is_blob and prog_machine is not None:
+        # Program uploads carry their machine type in the header byte (authoritative).
+        # Reverse of MACHINE_CODES, so the stored value round-trips whatever the
+        # client declared instead of collapsing everything that is not 1 to C64.
+        new_page.machine_type = MACHINE_NAMES.get(prog_machine, 'c64')
+    else:
+        new_page.machine_type = 'amiga' if getattr(session, 'is_amiga', False) else 'c64'
+    new_page.parent = session.current_page
+    new_page._frame_files = frame_files
+    new_page._dir_path = page_dir
+    new_page._adverts = []
+    for frame_file in frame_files:
+        frame_path = os.path.join(page_dir, frame_file)
+        with open(frame_path, 'rb') as f:
+            new_page.frames.append(f.read())
+
+    if existing:
+        # Replace in children list
+        idx = session.current_page.children.index(existing)
+        session.current_page.children[idx] = new_page
+        session.directory.pages[page_num] = new_page
+        log.info('CONTENT: replaced page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
+                 page_num, send['title'], session.user_id,
+                 len(send['frames']), send['price'], send['lifetime'])
+    else:
+        session.current_page.children.append(new_page)
+        session.directory.pages[page_num] = new_page
+        log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
+                 page_num, send['title'], session.user_id,
+                 len(send['frames']), send['price'], send['lifetime'])
+
+    # This directory gains (or replaces) an entry — and its PARENT may need
+    # the `directory` key added, because a latent directory only becomes real
+    # on the first upload into it (§7.3). Two files, not the whole tree.
+    session._save_directory_containing(session.current_page,
+                                       getattr(session.current_page, 'parent', None))
+    action = 'replaced' if existing else 'uploaded'
+    # `action` was recorded only by the terminal's copy. Now every surface carries it —
+    # "page_uploaded" alone does not say whether someone else's page was overwritten.
+    audit_log('page_uploaded', session=session, title=send['title'],
+              page=page_num, type=send['type'], action=action)
+    return action
+
+
 class CompunetSession:
     """A client session - same logic for WebSocket and TCP clients."""
 
@@ -2512,165 +2711,16 @@ class CompunetSession:
         archive_page(page, DATA_DIR, reason=reason)
 
     def _complete_content_upload(self, send):
-        """Add or replace uploaded page in the current directory."""
-        # ⚠ The backstop for the type gate, in the SHARED function so every binding —
-        # present and future — inherits it, exactly as the audit rule requires of the
-        # actions it covers. Both bindings already refuse an unsupported type at their
-        # own entry point, where they can report a reason to the user; this catches
-        # anything that reaches the writer by another route. Belt and braces is the point:
-        # the thing being kept out of the tree is an executable (§7.4.1).
-        if send['type'] not in UPLOAD_TYPES:
-            log.warning('UPLOAD DISCARDED: user=%s "%s" type=%r is not uploadable',
-                        self.user_id, send['title'], send['type'])
-            return
-        if not self._can_upload_here():
-            log.info('UPLOAD DISCARDED: user=%s cannot upload to page owned by %s',
-                     self.user_id, self.current_page.author)
-            return
+        """Binding A / Binding B entry point for the shared writer.
 
-        # Check for existing page with same title
-        page_slug = CompunetDirectory._make_slug(send['title'])
-        existing = None
-        for child in self.current_page.children:
-            if CompunetDirectory._make_slug(child.title) == page_slug:
-                existing = child
-                break
-
-        if existing:
-            # Check ownership — only author, admin, or editor can replace
-            if (existing.author != self.user_id and
-                    not self.is_admin and not self.is_editor):
-                log.info('UPLOAD REJECTED: user=%s cannot replace "%s" owned by %s',
-                         self.user_id, existing.title, existing.author)
-                return
-            # Archive the old version
-            self._archive_page(existing, reason='replaced')
-        elif len(self.current_page.children) >= 11:
-            log.info('UPLOAD DISCARDED: user=%s directory full (%d entries)',
-                     self.user_id, len(self.current_page.children))
-            return
-
-        # Determine page number (reuse existing or allocate new)
-        if existing:
-            page_num = existing.page_num
-        else:
-            # Unique against the whole tree, not just the lookup table.
-            page_num = self.directory.next_page_num()
-
-        # Create page folder
-        parent_dir = getattr(self.current_page, '_dir_path', ROOT_DIR)
-        page_dir = os.path.join(parent_dir, page_slug)
-        os.makedirs(page_dir, exist_ok=True)
-
-        # Save frames into page folder. Binary uploads — a program ('P') or an IFF
-        # picture ('F') — arrive as [8-byte header][body]; the header's byte 0 is the
-        # machine type (0=C64, 1=Amiga, 2=ST). An F is stored exactly like an Amiga
-        # program (whole body, no load address) but with a .iff name and page_type 'F',
-        # because on the wire an F download IS an Amiga program download (§7.4.1) — the
-        # type letter is all that tells the client to decode rather than save.
-        frame_files = []
-        is_picture = send['type'] == 'F'
-        is_blob = send['type'] in ('P', 'F')
-        prog_machine = send['frames'][0][0] if (is_blob and send['frames']) else None
-
-        # ⚠ VALIDATED HERE, IN THE SHARED FUNCTION, so BOTH bindings get it. Binding B
-        # checks before calling; Binding A had no check at all, so an Amiga could publish
-        # any file as an `F` and it would be stored as a picture that nothing can decode —
-        # discovered as a blank screen much later, by someone else. The body follows the
-        # 8-byte header, and an ILBM begins "FORM"????"ILBM". Reject rather than sanitise:
-        # there is no sensible repair for "this is not the format you said it was".
-        if is_picture:
-            body = bytes(send['frames'][0][8:]) if send['frames'] else b''
-            if body[0:4] != b'FORM' or body[8:12] != b'ILBM':
-                log.warning('UPLOAD DISCARDED: user=%s "%s" declared type F but is not '
-                            'an IFF ILBM (starts %r)', self.user_id, send['title'], body[:12])
-                return
-        # ⚠ The split is by CPU, not by brand — 68k machines have no load address,
-        # the 6502 does. Upload used to test `== 1` and so folded ST into the C64
-        # branch, which would strip two bytes off the front of an ST file and store
-        # it as `c64`; the DOWNLOAD side already handled all three correctly
-        # (is_68k, verified against the original client's disassembly, #123). This
-        # makes the two ends agree. Nothing sends a 2 today, so no behaviour changes
-        # — it removes a trap rather than adding a feature.
-        prog_is_68k = prog_machine in (1, 2)
-        for i, frame_data in enumerate(send['frames']):
-            if is_blob:
-                if prog_is_68k:
-                    # 68k: no C64-style load address to strip. Store the body whole.
-                    frame_data = bytes(frame_data[8:])
-                else:
-                    # C64: prepend the 2-byte load address (header bytes 4-5) to the body.
-                    frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
-                ext = 'iff' if is_picture else 'prg'
-                frame_file = f'{page_slug}.{ext}' if i == 0 else f'{page_slug}-{i+1}.{ext}'
-            else:
-                frame_file = f'frame-{i+1}.seq'
-            frame_path = os.path.join(page_dir, frame_file)
-            with open(frame_path, 'wb') as f:
-                f.write(frame_data)
-            frame_files.append(frame_file)
-
-        if is_blob and send['frames']:
-            hdr = send['frames'][0]
-            if prog_is_68k:
-                size = (len(hdr) - 8 + 1023) // 1024   # raw body length (KB)
-            else:
-                size = (len(hdr) - 2 + 1023) // 1024   # C64 calc (unchanged)
-        else:
-            size = len(send['frames'])
-
-        new_page = CompunetPage(
-            page_num=page_num,
-            title=send['title'],
-            page_type=send['type'],
-            size=size,
-            author=self.user_id,
-            price=send['price'],
-            life=send['lifetime'],
-        )
-        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        if is_picture:
-            # An IFF picture is Amiga content by definition, whatever the header byte said.
-            new_page.machine_type = 'amiga'
-        elif is_blob and prog_machine is not None:
-            # Program uploads carry their machine type in the header byte (authoritative).
-            # Reverse of MACHINE_CODES, so the stored value round-trips whatever the
-            # client declared instead of collapsing everything that is not 1 to C64.
-            new_page.machine_type = MACHINE_NAMES.get(prog_machine, 'c64')
-        else:
-            new_page.machine_type = 'amiga' if getattr(self, 'is_amiga', False) else 'c64'
-        new_page.parent = self.current_page
-        new_page._frame_files = frame_files
-        new_page._dir_path = page_dir
-        new_page._adverts = []
-        for frame_file in frame_files:
-            frame_path = os.path.join(page_dir, frame_file)
-            with open(frame_path, 'rb') as f:
-                new_page.frames.append(f.read())
-
-        if existing:
-            # Replace in children list
-            idx = self.current_page.children.index(existing)
-            self.current_page.children[idx] = new_page
-            self.directory.pages[page_num] = new_page
-            log.info('CONTENT: replaced page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
-                     page_num, send['title'], self.user_id,
-                     len(send['frames']), send['price'], send['lifetime'])
-        else:
-            self.current_page.children.append(new_page)
-            self.directory.pages[page_num] = new_page
-            log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
-                     page_num, send['title'], self.user_id,
-                     len(send['frames']), send['price'], send['lifetime'])
-
-        # This directory gains (or replaces) an entry — and its PARENT may need
-        # the `directory` key added, because a latent directory only becomes real
-        # on the first upload into it (§7.3). Two files, not the whole tree.
-        self._save_directory_containing(self.current_page,
-                                        getattr(self.current_page, 'parent', None))
-        audit_log('page_uploaded', session=self, title=send['title'],
-                  page=page_num, type=send['type'])
-        return b''
+        ⚠ Kept as a thin delegate rather than inlined: Binding A returns this value
+        onto the wire, where b'' and None are not interchangeable — b'' is "nothing to
+        say", None is what every refusal path has always returned. The shared function
+        speaks in reasons instead, so the terminal can print one; the protocol bindings
+        have no way to show it and collapse it back to the old two values.
+        """
+        outcome = complete_content_upload(self, send)
+        return b'' if outcome in ('uploaded', 'replaced') else None
 
     def _save_directory_containing(self, *pages):
         """Persist only the directories this command actually changed.

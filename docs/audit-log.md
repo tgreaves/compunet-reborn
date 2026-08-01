@@ -21,9 +21,17 @@ was logged, and the same mail sent through the JSON API was not — because Bind
 calls the shared `_complete_mail_send` directly rather than going through Binding
 A's handler.
 
-`_complete_content_upload` always had its `audit_log` call *inside* it, which is
+`complete_content_upload` always had its `audit_log` call *inside* it, which is
 why uploads never had that gap. Same file, seventy lines apart, one right and one
 wrong (#127).
+
+⚠ **The rule protects the record, not the behaviour**, and uploads showed the
+difference. The terminal audited its uploads correctly — it had copied the call
+along with everything else — while its copy of the *writer* had quietly drifted
+from the shared one. So the log said the right thing about a page that had been
+stored by different rules. Auditing inside the shared function only helps if the
+function really is shared; the terminal now calls
+`compunet_server.complete_content_upload` like the other two.
 
 So: when adding a feature, put the `audit_log` call in the function that does the
 work. A future binding that reuses it inherits the record for free.
@@ -180,6 +188,13 @@ wants.
 ---
 
 ## Notes on particular events
+
+**`page_uploaded`** carries `action` — `uploaded` for a new page, `replaced` when
+it overwrote one that was already there. Without it the event cannot distinguish
+someone publishing their own work from someone overwriting a page an editor
+owned, which is the version of the question anybody actually asks. It was
+recorded only by the terminal's own copy of the writer; folding that copy into
+the shared one gave it to every surface.
 
 **`user_updated`** carries `changed`, a list of `field: old -> new`. "ADMIN edited
 ZARD" is close to useless a month later, and this is the endpoint where credit is

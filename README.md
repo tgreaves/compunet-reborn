@@ -246,12 +246,13 @@ See [docs/spec/api/](docs/spec/api/README.md).
 - **[server/cfg/](server/cfg/)** — Configuration (users, terminal.bin, templates)
 - **[server/data/](server/data/)** — Runtime content (not tracked in git; `content.test/` is,
   as the fixture tree the tests run against)
-- **[server/tests/](server/tests/README.md)** — Regression tests: Binding B against the fixture
-  tree, and the reference client's command set against the specification. Stdlib `unittest`,
-  no dependencies
+- **[server/tests/](server/tests/README.md)** — Regression tests: both bindings and the PETSCII
+  terminal against the fixture tree, the audit log, the directory serializer, X.25
+  framing, and the reference client's command set against the specification. Stdlib
+  `unittest`, no dependencies
 
 ```bash
-python server/tests/test_api_binding.py && python server/tests/test_client_conformance.py
+for t in server/tests/test_*.py; do python "$t" || break; done
 ```
 
 ### Website

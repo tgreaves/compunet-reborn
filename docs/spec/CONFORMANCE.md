@@ -252,9 +252,16 @@ The server does not report these; a client that ignores them looks fine and lose
       down the same file-upload path as `P` and `F`. The reference server gated its JSON binding
       only, for two releases, while its X.25 binding and its PETSCII terminal stored any letter
       verbatim — and this specification asserted the gate existed the whole time. Check each
-      path yourself rather than trusting a shared-code claim; if a path cannot store a type
-      correctly, refusing it there is right (the reference terminal takes `T` and `P` only,
-      because its writer produces a `.prg` and cannot store an `F`).
+      path yourself rather than trusting a shared-code claim; if a path's own transport is not
+      shaped for a type, refusing it there is right (the reference terminal takes `T` and `P`
+      only, because its XMODEM path re-wraps the file with a C64 load address and an IFF has
+      none).
+- [ ] **⚠ One writer, not one per surface** (§8.3.2). Upload the same page through every
+      surface you offer and diff the stored entry, field by field. The reference server had
+      the terminal carrying its own hand-copied writer, and the copies had drifted in four
+      ways — one of them user-visible: a directory closed with `open_upload: false` stayed
+      writable from the terminal while the C64 and the web client refused it. Duplicated
+      write paths do not stay equal; the only reliable answer is that there is one of them.
 - [ ] **Upload into a full directory is refused by the client** (11 entries) rather than
       attempted — the server discards it with no error (§8.3.2).
 - [ ] **Upload prompts for type *and* price** — omitting type makes program upload impossible

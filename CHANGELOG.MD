@@ -32,6 +32,8 @@
 	* Security: Uploads are now restricted to text, program and picture types.
 	  The Amiga client and the terminal previously accepted any type letter
 	  typed into the PAGE TYPE field — including Action ('A') — and stored it.
+	* Fixed: A directory closed to other users could still be uploaded to from the
+	  PETSCII terminal.  The C64 and web clients refused it correctly.
 	* Fixed: Audit actions from Web and Electron clients were missing. (#127)
 	* Fixed: Administrator audit actions were missing. (#127)
 	* Fixed: Audit log recording Amiga sessions as C64.

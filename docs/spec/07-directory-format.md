@@ -339,10 +339,10 @@ binaries and cannot be fixed (§1.8).
 > not. Put the check at each entry point (so the user learns before spending a transfer) **and**
 > in the shared code that writes the page, so a binding added later inherits it.
 >
-> A path may legitimately gate **more narrowly** than the server as a whole: the reference
-> PETSCII terminal accepts only `T` and `P`, because its upload path writes a `.prg` with no
-> machine type and cannot store an `F` correctly. Refusing what a path cannot store is right;
-> storing it wrongly is not.
+> A path may legitimately gate **more narrowly** than the server as a whole, where its own
+> transport is not shaped for a type: the reference PETSCII terminal accepts only `T` and `P`,
+> because its XMODEM path re-wraps the received file with a C64-style load address and an IFF
+> has none. Refusing what a path is not shaped for is right; mis-shaping it is not.
 
 **Per-client behaviour (verified):**
 
