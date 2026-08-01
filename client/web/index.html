@@ -45,7 +45,10 @@
   .pane.focused .paneTitle { color: var(--accent); }
   .paneMeta { font: 11px ui-monospace, monospace; color: var(--dim); margin-left: auto; }
   .paneHead button { padding: 1px 8px; font-size: 13px; line-height: 1.3; }
-  .screenWrap { padding: 18px; line-height: 0; }
+  /* ⚠ No padding here — the BORDER is the padding, and the renderer sets it from
+     BORDER_X/BORDER_Y so it stays in step with the canvas scale (render.ts). A fixed
+     value here was how it ended up a quarter of a real C64's border. */
+  .screenWrap { line-height: 0; }
   canvas { image-rendering: pixelated; display: block; }
   /* Unfocused panes recede — the focused one owns the keyboard (spec §4.8). */
   .pane:not(.focused) .screenWrap { filter: saturate(.55) brightness(.72); }

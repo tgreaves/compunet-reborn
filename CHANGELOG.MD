@@ -1,6 +1,10 @@
 # 1.4.0 (unreleased)
 
 * Web & desktop client:
+	* Fixed: the screen border was about a quarter of the size a real C64 shows —
+	  the colours were right but the proportions were not. It is now the full PAL
+	  border (a 320x200 screen inside a 384x272 picture), so the display looks
+	  like the machine it is imitating.
 	* New: Amiga pictures. A directory can now hold an IFF/ILBM picture — a new
 	  "F — IFF picture" upload type — and the web and desktop clients show it
 	  full-screen. On a real Amiga the picture paints in as it downloads, just as

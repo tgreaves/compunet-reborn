@@ -46,6 +46,38 @@ A client **MUST** provide a 40×24 content area and **MUST** render exactly the 
 colour, and reverse attribute the byte stream specifies for each cell. Anything the client
 draws outside that grid (menus, status, window chrome) is non-normative.
 
+### The border has a SIZE, not just a colour (non-normative but recommended)
+
+§5.5 says where the border *colour* comes from and — until now — nothing said how much
+border there should be. That silence is easy to get wrong in the same direction twice: a
+client on a modern display naturally draws a thin frame, because a thin frame looks tidy,
+and the result reads as *"the colours are right but it doesn't look like a C64."*
+
+On a C64 the border is a large part of the picture. The VIC-II's display window is the
+40×25 character area — **320×200 pixels** — and it sits inside a visible picture of
+**384×272** on PAL. That is:
+
+| | pixels |
+|---|---|
+| display window | 320 × 200 |
+| border, left and right | **32** each |
+| border, top and bottom | **36** each |
+| total visible picture | **384 × 272** |
+
+So each side border is about a tenth of the screen width, not a decorative hairline.
+
+- **PAL, not NTSC.** Compunet was a UK service on PAL machines; NTSC's visible picture is
+  a different shape (418×235) and would be the wrong reference here.
+- 384×272 is the geometry VICE uses, which makes it the figure most people's mental image
+  of "a C64 screen" is actually based on.
+- A client scaling the display **MUST** scale the border with it, or the proportion drifts
+  — which is exactly how the reference web client ended up with a border a quarter of the
+  right size: the canvas scaled and a fixed CSS padding did not.
+
+A client **MAY** show more or less border (real televisions overscanned a good deal of it),
+but a client aiming to look like the original should treat 32/36 as the target rather than
+picking a value that merely looks neat.
+
 ## 5.2 Character sets
 
 C64 PETSCII has two character sets; exactly one is active at a time:

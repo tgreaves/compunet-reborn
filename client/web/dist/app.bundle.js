@@ -2,6 +2,8 @@
 var COLS = 40;
 var ROWS = 24;
 var CELL = 8;
+var BORDER_X = 32;
+var BORDER_Y = 36;
 var RED = 2;
 var BLUE = 6;
 var TEMPLATE_BG = 15;
@@ -62,6 +64,7 @@ var Renderer = class {
     this.scale = scale;
     this.canvas.width = COLS * CELL * scale;
     this.canvas.height = (ROWS + 1) * CELL * scale;
+    this.wrap.style.padding = `${BORDER_Y * scale}px ${BORDER_X * scale}px`;
     const ctx = canvas2.getContext("2d");
     if (!ctx) throw new Error("no 2d context");
     this.ctx = ctx;
