@@ -231,6 +231,13 @@ The server does not report these; a client that ignores them looks fine and lose
       fails this — it would garbage-render an `F` and runs an `A` as 6502 with no machine guard —
       which is exactly the behaviour a new client must **not** reproduce (its being era-accurate
       and feature-locked, §1.8, does not excuse yours).
+- [ ] **⚠ A server REFUSES a base type it does not serve — it does not ignore it** (§7.4.1).
+      Put an `A` (action) entry in a directory by hand and select it. Did the server answer with
+      an error the client renders as a page, or did it send the entry's bytes as an ordinary
+      frame? The second is the dangerous answer: the client dispatches on the TYPE LETTER, so it
+      is already in its action handler expecting a download descriptor — it will read the frame's
+      leading bytes as that descriptor and, on a C64, **execute what arrives**. "We never emit
+      one" is not a guard; a hand-edited directory, an import or a migration can introduce one.
 - [ ] **⚠ A server serving `F` (IFF) guards it per machine** (§7.4.1). An `F` is Amiga content
       and downloads through the very descriptor an Amiga `P` uses, so a client that cannot decode
       ILBM must be **refused the download**, not handed the bytes. The reference server refuses an

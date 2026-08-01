@@ -1336,6 +1336,42 @@ class PictureDownloadF(unittest.TestCase):
         self.assertEqual(s.show_frame_index, 0)
         self.assertFalse(s._program_download_pending)
 
+    def test_an_action_entry_is_refused_outright_on_every_client(self):
+        """§7.4.1 — `A` is deliberately not served, and MUST be refused rather than
+        allowed to fall through to the frame path.
+
+        ⚠ The danger is not that A does nothing; it is that the CLIENT dispatches on the
+        type letter regardless of what the server sends. Letting an A reach the ordinary
+        frame path put the client in its action handler — which expects the 8-byte
+        descriptor and then Execute()s the result — while the server sent a text frame.
+        The Amiga read the frame's leading bytes as the descriptor (guarded only by
+        whatever that byte happened to be); the C64, which has no machine guard at all,
+        would execute the received data as 6502.
+
+        Refused for EVERY client, including the ones that could technically run it —
+        this is a policy decision (arbitrary code execution into frozen binaries), not a
+        capability check like the F guard above."""
+        for capability in ('amiga', 'api', None):
+            with self.subTest(client=capability):
+                s = session()
+                page = srv.CompunetPage(page_num=1234, title='ACTION', page_type='A',
+                                        author='TEST', price=0.0, life=1)
+                page.frames = [b'\x00\x06\x0f\x8e RUNME']
+                page.machine_type = 'amiga'
+                s.show_page = page
+                s.show_frame_index = 0
+                if capability == 'amiga':
+                    s.is_amiga = True
+                elif capability == 'api':
+                    s.audit_via = 'api'
+                out = s._send_current_frame()
+                self.assertEqual(out[0], srv.RESP_ERROR,
+                                 'an A must be refused, not sent as a frame')
+                self.assertNotIn(b'RUNME', bytes(out),
+                                 'the stored bytes must never reach the client')
+                self.assertFalse(getattr(s, '_program_download_pending', False),
+                                 'nothing may be staged for an A')
+
     def test_the_c64_is_refused_an_f_with_a_message_not_the_descriptor(self):
         hdr, s = self._serve(None)
         # RESP_ERROR ('E', 0x45) + PETSCII message + $00 — the C64 paints it as a page

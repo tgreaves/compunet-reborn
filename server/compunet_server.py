@@ -1528,6 +1528,25 @@ class CompunetSession:
         self.last_response_type = RESP_FRAME
         if self.show_page and self.show_frame_index < len(self.show_page.frames):
             page_type = self.show_page.page_type
+            # ⚠ 'A' (action) IS REFUSED, DELIBERATELY — and refusing is not the same as
+            # not implementing it. Until this guard, an A entry fell through to the frame
+            # path below and was sent as an ordinary text frame, while the CLIENT
+            # dispatched on the type letter into its action handler, which expects the
+            # 8-byte descriptor and then Execute()s what arrives. The two ends disagreed
+            # completely: the Amiga read the frame's first bytes as the descriptor and
+            # bailed on the machine check (guarded only by whatever that byte happened to
+            # be), and the feature-locked C64 — which has NO machine guard — zeroes three
+            # bytes at $0801 and executes the received data as 6502 code.
+            #
+            # An A cannot be created by upload (kind is gated to T/P/F), so this needs a
+            # hand-edited directory.json, an import, or a migration. Unlikely; but the
+            # failure mode is arbitrary code execution on a client that cannot be fixed,
+            # and "unlikely" is not a guard. See §7.4.1 for why A is not served at all:
+            # it downloads and immediately runs native, CPU-specific code.
+            if page_type == 'A':
+                log.warning('ACTION REFUSED: page=%d "%s" — type A is not served (§7.4.1)',
+                            self.show_page.page_num, self.show_page.title)
+                return self._make_error(ascii_to_petscii('NOT AVAILABLE'))
             # 'P' (program) and 'F' (IFF picture) both download through the 8-byte
             # descriptor and the $40 proceed handshake. Verified: the Amiga's F handler
             # action_download_run reuses the SAME file_download_xfer() that programs use

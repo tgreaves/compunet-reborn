@@ -52,6 +52,11 @@
 	* New: serves IFF pictures (directory type F) to the Amiga and web clients,
 	  and refuses them to the C64 — which has no way to display one — with a clear
 	  message instead of a corrupted screen (#129).
+	* Security: an "action" entry (directory type A) is now refused outright. The
+	  original service could send a program that ran the moment it arrived; this
+	  service deliberately does not, and until now an entry of that type — which
+	  could only get there by hand-editing content — would have been sent as an
+	  ordinary page while the client tried to run it (#129).
 	* Fixed: actions taken from the web and Electron clients were missing from
 	  the audit log. Sending mail, downloading a program, entering Partyline and
 	  disconnecting were all recorded from a C64, an Amiga or the terminal, and

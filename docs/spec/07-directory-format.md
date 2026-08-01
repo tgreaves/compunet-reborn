@@ -222,7 +222,7 @@ letter alone:
 | `S` | Sequential file (word-processor format) | download / view |
 | `L` | Link | activate the link subsystem (§8.5 — Partyline on the modern server) |
 | `F` | IFF/ILBM picture (§7.4.1) | download and display the picture — Amiga and web; **refused to the C64** |
-| `A` | Action: executable, run on arrival (§7.4.1) | download and immediately execute — **machine-specific; not served** |
+| `A` | Action: executable, run on arrival (§7.4.1) | download and immediately execute — **machine-specific; deliberately not served, and refused** |
 
 **⚠ The base-type set is OPEN, and a client MUST fall through safely (normative).** The reference
 server serves `F` (§7.4.1); it does **not** serve `A`, and a future producer MAY use a base
@@ -298,12 +298,32 @@ page (`PICTURE - AMIGA ONLY`), and serves it to the native Amiga and to Binding 
 Electron client, which carries its own ILBM decoder). This guard lives server-side because the
 C64 is frozen (§1.8) and cannot be taught to refuse for itself.
 
-**`A` — action: executable, downloaded and run (NOT served).** On the Amiga, `A` fetches an
-executable to `RAM:temp`, checks the machine byte is `1`, and `Execute()`s it — printing
-**"Not for Amiga!"** if the machine type is wrong. It differs from `P`: a `P` is *saved*, an `A`
-is *run* immediately. The payload is native code, so `A` is **machine-specific** even though more
-than one client implements it. The reference server does not serve `A`: run-on-arrival native code
-is low value and high risk (the C64 runs it as 6502 with no guard — see below).
+**`A` — action: executable, downloaded and run (DELIBERATELY NOT SERVED).** On the Amiga, `A`
+fetches an executable to `RAM:temp`, checks the machine byte is `1`, and `Execute()`s it —
+printing **"Not for Amiga!"** if the machine type is wrong. It differs from `P`: a `P` is *saved*,
+an `A` is *run* immediately. The payload is native code, so `A` is **machine-specific** even
+though more than one client implements it.
+
+The reference server **does not serve `A`, as a decision rather than an omission.** The type
+downloads and immediately executes native code; the payload only runs on the CPU it was built
+for; and the **C64 has no machine guard at all** — it zeroes three bytes at `$0801` and executes
+whatever arrived, whoever it was meant for. The capability on offer (run-on-arrival software) does
+not come close to justifying an arbitrary-code-execution path into clients that are frozen
+binaries and cannot be fixed (§1.8).
+
+> **⚠ A server that does not serve `A` MUST REFUSE IT EXPLICITLY (normative).** Not serving it is
+> not the same as not implementing it, and the difference is dangerous. A client dispatches on the
+> **type letter**, not on what the server sends: an `A` entry reaches the client's action handler,
+> which expects the 8-byte download descriptor (§8.3.1) and then executes the result. If the
+> server instead lets an `A` fall through to the ordinary frame path, the two ends disagree
+> completely — the client reads the frame's leading bytes **as the descriptor**, and on a C64 goes
+> on to execute the received data. The reference server therefore answers SHOW on an `A` with an
+> error response (`NOT AVAILABLE`), which a client renders as a page (§7.4). The entry still
+> appears in the listing, so an operator can see it exists; it simply cannot be selected.
+>
+> This matters even where `A` cannot be uploaded (the reference server gates content upload to
+> `T`, `P` and `F`): a hand-edited `directory.json`, an import, or a migration can still introduce
+> one, and "unlikely" is not a guard against code execution.
 
 **Per-client behaviour (verified):**
 
