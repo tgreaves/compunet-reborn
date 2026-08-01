@@ -287,16 +287,38 @@ otherwise it is a **mail send**.
 - **Mail send** — `rest` is up to five **8-byte destination IDs** (space-padded); the type
   byte is `T`.
 - **Content upload** — `rest` is a **6-byte price** (e.g. `005.00`) followed by a **lifetime
-  in days** (up to 3 ASCII digits); the type byte is `T` (text) or `P` (program).
+  in days** (up to 3 ASCII digits); the type byte is `T` (text), `P` (program) or `F`
+  (IFF picture, §7.4.1).
+
+> **⚠ `F` uploads exactly like `P` — 8-byte header then the body (normative).** The two are
+> the same transfer; only the type letter differs, and it decides what the *download* side
+> does with the bytes later (save vs decode). A server that accepts `F` at all **MUST**
+> receive it through its binary path, not its frame path: the reference server gated that
+> path on `P` alone, so an `F` fell into the PETSCII frame accumulator, was chopped at the
+> first short chunk, and was then mis-shaped again by the blob writer reading byte 0 of
+> `"FORM"` ($46) as a machine type. A corrupted file, stored under the wrong shape, with no
+> error at any point.
+>
+> This is easy to get wrong from the modern end. The native Amiga client has offered `F` in
+> its publish dialog since 1989 — its `put_frame` dispatch routes `A`, `S`, `P` and `F`
+> alike to the file-upload path — so a server that adds picture *support* for a web client
+> and forgets the Binding-A receive path has an era client that can already send something
+> it cannot store.
+>
+> A server **SHOULD** also validate that an `F` really is an ILBM (`FORM`????`ILBM`) and
+> **reject** it otherwise, rather than store it: there is no sensible repair for "this is
+> not the format you said it was", and the failure otherwise surfaces as a blank screen for
+> a different user much later.
 
 **The client MUST gather these fields from the user before sending `U` (normative).** A content
 upload's `U` payload is not derivable from the frame alone — the client **MUST** prompt the user
 for, and send, all of:
 
 - the **title** (the 16-byte subject/title field);
-- the **type** — **`T` for text frames** or **`P` for a program** — this is the type byte, and
-  it also decides the step-2 transfer (a `T` streams §6 frames; a `P` sends the 8-byte header +
-  raw file, §8.3.1). A client that always uploads as `T` cannot upload software;
+- the **type** — **`T` for text frames**, **`P` for a program**, or **`F` for an IFF picture**
+  where the server serves them (§7.4.1) — this is the type byte, and it also decides the step-2
+  transfer (a `T` streams §6 frames; a `P` or an `F` sends the 8-byte header + raw file,
+  §8.3.1). A client that always uploads as `T` cannot upload software;
 - the **price** (the 6-byte `NNN.NN` field — `000.00` for free); and
 - the **lifetime** in days.
 

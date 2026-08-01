@@ -2540,6 +2540,19 @@ class CompunetSession:
         is_picture = send['type'] == 'F'
         is_blob = send['type'] in ('P', 'F')
         prog_machine = send['frames'][0][0] if (is_blob and send['frames']) else None
+
+        # ⚠ VALIDATED HERE, IN THE SHARED FUNCTION, so BOTH bindings get it. Binding B
+        # checks before calling; Binding A had no check at all, so an Amiga could publish
+        # any file as an `F` and it would be stored as a picture that nothing can decode —
+        # discovered as a blank screen much later, by someone else. The body follows the
+        # 8-byte header, and an ILBM begins "FORM"????"ILBM". Reject rather than sanitise:
+        # there is no sensible repair for "this is not the format you said it was".
+        if is_picture:
+            body = bytes(send['frames'][0][8:]) if send['frames'] else b''
+            if body[0:4] != b'FORM' or body[8:12] != b'ILBM':
+                log.warning('UPLOAD DISCARDED: user=%s "%s" declared type F but is not '
+                            'an IFF ILBM (starts %r)', self.user_id, send['title'], body[:12])
+                return
         # ⚠ The split is by CPU, not by brand — 68k machines have no load address,
         # the 6502 does. Upload used to test `== 1` and so folded ST into the C64
         # branch, which would strip two bytes off the front of an ST file and store
@@ -3706,8 +3719,24 @@ async def tcp_handler(reader, writer):
                     log.debug('TCP: received ACK seq=$%02X', seq)
 
                 elif (session.pending_send is not None and token != 0x43
-                        and session.pending_send.get('type') == 'P'):
-                    # PROGRAM upload (Amiga/C64 binary), 8-byte header then the file.
+                        and session.pending_send.get('type') in ('P', 'F')):
+                    # BINARY upload — a program ('P') or an IFF picture ('F'): 8-byte
+                    # header then the file.
+                    #
+                    # ⚠ 'F' BELONGS HERE TOO. The Amiga's publish dialog has always
+                    # offered it — put_frame's jump table at 0x10c3c2 routes 'A','S','P'
+                    # and 'F' alike to upload_file — and it uses this identical
+                    # header-then-body format. Gating on 'P' alone sent an IFF upload to
+                    # the PETSCII frame accumulator below, which chopped it at the first
+                    # short chunk; _complete_content_upload then read byte 0 as the
+                    # machine type (it is $46, the 'F' of "FORM"), concluded "not 68k",
+                    # and stripped a C64 load address off data that has none. A corrupted
+                    # file, stored under the wrong shape, with no error anywhere.
+                    #
+                    # The gap came from adding F to Binding B first and treating picture
+                    # upload as a web-client feature — the Amiga could already VIEW them,
+                    # so uploading from a modern client felt like the whole story. It was
+                    # not: the 1989 dialog offers F, so the 1989 client can send one.
                     #
                     # ⚠ THE HEADER IS MACHINE-DEPENDENT, and so is how the body ENDS.
                     # Byte 0 selects (§8.3.2):

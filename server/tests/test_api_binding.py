@@ -653,6 +653,28 @@ class ProgramUpload(unittest.TestCase):
                          'the IFF must be stored whole — no load address to strip')
         self.assertTrue(stored[:4] == b'FORM' and stored[8:12] == b'ILBM')
 
+    def test_an_amiga_originated_f_upload_stores_whole(self):
+        """⚠ The Amiga's publish dialog has ALWAYS offered F — put_frame's jump table at
+        0x10c3c2 routes 'A','S','P','F' alike to upload_file — but the Binding-A receive
+        loop gated on type 'P', so an IFF from an Amiga went to the PETSCII frame
+        accumulator and was then mangled by the blob path.
+
+        This drives _complete_content_upload with the header the Amiga actually builds
+        (upload_file: bytes 0-3 = $01000000, bytes 4-7 = big-endian size), which is what
+        the widened receive loop now hands it."""
+        iff = self._iff()
+        blob = bytearray(8 + len(iff))
+        blob[0] = 0x01                                   # recon: *(ULONG*)hdr = 0x1000000
+        blob[4:8] = len(iff).to_bytes(4, 'big')          # recon: *(ULONG*)(hdr+4) = size
+        blob[8:] = iff
+        stored, entry = self._upload_to_graphics('AMIGAPIC', bytes(blob),
+                                                 kind='F', ext='iff')
+        self.assertEqual(entry['type'], 'F')
+        self.assertEqual(entry.get('machine_type'), 'amiga')
+        self.assertEqual(stored, iff,
+                         'byte 0 is 1 (Amiga), so the body is stored whole — no load '
+                         'address may be stripped')
+
     def test_a_non_iff_f_upload_is_refused_not_sanitised(self):
         """§7.4.1: reject a mislabelled F at upload rather than let it surface as a
         blank Amiga screen."""

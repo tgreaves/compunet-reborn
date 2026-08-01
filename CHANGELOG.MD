@@ -1,84 +1,40 @@
 # 1.4.0 (unreleased)
 
 * Web & desktop client:
-	* Fixed: the screen border was about a quarter of the size a real C64 shows —
-	  the colours were right but the proportions were not. It is now the full PAL
-	  border (a 320x200 screen inside a 384x272 picture), so the display looks
-	  like the machine it is imitating.
-	* New: Amiga pictures. A directory can now hold an IFF/ILBM picture — a new
-	  "F — IFF picture" upload type — and the web and desktop clients show it
-	  full-screen. On a real Amiga the picture paints in as it downloads, just as
-	  it did on the original service. There is a new AMIGA area off the main menu
-	  with a test picture in it (#129).
+	* Fixed: Screen border proportions now C64 accurate.
+	* New: Amiga picture (IFF/ILBM) rendering support.  'F' file type.
 	* Changed: uploading a program now asks whether it is for the C64 or the
-	  Amiga, instead of guessing from the file name. A wrong guess used to corrupt
-	  the file when someone downloaded it again, not merely mislabel it (#118).
+	  Amiga, instead of guessing from the file name.
 * Amiga client:
-	* Fixed: clicking any directory button — Dir, Back, Goto, Dnld or Upld — painted
-	  a solid block over it that never came off. The button stayed blanked out for
-	  the rest of the session.
-	* Fixed: pressing Return in Goto Page, Download filename, Upload filename, Vote
-	  or Extend By abandoned the command instead of accepting it, and those fields
-	  opened without a cursor, so typing did nothing until you clicked into them.
+	* Fixed: Rendering buttons were staying 'painted' once clicked.
+	* Fixed: Text fields handle RETURN correctly + open with a cursor now.
+	* Fixed: TAB moves between fields now.
 	* Fixed: Left-Amiga+HELP now aborts a download or page read that is in progress.
-	  It only ever worked when the client was idle — that is, never when you needed
-	  it.
-	* Fixed: disconnecting did not release the modem — the device stayed open and
-	  its ports stayed live, so connecting again in the same session built on top
-	  of the previous connection instead of starting cleanly.
-	* Fixed: turning on Diagnostics opened a window that stayed blank for the whole
-	  session, and it could not be closed again until you quit. It now shows the
-	  device messages it always should have, and closes properly.
-	* Fixed: TAB did not move between the fields on the connect panel.
+	* Fixed: Disconnected now releases the modem device.
+	* Fixed: Diagnostics window now works + closes correctly.
 	* Fixed: the "Frame being edited" box drew rubbish where NEXT or LAST should
 	  have been.
-	* Fixed: the client leaked memory on every run — the character set, and the
-	  editor and Partyline viewer programs, were never given back. Long sessions
-	  with several connections were the worst affected.
+	* Fixed: Various memory leaks.
+	* Fixed: Use of 'GOTO' corrupting memory elsewhere in the client.
 	* Fixed: entering a Goto Page code could corrupt memory elsewhere in the client.
-	* Fixed: the built-in IFF picture viewer never showed anything. The picture was
-	  decoded correctly and then drawn onto a screen left behind the client's own,
-	  through a window sized for a different screen — so a download completed, the
-	  file saved, and nothing appeared (#129).
-	* Fixed: quitting after viewing a picture crashed the client.
-	* Fixed: a charged text page was downloaded, and you were billed, without the
-	  "WARNING - CHARGED ITEM" confirmation ever appearing. Every other kind of
-	  charged item asked first.
-	* Fixed: the connect panel drew its text in the same colour as its background.
-	  It now reads blue on white, as the original did.
-	* Fixed: a link (Partyline) entry was accepted without checking half of its
-	  header, so a malformed one was not rejected.
+	* Fixed: Built-in IFF renderer was non-functional (#129)
+	* Fixed: Quitting after viewing a picture crashed the client.
+	* Fixed: User being billed for a charged text page without a warning prompt first.
+	* Fixed: Connect panel text now has the correct palette.
+	* Fixed: Links (e.g. Partyline) now guard against malformed headers.
 * Website:
-	* New: the audit log can be filtered and searched — by user, event, kind,
-	  client, IP, date range, or any text in the entry. Finding a particular
-	  action meant paging through 137 pages by eye (#128).
+	* New: Audit log filtering / searching (#128)
 * Server:
-	* New: serves IFF pictures (directory type F) to the Amiga and web clients,
-	  and refuses them to the C64 — which has no way to display one — with a clear
-	  message instead of a corrupted screen (#129).
-	* Security: an "action" entry (directory type A) is now refused outright. The
-	  original service could send a program that ran the moment it arrived; this
-	  service deliberately does not, and until now an entry of that type — which
-	  could only get there by hand-editing content — would have been sent as an
-	  ordinary page while the client tried to run it (#129).
-	* Fixed: actions taken from the web and Electron clients were missing from
-	  the audit log. Sending mail, downloading a program, entering Partyline and
-	  disconnecting were all recorded from a C64, an Amiga or the terminal, and
-	  silently not recorded from the JSON API (#127).
-	* Fixed: administrator actions were not recorded at all — editing or deleting
-	  an account, granting editor rights, adjusting credit, sending a broadcast,
-	  and approving or rejecting a registration. An account edit now also records
-	  what changed (#127).
-	* Fixed: the audit log recorded every Amiga session as a C64, so the two
-	  could not be told apart. Entries written before this release still say
-	  `c64` for both — that history cannot be recovered.
-	* Fixed: once a download finished, the server still treated that page as the
-	  one being shown, so the next command could offer the same download again.
-	* Fixed: web and Electron client sessions stayed listed on WHO IS ONLINE
-	  after disconnecting.
-	* New: creating a directory is recorded; it never was, on any client.
-	* New: every entry says which client it came from and carries the user's
-	  address.
+	* New: IFF (Type 'F') picture support, supporting Amiga and web clients (#129)
+	* Security: Action (Type @A') entries are refused outright.  The original service
+	  had them for the Amiga but these are UNSAFE (client executes the code without
+	  warning!) (#129)
+	* Fixed: Audit actions from Web and Electron clients were missing. (#127)
+	* Fixed: Administrator audit actions were missing. (#127)
+	* Fixed: Audit log recording Amiga sessions as C64.
+	* Fixed: Audit log now consistently records IP address.
+	* Fixed: Web and Electron client sessions showing as 'WHO IS ONLINE' despite
+	  disconnecting.
 
 # 1.3.1 (2026-07-30)
 
