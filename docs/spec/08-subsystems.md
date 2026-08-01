@@ -327,6 +327,15 @@ the wire format and to what gets stored, and the price is the field the server k
 mail-vs-content detection on (`.` in `rest[:8]`, above). Collect all four, then build the
 payload.
 
+> **⚠ A server MUST validate the type byte and refuse anything outside `T`, `P` and `F`
+> (normative), on every binding and every terminal it offers** — see §7.4.1 for why, and for the
+> reason this is reachable from an era client: the Amiga takes the type as free text and routes
+> `A` and `S` down the same file-upload path as `P` and `F`. Refuse at the `U` command, so the
+> user is told before streaming a file, and again in whatever shared code writes the page. The
+> reference server answers a bad type with `INVALID PAGE TYPE` and leaves no pending transfer
+> behind — a refusal that forgets to clear the pending state would accumulate the next data
+> packet against a half-built upload.
+
 **⚠ Collecting the four fields does not start the upload — it opens the upload sub-context
 (normative).** Accepting them sends **nothing**; it puts the client in the **upload sub-context**
 (§4.8), whose row is `SEND`, `LOAD`, `GET`, `FINISH`. `U` goes on the wire when the user issues

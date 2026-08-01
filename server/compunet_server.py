@@ -396,6 +396,16 @@ RESP_DIR = 0x44       # 'D' - directory data
 RESP_FRAME = 0x46     # 'F' - frame data
 RESP_ERROR = 0x45     # 'E' - error
 
+# The content types a user may UPLOAD (§7.4.1, §8.3.2). Deliberately narrower than the
+# set of type letters a client can DISPATCH on: the era Amiga's publish dialog is a free
+# text field whose jump table (0x10c3c2) routes 'A', 'S', 'P' and 'F' alike to the
+# file-upload path, so a user can type any of them. 'A' is run-on-arrival native code and
+# is not served at all (§7.4.1) — accepting one for storage would put an executable in
+# the tree for a hand-edit or a migration to later expose. 'S' has no handler anywhere in
+# this service. One tuple, shared by both bindings, so a type accepted on one is accepted
+# on the other; the spec asserts this gate exists, so it must be true everywhere.
+UPLOAD_TYPES = ('T', 'P', 'F')
+
 # Program-file machine type. Stored human-readably on the page ('c64'/'amiga') and mapped
 # to the download header's byte-0 machine code the client reads (0=C64, 1=Amiga, 2=Atari
 # ST). Uploaded 'P' pages record their uploader's platform; absent/unknown -> C64 (0), so
@@ -2333,6 +2343,18 @@ class CompunetSession:
         log.info('CONTENT UPLOAD: user=%s title="%s" type=%s price=%.2f life=%d',
                  self.user_id, title, page_type, price, lifetime)
 
+        # ⚠ Refuse an unsupported type HERE, before the transfer, not at completion.
+        # The Amiga's publish dialog takes the type as free text and its jump table sends
+        # 'A' and 'S' down the same file-upload path as 'P' and 'F', so this is reachable
+        # from an era client, not only from a hostile one. Refusing at the 'U' command
+        # means the user is told before spending a transfer on it; refusing at completion
+        # would let the whole file stream up and then vanish silently.
+        if page_type not in UPLOAD_TYPES:
+            log.warning('UPLOAD REFUSED: user=%s title="%s" type=%r is not uploadable',
+                        self.user_id, title, page_type)
+            self.pending_send = None
+            return self._make_error(ascii_to_petscii('INVALID PAGE TYPE'))
+
         self.pending_send = {
             'mode': 'upload',
             'title': title,
@@ -2491,6 +2513,16 @@ class CompunetSession:
 
     def _complete_content_upload(self, send):
         """Add or replace uploaded page in the current directory."""
+        # ⚠ The backstop for the type gate, in the SHARED function so every binding —
+        # present and future — inherits it, exactly as the audit rule requires of the
+        # actions it covers. Both bindings already refuse an unsupported type at their
+        # own entry point, where they can report a reason to the user; this catches
+        # anything that reaches the writer by another route. Belt and braces is the point:
+        # the thing being kept out of the tree is an executable (§7.4.1).
+        if send['type'] not in UPLOAD_TYPES:
+            log.warning('UPLOAD DISCARDED: user=%s "%s" type=%r is not uploadable',
+                        self.user_id, send['title'], send['type'])
+            return
         if not self._can_upload_here():
             log.info('UPLOAD DISCARDED: user=%s cannot upload to page owned by %s',
                      self.user_id, self.current_page.author)

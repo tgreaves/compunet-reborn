@@ -244,6 +244,17 @@ The server does not report these; a client that ignores them looks fine and lose
       `F` to the C64 with a message it paints as a page, and serves it to the Amiga and to
       Binding B (which decodes ILBM itself). If your server serves `F`, it owns this guard —
       the frozen C64 cannot refuse for itself.
+- [ ] **⚠ A server gates the UPLOAD type too, on every path a user can reach** (§7.4.1, §8.3.2).
+      Refusing to *serve* `A` is half a guard; a stored `A` is an executable waiting for the
+      other half to be forgotten. Try uploading type `A` through **each** binding and terminal
+      you offer — not just the one you were thinking about. This is reachable from an era
+      client: the Amiga's publish requester takes the type as free text and routes `A` and `S`
+      down the same file-upload path as `P` and `F`. The reference server gated its JSON binding
+      only, for two releases, while its X.25 binding and its PETSCII terminal stored any letter
+      verbatim — and this specification asserted the gate existed the whole time. Check each
+      path yourself rather than trusting a shared-code claim; if a path cannot store a type
+      correctly, refusing it there is right (the reference terminal takes `T` and `P` only,
+      because its writer produces a `.prg` and cannot store an `F`).
 - [ ] **Upload into a full directory is refused by the client** (11 entries) rather than
       attempted — the server discards it with no error (§8.3.2).
 - [ ] **Upload prompts for type *and* price** — omitting type makes program upload impossible

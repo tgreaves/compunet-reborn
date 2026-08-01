@@ -321,9 +321,28 @@ binaries and cannot be fixed (§1.8).
 > error response (`NOT AVAILABLE`), which a client renders as a page (§7.4). The entry still
 > appears in the listing, so an operator can see it exists; it simply cannot be selected.
 >
-> This matters even where `A` cannot be uploaded (the reference server gates content upload to
-> `T`, `P` and `F`): a hand-edited `directory.json`, an import, or a migration can still introduce
-> one, and "unlikely" is not a guard against code execution.
+> This matters even where `A` cannot be uploaded (see below): a hand-edited `directory.json`, an
+> import, or a migration can still introduce one, and "unlikely" is not a guard against code
+> execution.
+
+> **⚠ A server MUST also gate CONTENT UPLOAD to the types it supports, on EVERY path a user can
+> reach (normative).** Refusing to *serve* `A` is only half the guard: a stored `A` is an
+> executable sitting in the tree waiting for the other half to be forgotten. Accept `T`, `P` and
+> `F` (§8.3.2) and refuse every other letter with an error the user can see.
+>
+> The trap is that this is **reachable from an era client, not only from a crafted one**. The
+> Amiga's publish requester takes the page type as a **free-text field**, and `put_frame`'s jump
+> table (relocated `0x10c3c2`) routes `'A'`, `'S'`, `'P'` and `'F'` alike to `upload_file` — so a
+> user can type `A`, and the client will happily stream a file for it. The reference server gated
+> only its JSON binding for two releases while its X.25 binding and its PETSCII terminal accepted
+> any letter and stored it verbatim; this specification asserted the gate existed while it did
+> not. Put the check at each entry point (so the user learns before spending a transfer) **and**
+> in the shared code that writes the page, so a binding added later inherits it.
+>
+> A path may legitimately gate **more narrowly** than the server as a whole: the reference
+> PETSCII terminal accepts only `T` and `P`, because its upload path writes a `.prg` with no
+> machine type and cannot store an `F` correctly. Refusing what a path cannot store is right;
+> storing it wrongly is not.
 
 **Per-client behaviour (verified):**
 

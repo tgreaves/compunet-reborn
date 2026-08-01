@@ -689,6 +689,64 @@ class ProgramUpload(unittest.TestCase):
         self.assertIn('ILBM', reply.get('message', ''))
 
 
+class UploadTypeGate(unittest.TestCase):
+    """Only T, P and F may be uploaded (§7.4.1, §8.3.2) — and the gate has to hold on
+    EVERY path, because the type letter is not decoration: an 'A' is native code the
+    client downloads and executes, which is why the server refuses to serve one at all.
+    A path that stores an 'A' puts an executable in the tree for a later hand-edit,
+    import or migration to expose, and 'unlikely' is not a guard against code execution.
+
+    The spec already asserted this gate existed. It only ever existed in Binding B."""
+
+    def test_binding_b_refuses_an_action_upload(self):
+        s = session()
+        send(s, type='goto', target=str(JUNGLE))
+        send(s, type='enter', page=GRAPHICS)
+        reply = send(s, type='upload', title='EVIL', kind='A', price=0, life=30,
+                     frames=['AAAA'])
+        self.assertEqual(reply.get('type'), 'error')
+        self.assertEqual(reply.get('code'), 'invalid')
+
+    def test_binding_a_refuses_an_action_upload_before_the_transfer(self):
+        """⚠ Reachable from an ERA client, not just a hostile one: the Amiga's publish
+        dialog takes the type as free text and its jump table at 0x10c3c2 routes 'A' and
+        'S' down the same upload_file path as 'P' and 'F'.
+
+        Refused at the 'U' command, so the user is told before streaming a file — and
+        pending_send must be left clear, or the next data packet would be accumulated
+        against a half-built upload."""
+        s = session()
+        s.current_page = s.directory.pages[GRAPHICS]
+        reply = s._cmd_upload_content('EVIL', 'A', b'000.00030')
+        self.assertEqual(reply[0], srv.RESP_ERROR,
+                         'an unsupported type must be refused, not accepted')
+        self.assertIsNone(s.pending_send,
+                          'a refused upload must leave no pending transfer behind')
+
+    def test_the_shared_writer_discards_an_action_even_if_something_reaches_it(self):
+        """The backstop in _complete_content_upload — the shared function every binding
+        goes through — so a future binding cannot reintroduce the gap by forgetting its
+        own check. Both current bindings refuse earlier; this asserts the floor."""
+        import json
+        s = session()
+        s.current_page = s.directory.pages[GRAPHICS]
+        s._complete_content_upload({'mode': 'upload', 'title': 'EVIL', 'type': 'A',
+                                    'price': 0.0, 'lifetime': 30, 'frames': [b'\x01' * 32]})
+        with open(os.path.join(srv.ROOT_DIR, 'jungle', 'graphics',
+                               'directory.json')) as f:
+            titles = [p['title'] for p in json.load(f)['pages']]
+        self.assertNotIn('EVIL', titles, 'an A must never reach the directory')
+
+    def test_a_supported_type_still_passes_the_gate(self):
+        """Guard against over-refusing: the gate must not break the ordinary case."""
+        s = session()
+        s.current_page = s.directory.pages[GRAPHICS]
+        reply = s._cmd_upload_content('FINEPAGE', 'T', b'000.00030')
+        self.assertNotEqual(reply[0], srv.RESP_ERROR)
+        self.assertIsNotNone(s.pending_send)
+        self.assertEqual(s.pending_send['type'], 'T')
+
+
 class ProgramUploadAccumulator(unittest.TestCase):
     """Binding A's program-upload receive loop (§8.3.2), which had no test — the
     reason a C64 regression shipped on 2026-07-22 and sat unnoticed.

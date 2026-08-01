@@ -1824,7 +1824,27 @@ class TerminalSession:
         page_type = await self.read_line(max_len=1)
         if not page_type.strip():
             page_type = 'P'
-        await _update_preview(title=title.strip(), page_type=page_type.strip())
+        # ⚠ The terminal writes the page itself rather than going through
+        # _complete_content_upload, so it does NOT inherit that function's type gate and
+        # needs its own. Without this the prompt is a free-text letter stored verbatim:
+        # 'A' — run-on-arrival native code the server refuses to serve at all (§7.4.1) —
+        # could be put into the tree from here.
+        #
+        # ⚠ And this set is NARROWER than cs.UPLOAD_TYPES on purpose: the terminal's
+        # binary path unconditionally writes a `.prg` with no machine_type and no ILBM
+        # check (below), so an 'F' accepted here would be stored as a program and serve
+        # as an undecodable picture. Refuse what this path cannot store, rather than
+        # store it wrongly. Uploading a picture is the Amiga's and the web client's job.
+        if page_type.strip().upper() not in ('T', 'P'):
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text('INVALID PAGE TYPE'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+        page_type = page_type.strip().upper()
+        await _update_preview(title=title.strip(), page_type=page_type)
 
         await self.cursor_to(24, 0)
         await self.send_text('PRICE? '.ljust(39))

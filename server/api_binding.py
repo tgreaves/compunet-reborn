@@ -833,7 +833,7 @@ def upload_content(session, msg, msg_id=None):
     if not title:
         return {"type": "error", "id": msg_id, "code": "invalid",
                 "message": "title is required"}
-    if kind not in ("T", "P", "F"):
+    if kind not in _srv.UPLOAD_TYPES:            # one list, shared with Binding A
         return {"type": "error", "id": msg_id, "code": "invalid",
                 "message": "kind must be 'T' (text), 'P' (program) or 'F' (IFF picture)"}
     if not frames:
