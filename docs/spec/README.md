@@ -1,12 +1,15 @@
 # Compunet Client Specification
 
 > **Status:** Written and validated. All section files (§§1–8 + appendices) are complete,
-> and the spec has been independently verified by **five** source-isolated clean-room builds
-> (see [VALIDATION.md](VALIDATION.md)). Tracking: issue #111.
+> and the spec has been independently verified by **nine** source-isolated clean-room builds —
+> six of this binding, three of Binding B (see [VALIDATION.md](VALIDATION.md)). Tracking:
+> issue #111.
 >
 > This document is **Binding A** — the X.25-over-TCP wire protocol, and the binding the C64 and
 > Amiga clients use. The modern **JSON API (Binding B)** is specified separately in
-> [api/README.md](api/README.md) (draft; tracking issue #91).
+> [api/README.md](api/README.md), and is **normative** too: it carries the same application
+> model, it has been clean-room validated three times over, and it is what the web and desktop
+> clients speak in production.
 
 This is the normative, platform-agnostic specification for building a **Compunet Reborn**
 client that connects to the modern server over **TCP/IP**. It is the single source of
@@ -89,7 +92,8 @@ binding), this binding's **wire** format (X.25-over-TCP / PETSCII), or **mixed**
 - **[api/](api/README.md)** — **Binding B**, the modern JSON API for web / desktop / mobile
   clients, as its own document set:
   - [api/README.md](api/README.md) — the binding spec: endpoints, auth, message schema,
-    directory/frame shapes, push events. Draft until clean-room-validated.
+    directory/frame shapes, push events. **Normative** — the condition set here, clean-room
+    validation, was met by runs seven to nine ([VALIDATION.md](VALIDATION.md)).
   - [api/RATIONALE.md](api/RATIONALE.md) — why it is shaped that way, what was rejected, and the
     invariants it must keep (e.g. never expose behaviour Binding A cannot reach).
 - [CONFORMANCE.md](CONFORMANCE.md) — a self-audit to run against a finished client: *did you

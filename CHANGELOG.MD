@@ -26,7 +26,7 @@
 	* New: Audit log filtering / searching (#128)
 * Server:
 	* New: IFF (Type 'F') picture support, supporting Amiga and web clients (#129)
-	* Security: Action (Type @A') entries are refused outright.  The original service
+	* Security: Action (Type 'A') entries are refused outright.  The original service
 	  had them for the Amiga but these are UNSAFE (client executes the code without
 	  warning!) (#129)
 	* Security: Uploads are now restricted to text, program and picture types.
