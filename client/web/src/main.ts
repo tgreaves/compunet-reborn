@@ -5,6 +5,7 @@ import type { Account, Assets, Cell, DirectoryMsg, FrameMsg, ServerMsg } from '.
 import { Renderer, frameIsLower } from './render';
 import { Gateway } from './gateway';
 import { EditorBuffer, frameToPage, MIN_PAGES, DEFAULT_MAX_PAGES } from './editor';
+import { decodeILBM } from './iff';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -239,15 +240,35 @@ function onMessage(m: ServerMsg): void {
       break;
     }
     case 'download': {
-      const d = m as { title: string | null; size: number; machine: string };
+      const d = m as { title: string | null; size: number; machine: string; kind?: string };
+      // Carry the entry type across the two-step fetch (§8.3.1): an F is displayed as
+      // a picture, a P is saved. `machine` cannot tell them apart — both are 'amiga'.
+      pendingDownloadKind = d.kind === 'F' ? 'F' : 'P';
+      // ⚠ A PICTURE IS NOT ASKED ABOUT. SHOW on an `F` means "look at this", and the
+      // user has already said so by running the command — a confirm box in between
+      // is a second question with no second decision behind it. It costs nothing to
+      // view (the overlay closes on any key) and nothing lands on disk, so there is
+      // nothing to consent to. A program download still asks, because that one DOES
+      // write a file the user has to put somewhere.
+      if (pendingDownloadKind === 'F') {
+        status(`Loading ${d.title} — ${d.size} bytes`);
+        gw.send({ type: 'download.fetch' });
+        break;
+      }
       status(`Download: ${d.title} — ${d.size} bytes (${d.machine})`);
       if (confirm(`Download "${d.title}" (${d.size} bytes)?`)) gw.send({ type: 'download.fetch' });
       break;
     }
     case 'download.data': {
       const d = m as { title: string | null; bytes: string; size: number };
-      saveBase64(d.bytes, (d.title || 'download').replace(/\s+/g, '_').toLowerCase() + '.prg');
-      status(`Saved ${d.title} (${d.size} bytes)`);
+      if (pendingDownloadKind === 'F') {
+        showPicture(d.bytes, d.title || 'picture');
+        status(`Showing ${d.title} (${d.size} bytes)`);
+      } else {
+        saveBase64(d.bytes, (d.title || 'download').replace(/\s+/g, '_').toLowerCase() + '.prg');
+        status(`Saved ${d.title} (${d.size} bytes)`);
+      }
+      pendingDownloadKind = 'P';
       break;
     }
     case 'account': {
@@ -415,7 +436,12 @@ function renderEditor(): void {
  *  metadata is validated first, and only then does the client transmit frames.
  *  `pendingUpload` holds the accepted metadata across that boundary, and its
  *  presence IS the upload sub-context (§4.8) — see netContext(). */
-let pendingUpload: { title: string; kind: string; price: number; life: number } | null = null;
+let pendingUpload:
+  { title: string; kind: string; price: number; life: number; machine: string }
+  | null = null;
+/** The base type of the download the user just confirmed (§8.3.1), carried from the
+ *  `download` descriptor to the `download.data` payload so an F is shown and a P saved. */
+let pendingDownloadKind: 'P' | 'F' = 'P';
 /** Frames the user has SENT into the upload, awaiting FINISH (§8.3.2 step 2). */
 /** Frames staged by SEND, awaiting FINISH. A `kind: 'P'` upload stages base64
  *  PROGRAM BLOBS (bare strings, §8.3.2) rather than editor pages — the server
@@ -441,6 +467,7 @@ function openSubmit(kind: 'upload' | 'mail'): void {
     ? `Upload into "${dir?.title ?? 'this directory'}"`
     : 'Send as mail';
   $('edContentFields').hidden = kind !== 'upload';
+  syncMachineField();
   // ⚠ Hide the LABEL WRAPPER, not the input: hiding the bare field would leave
   // its caption behind, so mail composition would show a stray "To" over
   // nothing.
@@ -453,6 +480,13 @@ function openSubmit(kind: 'upload' | 'mail'): void {
     : 'Recipients: up to five user IDs, comma-separated.';
   $<HTMLInputElement>('edTitle').value = '';
   $<HTMLInputElement>('edTitle').focus();
+}
+
+/** The Machine picker only means anything for a program upload — a text page has
+ *  no machine. Hiding the LABEL, not the select, so its caption goes with it. */
+function syncMachineField(): void {
+  const isProgram = $<HTMLSelectElement>('edKind').value === 'P';
+  $('edMachineField').hidden = !isProgram || $('edContentFields').hidden;
 }
 
 function closeSubmit(): void { submitMode = null; $('submit').hidden = true; }
@@ -471,6 +505,9 @@ function doSubmit(): void {
       kind: $<HTMLSelectElement>('edKind').value,
       price: parseFloat($<HTMLInputElement>('edPrice').value) || 0,
       life: parseInt($<HTMLInputElement>('edLife').value, 10) || 0,
+      // Carried through the upload sub-context so SEND knows which machine the
+      // user chose; meaningless for a text upload and ignored there.
+      machine: $<HTMLSelectElement>('edMachine').value,
     };
     // ⚠ Accepting the metadata does NOT transmit anything. It enters the upload
     // sub-context (§4.8), where SEND adds frames and FINISH commits — the same
@@ -829,7 +866,41 @@ function toBase64(bytes: Uint8Array): string {
  *  to know when it ends. Binding B sends one blob whose length is already
  *  known, so the size here is informational. See the note added to §8.3.2.
  */
+/** What the bytes look like, or `null` when they say nothing.
+ *
+ *  ⚠ A HINT, NEVER A DECISION. It exists to catch an obvious mistake — a HUNK
+ *  binary declared C64, or a `$0801` .prg declared Amiga — and to say so before
+ *  FINISH commits the entry. It must NOT choose, and it must NOT reject: most
+ *  Amiga content matches nothing here (modules, IFF pictures, fonts, raw data),
+ *  and "it doesn't look like anything I recognise" is not evidence of a mistake.
+ */
+function sniffMachine(file: Uint8Array): 'c64' | 'amiga' | null {
+  // Amiga HUNK executable: HUNK_HEADER is unambiguous.
+  if (file.length >= 4 && file[0] === 0x00 && file[1] === 0x00 &&
+      file[2] === 0x03 && file[3] === 0xF3) return 'amiga';
+  // ProTracker and friends: the 4-char signature at offset 1080.
+  if (file.length >= 1084) {
+    const sig = String.fromCharCode(file[1080], file[1081], file[1082], file[1083]);
+    if (['M.K.', 'M!K!', 'M&K!', 'FLT4', 'FLT8', '4CHN', '6CHN', '8CHN'].includes(sig)) {
+      return 'amiga';
+    }
+  }
+  // A C64 .prg opens with a load address. $0801 is BASIC start and by far the
+  // commonest; the others are the usual machine-code origins.
+  if (file.length >= 2) {
+    const load = file[0] | (file[1] << 8);
+    if ([0x0801, 0x1001, 0x0401, 0xC000, 0x2000, 0x3000].includes(load)) return 'c64';
+  }
+  return null;
+}
+
 function sendProgram(): void {
+  // An IFF picture ('F') is Amiga content by definition (§7.4.1) — the Machine
+  // picker is not shown for it and there is nothing to strip, so it is sent whole
+  // with the Amiga machine byte. A program ('P') carries the machine the user
+  // chose (defaulting to C64, the commoner case and the pre-#118 behaviour).
+  const isPicture = pendingUpload?.kind === 'F';
+  const machine = isPicture ? 'amiga' : (pendingUpload?.machine ?? 'c64');
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.onchange = () => {
@@ -837,9 +908,25 @@ function sendProgram(): void {
     if (!f) return;
     void f.arrayBuffer().then((ab) => {
       const file = new Uint8Array(ab);
-      // A .prg opens with its 2-byte load address; anything else is treated as
-      // an Amiga HUNK executable, which carries no load address at all.
-      const isC64 = /\.prg$/i.test(f.name);
+      // ⚠ THE MACHINE IS DECLARED, NOT DERIVED. This used to be
+      // `/\.prg$/i.test(f.name)` — anything not named .prg was called Amiga.
+      //
+      // It cannot be derived, and sniffing does not rescue it: `machine_type`
+      // says which MACHINE the file is for, not what shape the file is. The
+      // native clients never guess because they cannot be wrong — a C64 client
+      // is uploading C64 content by definition. This is the only multi-platform
+      // client, so it is the only one that has to ask.
+      //
+      // Amiga content is routinely not an executable: a ProTracker module, an
+      // IFF picture, a font. None of those has a signature that says "Amiga",
+      // and refusing them for failing to look like a HUNK binary would reject
+      // most of what people actually upload.
+      //
+      // It matters because byte 0 becomes the page's machine_type, and the
+      // DOWNLOAD path uses it to decide whether to restore a 2-byte load
+      // address — so a wrong value corrupts the file coming back out, not just
+      // its label (#118).
+      const isC64 = machine !== 'amiga';
       const body = isC64 ? file.subarray(2) : file;
       const load = isC64 ? file[0] | (file[1] << 8) : 0;
       if (isC64 && file.length < 3) { status('That .prg is too small to be a program', true); return; }
@@ -854,7 +941,43 @@ function sendProgram(): void {
       outgoingUpload.push(toBase64(blob));
       const kb = Math.ceil(body.length / 1024);
       rowMessage.net = `${f.name.toUpperCase().slice(0, 20)} ${kb}K ADDED`;
-      status(`${f.name} — ${body.length} bytes, ${isC64 ? `C64 load $${load.toString(16).toUpperCase().padStart(4, '0')}` : 'Amiga'}. FINISH to commit.`);
+
+      // ⚠ SAY WHICH MACHINE WAS USED, every time. The whole failure this fixes
+      // was silent: a wrong machine produced a stored entry that only revealed
+      // itself when someone downloaded it and the file would not run. Reporting
+      // it here makes a bad call visible while FINISH is still un-pressed.
+      //
+      // For a C64 the load address is the tell. `$0801` reads as plausible;
+      // `$6164` is the ASCII "da" of a file that is not a .prg at all, and
+      // showing it lets the user recognise their own mistake without being
+      // lectured by a validator that would have to be wrong sometimes.
+      if (isPicture) {
+        // An F must be an IFF ILBM. The server rejects a non-IFF (it does not
+        // sanitise), so warn here rather than let the user FINISH into a refusal.
+        const isIFF = file.length >= 12 &&
+          String.fromCharCode(file[0], file[1], file[2], file[3]) === 'FORM' &&
+          String.fromCharCode(file[8], file[9], file[10], file[11]) === 'ILBM';
+        status(
+          `${f.name} — ${body.length} bytes, Amiga IFF picture. ` +
+          (isIFF ? '' : '⚠ this does not look like an IFF ILBM — the server will refuse it. ') +
+          'FINISH to commit.',
+          !isIFF);
+        updateBar();
+        return;
+      }
+      const shown = isC64
+        ? `C64, load $${load.toString(16).toUpperCase().padStart(4, '0')}`
+        : 'Amiga';
+      const detected = sniffMachine(file);
+      const disagrees = detected !== null && detected !== machine;
+      status(
+        `${f.name} — ${body.length} bytes, ${shown}. ` +
+        (disagrees
+          ? `⚠ but this looks like ${detected === 'amiga' ? 'an Amiga' : 'a C64'} file — ` +
+            'CANCEL and start again if the Machine is wrong. '
+          : '') +
+        'FINISH to commit.',
+        disagrees);
       updateBar();
     });
   };
@@ -871,7 +994,7 @@ const uploadActions: Record<string, () => void> = {
   // "a client that always uploads as T cannot upload software" failure §8.3.2
   // names, presenting as "it just goes into the editor".
   SEND: () => {
-    if (pendingUpload?.kind === 'P') { sendProgram(); return; }
+    if (pendingUpload?.kind === 'P' || pendingUpload?.kind === 'F') { sendProgram(); return; }
     outgoingUpload.push(buf.toFrames()[buf.cur]);
     status(`Page ${buf.cur + 1} added — ${outgoingUpload.length} page(s) in the upload. FINISH to commit.`);
   },
@@ -933,15 +1056,63 @@ async function sendMail(): Promise<void> {
   status('SEND each frame of the message, then FINISH. EDITR to compose.');
 }
 
+function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
+  const bin = atob(b64);
+  const buf = new Uint8Array(new ArrayBuffer(bin.length));
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf;
+}
+
 /** Trigger a browser save of base64 payload (program download, §8.3.1). */
 function saveBase64(b64: string, filename: string): void {
-  const bin = atob(b64);
-  const buf = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const buf = base64ToBytes(b64);
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/octet-stream' }));
   const a = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Decode an IFF ILBM (§7.4.1 type `F`) and show it in a dismissable overlay. The web
+ *  client is the only one that renders an F itself — the Amiga has its own viewer and the
+ *  C64 is refused the download server-side. A decode failure is reported, not thrown. */
+function showPicture(b64: string, title: string): void {
+  let img;
+  try {
+    img = decodeILBM(base64ToBytes(b64));
+  } catch (e) {
+    status(`Cannot show ${title}: ${(e as Error).message}`, true);
+    return;
+  }
+  const cv = document.createElement('canvas');
+  cv.width = img.width; cv.height = img.height;
+  cv.style.cssText = 'image-rendering:pixelated;max-width:100%;max-height:78vh;'
+    + 'border:1px solid var(--line);border-radius:6px;background:#000';
+  const ctx = cv.getContext('2d');
+  if (ctx) ctx.putImageData(new ImageData(img.rgba, img.width, img.height), 0, 0);
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:20;background:#000c;display:flex;'
+    + 'flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px';
+  const cap = document.createElement('div');
+  cap.textContent = `${title.toUpperCase()} — ${img.width}×${img.height}  (any key or click to close)`;
+  cap.style.cssText = 'font:12px ui-monospace,monospace;color:var(--dim)';
+  overlay.append(cv, cap);
+
+  const close = (): void => {
+    overlay.remove();
+    window.removeEventListener('keydown', onKey, true);
+    // ⚠ REDRAW AND TAKE THE KEYBOARD BACK. The listing underneath is still the
+    // client's state, but nothing has repainted it since the picture went up and
+    // the overlay owned the keyboard while it was there. Without this the user is
+    // returned to a screen that looks right and does nothing — no command row, no
+    // response to the duckshoot keys.
+    setFocus('net');
+    render();
+  };
+  const onKey = (e: KeyboardEvent): void => { e.preventDefault(); e.stopPropagation(); close(); };
+  overlay.addEventListener('click', close);
+  window.addEventListener('keydown', onKey, true);
+  document.body.appendChild(overlay);
 }
 
 /** ⚠ How long each frame stays on screen during a multi-frame download.
@@ -1853,6 +2024,7 @@ async function boot(): Promise<void> {
   });
   $<HTMLButtonElement>('edSubmit').onclick = doSubmit;
   $<HTMLButtonElement>('edCancel').onclick = closeSubmit;
+  $<HTMLSelectElement>('edKind').onchange = syncMachineField;
   $<HTMLInputElement>('chatInput').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     const input = $<HTMLInputElement>('chatInput');

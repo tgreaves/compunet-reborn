@@ -47,7 +47,13 @@ CTASSERT(sizeof(struct IOStdReq) <= CNET_REQ_SIZE);
 extern ULONG g_extra_sig;                          /* was DAT_00120104 (UI/abort signal) */
 extern void  handle_extra_signal(void);            /* was FUN_00119506 */
 extern void  handle_device_message(struct Message *msg); /* was FUN_001190e8 */
-extern BOOL  g_log_device_messages;                /* was DAT_0011fd74 */
+/* ⚠ LONG, NOT BOOL. The original tests this with `tst.l $2d74(a4)` (0x1195de, 0x1196dc,
+ * 0x1197f4) and diagnostics_open sets it with `move.l`. BOOL is `short` here, so on
+ * big-endian m68k this declaration read the HIGH half of the longword — permanently 0
+ * even once the flag was set. A second way to break the same global: the first was
+ * declaring it twice under two names, and fixing that alone would NOT have worked while
+ * this stayed narrow. One address, one name, one width. */
+extern LONG  g_log_device_messages;                /* DAT_0011fd74 */
 /* set_connection_error() is declared in compunet.h */
 
 /*

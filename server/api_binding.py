@@ -68,6 +68,8 @@ def _new_session(client_ip="api"):
     directory = _srv.CompunetDirectory()
     session = _srv.CompunetSession(directory)
     session.client_ip = client_ip
+    # Everything through this binding — web client, Electron app, third-party.
+    session.audit_via = 'api'
     return session
 
 
@@ -543,18 +545,20 @@ def _download_json(session, msg_id=None):
         "title": getattr(session, '_download_title', None),
         "size": len(data),
         "machine": getattr(getattr(session, 'show_page', None), 'machine_type', 'c64'),
+        # The entry's base type (§7.4): 'P' is saved, 'F' is an IFF picture the web
+        # client decodes and displays. `machine` alone cannot tell them apart — an
+        # Amiga program is also machine 'amiga'.
+        "kind": getattr(getattr(session, 'show_page', None), 'page_type', 'P'),
     }
 
 
 def _download_fetch(session, msg_id=None):
     """Deliver the staged program bytes as base64 (§8.3.1 proceed)."""
     import base64
-    data = getattr(session, '_program_download_data', None)
+    data = session.take_program_download()      # clears the state AND audits (#127)
     if not data:
         return {"type": "error", "id": msg_id, "code": "not_found",
                 "message": "no download pending"}
-    session._program_download_pending = False
-    session._program_download_data = None
     return {
         "type": "download.data", "id": msg_id,
         "title": getattr(session, '_download_title', None),
@@ -829,9 +833,9 @@ def upload_content(session, msg, msg_id=None):
     if not title:
         return {"type": "error", "id": msg_id, "code": "invalid",
                 "message": "title is required"}
-    if kind not in ("T", "P"):
+    if kind not in _srv.UPLOAD_TYPES:            # one list, shared with Binding A
         return {"type": "error", "id": msg_id, "code": "invalid",
-                "message": "kind must be 'T' (text) or 'P' (program)"}
+                "message": "kind must be 'T' (text), 'P' (program) or 'F' (IFF picture)"}
     if not frames:
         return {"type": "error", "id": msg_id, "code": "invalid",
                 "message": "no frames to upload"}
@@ -860,9 +864,18 @@ def upload_content(session, msg, msg_id=None):
     if err:
         return {"type": "error", "id": msg_id, **err}
 
-    if kind == "P":
+    if kind in ("P", "F"):
         import base64
         blobs = [base64.b64decode(f) if isinstance(f, str) else bytes(f) for f in frames]
+        if kind == "F":
+            # An F is an IFF/ILBM picture (§7.4.1). Reject anything that is not one at
+            # upload — do not sanitise — so a mislabelled file is caught here rather than
+            # discovered as a blank screen on an Amiga. The body follows the 8-byte
+            # header (bytes 8..), and a FORM....ILBM begins "FORM"????"ILBM".
+            body = blobs[0][8:] if blobs else b''
+            if body[0:4] != b'FORM' or body[8:12] != b'ILBM':
+                return {"type": "error", "id": msg_id, "code": "invalid",
+                        "message": "an F upload must be an IFF ILBM picture (FORM..ILBM)"}
     else:
         blobs = [_encode_frame(f) for f in frames]
 
@@ -1585,6 +1598,12 @@ async def ws_gateway(request):
                 await partyline_leave(session)
             except Exception:
                 pass
+        # ⚠ Mark the user offline and audit the session end. This binding did
+        # neither: web-client sessions left no `session_ended` in the audit log
+        # (#127), and — the same omission's second symptom — stayed listed on WHO
+        # IS ONLINE indefinitely, because nothing ever removed them.
+        if session is not None and session.user_id:
+            _srv._user_disconnect(session.user_id, session)
         log.info('API gateway: %s disconnected', session.user_id if session else '?')
     return ws
 

@@ -214,6 +214,37 @@ BOOL open_device_tracked(const char *name, ULONG unit,
 }
 
 /*
+ * The tracked TEARDOWN counterparts, used by the transport shutdown (FUN_00119450).
+ * Each performs the release AND removes the tracker node, so the exit-time unwind does
+ * not do it a second time — the same close-then-unregister discipline as
+ * close_window_tracked (whose absence for screens caused a double-close guru).
+ *   close_device_tracked  recon FUN_0011a324
+ *   delete_extio_tracked  recon FUN_0011a848
+ *   delete_port_tracked   recon FUN_0011a79a
+ */
+void close_device_tracked(struct IORequest *req)
+{
+    if (req == NULL) return;
+    CloseDevice(req);
+    resource_unregister((void (*)())CloseDevice, req);
+}
+
+void delete_extio_tracked(struct IORequest *req, ULONG size)
+{
+    if (req == NULL) return;
+    DeleteExtIO(req);
+    resource_unregister((void (*)())DeleteExtIO, req);
+    (void)size;   /* the node carries the size; DeleteExtIO does not take one */
+}
+
+void delete_port_tracked(struct MsgPort *port)
+{
+    if (port == NULL) return;
+    DeletePort(port);
+    resource_unregister((void (*)())DeletePort, port);
+}
+
+/*
  * alloc_tracked — recon FUN_0011a1ee. AllocMem(size + 0x20) and register the block AS
  * ITS OWN node (mode A: freefn = 0, arg1 = total size), the node living in the first
  * 0x1a bytes of the 0x20 header. The payload starts at +0x20 and is what we return.

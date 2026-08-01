@@ -253,8 +253,17 @@ Exchange:
 
 A client that offers downloads **MUST** implement the `$40`/`$41` control tokens; these two
 values are meaningful only within this exchange. Each is an ordinary framed packet (§2.2–2.4)
-with that token, the client's current sequence number, and an **empty payload** — i.e. content
-`[length=$05][token=$40 or $41][seq][crc_hi][crc_lo]`, byte-stuffed and framed like any packet.
+with that token, the client's current sequence number, and a **one-byte payload**: `"O"`
+($4F) with `$40` (proceed), `"E"` ($45) with `$41` (abort) — i.e. content
+`[length=$06][token][seq][payload][crc_hi][crc_lo]`, byte-stuffed and framed like any packet.
+
+> **⚠ This section previously said the payload was EMPTY, and it was wrong.** The original
+> Amiga client sends one character (verified from the literals it passes to its write
+> routine: `"O"` at `0x11e4f0`, `"E"` at `0x11e4b8`/`0x11e4bc`/`0x11e4ec`). A receiver
+> **MUST** dispatch on the **token**, not the payload — the reference server does, which is
+> precisely why the reconstruction sent the token characters `"@"`/`"A"` as the payload for
+> a year without anything noticing. A client that emits an empty payload will still work
+> against a token-dispatching server, but it is not what the original does.
 *(Non-normative: for a C64 program the load address is honoured; for a 68k program the body is
 the raw relocatable executable — a HUNK image on the Amiga, which the client `LoadSeg`s — and
 there is no load field at all, those bytes being the size. Note
@@ -278,16 +287,38 @@ otherwise it is a **mail send**.
 - **Mail send** — `rest` is up to five **8-byte destination IDs** (space-padded); the type
   byte is `T`.
 - **Content upload** — `rest` is a **6-byte price** (e.g. `005.00`) followed by a **lifetime
-  in days** (up to 3 ASCII digits); the type byte is `T` (text) or `P` (program).
+  in days** (up to 3 ASCII digits); the type byte is `T` (text), `P` (program) or `F`
+  (IFF picture, §7.4.1).
+
+> **⚠ `F` uploads exactly like `P` — 8-byte header then the body (normative).** The two are
+> the same transfer; only the type letter differs, and it decides what the *download* side
+> does with the bytes later (save vs decode). A server that accepts `F` at all **MUST**
+> receive it through its binary path, not its frame path: the reference server gated that
+> path on `P` alone, so an `F` fell into the PETSCII frame accumulator, was chopped at the
+> first short chunk, and was then mis-shaped again by the blob writer reading byte 0 of
+> `"FORM"` ($46) as a machine type. A corrupted file, stored under the wrong shape, with no
+> error at any point.
+>
+> This is easy to get wrong from the modern end. The native Amiga client has offered `F` in
+> its publish dialog since 1989 — its `put_frame` dispatch routes `A`, `S`, `P` and `F`
+> alike to the file-upload path — so a server that adds picture *support* for a web client
+> and forgets the Binding-A receive path has an era client that can already send something
+> it cannot store.
+>
+> A server **SHOULD** also validate that an `F` really is an ILBM (`FORM`????`ILBM`) and
+> **reject** it otherwise, rather than store it: there is no sensible repair for "this is
+> not the format you said it was", and the failure otherwise surfaces as a blank screen for
+> a different user much later.
 
 **The client MUST gather these fields from the user before sending `U` (normative).** A content
 upload's `U` payload is not derivable from the frame alone — the client **MUST** prompt the user
 for, and send, all of:
 
 - the **title** (the 16-byte subject/title field);
-- the **type** — **`T` for text frames** or **`P` for a program** — this is the type byte, and
-  it also decides the step-2 transfer (a `T` streams §6 frames; a `P` sends the 8-byte header +
-  raw file, §8.3.1). A client that always uploads as `T` cannot upload software;
+- the **type** — **`T` for text frames**, **`P` for a program**, or **`F` for an IFF picture**
+  where the server serves them (§7.4.1) — this is the type byte, and it also decides the step-2
+  transfer (a `T` streams §6 frames; a `P` or an `F` sends the 8-byte header + raw file,
+  §8.3.1). A client that always uploads as `T` cannot upload software;
 - the **price** (the 6-byte `NNN.NN` field — `000.00` for free); and
 - the **lifetime** in days.
 
@@ -295,6 +326,15 @@ An upload UI that omits the **type** or **price** prompt is incomplete: the type
 the wire format and to what gets stored, and the price is the field the server keys the
 mail-vs-content detection on (`.` in `rest[:8]`, above). Collect all four, then build the
 payload.
+
+> **⚠ A server MUST validate the type byte and refuse anything outside `T`, `P` and `F`
+> (normative), on every binding and every terminal it offers** — see §7.4.1 for why, and for the
+> reason this is reachable from an era client: the Amiga takes the type as free text and routes
+> `A` and `S` down the same file-upload path as `P` and `F`. Refuse at the `U` command, so the
+> user is told before streaming a file, and again in whatever shared code writes the page. The
+> reference server answers a bad type with `INVALID PAGE TYPE` and leaves no pending transfer
+> behind — a refusal that forgets to clear the pending state would accumulate the next data
+> packet against a half-built upload.
 
 **⚠ Collecting the four fields does not start the upload — it opens the upload sub-context
 (normative).** Accepting them sends **nothing**; it puts the client in the **upload sub-context**
@@ -1038,6 +1078,20 @@ re-requested, so an entry just bought may still display its price until the next
 A client **MUST** implement both commands with this gate. Offering only `SHOW` makes paid content
 unreachable; offering only `BUY`, or letting `SHOW` open paid pages, charges the user without the
 confirmation the original always gave them.
+
+> **⚠ The REQUIREMENT is the confirmation, not the two-command shape.** The server charges on
+> `D`+index whatever the client's UI looks like, so what a client **MUST** guarantee is that a
+> priced entry is never selected without the user having agreed to pay. The `SHOW`/`BUY` split
+> above is how the **C64** realises it. The native **Amiga** client realises the same rule with a
+> single confirmation requester — `WARNING - CHARGED ITEM` / `Buy for £<price>?` — raised from its
+> download dispatcher, and it applies that gate to **every** downloadable base type (§7.4), text
+> included. Either shape is conformant; no gate on any path is not.
+>
+> **⚠ Gate EVERY type, not just the binary ones.** A charged **text** page is as chargeable as a
+> program, and it is the easy one to miss because reading text feels free. The reference Amiga
+> client shipped for four releases gating five of its six types — `T` went straight through, so a
+> priced text page was fetched and billed with no confirmation at all. If your dispatcher
+> branches on the base type, the charge check belongs **before** the branch.
 
 > **⚠ The server will charge without asking — the gate is the client's job and nothing else's.**
 > Measured: opening a £1.50 page took the credit from 97.50 to 96.00 with no prompt and no error,

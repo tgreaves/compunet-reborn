@@ -41,7 +41,12 @@ extern APTR  g_main_uport;    /* DAT_00120100 — main window UserPort */
 extern APTR  g_menu_pair[2];  /* DAT_001201ae — menu list            */
 extern APTR  g_diag_win;      /* DAT_0011fd70 */
 extern APTR  g_diag_screen;   /* DAT_0011fda2 — screen ptr copy      */
-extern UBYTE g_diag_active;   /* DAT_0011fd74 */
+/* ⚠ ONE global, not two. 0x11fd74 is set by diagnostics_open and TESTED by all three
+ * transport wait loops to decide whether to render the device message. It was declared
+ * twice in this tree (g_diag_active here, g_log_device_messages in transport.c), so the
+ * flag was written to one variable and read from the other — the test was permanently
+ * false and the Diagnostics window stayed blank for the whole session. */
+extern LONG g_log_device_messages;   /* DAT_0011fd74 */
 extern struct MsgPort *g_device_port;
 
 extern UBYTE g_data[];
@@ -89,7 +94,7 @@ void diagnostics_open(void)
         g_write_req->io.io_Command = 10;                     /* +0x1c */
         DoIO((struct IORequest *)g_write_req);
     }
-    g_diag_active = 1;
+    g_log_device_messages = 1;
 }
 
 /*
@@ -109,4 +114,44 @@ void logon_window_ready(void)
     REQ_SERFLAGS(g_write_req)  = 1;    /* +0x2c io_Offset[0] */
     g_write_req->io.io_Command = 9;    /* +0x1c */
     DoIO((struct IORequest *)g_write_req);
+}
+
+/*
+ * diagnostics_close — recon FUN_0011a0a0 family (0x1190a0, 40 bytes). NOT PREVIOUSLY
+ * RECONSTRUCTED AT ALL: the Diagnostics window could only go away at program exit, and
+ * the device was never told to stop producing the diagnostic stream.
+ *
+ * Ground truth, in order:
+ *   1190a0  tst.l $2d74(a4)              ; nothing to do if not active
+ *   1190a8  clr.l $2d74(a4)              ; clear the flag
+ *           write_req->io_Data = 0; io_Command = 10; DoIO   ; stop the stream
+ *           $11a5b0 clear_menu_strip_tracked(g_diag_win)
+ *           $11a66a unshare_user_port_tracked(g_diag_win)
+ *           $11a568 close_window_tracked(g_diag_win)
+ *           clr.l g_diag_win
+ */
+void diagnostics_close(void)
+{
+    extern void clear_menu_strip_tracked(APTR win);
+    extern void unshare_user_port_tracked(APTR win);
+    extern void close_window_tracked(APTR win);
+
+    if (g_log_device_messages == 0)
+        return;
+    g_log_device_messages = 0;
+
+    /* Tell the device to stop the diagnostics stream. No counterpart in TCP mode, where
+     * there is no cnet.device to command — mirrors the guard in connect/open_transport. */
+    if (!g_tcp_mode && g_write_req != NULL) {
+        g_write_req->io.io_Data    = NULL;   /* +0x28 */
+        g_write_req->io.io_Command = 10;     /* +0x1c        */
+        DoIO((struct IORequest *)g_write_req);
+    }
+
+    if (g_diag_win != NULL) {
+        clear_menu_strip_tracked(g_diag_win);
+        unshare_user_port_tracked(g_diag_win);
+        close_window_tracked(g_diag_win);
+        g_diag_win = NULL;
+    }
 }

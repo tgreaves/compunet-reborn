@@ -26,7 +26,10 @@
 #include "compunet.h"
 
 #define STATE_ONLINE 2
-#define STATE_LOGIN_CHECK 5
+/* State 5 is COURIER, not a login check — ui_state.c maps states 5/6 to
+ * "Compunet - courier" with the mail menu. The old name came from an early
+ * mis-identification of FUN_0010e0fc (see #131). */
+#define STATE_COURIER 5
 
 /* Window/dialog helpers into the not-yet-reconstructed UI layer. */
 extern void set_wait_pointer(void);      /* thunk FUN_001020ae */
@@ -41,8 +44,8 @@ extern APTR  g_frame_out_end;    /* DAT_0012309c */
 extern void  frame_display_done(APTR out, APTR len); /* thunk FUN_0011754e */
 
 /* Reset the transport-fed frame reader state before reading a mail frame. */
-extern UWORD g_frame_pos;    /* DAT_001203a0 */
-extern UWORD g_frame_len;    /* DAT_001203a4 */
+extern LONG g_frame_pos;    /* DAT_001203a0 */
+extern LONG g_frame_len;    /* DAT_001203a4 */
 extern UBYTE *g_frame_capture; /* DAT_001203ae */
 extern UBYTE g_frame_eof;    /* DAT_001203ac */
 
@@ -53,7 +56,7 @@ extern UBYTE g_data[];
 #define DATAM(off) ((APTR)(g_data + ((off) - DATA_BASE_M)))
 extern APTR open_window_tracked(APTR nw);
 extern void close_window_tracked(APTR win);
-extern APTR g_frame_out_ptr;        /* DAT_0012309c — output write cursor */
+extern APTR g_frame_out_end;        /* DAT_0012309c — output write cursor */
 extern APTR g_screen;               /* current custom screen */
 extern APTR g_dir_page;             /* DAT_0011d07c — directory page; [0] = its Window* */
 static struct Window *g_mail_win;   /* DAT_00121698 */
@@ -94,7 +97,7 @@ static int append_recipients(char *buf)
  * in Courier. ID = mail_read and Upld = mail_submit (below); these three are the rest. Each
  * sends a single-letter COM command and reads the ack, like the directory nav commands. */
 extern APTR  frame_display(APTR page, APTR out);   /* FUN_0010818a — parse+render a frame */
-extern UWORD g_frame_hdr_more;                     /* DAT_001203b2 — more-frames flag      */
+extern LONG g_frame_hdr_more;                     /* DAT_001203b2 — more-frames flag      */
 extern APTR  g_frame_page;                         /* DAT_0011d078 — frame render target   */
 extern void  mail_state_exit(APTR dir_page);       /* FUN_001092a6 — restore dir buttons   */
 
@@ -122,7 +125,7 @@ LONG mail_done(void)
  */
 LONG mail_more(void)
 {
-    g_state = 5;                                /* recon 0x10e0b6: g_state = 5 (mail-list state) */
+    g_state = STATE_COURIER;                    /* recon 0x10e0b6 (mail-list state) */
     serial_write("M", 1, 1, TOKEN_COM);
     if (serial_io_c(g_ack_text) != ACK_OK)
         return 0;
@@ -137,7 +140,7 @@ LONG mail_more(void)
  */
 LONG mail_download(void)
 {
-    g_state = 5;                                /* recon 0x10e0fe: g_state = 5 */
+    g_state = STATE_COURIER;                    /* recon 0x10e0fe: g_state = 5 */
     sprintf(g_cmd_buf, "D%02d", (int)*(short *)((UBYTE *)g_dir_page + 0xc78));  /* selected row @0xc78 */
     for (;;) {
         serial_write(g_cmd_buf, strlen(g_cmd_buf), 1, TOKEN_COM);
@@ -172,13 +175,13 @@ LONG mail_field_send(void)
     serial_write("U", 1, 1, TOKEN_COM);         /* recon 0x10e3ac: $1a90 = "U" */
     if (serial_io_c(g_ack_text) != ACK_OK) {
         mail_close_window();                    /* recon 0x10e3c8: thunk $10e6c8 = FUN_0010f18e */
-        g_state = 5;
+        g_state = STATE_COURIER;
         return 0;
     }
     send_dat_packet(g_edit_frame);              /* recon 0x10e3d6: $80 = g_edit_frame */
     if (serial_io_c(g_ack_text) != ACK_OK) {
         mail_close_window();
-        g_state = 5;
+        g_state = STATE_COURIER;
         return 0;
     }
     return 1;
@@ -193,7 +196,7 @@ LONG mail_field_next(void)
 {
     serial_write("N", 1, 1, TOKEN_COM);         /* recon 0x10e416: $1a94 = "N" */
     mail_close_window();                        /* recon 0x10e422: thunk $10e6c8 = FUN_0010f18e */
-    g_state = 5;                                /* recon 0x10e426 */
+    g_state = STATE_COURIER;                    /* recon 0x10e426 */
     return 1;
 }
 
@@ -331,14 +334,14 @@ LONG mail_read(void)
     }
 
     /* recon 0x10e572: seed the display page and output buffer with the frame template
-     * ($1a44). The output cursor g_frame_out_ptr is then advanced by mail_append. */
+     * ($1a44). The output cursor g_frame_out_end is then advanced by mail_append. */
     frame_display_mem(DATAM(0x11ea44), g_frame_page);
     g_frame_out[0] = 0;                          /* recon 0x10e580 */
-    g_frame_out_ptr = &g_frame_out[1];           /* recon 0x10e58a */
+    g_frame_out_end = &g_frame_out[1];           /* recon 0x10e58a */
     tmpl = (char *)DATAM(0x11ea44);
     for (i = 1; tmpl[i] != '\0'; i++) {          /* recon 0x10e592: copy template[1..] */
-        *(UBYTE *)g_frame_out_ptr = (UBYTE)tmpl[i];
-        g_frame_out_ptr = (APTR)((UBYTE *)g_frame_out_ptr + 1);
+        *(UBYTE *)g_frame_out_end = (UBYTE)tmpl[i];
+        g_frame_out_end = (APTR)((UBYTE *)g_frame_out_end + 1);
     }
 
     /* recon 0x10e5b4: reset the frame reader, then read id records until end-of-frame.
@@ -372,9 +375,9 @@ LONG mail_read(void)
     }
 
     /* recon 0x10e674: NUL-terminate the display buffer and render it. */
-    *(UBYTE *)g_frame_out_ptr = 0;
-    g_frame_out_ptr = (APTR)((UBYTE *)g_frame_out_ptr + 1);
-    frame_display_done(g_frame_out, g_frame_out_ptr);   /* recon 0x10e67e */
+    *(UBYTE *)g_frame_out_end = 0;
+    g_frame_out_end = (APTR)((UBYTE *)g_frame_out_end + 1);
+    frame_display_done(g_frame_out, g_frame_out_end);   /* recon 0x10e67e */
     mail_close_window();                         /* recon 0x10e68c */
     return 1;
 }
@@ -395,7 +398,7 @@ LONG mail_prepare(void)
     if (serial_io_c(g_ack_text) == ACK_OK) {
         directory_refresh(g_dir_page);
         mail_state_enter(g_dir_page);
-        g_state = STATE_LOGIN_CHECK;
+        g_state = STATE_COURIER;
         return 1;
     }
     return 0;
@@ -497,8 +500,8 @@ void mail_append(const char *s)
 {
     UBYTE c;
     while ((c = (UBYTE)*s++) != '\0') {
-        *(UBYTE *)g_frame_out_ptr = c;
-        g_frame_out_ptr = (APTR)((UBYTE *)g_frame_out_ptr + 1);
+        *(UBYTE *)g_frame_out_end = c;
+        g_frame_out_end = (APTR)((UBYTE *)g_frame_out_end + 1);
         render_char(c, g_frame_page);
     }
 }

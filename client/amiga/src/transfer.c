@@ -15,6 +15,13 @@
  *
  * The download control bytes (0x40/0x41) are single-char COM replies telling the
  * host to proceed or abort — a small sub-protocol on top of the command/ack model.
+ *
+ * ⚠ The PAYLOAD of those replies is "O" (proceed) and "E" (abort), not the token
+ * character. Verified from the blob literals the original passes to serial_write:
+ * 0x11e4f0 = "O" (proceed) and 0x11e4b8 / 0x11e4bc / 0x11e4ec = "E" (the three abort
+ * sites). This reconstruction sent "@" and "A" — the token bytes — which the Reborn
+ * server never noticed because it dispatches on the TOKEN alone, so the divergence was
+ * invisible against our own server and would only show against the original host.
  */
 #include <exec/types.h>
 #include <string.h>
@@ -28,6 +35,7 @@ extern APTR  file_open_read(const char *name);               /* thunk FUN_0011a3
 extern LONG  file_write(APTR fh, APTR buf, ULONG len);       /* thunk FUN_0012804c */
 extern LONG  file_read(APTR fh, APTR buf, ULONG len);        /* thunk FUN_00128030 */
 extern LONG  download_filename_prompt(void);                 /* FUN_0010b06e */
+extern LONG  action_filename_prompt(void);                   /* ui_dialogs.c — "Action filename" */
 extern LONG  download_machine_prompt(char type);             /* FUN_0010b0ea */
 extern LONG  retry_dialog(const char *title, const char *body); /* thunk FUN_001104a6 */
 extern LONG  upload_filename_prompt(void);                   /* upload() FUN_0010c000 */
@@ -62,21 +70,28 @@ extern BOOL g_tcp_mode;   /* net.h — TCP transport active */
  * and needs no drain — this only runs when the TCP reader left the EOS behind. The EOS is
  * sent before the proceed token, so this reads only the terminator (0 bytes, eof).
  */
-static void drain_header_eos(UBYTE header_eof)
+/* ⚠ RETURNS THE EFFECTIVE END-OF-MESSAGE FLAG. On the real modem the fixed 8-byte read
+ * already reports eof, so the caller's flag stands. Over TCP the EOS is still queued, so
+ * the flag only becomes true once it is consumed — and download_link's faithful
+ * `ser_flags == 0 -> "Invalid link"` test therefore has to see the flag from THIS read,
+ * not the stale one. Callers that merely need the stream advanced can ignore the value. */
+UBYTE drain_header_eos(UBYTE header_eof)
 {
     if (g_tcp_mode && header_eof == 0) {
         UBYTE d, f, sh;
         ULONG a;
         serial_read(&d, 1, &f, &sh, &a);
+        return f;
     }
+    return header_eof;
 }
 
 /*
  * file_download_xfer — recon FUN_0010b174. Send the D command, read the 8-byte
  * header (byte 0 = machine type: 0=C64, 1=Amiga, 2=ST), confirm the machine type,
  * open the destination file, and reply with a control token:
- *   0x40 ('@')  proceed — file opened OK
- *   0x41 ('A')  abort   — wrong machine / user cancelled / open failed
+ *   token 0x40, payload "O"  proceed — file opened OK
+ *   token 0x41, payload "E"  abort   — wrong machine / user cancelled / open failed
  */
 LONG file_download_xfer(void)
 {
@@ -111,17 +126,17 @@ LONG file_download_xfer(void)
      */
     if (g_dl_header[0] == 2) {                       /* ST file */
         if (download_machine_prompt(2) == 0) {
-            serial_write("A", 1, 1, 0x41);           /* abort */
+            serial_write("E", 1, 1, 0x41);           /* abort */
             return 0;
         }
     } else if (g_dl_header[0] == 0) {                /* C64 file */
         if (download_machine_prompt(0) == 0) {
-            serial_write("A", 1, 1, 0x41);
+            serial_write("E", 1, 1, 0x41);
             return 0;
         }
     } else if (g_dl_header[0] != 1) {                /* not a machine we know about */
         if (download_machine_prompt(g_dl_header[0]) == 0) {
-            serial_write("A", 1, 1, 0x41);
+            serial_write("E", 1, 1, 0x41);
             return 0;
         }
     }
@@ -130,13 +145,13 @@ LONG file_download_xfer(void)
     for (;;) {
         g_dl_file = file_open_write(g_dl_filename, 0x3ee);
         if (g_dl_file != NULL) {
-            serial_write("@", 1, 1, 0x40);           /* proceed */
+            serial_write("O", 1, 1, 0x40);           /* proceed */
             return 1;
         }
         if (retry_dialog("File download", "Can't open file - try again?") == 0)
             break;
     }
-    serial_write("A", 1, 1, 0x41);                   /* give up */
+    serial_write("E", 1, 1, 0x41);                   /* give up */
     return 0;
 }
 
@@ -250,8 +265,11 @@ LONG action_download(void)
     ULONG actual;
     APTR  con;
 
+    /* ⚠ "RAM:temp" is the DEFAULT the prompt is seeded with, so it must survive into
+     * the requester. download_filename_prompt() would immediately overwrite it with the
+     * directory row's title — see action_filename_prompt in ui_dialogs.c. */
     strcpy(g_dl_filename, "RAM:temp");
-    if (download_filename_prompt() == 0)
+    if (action_filename_prompt() == 0)
         return 0;
 
     for (;;) {

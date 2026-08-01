@@ -16,9 +16,16 @@
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <clib/graphics_protos.h>
+#include <clib/intuition_protos.h>
 #include <intuition/intuition.h>
+#include <stdio.h>
 
 #include "compunet.h"
+
+/* The extracted data section, addressed by original address (see download.c/ui.c). */
+extern UBYTE g_data[];
+#define DATA_BASE 0x11d000
+#define DATA(off) ((APTR)(g_data + ((off) - DATA_BASE)))
 
 extern APTR DOSBase;                 /* set by runtime; opened here if needed */
 extern BYTE cleanup_resources(void);
@@ -52,16 +59,31 @@ void put_msg(APTR port, APTR msg)
 }
 
 /*
- * link_lock — recon FUN_00109520. Draw (or redraw) the highlight box around
- * directory row 'row' to show it locked/selected during a navigation. Uses
- * SetAPen(2) + RectFill on the directory window's rastport. Called twice per action
- * (before and after) which toggles the highlight.
+ * link_lock — recon FUN_00109520. Draw (or undraw) the busy highlight over a directory
+ * action button. Called TWICE per action, before and after, and the pair must cancel.
+ *
+ * ⚠ SetDrMd(COMPLEMENT), NOT SetAPen. That is the whole mechanism: complement mode XORs
+ * the rectangle, so the second call erases exactly what the first drew. Reconstructed as
+ * `SetAPen(rp, 2)`, the first call painted a SOLID pen-2 block over the button and the
+ * second painted it again — the highlight never came off, so the first use of Dir, Back,
+ * Goto, Dnld or Upld blanked that button for the rest of the session. It also left the
+ * directory RastPort's APen at 2, which the original never touches here.
+ *
+ * Ground truth FUN_00109520 (the entire function):
+ *   10952a  pea.l  $2.w              ; 2 = JAM1|COMPLEMENT -> COMPLEMENT
+ *   10952e  move.l $32(a0), -(a7)    ; Window->RPort
+ *   109532  jsr    $10a5b8(pc)       ; -> $12a0b8 -> GfxBase LVO -$162 = SetDrMd
+ *   109560  jsr    $10a594(pc)       ; RectFill(rp, row*64+7, $cb, row*64+$42, $da)
+ *
+ * ⚠ TOOLING TRAP: disasm_fn.py's built-in LVO table labels -$162 as SetBPen. It is not.
+ * Per fd1.3/graphics_lib.fd, -354 = SetDrMd; SetBPen is -348 and SetAPen -342. Confirm
+ * graphics LVOs against the .fd file, not the disassembler's annotation.
  */
 void link_lock(APTR dir_page, int row)
 {
     struct Window *w = *(struct Window **)dir_page;
     if (w == NULL) return;
-    SetAPen(w->RPort, 2);
+    SetDrMd(w->RPort, COMPLEMENT);
     RectFill(w->RPort, row * 0x40 + 7, 0xcb, row * 0x40 + 0x42, 0xda);
 }
 
@@ -79,19 +101,115 @@ void fatal_exit(ULONG code)
     exit((int)code);
 }
 
-/* handle_extra_signal — recon FUN_00119506: service the UI/abort signal that can
- * interrupt a blocking transport wait (e.g. user hit the window's close gadget). */
+/*
+ * handle_extra_signal — recon FUN_00119506 (100 bytes). THE USER ABORT.
+ *
+ * ⚠ THIS WAS AN EMPTY STUB THAT CLAIMED TO BE A RECONSTRUCTION. The comment said the
+ * original "drains the main window's IDCMP and sets the abort flag"; it does not set any
+ * flag — it longjmps. Every blocking transport wait calls this when the extra signal
+ * fires (serial_write 0x119600, serial_read 0x1196fe, serial_io_c 0x119816,
+ * modem_send_delayed 0x11992e, serial_io_variant 0x1199d8, modem_read_status 0x119a9a),
+ * so with an empty body TWO things were broken:
+ *   - Left-Amiga+HELP could not abort a stuck download or a hung frame read — precisely
+ *     when a user needs it. The idle event loop implements the chord correctly, which is
+ *     why the feature looked present.
+ *   - the IntuiMessages arriving on the shared UserPort during a transfer were never
+ *     GetMsg'd or ReplyMsg'd, so they queued up for the duration.
+ *
+ * Ground truth:
+ *   11950a  GetMsg(g_main_uport)          ; $3100(a4) = 0x120100
+ *   11951e  Class     &lt;- msg+0x14 (LONG)
+ *   119526  Code      &lt;- msg+0x18 (WORD, zero-extended)
+ *   11952a  Qualifier &lt;- msg+0x1a (WORD)
+ *   119536  ReplyMsg  — unconditional, before any test
+ *   11953c  Class == $400            (IDCMP_RAWKEY)
+ *   119546  Code  == $5f             (HELP)
+ *   119550  btst #6 of the qualifier's LOW byte  (IEQUALIFIER_LCOMMAND = $0040)
+ *   119560  longjmp(g_jmpbuf @0x120170, 1)
+ * Exactly one message is taken per call — no loop.
+ */
 void handle_extra_signal(void)
 {
-    /* The original drains the main window's IDCMP and sets the abort flag. The
-     * transport waits poll this; a full reconstruction routes a close/abort here. */
+    extern APTR g_main_uport;                  /* DAT_00120100 */
+    struct IntuiMessage *msg;
+    ULONG cls, code;
+    UWORD qual;
+
+    msg = (struct IntuiMessage *)GetMsg((struct MsgPort *)g_main_uport);
+    if (msg == NULL)
+        return;
+    cls  = msg->Class;
+    code = (ULONG)msg->Code;
+    qual = msg->Qualifier;
+    ReplyMsg((struct Message *)msg);
+
+    if (cls == 0x400UL && code == 0x5fUL && (qual & 0x0040))
+        set_connection_error(1);               /* longjmp(g_jmpbuf, 1) — does not return */
 }
 
-/* handle_device_message — recon FUN_001190e8: log/handle an unsolicited device
- * message ("%s %02lx" debug line) when device-message logging is enabled. */
-void handle_device_message(struct Message *msg)
+/*
+ * handle_device_message — recon FUN_001190e8 (462 bytes; recon_functions.txt says 260,
+ * which is wrong — the unlk/rts is at 0x1192b2). Renders one device record into the
+ * Diagnostics window.
+ *
+ * ⚠ ALSO AN EMPTY STUB CLAIMING TO BE A RECONSTRUCTION. Together with the flag defect
+ * (0x11fd74 declared twice, then declared too narrow) this is why the Diagnostics window
+ * has never shown anything: even with the gate fixed, there was nothing to draw.
+ *
+ * Record layout: +0x16 kind (0 Sending, 1 Received, 2 error), +0x17 subcode, +0x18 value.
+ */
+void handle_device_message(struct Message *m)
 {
-    (void)msg;   /* debug logging path; no-op unless g_log_device_messages is set */
+    extern APTR g_diag_win;                    /* DAT_0011fd70 */
+    UBYTE *msg = (UBYTE *)m;
+    struct IntuiText *it = (struct IntuiText *)DATA(0x11fe16);
+    struct RastPort  *rp;
+    const char *type;
+    char  buf[40];
+    WORD  y = 0x0e;
+
+    if (g_diag_win == NULL)
+        return;
+    rp = ((struct Window *)g_diag_win)->RPort;
+
+    if (msg[0x16] == 2) {                      /* error record — jump table at 0x119112 */
+        switch (msg[0x17]) {
+        case 0x4f: it->IText = (UBYTE *)DATA(0x11fe72); break;  /* "Buffer overflow " */
+        case 0x55: it->IText = (UBYTE *)DATA(0x11fe60); break;  /* "Spurious EOP    " */
+        case 0x43: it->IText = (UBYTE *)DATA(0x11fe4e); break;  /* "CRC check failed" */
+        case 0x4e: it->IText = (UBYTE *)DATA(0x11fe3c); break;  /* "Count incorrect " */
+        case 0x53: it->IText = (UBYTE *)DATA(0x11fe2a); break;  /* "Unexpected SOP  " */
+        default:   break;      /* faithful: IText left as-is, so the last one re-prints */
+        }
+        it->FrontPen = 2;
+        PrintIText(rp, it, 8, 0x26);
+        return;
+    }
+
+    /* Which label row the value goes on. ⚠ The original leaves this local UNINITIALISED
+     * for any kind >= 3 and prints at a garbage Y; we default to the Sending row instead.
+     * Deliberate, and the only deviation here — a wild TopEdge is not worth reproducing. */
+    if (msg[0x16] == 1) y = 0x1a;              /* "Received" */
+    else if (msg[0x16] == 0) y = 0x0e;         /* "Sending"  */
+
+    switch (msg[0x17]) {                       /* jump table at 0x1191c8, 9 entries */
+    case 0x20:            type = (const char *)DATA(0x11fe84); break;   /* "ACK" */
+    case 0x21: case 0x61: type = (const char *)DATA(0x11fe88); break;   /* "DIR" */
+    case 0x22: case 0x62: type = (const char *)DATA(0x11fe8c); break;   /* "DAT" */
+    case 0x40:            type = (const char *)DATA(0x11fe90); break;   /* "OK " */
+    case 0x41:            type = (const char *)DATA(0x11fe94); break;   /* "ERR" */
+    case 0x42:            type = (const char *)DATA(0x11fe98); break;   /* "FTL" */
+    case 0x43:            type = (const char *)DATA(0x11fe9c); break;   /* "COM" */
+    default:              type = (const char *)DATA(0x11fea0); break;   /* "???" */
+    }
+
+    /* Image 0x11fdc8 is PlanePick=0 / PlaneOnOff=1 with no data — a solid pen-1 144x8
+     * bar that ERASES the error line, which shares row 0x26. */
+    DrawImage(rp, (struct Image *)DATA(0x11fdc8), 8, 0x26);
+    sprintf(buf, (char *)DATA(0x11fea4), type, *(ULONG *)(msg + 0x18));   /* "%s %02lx" */
+    it->IText    = (UBYTE *)buf;
+    it->FrontPen = 6;
+    PrintIText(rp, it, 0x58, y);
 }
 
 /* mail_state_enter (recon FUN_001091f2) is reconstructed faithfully in

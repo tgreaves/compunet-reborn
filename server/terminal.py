@@ -174,6 +174,10 @@ class TerminalSession:
         self.show_page = None
         self.show_frame_idx = 0
         self.client_ip = ''
+        # Surface marker for the audit log's `via` field (see cs.audit_via).
+        # Set here too so a TerminalSession built outside handle_session — the
+        # tests do this — still audits with an origin.
+        self.audit_via = 'terminal'
         self.telnet = False
         self.charset = 'upper'  # 'upper' = unshifted (default), 'lower' = shifted
         self.terminal_type = 'c64'  # 'c64' or 'pc'
@@ -348,8 +352,10 @@ class TerminalSession:
         self.authenticated = True
         self.client_ip = self.writer.get_extra_info('peername', ('', 0))[0]
 
-        cs._online_users.add(user_id)
-        cs.audit_log('connect', user=user_id, ip=self.client_ip)
+        # _user_connect rather than touching the set directly, matching the
+        # disconnect side which now audits.
+        cs._user_connect(user_id)
+        cs.audit_log('session_started', session=self)
 
         # Build welcome frame using same logic as protocol server
         await self.send(CLR)
@@ -677,15 +683,40 @@ class TerminalSession:
             out.extend(RVS_OFF)
         await self.send(bytes(out))
 
-    def _archive_page_standalone(self, cs, page, reason='replaced'):
-        """Archive a page before removal.
+    # --- Adapters for the shared upload writer -----------------------------------
+    #
+    # cs.complete_content_upload() is THE writer for all three surfaces (§8.3.2). It
+    # asks a session for these few things; CompunetSession has them already, and the
+    # terminal gets them here rather than by keeping its own copy of the writer, which
+    # is what had drifted. Deliberately thin — anything with logic in it is a second
+    # implementation waiting to happen.
 
-        Was a hand-copied second implementation that, like the original, copied
-        only the page's own frames — so archiving a DIRECTORY left its whole
-        subtree on disk, unreachable and unarchived. Both now call the one
-        archiver, which recurses.
-        """
+    @property
+    def _user_record(self):
+        return _get_server()._api_load_users().get(self.user_id, {})
+
+    @property
+    def is_admin(self):
+        return bool(self._user_record.get('admin'))
+
+    @property
+    def is_editor(self):
+        return bool(self._user_record.get('editor'))
+
+    def _can_upload_here(self):
+        """⚠ Delegates rather than reimplements. The hand-written version here walked
+        ancestors looking for a TRUE `open_upload` and simply kept going past an
+        explicit FALSE — so a directory its owner had closed stayed writable from the
+        terminal while the C64 and the web client refused it, which is precisely the
+        setting a user picks to keep their space private."""
+        return _get_server().CompunetSession._can_upload_here(self)
+
+    def _archive_page(self, page, reason='replaced'):
+        cs = _get_server()
         cs.archive_page(page, cs.DATA_DIR, reason=reason)
+
+    def _save_directory_containing(self, *pages):
+        self._save_directories(_get_server(), *pages)
 
     def _format_upload_date(self, child):
         """Format upload date as DD-MMM, right-justified so hyphens align."""
@@ -1116,8 +1147,14 @@ class TerminalSession:
             await self.render_duckshoot()
             return
 
-        cs.audit_log('download', user=self.user_id, ip=self.client_ip,
-                     page=page.page_num, title=page.title)
+        # ⚠ Kept here rather than moved to CompunetSession.take_program_download,
+        # which the other two bindings share. The terminal does not use the staged
+        # download mechanism at all — it XMODEMs page.frames[0] directly — so there
+        # is nothing shared to move it into. It also audits on SUCCESS, after the
+        # transfer completes, where the others audit on acceptance; that is a real
+        # difference in what is known at the time, not an inconsistency to iron out.
+        cs.audit_log('page_downloaded', session=self,
+                     page=page.page_num, title=page.title, bytes=len(prg_data))
 
         await self.cursor_to(24, 0)
         await self.send(COL_WHITE)
@@ -1153,8 +1190,6 @@ class TerminalSession:
         """Enter partyline with a custom terminal UI."""
         import partyline as pl
         cs = _get_server()
-
-        cs.audit_log('partyline', user=self.user_id, ip=self.client_ip)
 
         # Check ban
         if pl._is_banned(self.user_id):
@@ -1717,7 +1752,7 @@ class TerminalSession:
             with open(dest_mail_file, 'w') as f:
                 json.dump(dest_inbox, f, indent=2)
 
-        cs.audit_log('mail_send', user=self.user_id, ip=self.client_ip,
+        cs.audit_log('mail_sent', session=self,
                      subject=send['subject'], to=send['to'])
 
         # Email notification for each recipient
@@ -1814,7 +1849,28 @@ class TerminalSession:
         page_type = await self.read_line(max_len=1)
         if not page_type.strip():
             page_type = 'P'
-        await _update_preview(title=title.strip(), page_type=page_type.strip())
+        # ⚠ The PAGE TYPE prompt is a free-text letter and was stored verbatim, so 'A'
+        # — run-on-arrival native code the server refuses to serve at all (§7.4.1) —
+        # could be put into the tree from here. The shared writer refuses one too, but
+        # this catches it at the prompt, before an XMODEM transfer is spent on it.
+        #
+        # ⚠ NARROWER than cs.UPLOAD_TYPES on purpose, and the reason is the XMODEM
+        # wrap below, not the writer: this path re-wraps the received file in a
+        # C64-shaped upload header (machine byte 0, load address at 4-5). An IFF has no
+        # load address, so it would need the 68k shape instead — and nothing wants to
+        # send a picture up a 1200-baud PETSCII terminal by XMODEM. Uploading an 'F' is
+        # the Amiga client's and the web client's job. Refuse what this path is not
+        # shaped for rather than mis-shape it.
+        if page_type.strip().upper() not in ('T', 'P'):
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text('INVALID PAGE TYPE'.ljust(39))
+            await self.read_key()
+            await self.cursor_to(24, 0)
+            await self.render_duckshoot()
+            return
+        page_type = page_type.strip().upper()
+        await _update_preview(title=title.strip(), page_type=page_type)
 
         await self.cursor_to(24, 0)
         await self.send_text('PRICE? '.ljust(39))
@@ -1886,7 +1942,6 @@ class TerminalSession:
 
     async def _complete_text_upload(self):
         """Complete a text-type upload — save frames to directory or deliver mail."""
-        import json
         cs = _get_server()
 
         if not self._upload_pending or not self._upload_pending.get('frames'):
@@ -1903,99 +1958,20 @@ class TerminalSession:
             await self._deliver_mail()
             return
 
-        page = self.current_page
-        send = self._upload_pending
-
-        # Check for existing page with same title
-        page_slug = cs.CompunetDirectory._make_slug(send['title'])
-        existing = None
-        for child in page.children:
-            if cs.CompunetDirectory._make_slug(child.title) == page_slug:
-                existing = child
-                break
-
-        if existing:
-            users = cs._api_load_users()
-            user_data = users.get(self.user_id, {})
-            is_admin = user_data.get('admin', False)
-            is_editor = user_data.get('editor', False)
-            if existing.author != self.user_id and not is_admin and not is_editor:
-                logger.info('UPLOAD REJECTED: user=%s cannot replace "%s" owned by %s',
-                            self.user_id, existing.title, existing.author)
-                await self.cursor_to(24, 0)
-                await self.send(COL_WHITE)
-                await self.send_text('CANNOT REPLACE (NOT OWNER)'.ljust(39))
-                await self.read_key()
-                await self.cursor_to(24, 0)
-                await self.render_duckshoot()
-                return
-            # Archive old version
-            cs._archive_page = cs.CompunetSession._archive_page
-            # Use a standalone archive call
-            self._archive_page_standalone(cs, existing, 'replaced')
-
-        # Create page folder
-        parent_dir = getattr(page, '_dir_path', cs.ROOT_DIR)
-        page_dir = os.path.join(parent_dir, page_slug)
-        os.makedirs(page_dir, exist_ok=True)
-
-        # Save frames as .seq files
-        frame_files = []
-        for i, frame_data in enumerate(send['frames']):
-            frame_file = f'frame-{i+1}.seq'
-            frame_path = os.path.join(page_dir, frame_file)
-            with open(frame_path, 'wb') as f:
-                f.write(frame_data)
-            frame_files.append(frame_file)
-
-        # Determine page number
-        if existing:
-            page_num = existing.page_num
-        else:
-            # Unique against the whole tree, not just the lookup table.
-            page_num = self.directory.next_page_num()
-
-        size = len(send['frames'])
-
-        # Create page object
-        new_page = cs.CompunetPage(
-            page_num=page_num,
-            title=send['title'],
-            page_type='T',
-            size=size,
-            author=self.user_id,
-            price=send['price'],
-            life=send['lifetime'],
-        )
-        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        new_page.parent = page
-        new_page._frame_files = frame_files
-        new_page._dir_path = page_dir
-        new_page._adverts = []
-        for frame_file in frame_files:
-            frame_path = os.path.join(page_dir, frame_file)
-            with open(frame_path, 'rb') as f:
-                new_page.frames.append(f.read())
-
-        if existing:
-            idx = page.children.index(existing)
-            page.children[idx] = new_page
-            self.directory.pages[page_num] = new_page
-        else:
-            page.children.append(new_page)
-            self.directory.pages[page_num] = new_page
-
-        # This directory gained an entry; its parent may need the `directory`
-        # key, since a latent directory becomes real on first upload (§7.3).
-        self._save_directories(cs, page, getattr(page, 'parent', None))
-
-        action = 'replaced' if existing else 'uploaded'
-        cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
-                     title=send['title'], page=page_num, type='T', action=action)
+        # ⚠ The write itself is cs.complete_content_upload — THE shared writer, the
+        # same one Binding A and Binding B use. What stood here was a hand-copied
+        # reimplementation of it (see that function for what had drifted). All that
+        # belongs on this side is turning its outcome into something on the screen.
+        outcome = cs.complete_content_upload(self, self._upload_pending)
 
         await self.cursor_to(24, 0)
         await self.send(COL_WHITE)
-        msg = 'UPLOAD REPLACED' if existing else 'UPLOAD COMPLETE'
+        if outcome == 'replaced':
+            msg = 'UPLOAD REPLACED'
+        elif outcome == 'uploaded':
+            msg = 'UPLOAD COMPLETE'
+        else:
+            msg = cs.UPLOAD_REFUSALS.get(outcome, 'UPLOAD FAILED')
         await self.send_text(msg.ljust(39))
         await self.read_key()
 
@@ -2006,7 +1982,6 @@ class TerminalSession:
 
     async def _cmd_upload_send(self):
         """SEND in upload mode — receive file via XMODEM then save."""
-        import json
         cs = _get_server()
 
         if not self._upload_pending:
@@ -2038,94 +2013,35 @@ class TerminalSession:
             await self.render_duckshoot()
             return
 
-        # Save the upload using the server's content upload logic
+        # ⚠ Re-wrap the received PRG in the 8-byte upload header the wire format uses,
+        # so this goes through cs.complete_content_upload — THE shared writer — exactly
+        # as an upload from the C64 or the web client does. XMODEM hands back the file
+        # as it sits on disk (load_lo, load_hi, then the program), while the writer
+        # expects [8-byte header][body] and reconstitutes `hdr[4:6] + body`. Byte 0 is
+        # the machine type; a terminal user is on a C64, hence 0.
+        #
+        # This wrapping is the entire reason the terminal used to have its own copy of
+        # the writer, and the copy is what let it drift. Six bytes of re-shaping is a
+        # much cheaper thing to keep correct than a hundred lines of duplicate logic.
+        blob = bytes(4) + prg_data[:2] + bytes(2) + prg_data[2:]
         send = {
             'mode': 'upload',
             'title': self._upload_pending['title'],
             'type': self._upload_pending['type'],
             'price': self._upload_pending['price'],
             'lifetime': self._upload_pending['lifetime'],
-            'frames': [prg_data],  # Raw PRG data (load_lo, load_hi, program bytes)
+            'frames': [blob],
         }
 
-        # Check for existing page with same title
-        page = self.current_page
-        page_slug = cs.CompunetDirectory._make_slug(send['title'])
-        existing = None
-        for child in page.children:
-            if cs.CompunetDirectory._make_slug(child.title) == page_slug:
-                existing = child
-                break
-
-        if existing:
-            users = cs._api_load_users()
-            user_data = users.get(self.user_id, {})
-            is_admin = user_data.get('admin', False)
-            is_editor = user_data.get('editor', False)
-            if existing.author != self.user_id and not is_admin and not is_editor:
-                logger.info('UPLOAD REJECTED: user=%s cannot replace "%s" owned by %s',
-                            self.user_id, existing.title, existing.author)
-                await self.cursor_to(24, 0)
-                await self.send_text('CANNOT REPLACE (NOT OWNER)'.ljust(39))
-                await self.read_key()
-                await self.cursor_to(24, 0)
-                await self.render_duckshoot()
-                return
-            self._archive_page_standalone(cs, existing, 'replaced')
-
-        parent_dir = getattr(page, '_dir_path', cs.ROOT_DIR)
-        page_dir = os.path.join(parent_dir, page_slug)
-        os.makedirs(page_dir, exist_ok=True)
-
-        # Save PRG file
-        frame_file = f'{page_slug}.prg'
-        frame_path = os.path.join(page_dir, frame_file)
-        with open(frame_path, 'wb') as f:
-            f.write(prg_data)
-
-        # Determine page number
-        if existing:
-            page_num = existing.page_num
-        else:
-            # Unique against the whole tree, not just the lookup table.
-            page_num = self.directory.next_page_num()
-
-        # Calculate size in K
-        size = (len(prg_data) - 2 + 1023) // 1024 if len(prg_data) > 2 else 1
-
-        # Create page object
-        new_page = cs.CompunetPage(
-            page_num=page_num,
-            title=send['title'],
-            page_type=send['type'],
-            size=size,
-            author=self.user_id,
-            price=send['price'],
-            life=send['lifetime'],
-        )
-        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        new_page.parent = page
-        new_page._frame_files = [frame_file]
-        new_page._dir_path = page_dir
-        new_page._adverts = []
-        new_page.frames = [prg_data]
-
-        if existing:
-            idx = page.children.index(existing)
-            page.children[idx] = new_page
-            self.directory.pages[page_num] = new_page
-        else:
-            page.children.append(new_page)
-            self.directory.pages[page_num] = new_page
-
-        self._save_directories(cs, page, getattr(page, 'parent', None))
-
-        action = 'replaced' if existing else 'uploaded'
-        cs.audit_log('upload', user=self.user_id, ip=self.client_ip,
-                     title=send['title'], page=page_num, type=send['type'], action=action)
+        outcome = cs.complete_content_upload(self, send)
 
         await self.cursor_to(24, 0)
-        msg = 'UPLOAD REPLACED' if existing else 'UPLOAD COMPLETE'
+        if outcome == 'replaced':
+            msg = 'UPLOAD REPLACED'
+        elif outcome == 'uploaded':
+            msg = 'UPLOAD COMPLETE'
+        else:
+            msg = cs.UPLOAD_REFUSALS.get(outcome, 'UPLOAD FAILED')
         await self.send_text(msg.ljust(39))
         await self.read_key()
 
@@ -2294,7 +2210,7 @@ class TerminalSession:
                 break
         with open(mail_file, 'w') as f:
             json.dump(mail_data, f)
-        cs.audit_log('mail_read', user=self.user_id, ip=self.client_ip, msg_id=msg_id)
+        cs.audit_log('mail_opened', session=self, msg_id=msg_id)
 
         # Display frames
         for i, frame_data in enumerate(frames):
@@ -2491,7 +2407,7 @@ class TerminalSession:
         if not self.show_page or not self.show_page.frames:
             return
         cs = _get_server()
-        cs.audit_log('read', user=self.user_id, ip=self.client_ip,
+        cs.audit_log('page_read', session=self,
                      page=self.show_page.page_num, title=self.show_page.title,
                      type=self.show_page.page_type,
                      frame=self.show_frame_idx + 1)
@@ -2773,7 +2689,7 @@ class TerminalSession:
                         votes[page_key][self.user_id] = score
                         with open(votes_path, 'w') as f:
                             json.dump(votes, f)
-                        cs.audit_log('vote', user=self.user_id, ip=self.client_ip,
+                        cs.audit_log('page_voted', session=self,
                                      page=child.page_num, title=child.title, score=score)
                 except (ValueError, TypeError):
                     pass
@@ -2920,7 +2836,7 @@ class TerminalSession:
                     # `life` lives in the child's node inside its own
                     # directory's JSON — that one file, not the tree.
                     self._save_directories(cs, getattr(child, 'parent', None))
-                    cs.audit_log('extend', user=self.user_id, ip=self.client_ip,
+                    cs.audit_log('page_life_extended', session=self,
                                  page=child.page_num, title=child.title,
                                  extend_by=extend_by, new_life=child.life)
             await self.render_directory()
@@ -2955,7 +2871,7 @@ class TerminalSession:
                     users_path = os.path.join(os.path.dirname(__file__), 'cfg', 'users.json')
                     with open(users_path, 'w') as f:
                         json.dump(users, f)
-                    cs.audit_log('buy', user=self.user_id, ip=self.client_ip,
+                    cs.audit_log('page_bought', session=self,
                                  page=child.page_num, title=child.title, price=child.price)
                 # Type L (link): enter partyline
                 if child.page_type == 'L':
@@ -3391,6 +3307,7 @@ async def terminal_handler(reader, writer):
     directory = cs.CompunetDirectory()
     session = TerminalSession(reader, writer, directory)
     session.client_ip = addr[0] if addr else ''
+    session.audit_via = 'terminal'
 
     # Auto-detect Telnet vs Raw: wait briefly for client IAC
     try:
@@ -3438,8 +3355,7 @@ async def terminal_handler(reader, writer):
         logger.info('Terminal client disconnected: %s (%s)', addr, e)
     finally:
         if session.user_id:
-            cs._online_users.discard(session.user_id)
-            cs.audit_log('disconnect', user=session.user_id, ip=session.client_ip)
+            cs._user_disconnect(session.user_id, session)   # audits the session end
         try:
             writer.close()
             await writer.wait_closed()

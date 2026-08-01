@@ -59,7 +59,8 @@ crt.extend(struct.pack('>H',0x8000));\
 crt.extend(struct.pack('>H',0x2000));\
 crt.extend(rom);\
 open('$(LIVE_CRT)','wb').write(crt)"
-	@echo "Created $(LIVE_CRT) (8K cartridge, auto-connect, $$(wc -c < $(LIVE_CRT)) bytes)"
+	@cp $(LIVE_CRT) $(WEBSITE_STATIC)/compunet-reborn-live.crt
+	@echo "Created $(LIVE_CRT) (8K cartridge, auto-connect, $$(wc -c < $(LIVE_CRT)) bytes, copied to website/static/)"
 
 $(CRT): $(BIN)
 	@python3 -c "\
@@ -81,7 +82,14 @@ crt.extend(struct.pack('>H',0x8000));\
 crt.extend(struct.pack('>H',0x2000));\
 crt.extend(rom);\
 open('$(CRT)','wb').write(crt)"
-	@echo "Created $(CRT) (8K cartridge, $$(wc -c < $(CRT)) bytes)"
+	@cp $(CRT) $(WEBSITE_STATIC)/compunet-reborn.crt
+	@echo "Created $(CRT) (8K cartridge, $$(wc -c < $(CRT)) bytes, copied to website/static/)"
+# ⚠ Both .crt rules copy to the website, like the .prg and .d64 rules above. They
+# did not, and nothing said so: every rebuild refreshed the disk and program
+# downloads while silently leaving the CARTRIDGE downloads at whatever the site
+# already had. They drifted two months behind before anyone compared them. If a
+# build product is published, the build publishes it — a manual copy step that is
+# only sometimes remembered is the same thing as no copy step.
 
 $(TERMINAL_BIN): $(BIN)
 	@dd if=$(BIN) bs=1 skip=$$((0x2000)) count=$$((0x2900)) of=$(TERMINAL_BIN) 2>/dev/null

@@ -19,6 +19,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 - Directory browsing with full duckshoot menu
 - Content viewing (multi-page text frames, PETSCII graphics)
 - Telesoftware downloads and uploads
+- Amiga IFF/ILBM pictures — uploaded and viewed from the web and desktop clients, streamed to a real Amiga
 - Electronic mail (Courier) with send/receive and email notifications
 - User-generated content (The Jungle) with voting
 - Custom PETSCII headers on directories you own, uploaded from the website
@@ -245,12 +246,13 @@ See [docs/spec/api/](docs/spec/api/README.md).
 - **[server/cfg/](server/cfg/)** — Configuration (users, terminal.bin, templates)
 - **[server/data/](server/data/)** — Runtime content (not tracked in git; `content.test/` is,
   as the fixture tree the tests run against)
-- **[server/tests/](server/tests/README.md)** — Regression tests: Binding B against the fixture
-  tree, and the reference client's command set against the specification. Stdlib `unittest`,
-  no dependencies
+- **[server/tests/](server/tests/README.md)** — Regression tests: both bindings and the PETSCII
+  terminal against the fixture tree, the audit log, the directory serializer, X.25
+  framing, and the reference client's command set against the specification. Stdlib
+  `unittest`, no dependencies
 
 ```bash
-python server/tests/test_api_binding.py && python server/tests/test_client_conformance.py
+for t in server/tests/test_*.py; do python "$t" || break; done
 ```
 
 ### Website
@@ -276,6 +278,7 @@ python server/tests/test_api_binding.py && python server/tests/test_client_confo
 
 **Platform notes & provenance** (non-normative — the spec is authoritative):
 
+- **[docs/audit-log.md](docs/audit-log.md)** — what the service records about who did what: the event vocabulary, where each event is emitted from, and how to filter the log
 - **[docs/PROTOCOL.md](docs/PROTOCOL.md)** — original C64 ROM reference and RE provenance (superseded as protocol authority by the spec)
 - **[docs/TERMINAL.md](docs/TERMINAL.md)** — the separate server-rendered PETSCII terminal product (port 6401)
 - **[docs/MODEM.md](docs/MODEM.md)** — C64 hardware layer (ACIA driver)

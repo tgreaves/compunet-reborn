@@ -551,6 +551,201 @@ class ProgramUpload(unittest.TestCase):
         self.assertNotEqual(rebuilt[:2], bytes([0x01, 0x08]))
         self.assertEqual(rebuilt[:2], b'\x00\x00', 'load address lost, as predicted')
 
+    # --- the machine the client DECLARED must survive into machine_type -------
+    # ⚠ The upload path used to test `machine == 1` and fold everything else onto
+    # the C64 branch, so an ST program (2) was stored as `c64` with two bytes of
+    # its body stripped as if they were a load address. The download side already
+    # branched three ways (ProgramDownloadDescriptor), so the two ends disagreed.
+    # These pin the fix: the declared machine byte round-trips, and only the 6502
+    # loses two bytes to a load address.
+
+    def _st_blob(self, exe):
+        """A 68k blob whose machine byte is ST (2). Nothing on the wire produces
+        this today — the picker offers C64 and Amiga — but the server must store a
+        2 as ST rather than mangle it, which is the whole point of the fix."""
+        blob = bytearray(8 + len(exe))
+        blob[0] = 2
+        blob[6] = len(exe) & 0xFF
+        blob[7] = (len(exe) >> 8) & 0xFF
+        blob[8:] = exe
+        return bytes(blob)
+
+    def _upload_to_graphics(self, title, blob, kind='P', ext='prg'):
+        """Drive a full Binding-B binary upload into GRAPHICS and return
+        (stored_bytes, entry_json). machine_type is `None` in the JSON when the
+        server wrote no key — which, per §7, means C64."""
+        import base64
+        import glob
+        import json
+        s = session()
+        send(s, type='goto', target=str(JUNGLE))
+        entered = send(s, type='enter', page=GRAPHICS)
+        self.assertEqual(entered.get('type'), 'directory',
+                         'could not enter GRAPHICS: %r' % (entered.get('message'),))
+        reply = send(s, type='upload', title=title, kind=kind, price=0, life=30,
+                     frames=[base64.b64encode(blob).decode('ascii')])
+        self.assertEqual(reply.get('type'), 'directory',
+                         'upload refused: %r' % (reply.get('message'),))
+        with open(os.path.join(srv.ROOT_DIR, 'jungle', 'graphics',
+                               'directory.json')) as f:
+            pages = json.load(f)['pages']
+        entry = next(p for p in pages if p['title'] == title)
+        hits = glob.glob(os.path.join(srv.ROOT_DIR, 'jungle', 'graphics',
+                                      '**', '*.' + ext), recursive=True)
+        stored = open(hits[0], 'rb').read()
+        return stored, entry
+
+    def test_a_c64_upload_is_stored_as_c64_minus_its_load_address(self):
+        prg = bytes([0x01, 0x08]) + bytes(range(200))
+        stored, entry = self._upload_to_graphics('C64PROG', self._blob(prg, is_c64=True))
+        # C64 stays absent in the JSON — absent means C64 (§7), and existing
+        # content carries no machine_type, so writing one would be noise.
+        self.assertIsNone(entry.get('machine_type'), 'C64 must not write a machine_type key')
+        self.assertEqual(stored, prg, 'C64 program must round-trip byte-for-byte')
+
+    def test_an_amiga_upload_is_stored_whole_as_amiga(self):
+        exe = bytes([0x00, 0x00, 0x03, 0xF3]) + bytes(range(150))   # HUNK header
+        stored, entry = self._upload_to_graphics('AMIGAPROG', self._blob(exe, is_c64=False))
+        self.assertEqual(entry.get('machine_type'), 'amiga')
+        # No load address to strip: the stored file is the whole 68k image.
+        self.assertEqual(stored, exe, 'Amiga body must be stored whole')
+
+    def test_an_st_upload_is_stored_whole_as_st_not_folded_into_c64(self):
+        """The trap the fix removed: a 2 used to be stored as `c64` with two body
+        bytes eaten. It must store as `st`, whole."""
+        exe = bytes(range(180))
+        stored, entry = self._upload_to_graphics('STPROG', self._st_blob(exe))
+        self.assertEqual(entry.get('machine_type'), 'st',
+                         'an ST upload must not be folded into c64')
+        self.assertEqual(stored, exe,
+                         'a 68k body must be stored whole — no load address to strip')
+
+    # --- F: IFF picture upload (#129) -----------------------------------------
+    @staticmethod
+    def _iff(w=16, h=2, nplanes=1):
+        """A minimal but well-formed uncompressed FORM..ILBM."""
+        import struct
+        rowbytes = ((w + 15) // 16) * 2
+        bmhd = struct.pack('>HHhhBBBBHBBhh', w, h, 0, 0, nplanes, 0, 0, 0, 0, 10, 11, w, h)
+        body = bytes(rowbytes * nplanes * h)
+        def chunk(cid, d):
+            return cid + struct.pack('>I', len(d)) + d + (b'\x00' if len(d) & 1 else b'')
+        form = b'ILBM' + chunk(b'BMHD', bmhd) + chunk(b'BODY', body)
+        return b'FORM' + struct.pack('>I', len(form)) + form
+
+    def _f_blob(self, iff):
+        """The web client's F upload: 8-byte header (Amiga machine byte 1) + the IFF."""
+        blob = bytearray(8 + len(iff))
+        blob[0] = 1
+        blob[6] = len(iff) & 0xFF
+        blob[7] = (len(iff) >> 8) & 0xFF
+        blob[8:] = iff
+        return bytes(blob)
+
+    def test_an_iff_picture_uploads_as_f_amiga_whole(self):
+        iff = self._iff()
+        stored, entry = self._upload_to_graphics('COLOURBARS', self._f_blob(iff),
+                                                 kind='F', ext='iff')
+        self.assertEqual(entry['type'], 'F', 'an IFF upload must store as type F')
+        self.assertEqual(entry.get('machine_type'), 'amiga',
+                         'an IFF picture is Amiga content by definition')
+        self.assertEqual(stored, iff,
+                         'the IFF must be stored whole — no load address to strip')
+        self.assertTrue(stored[:4] == b'FORM' and stored[8:12] == b'ILBM')
+
+    def test_an_amiga_originated_f_upload_stores_whole(self):
+        """⚠ The Amiga's publish dialog has ALWAYS offered F — put_frame's jump table at
+        0x10c3c2 routes 'A','S','P','F' alike to upload_file — but the Binding-A receive
+        loop gated on type 'P', so an IFF from an Amiga went to the PETSCII frame
+        accumulator and was then mangled by the blob path.
+
+        This drives _complete_content_upload with the header the Amiga actually builds
+        (upload_file: bytes 0-3 = $01000000, bytes 4-7 = big-endian size), which is what
+        the widened receive loop now hands it."""
+        iff = self._iff()
+        blob = bytearray(8 + len(iff))
+        blob[0] = 0x01                                   # recon: *(ULONG*)hdr = 0x1000000
+        blob[4:8] = len(iff).to_bytes(4, 'big')          # recon: *(ULONG*)(hdr+4) = size
+        blob[8:] = iff
+        stored, entry = self._upload_to_graphics('AMIGAPIC', bytes(blob),
+                                                 kind='F', ext='iff')
+        self.assertEqual(entry['type'], 'F')
+        self.assertEqual(entry.get('machine_type'), 'amiga')
+        self.assertEqual(stored, iff,
+                         'byte 0 is 1 (Amiga), so the body is stored whole — no load '
+                         'address may be stripped')
+
+    def test_a_non_iff_f_upload_is_refused_not_sanitised(self):
+        """§7.4.1: reject a mislabelled F at upload rather than let it surface as a
+        blank Amiga screen."""
+        s = session()
+        send(s, type='goto', target=str(JUNGLE))
+        send(s, type='enter', page=GRAPHICS)
+        import base64
+        not_iff = self._f_blob(b'\x00\x00\x03\xf3' + bytes(40))   # a HUNK exe, not IFF
+        reply = send(s, type='upload', title='NOTIFF', kind='F', price=0, life=30,
+                     frames=[base64.b64encode(not_iff).decode('ascii')])
+        self.assertEqual(reply.get('type'), 'error')
+        self.assertIn('ILBM', reply.get('message', ''))
+
+
+class UploadTypeGate(unittest.TestCase):
+    """Only T, P and F may be uploaded (§7.4.1, §8.3.2) — and the gate has to hold on
+    EVERY path, because the type letter is not decoration: an 'A' is native code the
+    client downloads and executes, which is why the server refuses to serve one at all.
+    A path that stores an 'A' puts an executable in the tree for a later hand-edit,
+    import or migration to expose, and 'unlikely' is not a guard against code execution.
+
+    The spec already asserted this gate existed. It only ever existed in Binding B."""
+
+    def test_binding_b_refuses_an_action_upload(self):
+        s = session()
+        send(s, type='goto', target=str(JUNGLE))
+        send(s, type='enter', page=GRAPHICS)
+        reply = send(s, type='upload', title='EVIL', kind='A', price=0, life=30,
+                     frames=['AAAA'])
+        self.assertEqual(reply.get('type'), 'error')
+        self.assertEqual(reply.get('code'), 'invalid')
+
+    def test_binding_a_refuses_an_action_upload_before_the_transfer(self):
+        """⚠ Reachable from an ERA client, not just a hostile one: the Amiga's publish
+        dialog takes the type as free text and its jump table at 0x10c3c2 routes 'A' and
+        'S' down the same upload_file path as 'P' and 'F'.
+
+        Refused at the 'U' command, so the user is told before streaming a file — and
+        pending_send must be left clear, or the next data packet would be accumulated
+        against a half-built upload."""
+        s = session()
+        s.current_page = s.directory.pages[GRAPHICS]
+        reply = s._cmd_upload_content('EVIL', 'A', b'000.00030')
+        self.assertEqual(reply[0], srv.RESP_ERROR,
+                         'an unsupported type must be refused, not accepted')
+        self.assertIsNone(s.pending_send,
+                          'a refused upload must leave no pending transfer behind')
+
+    def test_the_shared_writer_discards_an_action_even_if_something_reaches_it(self):
+        """The backstop in _complete_content_upload — the shared function every binding
+        goes through — so a future binding cannot reintroduce the gap by forgetting its
+        own check. Both current bindings refuse earlier; this asserts the floor."""
+        import json
+        s = session()
+        s.current_page = s.directory.pages[GRAPHICS]
+        s._complete_content_upload({'mode': 'upload', 'title': 'EVIL', 'type': 'A',
+                                    'price': 0.0, 'lifetime': 30, 'frames': [b'\x01' * 32]})
+        with open(os.path.join(srv.ROOT_DIR, 'jungle', 'graphics',
+                               'directory.json')) as f:
+            titles = [p['title'] for p in json.load(f)['pages']]
+        self.assertNotIn('EVIL', titles, 'an A must never reach the directory')
+
+    def test_a_supported_type_still_passes_the_gate(self):
+        """Guard against over-refusing: the gate must not break the ordinary case."""
+        s = session()
+        s.current_page = s.directory.pages[GRAPHICS]
+        reply = s._cmd_upload_content('FINEPAGE', 'T', b'000.00030')
+        self.assertNotEqual(reply[0], srv.RESP_ERROR)
+        self.assertIsNotNone(s.pending_send)
+        self.assertEqual(s.pending_send['type'], 'T')
+
 
 class ProgramUploadAccumulator(unittest.TestCase):
     """Binding A's program-upload receive loop (§8.3.2), which had no test — the
@@ -1042,7 +1237,7 @@ class AuditWriteEndpoint(unittest.TestCase):
     def test_requires_the_api_key(self):
         """It writes to the security log — an unguarded writer lets anyone
         forge the record of a password reset."""
-        self.assertEqual(self._post({'event': 'x'}, auth=False), 401)
+        self.assertEqual(self._post({'event': 'page_read'}, auth=False), 401)
         self.assertEqual(self._stored(), [])
 
     def test_rejects_a_missing_event(self):
@@ -1053,13 +1248,21 @@ class AuditWriteEndpoint(unittest.TestCase):
     def test_rejects_malformed_json(self):
         self.assertEqual(self._post(None, raw='not json'), 400)
 
+    def test_rejects_an_undeclared_event(self):
+        """The vocabulary is enforced at the boundary (#127). An unknown name used
+        to be accepted, written, and then invisible to every filter that knows the
+        event set — a record that exists but cannot be found."""
+        self.assertEqual(self._post({'event': 'something_made_up'}), 400)
+        self.assertEqual(self._stored(), [])
+
     def test_records_the_event(self):
-        self.assertEqual(self._post({'event': 'password_reset_request',
+        self.assertEqual(self._post({'event': 'password_reset_requested',
                                      'user': 'TEST',
                                      'details': {'ip': '10.0.0.9'}}), 200)
         entries = self._stored()
         self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0]['event'], 'password_reset_request')
+        self.assertEqual(entries[0]['event'], 'password_reset_requested')
+        self.assertEqual(entries[0]['kind'], 'session')
         self.assertEqual(entries[0]['user'], 'TEST')
         self.assertEqual(entries[0]['ip'], '10.0.0.9')
         self.assertIn('time', entries[0])
@@ -1155,6 +1358,108 @@ class ProgramDownloadDescriptor(unittest.TestCase):
         hdr = s._send_current_frame()
         self.assertEqual(hdr[0], 0)
         self.assertEqual(hdr[4] | (hdr[5] << 8), 0x0801)
+
+
+class PictureDownloadF(unittest.TestCase):
+    """§7.4.1 — an F (IFF picture) downloads through the SAME 8-byte descriptor as an
+    Amiga program (its handler action_download_run reuses file_download_xfer), and the
+    server refuses to serve one to a client that cannot render it — the feature-locked
+    C64 — because it has no IFF decoder and would garbage-render the bitmap."""
+
+    @staticmethod
+    def _f_page(body):
+        page = srv.CompunetPage(page_num=1234, title='PIC', page_type='F',
+                                author='TEST', price=0.0, life=1)
+        page.frames = [body]
+        page.machine_type = 'amiga'
+        return page
+
+    def _serve(self, capability):
+        """capability: 'amiga' (native), 'api' (Binding B / web), or None (C64)."""
+        s = session()
+        s.show_page = self._f_page(bytes(5000))
+        s.show_frame_index = 0
+        if capability == 'amiga':
+            s.is_amiga = True
+        elif capability == 'api':
+            s.audit_via = 'api'
+        return s._send_current_frame(), s
+
+    def test_an_f_download_uses_the_amiga_program_descriptor(self):
+        hdr, s = self._serve('amiga')
+        self.assertEqual(hdr[0], 1, 'F is Amiga: machine byte 1')
+        self.assertEqual(int.from_bytes(hdr[4:8], 'big'), 5000,
+                         'F sizes its body as a 68k big-endian longword at 4-7')
+        self.assertEqual(s._program_download_data, bytes(5000),
+                         'the IFF body is staged whole — no load address stripped')
+
+    def test_binding_b_may_fetch_an_f_it_renders_itself(self):
+        hdr, s = self._serve('api')
+        self.assertEqual(hdr[0], 1)
+        self.assertTrue(getattr(s, '_program_download_pending', False),
+                        'Binding B carries the renderer, so the fetch must proceed')
+
+    def test_taking_the_download_stops_the_session_showing_that_page(self):
+        """⚠ The regression: `take_program_download` cleared the pending flags but
+        left `show_page` set, so the finished binary page was still 'current' after
+        its bytes had been handed over — and the next command that reached
+        _send_current_frame re-sent the 8-byte DESCRIPTOR, offering the user the
+        download they had just completed. The abort path already cleared it; success
+        did not, so the two ends of one transfer disagreed. Applies to P as much as
+        to F — the fix is in the shared function."""
+        _, s = self._serve('amiga')
+        self.assertTrue(s._program_download_pending, 'staged before the fetch')
+        self.assertIsNotNone(s.show_page)
+        data = s.take_program_download()
+        self.assertEqual(len(data), 5000, 'the bytes are still delivered')
+        self.assertIsNone(s.show_page, 'the session must stop showing a downloaded page')
+        self.assertEqual(s.show_frame_index, 0)
+        self.assertFalse(s._program_download_pending)
+
+    def test_an_action_entry_is_refused_outright_on_every_client(self):
+        """§7.4.1 — `A` is deliberately not served, and MUST be refused rather than
+        allowed to fall through to the frame path.
+
+        ⚠ The danger is not that A does nothing; it is that the CLIENT dispatches on the
+        type letter regardless of what the server sends. Letting an A reach the ordinary
+        frame path put the client in its action handler — which expects the 8-byte
+        descriptor and then Execute()s the result — while the server sent a text frame.
+        The Amiga read the frame's leading bytes as the descriptor (guarded only by
+        whatever that byte happened to be); the C64, which has no machine guard at all,
+        would execute the received data as 6502.
+
+        Refused for EVERY client, including the ones that could technically run it —
+        this is a policy decision (arbitrary code execution into frozen binaries), not a
+        capability check like the F guard above."""
+        for capability in ('amiga', 'api', None):
+            with self.subTest(client=capability):
+                s = session()
+                page = srv.CompunetPage(page_num=1234, title='ACTION', page_type='A',
+                                        author='TEST', price=0.0, life=1)
+                page.frames = [b'\x00\x06\x0f\x8e RUNME']
+                page.machine_type = 'amiga'
+                s.show_page = page
+                s.show_frame_index = 0
+                if capability == 'amiga':
+                    s.is_amiga = True
+                elif capability == 'api':
+                    s.audit_via = 'api'
+                out = s._send_current_frame()
+                self.assertEqual(out[0], srv.RESP_ERROR,
+                                 'an A must be refused, not sent as a frame')
+                self.assertNotIn(b'RUNME', bytes(out),
+                                 'the stored bytes must never reach the client')
+                self.assertFalse(getattr(s, '_program_download_pending', False),
+                                 'nothing may be staged for an A')
+
+    def test_the_c64_is_refused_an_f_with_a_message_not_the_descriptor(self):
+        hdr, s = self._serve(None)
+        # RESP_ERROR ('E', 0x45) + PETSCII message + $00 — the C64 paints it as a page
+        # rather than being handed a descriptor it would mishandle (§7.4.1).
+        self.assertEqual(hdr[0], srv.RESP_ERROR)
+        self.assertIn(b'AMIGA', bytes(hdr))
+        self.assertFalse(getattr(s, '_program_download_pending', False),
+                         'nothing must be staged for a client that cannot render it')
 
 
 if __name__ == '__main__':

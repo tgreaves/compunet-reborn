@@ -4,6 +4,21 @@
 import type { Assets, Cell, DirectoryMsg, FrameMsg } from './protocol';
 
 export const COLS = 40, ROWS = 24, CELL = 8;
+
+/** ⚠ THE BORDER HAS A SIZE, and it is much larger than it looks.
+ *
+ *  The VIC-II's display window is the 320x200 this canvas draws, but that window sits
+ *  inside a visible picture of **384x272** on PAL — so the border is 32 pixels left and
+ *  right and 36 top and bottom, about a tenth of the width on each side. This client
+ *  used a flat 18 CSS pixels (9 C64 pixels at scale 2), roughly a quarter of the real
+ *  thing, which read as "the colours are right but the frame is wrong".
+ *
+ *  PAL, not NTSC (418x235): Compunet was a UK service.
+ *
+ *  These are C64 pixels, multiplied by `scale` when applied — the padding is set from
+ *  here rather than in the stylesheet precisely so it cannot drift out of step with the
+ *  canvas if the scale ever changes. */
+export const BORDER_X = 32, BORDER_Y = 36;
 // ⚠ No WHITE here any more. The selection bar used to draw its text white; the
 // original reverses the cell instead, so the text shows in the screen background
 // (§7.7, $A6DC). Nothing in the directory is white.
@@ -78,6 +93,9 @@ export class Renderer {
     // One extra row for the duckshoot: it lives OUTSIDE the 40x24 content grid
     // (§4.9.2) — which is exactly why the content area is 24 rows, not 25.
     this.canvas.height = (ROWS + 1) * CELL * scale;
+    // The border is the wrapper's padding, coloured by setBorder(). Sized here, with the
+    // canvas, so the two are always the same scale — see BORDER_X/BORDER_Y above.
+    this.wrap.style.padding = `${BORDER_Y * scale}px ${BORDER_X * scale}px`;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('no 2d context');
     this.ctx = ctx;

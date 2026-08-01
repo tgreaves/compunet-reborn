@@ -54,10 +54,20 @@ These are known, deliberately-bounded, and do not block building a conformant cl
   left non-normative (§4.3).
 - **Editing UX.** §8.4 specifies only that the editor's output is a valid frame submitted via
   upload; the editing experience itself is deliberately unspecified.
-- **Browser transport.** The spec is TCP-only; a browser cannot open a raw TCP socket, so a
-  web client would need a WebSocket transport binding that this spec does not yet define. The
-  abandoned `client/web/` experiment is **broken and non-compliant** (flagged in its README)
-  and is **not** a reference — the spec's assets are extracted from the C64/Amiga clients only.
+- ~~**Browser transport.**~~ **Closed.** This was written when the spec was TCP-only and a
+  browser could not open a raw socket, so a web client had nowhere to connect. That gap is
+  what **[Binding B](api/README.md)** exists to fill: a WebSocket gateway plus REST reads on
+  port 6404, carrying the same application model. It is normative, clean-room validated three
+  times over (runs seven to nine below), and `client/web/` — described here as an abandoned,
+  broken experiment — is now the working reference client for it, shipping in a browser and in
+  an Electron desktop shell.
+
+  ⚠ Left visible rather than deleted, because the bullet outlived the problem by a long way
+  and was still calling the shipped web client broken while people were using it. A
+  "residual gaps" list is read by exactly the people who cannot check it against the code.
+
+  Still true, and the reason the note is not simply removed: **Binding A itself is TCP-only**,
+  and the spec's assets are extracted from the C64 and Amiga clients — never from `client/web/`.
 - **PETSCII→screen-code table (§5.3)** is taken from the Amiga renderer (the canonical C64
   transform); it has not been independently diffed against the C64 KERNAL path. To confirm
   when a test client is built.
@@ -595,10 +605,10 @@ reproduced by every reader.
 
 The spec explains the observed behaviour of the server and both reference clients across
 transport, session, commands, display, frames, directories, and subsystems, with the
-contradictions above resolved in the server's favour. **Five independent clean-room readers**
-built working clients from this document alone — Tier 1 twice, Tier 2 once, and Tier 3 twice —
-the visual stages confirming the display down to the canonical directory layout. By the sixth
-run the protocol core was clean end-to-end; the remaining fixes were **client-obligation**
+contradictions above resolved in the server's favour. **Six independent clean-room readers**
+built working clients from this document alone — Tier 1 twice, Tier 2 once, and Tier 3 three
+times — the visual stages confirming the display down to the canonical directory layout. By the
+sixth run the protocol core was clean end-to-end; the remaining fixes were **client-obligation**
 tightenings (surface `DIR` on the welcome screen, prompt for upload type/price, make column
 cycling and the full-directory check mandatory) and one recurring **implementation** pitfall
 (the reverse-video selection bar) now explicitly guarded — not gaps in the wire protocol.

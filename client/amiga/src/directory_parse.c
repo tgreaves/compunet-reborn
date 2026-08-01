@@ -45,8 +45,8 @@
 extern char  frame_rle_getchar(void);              /* FUN_00108086 */
 extern UBYTE read_frame_byte(void);                /* FUN_0010800c — installed as getbyte */
 extern UBYTE (*g_frame_getbyte)(void);             /* DAT_001203b6 */
-extern UWORD g_frame_pos;                          /* DAT_001203a0 */
-extern UWORD g_frame_len;                           /* DAT_001203a4 */
+extern LONG g_frame_pos;                          /* DAT_001203a0 */
+extern LONG g_frame_len;                           /* DAT_001203a4 */
 extern UBYTE g_frame_eof;                           /* DAT_001203ac */
 extern UBYTE *g_frame_capture;                      /* DAT_001203ae */
 extern UBYTE g_rle_run;                             /* DAT_001203bb */
@@ -220,12 +220,23 @@ info_line:
             for (; ngad < 8; ngad++)
                 *PB(page, ngad + row * 9 + 0x7c8) = 0x20;
             *PB(page, ngad + row * 9 + 0x7c8) = 0;
+            /* ⚠ THE COUNTER ADVANCES UNCONDITIONALLY, ONCE PER COMPLETED ROW, and is
+             * stored RAW. Original 0x109e8e `addq.w #$1,-$4(a5)` sits outside the
+             * lookahead test, and 0x109ec2 stores it as-is.
+             *
+             * Incrementing only on the "there is a next row" path and then storing
+             * row + 1 agrees on the CR and NUL exits but NOT on 0x109ebe — the frame
+             * ending immediately after a comma — where it stored one too many. +0xc72
+             * is DIR_NROWS, which drives the page-number prev/next gadgets, so the extra
+             * count let the user step onto a phantom 9-byte row at +0x7c8 + N*9. That
+             * table is never cleared between directories, so the phantom showed a stale
+             * page number from the PREVIOUS listing and selecting it navigated there. */
+            row++;
             if (c == '\0' || c == '\r')
                 break;
             c = frame_rle_getchar();
-            row++;
         } while (c != '\0');
-        PW(page, 0xc72) = row + 1;
+        PW(page, 0xc72) = row;
         while (c != '\0')
             c = frame_rle_getchar();
     }

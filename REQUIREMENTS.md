@@ -117,11 +117,45 @@ the server dies at once. It now reports that correctly (`Server failed to start`
 tail of `server/logs/compunet-server.log`, and no PID file); until 1.3.0 it printed
 `Server started (PID …)` regardless, because it backgrounded the process and recorded the PID
 without checking it survived. `./server.sh status` still fails separately on `pgrep`, which Git
-Bash does not provide. On Windows, run the server directly and check the ports:
+Bash does not provide.
+
+⚠ **Running the server directly does NOT load `.env` — `server.sh` does.** This is the part that
+bites, because nothing fails: the server starts perfectly and serves the **wrong content tree**.
+`.env` is where `COMPUNET_CONTENT_DIR` usually points at a working copy rather than
+`server/data/content`, so a server launched without it silently serves a different (often nearly
+empty) set of directories, and you debug missing content that is really just a different tree. It
+also drops `COMPUNET_API_KEY`, so the website cannot talk to the server at all. Load `.env`
+first — this is what `server.sh` does on Linux, and the Windows equivalent:
 
 ```powershell
-cd server ; .\venv\Scripts\python.exe compunet_server.py
-Get-NetTCPConnection -State Listen -LocalPort 6400,6401,6403,6404
+$p = (Get-Location).Path
+Get-Content "$p\.env" | ForEach-Object {
+  $line = $_.Trim()
+  if ($line -and -not $line.StartsWith('#') -and $line.Contains('=')) {
+    $i = $line.IndexOf('='); Set-Item -Path "env:$($line.Substring(0,$i).Trim())" -Value $line.Substring($i+1).Trim()
+  }
+}
+"content: $env:COMPUNET_CONTENT_DIR"      # confirm it is the tree you meant
+Set-Location "$p\server"
+.\venv\Scripts\python.exe compunet_server.py
+```
+
+That runs in the foreground. To run it detached, with the logs `server.sh` would have written:
+
+```powershell
+Start-Process -FilePath "$p\server\venv\Scripts\python.exe" -ArgumentList "compunet_server.py" `
+  -RedirectStandardOutput "$p\server\logs\stdout.log" `
+  -RedirectStandardError  "$p\server\logs\stderr.log" -WindowStyle Hidden
+```
+
+⚠ **Startup output goes to stderr, not stdout** — `stdout.log` stays empty and `stderr.log` holds
+the `Compunet server vX.Y.Z ready` banner and the four `... on port` lines. Read the wrong one and
+a healthy server looks like it produced nothing. Check it started, then stop it:
+
+```powershell
+foreach ($port in 6400,6401,6403,6404) { "$port : $(Test-NetConnection 127.0.0.1 -Port $port -InformationLevel Quiet)" }
+Get-CimInstance Win32_Process -Filter "Name like '%python%'" |
+  Where-Object { $_.CommandLine -match 'compunet_server' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 ```
 
 ## Running the website locally
@@ -175,15 +209,51 @@ cd client/web      && npm install && npm run build     # the bundle
 cd client/electron && npm install && npm run dist:win  # the desktop app
 ```
 
+`npm run typecheck` in `client/web` runs `tsc --noEmit`. **Worth running — `npm run build` does
+not typecheck.** esbuild strips types without checking them, so a type error bundles perfectly
+happily and only shows up at runtime.
+
+⚠ **On Windows, install Node per-user** and note it does not land on `PATH` for an existing
+shell — the same trap as `gh` above:
+
+```powershell
+winget install --id OpenJS.NodeJS.LTS --scope user --accept-source-agreements --accept-package-agreements
+```
+
+It unpacks to `%LOCALAPPDATA%\Microsoft\WinGet\Packages\OpenJS.NodeJS.LTS_…\node-v<ver>-win-x64`.
+Prepend that to `PATH` for the current session rather than reinstalling when `node` is "not
+found".
+
 ⚠ **Always `dist:win`, never `pack:win`** ([CLAUDE.md](CLAUDE.md), Client Rules). `pack:win`
 writes only `dist/win-unpacked/` and leaves the installer and portable exe at the previous build
 — the two artefacts a tester actually picks up.
 
-⚠ **electron-builder vs. Windows symlinks.** Its `winCodeSign` package contains macOS symlinks
-Windows cannot create, and the download fails. Pre-extract the cache without them:
+⚠ **electron-builder vs. Windows symlinks — turn ON Developer Mode.** Its `winCodeSign`
+package contains macOS symlinks Windows will not create without privilege, and the extraction
+fails hard:
 
 ```
-7z x winCodeSign-<ver>.7z -o"%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\winCodeSign-<ver>" -xr!darwin
+ERROR: Cannot create symbolic link : A required privilege is not held by the client.
+       ...\winCodeSign\<id>\darwin\10.12\lib\libcrypto.dylib
+  • Above command failed, retrying 3 more times
+```
+
+**Settings → System → For developers → Developer Mode.** That permits unprivileged symlink
+creation and the build then runs start to finish. An elevated shell works too. Nothing else is
+needed — signing itself is skipped (`no signing info identified`), so this is purely about
+unpacking a tool we do not use.
+
+⚠ **The pre-extract workaround previously recorded here does NOT work on current
+electron-builder** and cost an hour before that was clear. It said to unpack the cache to
+`winCodeSign-<ver>` with `-xr!darwin`. This version extracts to a **random numeric id per
+download** — eight such directories accumulated from failed attempts, each a different number —
+so there is no name to pre-populate. Every one of them contained a perfectly good `windows-10`
+directory: only the `darwin` symlinks fail, and electron-builder treats that as fatal anyway.
+
+After enabling Developer Mode, clear the debris so the next run starts clean:
+
+```powershell
+Remove-Item "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign\*" -Recurse -Force
 ```
 
 ⚠ **Close the app before packaging.** A running `Compunet Reborn.exe` — especially the portable
@@ -204,12 +274,26 @@ cd client/c64/src && make          # -> ../compunet-reborn.prg
 the server verifies it against `server/cfg/client_version.txt`. Source, binaries and that file
 must be committed together, or the server rejects the client. See CLAUDE.md, Client Rules 1–3.
 
-⚠ **On Windows the hash is computed over CRLF bytes.** `gen_version.py` hashes the working-tree
-file, and Git checks `compunet.s` out with CRLF line endings, so a Windows build produces a
-*different* hash from the committed one — `0053DF` against the `800CAD` that the shipped `.prg`
-and the server both expect from the LF blob. **Do not rebuild the C64 client on Windows without
-resolving this first**: publishing that hash locks out every existing client. (Nothing is wrong
-in the tree today — the shipped binary and `client_version.txt` agree.)
+~~⚠ **On Windows the hash is computed over CRLF bytes.**~~ **Fixed.** `gen_version.py` hashed the
+working-tree file as-is, so the result depended on how Git had checked `compunet.s` out — a
+Windows build derived a different hash from a Linux one for identical source, and publishing it
+would have locked out every existing client. It now normalises `\r\n` to `\n` before hashing, so
+every platform agrees. **Windows builds are safe.**
+
+⚠ **But pass `HASH=` unless you intend to force every C64 user to re-download.**
+
+```bash
+cd client/c64/src && make HASH=800cad
+```
+
+The hash is a **compatibility token**, not a build fingerprint: the client sends it at
+identification and the server compares it against `server/cfg/client_version.txt`, so changing it
+tells every existing client it is out of date. `compunet.s` has since had comment-and-naming-only
+edits, so the value it now hashes to (`1A6A04`) no longer matches the `800CAD` the shipped
+binaries and the server use — deliberately, because a comment change must not cost every user a
+download. `gen_version.py` rewrites `client_version.txt` unconditionally, so a plain `make`
+publishes the new value and forces that download. Pin it until you actually mean to break
+compatibility.
 
 ## vbcc — Amiga client
 

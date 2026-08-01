@@ -1,3 +1,46 @@
+# 1.4.0 (2026-08-01)
+
+* Web & desktop client:
+	* Fixed: Screen border proportions now C64 accurate.
+	* New: Amiga picture (IFF/ILBM) rendering support.  'F' file type.
+	* Changed: uploading a program now asks whether it is for the C64 or the
+	  Amiga, instead of guessing from the file name.
+* Amiga client:
+	* Fixed: Rendering buttons were staying 'painted' once clicked.
+	* Fixed: Text fields handle RETURN correctly + open with a cursor now.
+	* Fixed: TAB moves between fields now.
+	* Fixed: Left-Amiga+HELP now aborts a download or page read that is in progress.
+	* Fixed: Disconnected now releases the modem device.
+	* Fixed: Diagnostics window now works + closes correctly.
+	* Fixed: the "Frame being edited" box drew rubbish where NEXT or LAST should
+	  have been.
+	* Fixed: Various memory leaks.
+	* Fixed: Use of 'GOTO' corrupting memory elsewhere in the client.
+	* Fixed: entering a Goto Page code could corrupt memory elsewhere in the client.
+	* Fixed: Built-in IFF renderer was non-functional (#129)
+	* Fixed: Quitting after viewing a picture crashed the client.
+	* Fixed: User being billed for a charged text page without a warning prompt first.
+	* Fixed: Connect panel text now has the correct palette.
+	* Fixed: Links (e.g. Partyline) now guard against malformed headers.
+* Website:
+	* New: Audit log filtering / searching (#128)
+* Server:
+	* New: IFF (Type 'F') picture support, supporting Amiga and web clients (#129)
+	* Security: Action (Type 'A') entries are refused outright.  The original service
+	  had them for the Amiga but these are UNSAFE (client executes the code without
+	  warning!) (#129)
+	* Security: Uploads are now restricted to text, program and picture types.
+	  The Amiga client and the terminal previously accepted any type letter
+	  typed into the PAGE TYPE field — including Action ('A') — and stored it.
+	* Fixed: A directory closed to other users could still be uploaded to from the
+	  PETSCII terminal.  The C64 and web clients refused it correctly.
+	* Fixed: Audit actions from Web and Electron clients were missing. (#127)
+	* Fixed: Administrator audit actions were missing. (#127)
+	* Fixed: Audit log recording Amiga sessions as C64.
+	* Fixed: Audit log now consistently records IP address.
+	* Fixed: Web and Electron client sessions showing as 'WHO IS ONLINE' despite
+	  disconnecting.
+
 # 1.3.1 (2026-07-30)
 
 * Website:

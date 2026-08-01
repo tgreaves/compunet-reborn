@@ -2,6 +2,8 @@
 var COLS = 40;
 var ROWS = 24;
 var CELL = 8;
+var BORDER_X = 32;
+var BORDER_Y = 36;
 var RED = 2;
 var BLUE = 6;
 var TEMPLATE_BG = 15;
@@ -62,6 +64,7 @@ var Renderer = class {
     this.scale = scale;
     this.canvas.width = COLS * CELL * scale;
     this.canvas.height = (ROWS + 1) * CELL * scale;
+    this.wrap.style.padding = `${BORDER_Y * scale}px ${BORDER_X * scale}px`;
     const ctx = canvas2.getContext("2d");
     if (!ctx) throw new Error("no 2d context");
     this.ctx = ctx;
@@ -738,6 +741,93 @@ var EditorBuffer = class {
   }
 };
 
+// src/iff.ts
+function fourcc(b, at) {
+  return String.fromCharCode(b[at], b[at + 1], b[at + 2], b[at + 3]);
+}
+function isILBM(b) {
+  return b.length >= 12 && fourcc(b, 0) === "FORM" && fourcc(b, 8) === "ILBM";
+}
+function decodeILBM(bytes) {
+  if (!isILBM(bytes)) throw new Error("not an IFF ILBM (FORM..ILBM)");
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let w = 0, h = 0, nplanes = 0, masking = 0, compression = 0, camg = 0;
+  let cmap = [];
+  let body = null;
+  let pos = 12;
+  while (pos + 8 <= bytes.length) {
+    const id = fourcc(bytes, pos);
+    const len = dv.getUint32(pos + 4);
+    const data = bytes.subarray(pos + 8, pos + 8 + len);
+    if (id === "BMHD") {
+      w = data[0] << 8 | data[1];
+      h = data[2] << 8 | data[3];
+      nplanes = data[8];
+      masking = data[9];
+      compression = data[10];
+    } else if (id === "CMAP") {
+      cmap = [];
+      for (let i = 0; i + 2 < data.length; i += 3) cmap.push([data[i], data[i + 1], data[i + 2]]);
+    } else if (id === "CAMG") {
+      camg = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3];
+    } else if (id === "BODY") {
+      body = data;
+    }
+    pos += 8 + len + (len & 1);
+  }
+  if (!w || !h || !nplanes || !body) throw new Error("ILBM missing BMHD or BODY");
+  if (compression > 1) throw new Error("unsupported ILBM compression " + compression);
+  if (camg & 2048) throw new Error("HAM pictures are not supported");
+  if (nplanes > 8) throw new Error("unsupported plane count " + nplanes);
+  if (camg & 128 || nplanes === 6 && cmap.length === 32) {
+    for (let i = 0; i < 32 && i < cmap.length; i++) {
+      cmap.push([cmap[i][0] >> 1, cmap[i][1] >> 1, cmap[i][2] >> 1]);
+    }
+  }
+  const rowbytes = (w + 15 >> 4) * 2;
+  const rgba = new Uint8ClampedArray(new ArrayBuffer(w * h * 4));
+  let bp = 0;
+  const planeRow = new Uint8Array(rowbytes);
+  function readPlaneRow() {
+    if (compression === 0) {
+      planeRow.set(body.subarray(bp, bp + rowbytes));
+      bp += rowbytes;
+      return;
+    }
+    let n = 0;
+    while (n < rowbytes && bp < body.length) {
+      const c = body[bp++];
+      if (c <= 127) {
+        for (let i = 0; i <= c && n < rowbytes; i++) planeRow[n++] = body[bp++];
+      } else if (c >= 129) {
+        const val = body[bp++];
+        for (let i = 0; i < 257 - c && n < rowbytes; i++) planeRow[n++] = val;
+      }
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    const idx = new Uint16Array(w);
+    for (let p = 0; p < nplanes; p++) {
+      readPlaneRow();
+      for (let x = 0; x < w; x++) {
+        const bit = planeRow[x >> 3] >> 7 - (x & 7) & 1;
+        idx[x] |= bit << p;
+      }
+    }
+    if (masking === 1) readPlaneRow();
+    const rowbase = y * w * 4;
+    for (let x = 0; x < w; x++) {
+      const c = cmap[idx[x]] || [0, 0, 0];
+      const o = rowbase + x * 4;
+      rgba[o] = c[0];
+      rgba[o + 1] = c[1];
+      rgba[o + 2] = c[2];
+      rgba[o + 3] = 255;
+    }
+  }
+  return { width: w, height: h, rgba };
+}
+
 // src/main.ts
 var $ = (id) => document.getElementById(id);
 var canvas = $("screen");
@@ -895,14 +985,26 @@ function onMessage(m) {
     }
     case "download": {
       const d = m;
+      pendingDownloadKind = d.kind === "F" ? "F" : "P";
+      if (pendingDownloadKind === "F") {
+        status(`Loading ${d.title} \u2014 ${d.size} bytes`);
+        gw.send({ type: "download.fetch" });
+        break;
+      }
       status(`Download: ${d.title} \u2014 ${d.size} bytes (${d.machine})`);
       if (confirm(`Download "${d.title}" (${d.size} bytes)?`)) gw.send({ type: "download.fetch" });
       break;
     }
     case "download.data": {
       const d = m;
-      saveBase64(d.bytes, (d.title || "download").replace(/\s+/g, "_").toLowerCase() + ".prg");
-      status(`Saved ${d.title} (${d.size} bytes)`);
+      if (pendingDownloadKind === "F") {
+        showPicture(d.bytes, d.title || "picture");
+        status(`Showing ${d.title} (${d.size} bytes)`);
+      } else {
+        saveBase64(d.bytes, (d.title || "download").replace(/\s+/g, "_").toLowerCase() + ".prg");
+        status(`Saved ${d.title} (${d.size} bytes)`);
+      }
+      pendingDownloadKind = "P";
       break;
     }
     case "account": {
@@ -1010,6 +1112,7 @@ function renderEditor() {
   $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}` + (buf.editing ? ` \xB7 EDIT ${buf.row + 1},${buf.col + 1}` : "") + (p.raw ? " \xB7 captured" : "");
 }
 var pendingUpload = null;
+var pendingDownloadKind = "P";
 var outgoingUpload = [];
 function openSubmit(kind) {
   submitMode = kind;
@@ -1021,10 +1124,15 @@ function openSubmit(kind) {
   $("submit").hidden = false;
   $("submitTitle").textContent = kind === "upload" ? `Upload into "${dir?.title ?? "this directory"}"` : "Send as mail";
   $("edContentFields").hidden = kind !== "upload";
+  syncMachineField();
   $("edToField").hidden = kind !== "mail";
   $("edHint").textContent = kind === "upload" ? "Type and price are required. The pages come from the editor." : "Recipients: up to five user IDs, comma-separated.";
   $("edTitle").value = "";
   $("edTitle").focus();
+}
+function syncMachineField() {
+  const isProgram = $("edKind").value === "P";
+  $("edMachineField").hidden = !isProgram || $("edContentFields").hidden;
 }
 function closeSubmit() {
   submitMode = null;
@@ -1049,7 +1157,10 @@ function doSubmit() {
       title,
       kind: $("edKind").value,
       price: parseFloat($("edPrice").value) || 0,
-      life: parseInt($("edLife").value, 10) || 0
+      life: parseInt($("edLife").value, 10) || 0,
+      // Carried through the upload sub-context so SEND knows which machine the
+      // user chose; meaningless for a text upload and ignored there.
+      machine: $("edMachine").value
     };
     pendingUpload = meta;
     outgoingUpload = [];
@@ -1352,7 +1463,23 @@ function toBase64(bytes) {
   }
   return btoa(s);
 }
+function sniffMachine(file) {
+  if (file.length >= 4 && file[0] === 0 && file[1] === 0 && file[2] === 3 && file[3] === 243) return "amiga";
+  if (file.length >= 1084) {
+    const sig = String.fromCharCode(file[1080], file[1081], file[1082], file[1083]);
+    if (["M.K.", "M!K!", "M&K!", "FLT4", "FLT8", "4CHN", "6CHN", "8CHN"].includes(sig)) {
+      return "amiga";
+    }
+  }
+  if (file.length >= 2) {
+    const load = file[0] | file[1] << 8;
+    if ([2049, 4097, 1025, 49152, 8192, 12288].includes(load)) return "c64";
+  }
+  return null;
+}
 function sendProgram() {
+  const isPicture = pendingUpload?.kind === "F";
+  const machine = isPicture ? "amiga" : pendingUpload?.machine ?? "c64";
   const inp = document.createElement("input");
   inp.type = "file";
   inp.onchange = () => {
@@ -1360,7 +1487,7 @@ function sendProgram() {
     if (!f) return;
     void f.arrayBuffer().then((ab) => {
       const file = new Uint8Array(ab);
-      const isC64 = /\.prg$/i.test(f.name);
+      const isC64 = machine !== "amiga";
       const body = isC64 ? file.subarray(2) : file;
       const load = isC64 ? file[0] | file[1] << 8 : 0;
       if (isC64 && file.length < 3) {
@@ -1377,7 +1504,22 @@ function sendProgram() {
       outgoingUpload.push(toBase64(blob));
       const kb = Math.ceil(body.length / 1024);
       rowMessage.net = `${f.name.toUpperCase().slice(0, 20)} ${kb}K ADDED`;
-      status(`${f.name} \u2014 ${body.length} bytes, ${isC64 ? `C64 load $${load.toString(16).toUpperCase().padStart(4, "0")}` : "Amiga"}. FINISH to commit.`);
+      if (isPicture) {
+        const isIFF = file.length >= 12 && String.fromCharCode(file[0], file[1], file[2], file[3]) === "FORM" && String.fromCharCode(file[8], file[9], file[10], file[11]) === "ILBM";
+        status(
+          `${f.name} \u2014 ${body.length} bytes, Amiga IFF picture. ` + (isIFF ? "" : "\u26A0 this does not look like an IFF ILBM \u2014 the server will refuse it. ") + "FINISH to commit.",
+          !isIFF
+        );
+        updateBar();
+        return;
+      }
+      const shown = isC64 ? `C64, load $${load.toString(16).toUpperCase().padStart(4, "0")}` : "Amiga";
+      const detected = sniffMachine(file);
+      const disagrees = detected !== null && detected !== machine;
+      status(
+        `${f.name} \u2014 ${body.length} bytes, ${shown}. ` + (disagrees ? `\u26A0 but this looks like ${detected === "amiga" ? "an Amiga" : "a C64"} file \u2014 CANCEL and start again if the Machine is wrong. ` : "") + "FINISH to commit.",
+        disagrees
+      );
       updateBar();
     });
   };
@@ -1393,7 +1535,7 @@ var uploadActions = {
   // "a client that always uploads as T cannot upload software" failure §8.3.2
   // names, presenting as "it just goes into the editor".
   SEND: () => {
-    if (pendingUpload?.kind === "P") {
+    if (pendingUpload?.kind === "P" || pendingUpload?.kind === "F") {
       sendProgram();
       return;
     }
@@ -1466,16 +1608,55 @@ async function sendMail() {
   render();
   status("SEND each frame of the message, then FINISH. EDITR to compose.");
 }
-function saveBase64(b64, filename) {
+function base64ToBytes(b64) {
   const bin = atob(b64);
-  const buf2 = new Uint8Array(bin.length);
+  const buf2 = new Uint8Array(new ArrayBuffer(bin.length));
   for (let i = 0; i < bin.length; i++) buf2[i] = bin.charCodeAt(i);
+  return buf2;
+}
+function saveBase64(b64, filename) {
+  const buf2 = base64ToBytes(b64);
   const url = URL.createObjectURL(new Blob([buf2], { type: "application/octet-stream" }));
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+function showPicture(b64, title) {
+  let img;
+  try {
+    img = decodeILBM(base64ToBytes(b64));
+  } catch (e) {
+    status(`Cannot show ${title}: ${e.message}`, true);
+    return;
+  }
+  const cv = document.createElement("canvas");
+  cv.width = img.width;
+  cv.height = img.height;
+  cv.style.cssText = "image-rendering:pixelated;max-width:100%;max-height:78vh;border:1px solid var(--line);border-radius:6px;background:#000";
+  const ctx = cv.getContext("2d");
+  if (ctx) ctx.putImageData(new ImageData(img.rgba, img.width, img.height), 0, 0);
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;z-index:20;background:#000c;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px";
+  const cap = document.createElement("div");
+  cap.textContent = `${title.toUpperCase()} \u2014 ${img.width}\xD7${img.height}  (any key or click to close)`;
+  cap.style.cssText = "font:12px ui-monospace,monospace;color:var(--dim)";
+  overlay.append(cv, cap);
+  const close = () => {
+    overlay.remove();
+    window.removeEventListener("keydown", onKey, true);
+    setFocus("net");
+    render();
+  };
+  const onKey = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    close();
+  };
+  overlay.addEventListener("click", close);
+  window.addEventListener("keydown", onKey, true);
+  document.body.appendChild(overlay);
 }
 var FRAME_DWELL_MS = 500;
 var dwell = () => new Promise((resolve) => setTimeout(resolve, baud ? 0 : FRAME_DWELL_MS));
@@ -2320,6 +2501,7 @@ async function boot() {
   });
   $("edSubmit").onclick = doSubmit;
   $("edCancel").onclick = closeSubmit;
+  $("edKind").onchange = syncMachineField;
   $("chatInput").addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     const input = $("chatInput");

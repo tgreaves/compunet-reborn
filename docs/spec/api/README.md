@@ -289,7 +289,7 @@ paints each cell (glyph from the appendix font, `fg`/`bg` from the palette).
 ```
 
 *(Compact encodings — parallel typed arrays, run-length, or base64 — are a later optimization;
-the draft fixes the logical shape first.)*
+this binding fixes the logical shape first.)*
 
 ### 5.3 Others
 

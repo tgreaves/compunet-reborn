@@ -42,10 +42,31 @@ APTR find_task(APTR name)
  * a tracked ClearMenuStrip(win) (freefn = ClearMenuStrip, arg1 = win) so the resource
  * unwinder detaches the strip on cleanup/exit before the window is closed.
  */
+static void unshare_user_port(struct Window *win);   /* defined below */
+
 void set_menu_strip_tracked(APTR win, APTR menu)
 {
     SetMenuStrip((struct Window *)win, (struct Menu *)menu);
     resource_register_free((void (*)())ClearMenuStrip, win, 0);
+}
+
+/* The TEARDOWN counterparts (recon FUN_0011a5b0 / FUN_0011a66a), used by
+ * diagnostics_close. Each undoes the action AND removes the tracker node, so the exit
+ * unwind does not repeat it — the same discipline as close_window_tracked. */
+void clear_menu_strip_tracked(APTR win)
+{
+    extern void resource_unregister(void (*fn)(), APTR arg1);
+    if (win == NULL) return;
+    ClearMenuStrip((struct Window *)win);
+    resource_unregister((void (*)())ClearMenuStrip, win);
+}
+
+void unshare_user_port_tracked(APTR win)
+{
+    extern void resource_unregister(void (*fn)(), APTR arg1);
+    if (win == NULL) return;
+    unshare_user_port((struct Window *)win);
+    resource_unregister((void (*)())unshare_user_port, win);
 }
 
 /*

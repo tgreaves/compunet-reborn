@@ -32,7 +32,21 @@ for arg in sys.argv[1:]:
     if arg.startswith('--hash='):
         source_hash = arg.split('=', 1)[1].upper()
 if not source_hash:
-    source_hash = hashlib.sha256(open(source_file, 'rb').read()).hexdigest()[:6].upper()
+    # ⚠ NORMALISE LINE ENDINGS BEFORE HASHING. This hashed the working-tree bytes
+    # as-is, which made the result depend on how the file was CHECKED OUT rather
+    # than on what it says: git hands Windows a CRLF copy, so a Windows build
+    # derived a different hash from a Linux one for identical source. That is not
+    # a cosmetic difference — this hash is the compatibility token the server
+    # checks (`server/cfg/client_version.txt`), so building on the wrong platform
+    # published a value no existing client could match and locked every C64 user
+    # out until someone re-downloaded. REQUIREMENTS.md carried a standing "do not
+    # rebuild the C64 client on Windows" warning because of this line.
+    #
+    # Line endings are a checkout artefact, not content. Normalising makes the
+    # hash a property of the source, which is what it was always meant to be, and
+    # makes Windows and Linux builds agree.
+    src = open(source_file, 'rb').read().replace(b'\r\n', b'\n')
+    source_hash = hashlib.sha256(src).hexdigest()[:6].upper()
 
 # --- version.inc ---
 label = ' COMPUNET REBORN  ' + version.upper() + ' '

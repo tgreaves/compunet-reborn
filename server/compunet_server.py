@@ -83,14 +83,110 @@ if os.path.exists(_env_file):
 # Audit log
 AUDIT_LOG_PATH = os.path.join(os.path.dirname(__file__), 'data', 'audit.jsonl')
 
-def audit_log(event, user=None, **details):
-    """Append an event to the audit log (JSON-lines format)."""
+#: Every audit event, mapped to the `kind` it belongs to. THE AUTHORITATIVE LIST —
+#: `audit_log` refuses an event that is not here, so a typo or an undeclared event
+#: fails loudly at the call site instead of appearing in the log as a name nothing
+#: filters on. Documented in docs/audit-log.md.
+#:
+#: Names are `noun_verbed`, past tense, throughout. The vocabulary previously grew
+#: ad hoc — `page_deleted` and `header_removed` against `upload` and `vote` — with
+#: no documented set for a new feature to conform to.
+#:
+#: `kind` exists so the viewer can separate the signal from the volume: `browse` is
+#: every page view from three surfaces and dominates the log, while `admin` is the
+#: handful of events anyone auditing actually wants.
+AUDIT_KINDS = ('content', 'mail', 'session', 'admin', 'partyline', 'browse',
+               'operational')
+
+AUDIT_EVENTS = {
+    # Reading. High volume, deliberately its own kind so it can be excluded.
+    'page_read':            'browse',
+    'mail_opened':          'browse',
+
+    # Content changes.
+    'page_uploaded':        'content',
+    'page_bought':          'content',
+    'page_voted':           'content',
+    'page_life_extended':   'content',
+    'page_downloaded':      'content',
+    'page_renamed':         'content',
+    'page_moved':           'content',
+    'page_reordered':       'content',
+    'page_deleted':         'content',
+    'directory_created':    'content',
+    'directory_settings_changed': 'content',
+    'header_set':           'content',
+    'header_removed':       'content',
+
+    # Mail.
+    'mail_sent':            'mail',
+
+    # Sessions and accounts.
+    'session_started':      'session',
+    'session_ended':        'session',
+    'login_succeeded':      'session',
+    'login_failed':         'session',
+    'signup_completed':     'session',
+    'password_changed':     'session',
+    'password_reset_requested': 'session',
+    'password_reset':       'session',
+
+    # Administration. The events an audit log exists for.
+    'user_updated':         'admin',
+    'user_deleted':         'admin',
+    'broadcast_sent':       'admin',
+    'registration_requested': 'admin',
+    'registration_rejected': 'admin',
+
+    # Partyline.
+    'partyline_entered':    'partyline',
+    'partyline_kicked':     'partyline',
+    'partyline_banned':     'partyline',
+    'partyline_unbanned':   'partyline',
+
+    # Server faults, not user actions. No `user`.
+    'missing_frame':        'operational',
+}
+
+
+def audit_log(event, user=None, session=None, **details):
+    """Append an event to the audit log (JSON-lines format).
+
+    ⚠ CALL THIS FROM THE FUNCTION THAT PERFORMS THE ACTION, not from the command
+    handler that reached it. Auditing used to sit at the caller, so whether an
+    action was recorded depended on which door the user came through: mail sent
+    from a C64 or the terminal was logged, and the same mail sent through the JSON
+    API was not, because Binding B calls the shared `_complete_mail_send` directly.
+    `_complete_content_upload` had it right and uploads were recorded everywhere.
+    Same file, seventy lines apart (#127).
+
+    Pass `session` and both `ip` and `via` are derived from it, so a new call site
+    cannot omit them — they were previously per-call-site arguments, present on all
+    ten of terminal.py's events and on almost none of Binding A's.
+    """
+    kind = AUDIT_EVENTS.get(event)
+    if kind is None:
+        # Loud, not silent: an unknown name would be written and then be invisible
+        # to every filter that knows the vocabulary.
+        raise ValueError(
+            'unknown audit event %r — add it to AUDIT_EVENTS with its kind' % event)
+
     entry = {
         'time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'event': event,
+        'kind': kind,
     }
     if user:
         entry['user'] = user
+    if session is not None:
+        if user is None and getattr(session, 'user_id', None):
+            entry['user'] = session.user_id
+        ip = getattr(session, 'client_ip', None)
+        if ip and 'ip' not in details:
+            entry['ip'] = ip
+        via = audit_via(session)
+        if via and 'via' not in details:
+            entry['via'] = via
     entry.update(details)
     try:
         os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
@@ -98,6 +194,69 @@ def audit_log(event, user=None, **details):
             f.write(json.dumps(entry) + '\n')
     except OSError:
         log.warning('Failed to write audit log entry: %s', entry)
+
+
+#: Never written to the audit log, whatever an admin changed.
+_AUDIT_SECRET_FIELDS = frozenset(('password',))
+
+
+def _audit_diff(before, after):
+    """`['credit: 10.0 -> 25.0', 'editor: False -> True']` for what an edit changed.
+
+    Secrets are named but never valued: recording a password hash — before or
+    after — would put credential material in a log an admin reads in a browser.
+    """
+    changes = []
+    for key in sorted(set(before) | set(after)):
+        old, new = before.get(key), after.get(key)
+        if old == new:
+            continue
+        if key in _AUDIT_SECRET_FIELDS:
+            changes.append('%s: changed' % key)
+        else:
+            changes.append('%s: %r -> %r' % (key, old, new))
+    return changes
+
+
+def identify_binding_a_client(session, is_amiga):
+    """Record WHICH machine a Binding-A session turned out to be.
+
+    ⚠ Both fields, in one place, on purpose. `is_amiga` drives behaviour (packet
+    size, LINKING, the IFF guard) and `audit_via` drives the log, and they were set
+    at different points by different code: the socket set `audit_via = 'c64'` before
+    identification could know better, and the handler then set only `is_amiga`. Since
+    audit_via() returns an explicit value before consulting is_amiga, the label never
+    caught up and EVERY Amiga session was logged as a C64 (#127 shipped that).
+    Setting one without the other is the bug, so nothing may set just one.
+    """
+    session.is_amiga = bool(is_amiga)
+    session.audit_via = 'amiga' if is_amiga else 'c64'
+
+
+def audit_via(session):
+    """Which surface an action came through: c64, amiga, terminal, api, web, admin.
+
+    Without this the log cannot answer "what did this user do, and from where" — a
+    `page_read` from a C64 was indistinguishable from one through the web client
+    except by whether `ip` happened to be present.
+
+    `audit_via` is set explicitly where a session is created.
+
+    ⚠ AN EXPLICIT VALUE WINS, so a session that sets it must KEEP IT TRUE. The
+    is_amiga fallback below is a safety net for sessions that never set one — it is
+    NOT a correction. A Binding-A session sets `audit_via = 'c64'` the moment the
+    socket opens, before it can know better, so setting `is_amiga` later did nothing
+    and every Amiga was recorded as a C64. The identification handler now updates
+    `audit_via` itself; this reading order is why it has to.
+    """
+    if session is None:
+        return None
+    explicit = getattr(session, 'audit_via', None)
+    if explicit:
+        return explicit
+    if getattr(session, 'is_amiga', False):
+        return 'amiga'
+    return None
 
 # Server configuration
 TCP_PORT = 6400
@@ -154,8 +313,17 @@ def _user_connect(user_id):
     _online_users.add(user_id)
 
 
-def _user_disconnect(user_id):
-    """Mark a user as offline (called on LEAVE, disconnect, or timeout)."""
+def _user_disconnect(user_id, session=None):
+    """Mark a user as offline (called on LEAVE, disconnect, or timeout).
+
+    ⚠ Audits the session end HERE so every surface records it. Binding A audited
+    it in tcp_handler and the terminal in its own teardown; Binding B did neither,
+    so a web-client session simply stopped appearing (#127). It also never called
+    this at all, which left those users listed on WHO IS ONLINE indefinitely —
+    the same omission, with a second symptom.
+    """
+    if user_id and user_id in _online_users:
+        audit_log('session_ended', user=user_id, session=session)
     _online_users.discard(user_id)
 
 WHO_PAGE_DIR = os.path.join(ROOT_DIR, 'who-is-online')  # slug of "WHO IS ONLINE?"
@@ -228,11 +396,24 @@ RESP_DIR = 0x44       # 'D' - directory data
 RESP_FRAME = 0x46     # 'F' - frame data
 RESP_ERROR = 0x45     # 'E' - error
 
+# The content types a user may UPLOAD (§7.4.1, §8.3.2). Deliberately narrower than the
+# set of type letters a client can DISPATCH on: the era Amiga's publish dialog is a free
+# text field whose jump table (0x10c3c2) routes 'A', 'S', 'P' and 'F' alike to the
+# file-upload path, so a user can type any of them. 'A' is run-on-arrival native code and
+# is not served at all (§7.4.1) — accepting one for storage would put an executable in
+# the tree for a hand-edit or a migration to later expose. 'S' has no handler anywhere in
+# this service. One tuple, shared by both bindings, so a type accepted on one is accepted
+# on the other; the spec asserts this gate exists, so it must be true everywhere.
+UPLOAD_TYPES = ('T', 'P', 'F')
+
 # Program-file machine type. Stored human-readably on the page ('c64'/'amiga') and mapped
 # to the download header's byte-0 machine code the client reads (0=C64, 1=Amiga, 2=Atari
 # ST). Uploaded 'P' pages record their uploader's platform; absent/unknown -> C64 (0), so
 # all pre-existing content serves exactly as before.
 MACHINE_CODES = {'c64': 0, 'amiga': 1, 'st': 2}
+#: The reverse, for storing what a client declared on upload. An unknown code
+#: falls back to C64, which is also what an absent machine_type means.
+MACHINE_NAMES = {code: name for name, code in MACHINE_CODES.items()}
 
 CMD_ACCNT = 0x41      # 'A'
 CMD_BACK = 0x42       # 'B' (was incorrectly 'C' — verified from terminal disassembly)
@@ -495,6 +676,9 @@ class CompunetDirectory:
         # For program pages, calculate size in KB from file data
         if page.page_type == 'P' and page.frames:
             page.size = (len(page.frames[0]) - 2 + 1023) // 1024
+        # An IFF picture ('F') is stored whole — no 2-byte load address to discount.
+        elif page.page_type == 'F' and page.frames:
+            page.size = (len(page.frames[0]) + 1023) // 1024
 
         # If page is also a directory, load sub-directory JSON
         if 'directory' in node:
@@ -924,6 +1108,205 @@ def reorder_child(parent, page, index):
     parent.children.insert(index, page)
 
 
+#: Refusal reasons `complete_content_upload` can return, so a caller can tell the user
+#: WHY rather than just that nothing happened. Every one of them was previously either a
+#: silent `return` (Binding A and B) or a hand-written duplicate of the same test (the
+#: terminal). Callers that have no screen ignore these and log.
+UPLOAD_REFUSALS = {
+    'bad_type': 'INVALID PAGE TYPE',
+    'not_permitted': 'UPLOAD NOT PERMITTED',
+    'not_owner': 'CANNOT REPLACE (NOT OWNER)',
+    'directory_full': 'DIRECTORY FULL',
+    'not_iff': 'NOT AN IFF PICTURE',
+}
+
+
+def complete_content_upload(session, send):
+    """Write an uploaded page into `session.current_page`. THE writer — all three
+    surfaces go through this one.
+
+    ⚠ It was three. Binding A and Binding B shared this; the PETSCII terminal carried
+    two hand-copied reimplementations of it (`_complete_text_upload` and the tail of
+    `_cmd_upload_send`), and they had drifted exactly as duplicated code does. Verified
+    differences, not suspected ones: the terminal never recorded `machine_type`; it was
+    unaware of the 8-byte binary-upload header, so it always wrote a `.prg` and could
+    not have stored an `F` at all; its permission walk treated an explicit
+    `open_upload: false` as "keep looking upwards" instead of "stop here", so a user's
+    OWN-ONLY directory inside an open Jungle was writable from the terminal and refused
+    everywhere else; and only its copy recorded whether an upload replaced an existing
+    page. Which surface you happened to use decided what got written. The same shape as
+    the audit gap in the project rules, and the same fix: put it in the shared function
+    and every present and future surface inherits the behaviour for free.
+
+    Returns 'uploaded' or 'replaced' on success, or a key of UPLOAD_REFUSALS. Callers
+    with a screen turn that into a message; callers without one ignore it.
+
+    `session` needs: current_page, directory, user_id, is_admin, is_editor,
+    _can_upload_here(), _archive_page(), _save_directory_containing(). TerminalSession
+    provides those as thin adapters over what it already had.
+    """
+    # ⚠ The backstop for the type gate, HERE, so every surface — present and future —
+    # inherits it, exactly as the audit rule requires of the actions it covers. Callers
+    # also refuse earlier, where they can report a reason before a file is streamed;
+    # this catches anything reaching the writer by another route. Belt and braces is the
+    # point: the thing being kept out of the tree is an executable (§7.4.1).
+    if send['type'] not in UPLOAD_TYPES:
+        log.warning('UPLOAD DISCARDED: user=%s "%s" type=%r is not uploadable',
+                    session.user_id, send['title'], send['type'])
+        return 'bad_type'
+    if not session._can_upload_here():
+        log.info('UPLOAD DISCARDED: user=%s cannot upload to page owned by %s',
+                 session.user_id, session.current_page.author)
+        return 'not_permitted'
+
+    # Check for existing page with same title
+    page_slug = CompunetDirectory._make_slug(send['title'])
+    existing = None
+    for child in session.current_page.children:
+        if CompunetDirectory._make_slug(child.title) == page_slug:
+            existing = child
+            break
+
+    if existing:
+        # Check ownership — only author, admin, or editor can replace
+        if (existing.author != session.user_id and
+                not session.is_admin and not session.is_editor):
+            log.info('UPLOAD REJECTED: user=%s cannot replace "%s" owned by %s',
+                     session.user_id, existing.title, existing.author)
+            return 'not_owner'
+        # Archive the old version
+        session._archive_page(existing, reason='replaced')
+    elif len(session.current_page.children) >= 11:
+        log.info('UPLOAD DISCARDED: user=%s directory full (%d entries)',
+                 session.user_id, len(session.current_page.children))
+        return 'directory_full'
+
+    # Determine page number (reuse existing or allocate new)
+    if existing:
+        page_num = existing.page_num
+    else:
+        # Unique against the whole tree, not just the lookup table.
+        page_num = session.directory.next_page_num()
+
+    # Create page folder
+    parent_dir = getattr(session.current_page, '_dir_path', ROOT_DIR)
+    page_dir = os.path.join(parent_dir, page_slug)
+    os.makedirs(page_dir, exist_ok=True)
+
+    # Save frames into page folder. Binary uploads — a program ('P') or an IFF
+    # picture ('F') — arrive as [8-byte header][body]; the header's byte 0 is the
+    # machine type (0=C64, 1=Amiga, 2=ST). An F is stored exactly like an Amiga
+    # program (whole body, no load address) but with a .iff name and page_type 'F',
+    # because on the wire an F download IS an Amiga program download (§7.4.1) — the
+    # type letter is all that tells the client to decode rather than save.
+    frame_files = []
+    is_picture = send['type'] == 'F'
+    is_blob = send['type'] in ('P', 'F')
+    prog_machine = send['frames'][0][0] if (is_blob and send['frames']) else None
+
+    # ⚠ VALIDATED HERE, IN THE SHARED FUNCTION, so EVERY surface gets it. Binding B
+    # checks before calling; Binding A had no check at all, so an Amiga could publish
+    # any file as an `F` and it would be stored as a picture that nothing can decode —
+    # discovered as a blank screen much later, by someone else. The body follows the
+    # 8-byte header, and an ILBM begins "FORM"????"ILBM". Reject rather than sanitise:
+    # there is no sensible repair for "this is not the format you said it was".
+    if is_picture:
+        body = bytes(send['frames'][0][8:]) if send['frames'] else b''
+        if body[0:4] != b'FORM' or body[8:12] != b'ILBM':
+            log.warning('UPLOAD DISCARDED: user=%s "%s" declared type F but is not '
+                        'an IFF ILBM (starts %r)', session.user_id, send['title'], body[:12])
+            return 'not_iff'
+    # ⚠ The split is by CPU, not by brand — 68k machines have no load address,
+    # the 6502 does. Upload used to test `== 1` and so folded ST into the C64
+    # branch, which would strip two bytes off the front of an ST file and store
+    # it as `c64`; the DOWNLOAD side already handled all three correctly
+    # (is_68k, verified against the original client's disassembly, #123). This
+    # makes the two ends agree. Nothing sends a 2 today, so no behaviour changes
+    # — it removes a trap rather than adding a feature.
+    prog_is_68k = prog_machine in (1, 2)
+    for i, frame_data in enumerate(send['frames']):
+        if is_blob:
+            if prog_is_68k:
+                # 68k: no C64-style load address to strip. Store the body whole.
+                frame_data = bytes(frame_data[8:])
+            else:
+                # C64: prepend the 2-byte load address (header bytes 4-5) to the body.
+                frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
+            ext = 'iff' if is_picture else 'prg'
+            frame_file = f'{page_slug}.{ext}' if i == 0 else f'{page_slug}-{i+1}.{ext}'
+        else:
+            frame_file = f'frame-{i+1}.seq'
+        frame_path = os.path.join(page_dir, frame_file)
+        with open(frame_path, 'wb') as f:
+            f.write(frame_data)
+        frame_files.append(frame_file)
+
+    if is_blob and send['frames']:
+        hdr = send['frames'][0]
+        if prog_is_68k:
+            size = (len(hdr) - 8 + 1023) // 1024   # raw body length (KB)
+        else:
+            size = (len(hdr) - 2 + 1023) // 1024   # C64 calc (unchanged)
+    else:
+        size = len(send['frames'])
+
+    new_page = CompunetPage(
+        page_num=page_num,
+        title=send['title'],
+        page_type=send['type'],
+        size=size,
+        author=session.user_id,
+        price=send['price'],
+        life=send['lifetime'],
+    )
+    new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    if is_picture:
+        # An IFF picture is Amiga content by definition, whatever the header byte said.
+        new_page.machine_type = 'amiga'
+    elif is_blob and prog_machine is not None:
+        # Program uploads carry their machine type in the header byte (authoritative).
+        # Reverse of MACHINE_CODES, so the stored value round-trips whatever the
+        # client declared instead of collapsing everything that is not 1 to C64.
+        new_page.machine_type = MACHINE_NAMES.get(prog_machine, 'c64')
+    else:
+        new_page.machine_type = 'amiga' if getattr(session, 'is_amiga', False) else 'c64'
+    new_page.parent = session.current_page
+    new_page._frame_files = frame_files
+    new_page._dir_path = page_dir
+    new_page._adverts = []
+    for frame_file in frame_files:
+        frame_path = os.path.join(page_dir, frame_file)
+        with open(frame_path, 'rb') as f:
+            new_page.frames.append(f.read())
+
+    if existing:
+        # Replace in children list
+        idx = session.current_page.children.index(existing)
+        session.current_page.children[idx] = new_page
+        session.directory.pages[page_num] = new_page
+        log.info('CONTENT: replaced page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
+                 page_num, send['title'], session.user_id,
+                 len(send['frames']), send['price'], send['lifetime'])
+    else:
+        session.current_page.children.append(new_page)
+        session.directory.pages[page_num] = new_page
+        log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
+                 page_num, send['title'], session.user_id,
+                 len(send['frames']), send['price'], send['lifetime'])
+
+    # This directory gains (or replaces) an entry — and its PARENT may need
+    # the `directory` key added, because a latent directory only becomes real
+    # on the first upload into it (§7.3). Two files, not the whole tree.
+    session._save_directory_containing(session.current_page,
+                                       getattr(session.current_page, 'parent', None))
+    action = 'replaced' if existing else 'uploaded'
+    # `action` was recorded only by the terminal's copy. Now every surface carries it —
+    # "page_uploaded" alone does not say whether someone else's page was overwritten.
+    audit_log('page_uploaded', session=session, title=send['title'],
+              page=page_num, type=send['type'], action=action)
+    return action
+
+
 class CompunetSession:
     """A client session - same logic for WebSocket and TCP clients."""
 
@@ -949,6 +1332,11 @@ class CompunetSession:
         self.mail_frame_index = 0
         self.pending_send = None
         self.last_response_type = None  # Set by response methods for WS prefix detection
+        # Which surface this session belongs to, for the audit log's `via` field.
+        # Set by whoever creates the session; Binding A refines 'c64' to 'amiga'
+        # once identification tells it which (see audit_via).
+        self.audit_via = None
+        self.client_ip = None
         self._users = self._load_users()
     
     def _load_users(self):
@@ -985,7 +1373,7 @@ class CompunetSession:
         self.is_admin = user.get('admin', False)
         self.is_editor = user.get('editor', False)
         log.info('Login OK: %s (credit=%.2f, purchased=%s)', user_id, self.credit, self.purchased)
-        audit_log('connect', user=user_id, ip=self.client_ip)
+        audit_log('session_started', session=self)
         _user_connect(user_id)
         return self._make_welcome_frame(user)
     
@@ -1225,11 +1613,11 @@ class CompunetSession:
                     log.info('BUY: user=%s page=%d ("%s") price=%.2f credit=%.2f',
                              self.user_id, child.page_num, child.title,
                              child.price, self.credit)
-                    audit_log('buy', user=self.user_id, page=child.page_num,
+                    audit_log('page_bought', session=self, page=child.page_num,
                               title=child.title, price=child.price)
                 self.show_page = child
                 self.show_frame_index = 0
-                audit_log('read', user=self.user_id, page=child.page_num,
+                audit_log('page_read', session=self, page=child.page_num,
                           title=child.title, type=child.page_type)
                 return self._send_current_frame()
             # No frames: SHOW is INERT (spec §7.4). It must NOT fall back to
@@ -1290,6 +1678,11 @@ class CompunetSession:
                             return self._make_dir_response()
                         log.info('P cmd: creating new sub-directory under "%s" (page %d)',
                                  child.title, child.page_num)
+                        # Was recorded nowhere, on any surface (#127). A page
+                        # becoming a directory is how ownership of a branch is
+                        # established, so it is worth knowing who did it and when.
+                        audit_log('directory_created', session=self,
+                                  page=child.page_num, title=child.title)
                     self.current_page = child
                     self.selected_entry = 0
                     self.dir_page_offset = 0
@@ -1343,12 +1736,52 @@ class CompunetSession:
         """
         self.last_response_type = RESP_FRAME
         if self.show_page and self.show_frame_index < len(self.show_page.frames):
-            # Program download: send header, wait for proceed token
-            if self.show_page.page_type == 'P':
+            page_type = self.show_page.page_type
+            # ⚠ 'A' (action) IS REFUSED, DELIBERATELY — and refusing is not the same as
+            # not implementing it. Until this guard, an A entry fell through to the frame
+            # path below and was sent as an ordinary text frame, while the CLIENT
+            # dispatched on the type letter into its action handler, which expects the
+            # 8-byte descriptor and then Execute()s what arrives. The two ends disagreed
+            # completely: the Amiga read the frame's first bytes as the descriptor and
+            # bailed on the machine check (guarded only by whatever that byte happened to
+            # be), and the feature-locked C64 — which has NO machine guard — zeroes three
+            # bytes at $0801 and executes the received data as 6502 code.
+            #
+            # An A cannot be created by upload (kind is gated to T/P/F), so this needs a
+            # hand-edited directory.json, an import, or a migration. Unlikely; but the
+            # failure mode is arbitrary code execution on a client that cannot be fixed,
+            # and "unlikely" is not a guard. See §7.4.1 for why A is not served at all:
+            # it downloads and immediately runs native, CPU-specific code.
+            if page_type == 'A':
+                log.warning('ACTION REFUSED: page=%d "%s" — type A is not served (§7.4.1)',
+                            self.show_page.page_num, self.show_page.title)
+                return self._make_error(ascii_to_petscii('NOT AVAILABLE'))
+            # 'P' (program) and 'F' (IFF picture) both download through the 8-byte
+            # descriptor and the $40 proceed handshake. Verified: the Amiga's F handler
+            # action_download_run reuses the SAME file_download_xfer() that programs use
+            # (client/amiga/src/download.c / transfer.c) — identical negotiation and
+            # descriptor. They differ only in what the client does with the delivered
+            # bytes: a P is saved, an F is fed to the ILBM decoder.
+            if page_type in ('P', 'F'):
+                # §7.4.1 guard. An F is Amiga content by definition. A client that cannot
+                # render it must NOT be handed the descriptor: the feature-locked C64 has
+                # no IFF decoder and would garbage-render the bitmap through its frame
+                # interpreter (§7.4.1). Refuse it a message the C64 paints as a page. The
+                # native Amiga (is_amiga) and Binding B — our own client, which carries the
+                # renderer, audit_via 'api' — can display it and proceed.
+                if page_type == 'F':
+                    can_render_iff = (getattr(self, 'is_amiga', False)
+                                      or getattr(self, 'audit_via', None) == 'api')
+                    if not can_render_iff:
+                        return self._make_error(ascii_to_petscii('PICTURE - AMIGA ONLY'))
                 prg_data = self.show_page.frames[self.show_frame_index]
-                # Header byte 0 = machine type (0=C64, 1=Amiga, 2=ST) from the page's stored
-                # platform; absent/unknown -> C64. The client's download dialog keys off it.
-                machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
+                # Header byte 0 = machine type (0=C64, 1=Amiga, 2=ST). A program carries its
+                # stored platform (absent/unknown -> C64); an F is always Amiga. The client's
+                # download dialog keys off it.
+                if page_type == 'F':
+                    machine = 1
+                else:
+                    machine = MACHINE_CODES.get(getattr(self.show_page, 'machine_type', 'c64'), 0)
                 # ⚠ BYTES 4-7 ARE MACHINE-DEPENDENT, exactly as they are on upload (§8.3.2).
                 # Verified against the relocated disassembly of the original Amiga client's
                 # file_download_xfer (FUN_0010b174), which reads the body size from a
@@ -1383,7 +1816,8 @@ class CompunetSession:
                 self._download_title = self.show_page.title
                 # 68k machines have no load address, so report the descriptor rather than a
                 # field that does not exist for them (and load_lo/load_hi are unbound there).
-                log.info('PROGRAM: page=%d "%s" %s size=%d bytes (%dK), header sent [%s]',
+                log.info('%s: page=%d "%s" %s size=%d bytes (%dK), header sent [%s]',
+                         'PICTURE' if page_type == 'F' else 'PROGRAM',
                          self.show_page.page_num, self.show_page.title,
                          'no load addr' if is_68k else 'load=$%02X%02X' % (load_hi, load_lo),
                          size, (size + 1023) // 1024, header.hex())
@@ -1537,7 +1971,7 @@ class CompunetSession:
             self._save_directory_containing(self.current_page)
             log.info('EXTEND: user=%s page=%d ("%s") extend_by=%d new_life=%d',
                      self.user_id, child.page_num, child.title, extend_by, child.life)
-            audit_log('extend', user=self.user_id, page=child.page_num,
+            audit_log('page_life_extended', session=self, page=child.page_num,
                       title=child.title, extend_by=extend_by, new_life=child.life)
 
         elif extend_by < 0:
@@ -1677,7 +2111,7 @@ class CompunetSession:
             votes[page_key] = {}
         votes[page_key][self.user_id] = score
         self._save_votes(votes)
-        audit_log('vote', user=self.user_id, page=page.page_num,
+        audit_log('page_voted', session=self, page=page.page_num,
                   title=page.title, score=score)
 
         avg = round(sum(votes[page_key].values()) / len(votes[page_key]))
@@ -1903,7 +2337,7 @@ class CompunetSession:
             self.mail_frame_index = 0
             # Mark as read with timestamp for auto-expiry
             if not self.mail_messages[actual_index].get('read'):
-                audit_log('mail_read', user=self.user_id,
+                audit_log('mail_opened', session=self,
                           from_user=self.mail_messages[actual_index].get('from', ''),
                           subject=self.mail_messages[actual_index].get('subject', ''))
             self.mail_messages[actual_index]['read'] = True
@@ -2063,7 +2497,7 @@ class CompunetSession:
 
         log.info('MAIL SEND: from=%s to=%s subject="%s" type=%s',
                  self.user_id, dest_ids, subject, msg_type)
-        audit_log('mail_send', user=self.user_id, to=dest_ids, subject=subject)
+        # Audited by _complete_mail_send, which every binding reaches.
 
         self.pending_send = {
             'mode': 'mail',
@@ -2107,6 +2541,18 @@ class CompunetSession:
 
         log.info('CONTENT UPLOAD: user=%s title="%s" type=%s price=%.2f life=%d',
                  self.user_id, title, page_type, price, lifetime)
+
+        # ⚠ Refuse an unsupported type HERE, before the transfer, not at completion.
+        # The Amiga's publish dialog takes the type as free text and its jump table sends
+        # 'A' and 'S' down the same file-upload path as 'P' and 'F', so this is reachable
+        # from an era client, not only from a hostile one. Refusing at the 'U' command
+        # means the user is told before spending a transfer on it; refusing at completion
+        # would let the whole file stream up and then vanish silently.
+        if page_type not in UPLOAD_TYPES:
+            log.warning('UPLOAD REFUSED: user=%s title="%s" type=%r is not uploadable',
+                        self.user_id, title, page_type)
+            self.pending_send = None
+            return self._make_error(ascii_to_petscii('INVALID PAGE TYPE'))
 
         self.pending_send = {
             'mode': 'upload',
@@ -2154,6 +2600,39 @@ class CompunetSession:
             return self._complete_content_upload(send)
         else:
             return self._complete_mail_send(send)
+
+    def take_program_download(self):
+        """Hand over the staged program bytes, clear the pending state, and audit it.
+
+        ⚠ The one place a download is recorded, for every surface. The three
+        bindings deliver the bytes very differently — Binding A streams DAT
+        packets, the terminal runs XMODEM, Binding B returns base64 over the
+        WebSocket — so there was no shared function and each did its own
+        bookkeeping. Two audited it and Binding B did not (#127); this gives them
+        the one thing they genuinely share, which is the moment the user accepts.
+
+        Returns the bytes, or None if nothing was pending. A DECLINED download is
+        deliberately not recorded: the user obtained nothing.
+        """
+        data = self._program_download_data
+        if data is None:
+            return None
+        page_num = getattr(self, '_download_page_num', 0)
+        title = getattr(self, '_download_title', '')
+        self._program_download_pending = False
+        self._program_download_data = None
+        # ⚠ The download is OVER, so the session must stop showing that page.
+        # Leaving `show_page` set left the binary page current after its bytes had
+        # been handed over, and the next MORE re-entered _send_current_frame and
+        # re-sent the 8-byte DESCRIPTOR — the user finished a download and the
+        # client was immediately offered the same one again. The abort path (0x41)
+        # already cleared it; success did not, so the two ends of the same
+        # transfer disagreed about what the session was doing.
+        self.show_page = None
+        self.show_frame_index = 0
+        audit_log('page_downloaded', session=self, page=page_num, title=title,
+                  bytes=len(data))
+        return data
 
     def _complete_mail_send(self, send):
         """Deliver mail to recipients."""
@@ -2205,6 +2684,16 @@ class CompunetSession:
             with open(dest_mail_file, 'w') as f:
                 json.dump(dest_inbox, f, indent=2)
 
+        # ⚠ HERE, not in the callers. This function is what actually delivers the
+        # mail, and every surface reaches it: Binding A and the terminal through
+        # their own command handlers, Binding B by calling it directly. Auditing
+        # at the call site meant the first two were recorded and the third was
+        # not — the same mail, invisible, depending on which client sent it
+        # (#127). `_complete_content_upload` always had it right, which is why
+        # uploads never had this gap.
+        audit_log('mail_sent', session=self, to=send['to'],
+                  subject=send['subject'], recipients=len(send['to']))
+
         log.info('MAIL: delivered from %s to %s subject="%s" frames=%d',
                  self.user_id, send['to'], send['subject'], len(send['frames']))
 
@@ -2222,123 +2711,16 @@ class CompunetSession:
         archive_page(page, DATA_DIR, reason=reason)
 
     def _complete_content_upload(self, send):
-        """Add or replace uploaded page in the current directory."""
-        if not self._can_upload_here():
-            log.info('UPLOAD DISCARDED: user=%s cannot upload to page owned by %s',
-                     self.user_id, self.current_page.author)
-            return
+        """Binding A / Binding B entry point for the shared writer.
 
-        # Check for existing page with same title
-        page_slug = CompunetDirectory._make_slug(send['title'])
-        existing = None
-        for child in self.current_page.children:
-            if CompunetDirectory._make_slug(child.title) == page_slug:
-                existing = child
-                break
-
-        if existing:
-            # Check ownership — only author, admin, or editor can replace
-            if (existing.author != self.user_id and
-                    not self.is_admin and not self.is_editor):
-                log.info('UPLOAD REJECTED: user=%s cannot replace "%s" owned by %s',
-                         self.user_id, existing.title, existing.author)
-                return
-            # Archive the old version
-            self._archive_page(existing, reason='replaced')
-        elif len(self.current_page.children) >= 11:
-            log.info('UPLOAD DISCARDED: user=%s directory full (%d entries)',
-                     self.user_id, len(self.current_page.children))
-            return
-
-        # Determine page number (reuse existing or allocate new)
-        if existing:
-            page_num = existing.page_num
-        else:
-            # Unique against the whole tree, not just the lookup table.
-            page_num = self.directory.next_page_num()
-
-        # Create page folder
-        parent_dir = getattr(self.current_page, '_dir_path', ROOT_DIR)
-        page_dir = os.path.join(parent_dir, page_slug)
-        os.makedirs(page_dir, exist_ok=True)
-
-        # Save frames into page folder. Program frames are [8-byte header][body]; the
-        # header's byte 0 is the machine type (1=Amiga, 0=C64).
-        frame_files = []
-        is_program = send['type'] == 'P'
-        prog_machine = send['frames'][0][0] if (is_program and send['frames']) else None
-        for i, frame_data in enumerate(send['frames']):
-            if is_program:
-                if prog_machine == 1:
-                    # Amiga: relocatable HUNK executable — store the raw body, no prefix.
-                    frame_data = bytes(frame_data[8:])
-                else:
-                    # C64: prepend the 2-byte load address (header bytes 4-5) to the body.
-                    frame_data = bytes(frame_data[4:6]) + bytes(frame_data[8:])
-                frame_file = f'{page_slug}.prg' if i == 0 else f'{page_slug}-{i+1}.prg'
-            else:
-                frame_file = f'frame-{i+1}.seq'
-            frame_path = os.path.join(page_dir, frame_file)
-            with open(frame_path, 'wb') as f:
-                f.write(frame_data)
-            frame_files.append(frame_file)
-
-        if is_program and send['frames']:
-            hdr = send['frames'][0]
-            if prog_machine == 1:
-                size = (len(hdr) - 8 + 1023) // 1024   # raw body length (KB)
-            else:
-                size = (len(hdr) - 2 + 1023) // 1024   # C64 calc (unchanged)
-        else:
-            size = len(send['frames'])
-
-        new_page = CompunetPage(
-            page_num=page_num,
-            title=send['title'],
-            page_type=send['type'],
-            size=size,
-            author=self.user_id,
-            price=send['price'],
-            life=send['lifetime'],
-        )
-        new_page.uploaded = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        if is_program and prog_machine is not None:
-            # Program uploads carry their machine type in the header byte (authoritative).
-            new_page.machine_type = 'amiga' if prog_machine == 1 else 'c64'
-        else:
-            new_page.machine_type = 'amiga' if getattr(self, 'is_amiga', False) else 'c64'
-        new_page.parent = self.current_page
-        new_page._frame_files = frame_files
-        new_page._dir_path = page_dir
-        new_page._adverts = []
-        for frame_file in frame_files:
-            frame_path = os.path.join(page_dir, frame_file)
-            with open(frame_path, 'rb') as f:
-                new_page.frames.append(f.read())
-
-        if existing:
-            # Replace in children list
-            idx = self.current_page.children.index(existing)
-            self.current_page.children[idx] = new_page
-            self.directory.pages[page_num] = new_page
-            log.info('CONTENT: replaced page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
-                     page_num, send['title'], self.user_id,
-                     len(send['frames']), send['price'], send['lifetime'])
-        else:
-            self.current_page.children.append(new_page)
-            self.directory.pages[page_num] = new_page
-            log.info('CONTENT: uploaded page %d "%s" by %s (%d frames, price=%.2f, life=%d)',
-                     page_num, send['title'], self.user_id,
-                     len(send['frames']), send['price'], send['lifetime'])
-
-        # This directory gains (or replaces) an entry — and its PARENT may need
-        # the `directory` key added, because a latent directory only becomes real
-        # on the first upload into it (§7.3). Two files, not the whole tree.
-        self._save_directory_containing(self.current_page,
-                                        getattr(self.current_page, 'parent', None))
-        audit_log('upload', user=self.user_id, title=send['title'],
-                  page=page_num, type=send['type'])
-        return b''
+        ⚠ Kept as a thin delegate rather than inlined: Binding A returns this value
+        onto the wire, where b'' and None are not interchangeable — b'' is "nothing to
+        say", None is what every refusal path has always returned. The shared function
+        speaks in reasons instead, so the terminal can print one; the protocol bindings
+        have no way to show it and collapse it back to the old two values.
+        """
+        outcome = complete_content_upload(self, send)
+        return b'' if outcome in ('uploaded', 'replaced') else None
 
     def _save_directory_containing(self, *pages):
         """Persist only the directories this command actually changed.
@@ -2943,6 +3325,11 @@ async def tcp_handler(reader, writer):
     directory = CompunetDirectory()
     session = CompunetSession(directory)
     session.client_ip = addr[0] if addr else ''
+    # 'c64' until identification says otherwise — and identification MUST overwrite
+    # this (see the ident handler below). It is not derived: audit_via() returns an
+    # explicit value before it consults is_amiga, so leaving this to be "corrected"
+    # by setting is_amiga alone silently labelled every Amiga session a C64.
+    session.audit_via = 'c64'
     x25 = X25Connection()
 
     pending_packets = []  # Packets received during ACK wait (non-ACK)
@@ -3089,7 +3476,8 @@ async def tcp_handler(reader, writer):
                 if not has_slash and not is_amiga:
                     continue   # identification incomplete — keep buffering
 
-                session.is_amiga = is_amiga
+                # Sets is_amiga AND the audit label together — see the function.
+                identify_binding_a_client(session, is_amiga)
                 ident_received = True
                 rx_buffer.clear()
 
@@ -3352,26 +3740,20 @@ async def tcp_handler(reader, writer):
                                     # Run the raw preamble + ASCII chat + 0x02 teardown.
                                     session._amiga_partyline = False
                                     log.info('TCP: entering AMIGA partyline for user=%s', session.user_id)
-                                    audit_log('partyline', user=session.user_id)
                                     await partyline.handle_amiga_session(reader, writer, session.user_id)
                                     log.info('TCP: exited AMIGA partyline, resuming X.25 for user=%s', session.user_id)
                                     continue
                                 log.info('TCP: entering partyline mode for user=%s', session.user_id)
-                                audit_log('partyline', user=session.user_id)
                                 await asyncio.sleep(1.0)
                                 await partyline.handle_session(reader, writer, session.user_id)
                                 log.info('TCP: exited partyline mode, resuming X.25 for user=%s', session.user_id)
                                 continue
 
                 elif token == 0x40 and session._program_download_pending:
-                    # Client confirms download proceed — send program data
-                    program_data = session._program_download_data
-                    session._program_download_pending = False
-                    session._program_download_data = None
+                    # Client confirms download proceed — send program data.
+                    # take_program_download clears the pending state and audits.
+                    program_data = session.take_program_download()
                     log.info('DOWNLOAD: proceed received, sending %d bytes of program data', len(program_data))
-                    audit_log('download', user=session.user_id,
-                              page=getattr(session, '_download_page_num', 0),
-                              title=getattr(session, '_download_title', ''))
                     # ⚠ THE COST HERE IS PER ROUND TRIP, NOT PER BYTE. Every packet waits
                     # for the client's ACK, and on an emulated Amiga that wait costs one
                     # ~20 ms tick: measured over 1700 packets, 1589 of the 1700 inter-ACK
@@ -3419,8 +3801,24 @@ async def tcp_handler(reader, writer):
                     log.debug('TCP: received ACK seq=$%02X', seq)
 
                 elif (session.pending_send is not None and token != 0x43
-                        and session.pending_send.get('type') == 'P'):
-                    # PROGRAM upload (Amiga/C64 binary), 8-byte header then the file.
+                        and session.pending_send.get('type') in ('P', 'F')):
+                    # BINARY upload — a program ('P') or an IFF picture ('F'): 8-byte
+                    # header then the file.
+                    #
+                    # ⚠ 'F' BELONGS HERE TOO. The Amiga's publish dialog has always
+                    # offered it — put_frame's jump table at 0x10c3c2 routes 'A','S','P'
+                    # and 'F' alike to upload_file — and it uses this identical
+                    # header-then-body format. Gating on 'P' alone sent an IFF upload to
+                    # the PETSCII frame accumulator below, which chopped it at the first
+                    # short chunk; _complete_content_upload then read byte 0 as the
+                    # machine type (it is $46, the 'F' of "FORM"), concluded "not 68k",
+                    # and stripped a C64 load address off data that has none. A corrupted
+                    # file, stored under the wrong shape, with no error anywhere.
+                    #
+                    # The gap came from adding F to Binding B first and treating picture
+                    # upload as a web-client feature — the Amiga could already VIEW them,
+                    # so uploading from a modern client felt like the whole story. It was
+                    # not: the 1989 dialog offers F, so the 1989 client can send one.
                     #
                     # ⚠ THE HEADER IS MACHINE-DEPENDENT, and so is how the body ENDS.
                     # Byte 0 selects (§8.3.2):
@@ -3518,8 +3916,7 @@ async def tcp_handler(reader, writer):
         log.info('TCP: connection error: %s', e)
     finally:
         if session.user_id:
-            _user_disconnect(session.user_id)
-            audit_log('disconnect', user=session.user_id, ip=session.client_ip)
+            _user_disconnect(session.user_id, session)   # audits the session end
         writer.close()
         try:
             await writer.wait_closed()
@@ -3673,7 +4070,7 @@ async def api_auth(request):
     # its peer here is the website container. The website resolves the real
     # address from its own forwarded headers and passes it; `request.remote` is
     # only the fallback, and names the website itself.
-    audit_log('login', user=user_id, ip=client_ip)
+    audit_log('login_succeeded', user=user_id, ip=client_ip)
     return aiohttp_web.json_response(_api_user_public(user_id, user))
 
 
@@ -3740,7 +4137,7 @@ async def api_create_user(request):
         _api_save_users(users)
 
     log.info('API: created user %s', user_id)
-    audit_log('signup', user=user_id, ip=request.remote)
+    audit_log('signup_completed', user=user_id, ip=request.remote)
     return aiohttp_web.json_response(
         _api_user_public(user_id, users[user_id]), status=201)
 
@@ -3758,6 +4155,11 @@ async def api_update_user(request):
         users = _api_load_users()
         if user_id not in users:
             return aiohttp_web.json_response({'error': 'not found'}, status=404)
+
+        # ⚠ Record WHAT CHANGED, old -> new. "ADMIN edited ZARD" is close to
+        # useless a month later, and this is the endpoint where credit is
+        # adjusted and editor rights are granted.
+        before = dict(users[user_id])
 
         if 'password' in body:
             password = body['password'].upper().strip()
@@ -3782,7 +4184,17 @@ async def api_update_user(request):
 
         _api_save_users(users)
 
-    log.info('API: updated user %s', user_id)
+    changes = _audit_diff(before, users[user_id])
+    log.info('API: updated user %s (%s)', user_id, ', '.join(changes) or 'no change')
+    # ⚠ Two different acts share this endpoint. A user changing their own password
+    # is not an administrative edit, and recording it as one would put routine
+    # self-service in among the credit adjustments and editor grants — the events
+    # this log exists to make findable. The caller says which it is.
+    if body.get('self_service'):
+        audit_log('password_changed', user=user_id, via='web', ip=request.remote)
+    else:
+        audit_log('user_updated', user=user_id, via='admin', ip=request.remote,
+                  changed=changes or None)
     return aiohttp_web.json_response(_api_user_public(user_id, users[user_id]))
 
 
@@ -3799,6 +4211,7 @@ async def api_delete_user(request):
         _api_save_users(users)
 
     log.info('API: deleted user %s', user_id)
+    audit_log('user_deleted', user=user_id, via='admin', ip=request.remote)
     return aiohttp_web.json_response({'status': 'deleted'})
 
 
@@ -3843,6 +4256,8 @@ async def api_create_pending(request):
         _api_save_pending(pending)
 
     log.info('API: created pending registration for %s', entry['user_id'])
+    audit_log('registration_requested', user=entry['user_id'] or None,
+              via='web', ip=request.remote, email=entry.get('email') or None)
     return aiohttp_web.json_response({'token': token}, status=201)
 
 
@@ -3873,6 +4288,15 @@ async def api_consume_pending(request):
         entry = pending.pop(token)
         _api_save_pending(pending)
 
+    # ⚠ This one endpoint serves BOTH approve and reject: the website consumes the
+    # token, then creates the user only if approving. `signup_completed` records
+    # the approval, so recording an approval here too would double-count. The
+    # caller says which it is; absent that, treat it as a rejection, because a
+    # token consumed and no account created is exactly what a rejection is.
+    outcome = request.query.get('outcome', 'rejected')
+    if outcome != 'approved':
+        audit_log('registration_rejected', user=entry.get('user_id') or None,
+                  via='admin', ip=request.remote)
     return aiohttp_web.json_response(entry)
 
 
@@ -3959,6 +4383,9 @@ async def api_broadcast(request):
 
     log.info('BROADCAST: sent=%d errors=%d test_mode=%s subject="%s"',
              sent, len(errors), test_mode, subject)
+    audit_log('broadcast_sent', via='admin', ip=request.remote, subject=subject,
+              recipients=len(recipients), sent=sent, errors=len(errors),
+              test_mode=test_mode)
     return aiohttp_web.json_response({
         'status': 'sent', 'sent': sent, 'errors': len(errors),
         'test_mode': test_mode
@@ -4000,24 +4427,162 @@ async def api_get_audit(request):
     """
     if not _api_check_auth(request):
         return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
-    page = int(request.query.get('page', '1'))
-    per_page = int(request.query.get('per_page', '50'))
     if not os.path.exists(AUDIT_LOG_PATH):
-        return aiohttp_web.json_response({'entries': [], 'total': 0})
-    all_entries = []
-    with open(AUDIT_LOG_PATH, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    all_entries.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-    total = len(all_entries)
-    all_entries.reverse()
-    start = (page - 1) * per_page
-    entries = all_entries[start:start + per_page]
-    return aiohttp_web.json_response({'entries': entries, 'total': total})
+        return aiohttp_web.json_response(
+            {'entries': [], 'total': 0, 'matched': 0, 'events': [], 'kinds': []})
+
+    try:
+        page = max(1, int(request.query.get('page', '1')))
+        per_page = min(500, max(1, int(request.query.get('per_page', '50'))))
+    except ValueError:
+        return aiohttp_web.json_response({'error': 'page and per_page must be numbers'},
+                                         status=400)
+
+    query = _AuditQuery.from_request(request)
+    # ?count=exact asks for the true match count, at the cost of a full scan. The
+    # viewer requests it only when it wants to show a total.
+    count_all = request.query.get('count') == 'exact'
+    result = _audit_search(query, page, per_page, count_all=count_all)
+    return aiohttp_web.json_response(result)
+
+
+class _AuditQuery:
+    """The filters a caller may apply. Empty fields match everything."""
+
+    __slots__ = ('user', 'events', 'kinds', 'via', 'ip', 'date_from', 'date_to', 'text')
+
+    def __init__(self, user=None, events=None, kinds=None, via=None, ip=None,
+                 date_from=None, date_to=None, text=None):
+        self.user = (user or '').strip().upper() or None
+        self.events = set(e for e in (events or []) if e) or None
+        self.kinds = set(k for k in (kinds or []) if k) or None
+        self.via = (via or '').strip().lower() or None
+        self.ip = (ip or '').strip() or None
+        self.date_from = (date_from or '').strip() or None
+        self.date_to = (date_to or '').strip() or None
+        self.text = (text or '').strip().lower() or None
+
+    @classmethod
+    def from_request(cls, request):
+        q = request.query
+        # Repeatable: ?event=page_read&event=page_bought, or comma-separated.
+        def multi(name):
+            values = []
+            for raw in q.getall(name, []):
+                values.extend(v.strip() for v in raw.split(','))
+            return values
+        return cls(user=q.get('user'), events=multi('event'), kinds=multi('kind'),
+                   via=q.get('via'), ip=q.get('ip'), date_from=q.get('from'),
+                   date_to=q.get('to'), text=q.get('q'))
+
+    def is_empty(self):
+        return not any((self.user, self.events, self.kinds, self.via, self.ip,
+                        self.date_from, self.date_to, self.text))
+
+    def matches(self, entry):
+        if self.user and (entry.get('user') or '').upper() != self.user:
+            return False
+        if self.events and entry.get('event') not in self.events:
+            return False
+        if self.kinds and entry.get('kind') not in self.kinds:
+            return False
+        if self.via and (entry.get('via') or '').lower() != self.via:
+            return False
+        if self.ip and entry.get('ip') != self.ip:
+            return False
+        # `time` is 'YYYY-MM-DD HH:MM:SS', so a plain string compare against a
+        # date is correct and needs no parsing. `to` is inclusive of the whole day.
+        stamp = entry.get('time', '')
+        if self.date_from and stamp[:10] < self.date_from:
+            return False
+        if self.date_to and stamp[:10] > self.date_to:
+            return False
+        if self.text:
+            # Across every field, so page titles, mail subjects and the `changed`
+            # list of an admin edit are all searchable without naming them.
+            haystack = ' '.join(str(v) for v in entry.values()).lower()
+            if self.text not in haystack:
+                return False
+        return True
+
+
+def _audit_iter_reversed(path, chunk_size=64 * 1024):
+    """Yield lines newest-first without loading the file.
+
+    ⚠ Reads BACKWARDS, deliberately. The previous implementation parsed the whole
+    file into memory on every request, reversed it and sliced out one page — fine
+    at 6,838 entries, and the same cost again once filtering was layered on top.
+    Reading from the end means the common case (recent events, however filtered)
+    costs a couple of chunks regardless of how large the log grows, so this does
+    not need revisiting at 100k entries.
+    """
+    with open(path, 'rb') as f:
+        f.seek(0, os.SEEK_END)
+        remaining = f.tell()
+        tail = b''
+        while remaining > 0:
+            read_size = min(chunk_size, remaining)
+            remaining -= read_size
+            f.seek(remaining)
+            block = f.read(read_size) + tail
+            lines = block.split(b'\n')
+            # The first element may be a partial line; carry it to the next block.
+            tail = lines.pop(0)
+            for line in reversed(lines):
+                if line.strip():
+                    yield line
+        if tail.strip():
+            yield tail
+
+
+def _audit_search(query, page, per_page, count_all=False):
+    """Page through the log newest-first, applying `query`.
+
+    ⚠ STOPS AS SOON AS THE PAGE IS FILLED. That is the whole point of reading
+    backwards: the cost of "recent events, filtered" stays flat as the log grows,
+    instead of parsing every line to serve fifty.
+
+    An exact match count is the one thing that cannot be cheap — knowing how many
+    entries match means looking at all of them. So it is not claimed unless it was
+    actually established: `matched_exact` is True only when the scan reached the
+    start of the file. Otherwise `matched` is a floor and `has_more` says whether
+    another page exists, which is what a pager actually needs. `count_all=True`
+    asks for the full scan deliberately, for a caller that wants the real total.
+    """
+    want_end = page * per_page
+    want_start = (page - 1) * per_page
+
+    entries, matched, scanned = [], 0, 0
+    matched_exact = True                 # unless we break out early
+
+    for raw in _audit_iter_reversed(AUDIT_LOG_PATH):
+        scanned += 1
+        try:
+            entry = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if not query.matches(entry):
+            continue
+        matched += 1
+        if want_start < matched <= want_end:
+            entries.append(entry)
+        elif matched > want_end and not count_all:
+            # One past the page proves there is a next one; nothing beyond that
+            # changes what we return, so stop reading.
+            matched_exact = False
+            break
+
+    return {
+        'entries': entries,
+        'matched': matched,
+        'matched_exact': matched_exact,
+        'has_more': matched > want_end,
+        'scanned': scanned,
+        'page': page,
+        'per_page': per_page,
+        'events': sorted(AUDIT_EVENTS),
+        'kinds': list(AUDIT_KINDS),
+    }
 
 
 async def api_post_audit(request):
@@ -4045,12 +4610,20 @@ async def api_post_audit(request):
     event = str(body.get('event', '')).strip()
     if not event:
         return aiohttp_web.json_response({'error': 'event is required'}, status=400)
+    # ⚠ The vocabulary is enforced at the boundary, not left to blow up inside
+    # audit_log. An undeclared name would otherwise 500 here — and before the
+    # registry existed it was worse: it was accepted, written, and then invisible
+    # to every filter that knows the event set (#127).
+    if event not in AUDIT_EVENTS:
+        return aiohttp_web.json_response(
+            {'error': 'unknown event %r — see AUDIT_EVENTS' % event,
+             'known': sorted(AUDIT_EVENTS)}, status=400)
     user = body.get('user')
     # ⚠ Only the caller's own fields — never spread the whole body into the
     # entry, or a caller could overwrite `time` and forge when something
-    # happened.
+    # happened. `kind` is derived from the registry for the same reason.
     details = {k: v for k, v in (body.get('details') or {}).items()
-               if k not in ('time', 'event', 'user')}
+               if k not in ('time', 'event', 'user', 'kind')}
     audit_log(event, user=user, **details)
     return aiohttp_web.json_response({'ok': True})
 
@@ -4821,7 +5394,7 @@ async def api_set_directory_settings(request):
         data.pop('open_upload', None)
     _api_write_dir_json(json_path, data)
 
-    audit_log('directory_settings', user=user_id, page=page.page_num,
+    audit_log('directory_settings_changed', user=user_id, page=page.page_num,
               owner_only=bool(body.get('owner_only')))
     return aiohttp_web.json_response(
         {'ok': True, 'owner_only': data.get('open_upload') is False})
