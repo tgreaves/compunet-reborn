@@ -274,12 +274,26 @@ cd client/c64/src && make          # -> ../compunet-reborn.prg
 the server verifies it against `server/cfg/client_version.txt`. Source, binaries and that file
 must be committed together, or the server rejects the client. See CLAUDE.md, Client Rules 1–3.
 
-⚠ **On Windows the hash is computed over CRLF bytes.** `gen_version.py` hashes the working-tree
-file, and Git checks `compunet.s` out with CRLF line endings, so a Windows build produces a
-*different* hash from the committed one — `0053DF` against the `800CAD` that the shipped `.prg`
-and the server both expect from the LF blob. **Do not rebuild the C64 client on Windows without
-resolving this first**: publishing that hash locks out every existing client. (Nothing is wrong
-in the tree today — the shipped binary and `client_version.txt` agree.)
+~~⚠ **On Windows the hash is computed over CRLF bytes.**~~ **Fixed.** `gen_version.py` hashed the
+working-tree file as-is, so the result depended on how Git had checked `compunet.s` out — a
+Windows build derived a different hash from a Linux one for identical source, and publishing it
+would have locked out every existing client. It now normalises `\r\n` to `\n` before hashing, so
+every platform agrees. **Windows builds are safe.**
+
+⚠ **But pass `HASH=` unless you intend to force every C64 user to re-download.**
+
+```bash
+cd client/c64/src && make HASH=800cad
+```
+
+The hash is a **compatibility token**, not a build fingerprint: the client sends it at
+identification and the server compares it against `server/cfg/client_version.txt`, so changing it
+tells every existing client it is out of date. `compunet.s` has since had comment-and-naming-only
+edits, so the value it now hashes to (`1A6A04`) no longer matches the `800CAD` the shipped
+binaries and the server use — deliberately, because a comment change must not cost every user a
+download. `gen_version.py` rewrites `client_version.txt` unconditionally, so a plain `make`
+publishes the new value and forces that download. Pin it until you actually mean to break
+compatibility.
 
 ## vbcc — Amiga client
 

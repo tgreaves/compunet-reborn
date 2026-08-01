@@ -71,6 +71,14 @@ era C64 does not). If a task appears to require a C64 feature, STOP and raise it
 1. The client must ALWAYS be rebuilt after any change to `client/c64/src/compunet.s`. Build with `make` in `client/c64/src/`. The output is `client/c64/compunet-reborn.prg`.
 2. The client embeds a hash of `compunet.s` at build time and the server verifies it matches `server/cfg/client_version.txt`. The build script (`gen_version.py`) derives both from the source file content, so they stay in sync automatically. The hash only changes when the client source changes — server-only commits don't require a client rebuild. When client code changes: `make clean && make` in `client/c64/src/`, then commit source + binaries + `server/cfg/client_version.txt` together.
 3. To test a development client against a production server without deploying, override the hash: `make HASH=6fc715` (use the hash from the production `server/cfg/client_version.txt`).
+
+   ⚠ **The override is also how you rebuild WITHOUT forcing every user to re-download.** The
+   hash is a compatibility token, not a build fingerprint, and `gen_version.py` rewrites
+   `client_version.txt` unconditionally — so a plain `make` publishes a new value and every
+   existing C64 client is told it is out of date. `compunet.s` has had comment-only edits since
+   the shipped binaries were built, so its current hash (`1A6A04`) deliberately differs from the
+   published `800CAD`. **Build with `make HASH=800cad`** unless you actually intend to break
+   compatibility, and check `git status server/cfg/client_version.txt` is clean afterwards.
 4. **The Electron app must ALWAYS be rebuilt IN FULL after any change under `client/web/src/`**,
    so every artefact anyone might pick up is current. Run in `client/electron/`:
 

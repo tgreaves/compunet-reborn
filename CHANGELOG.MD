@@ -1,4 +1,4 @@
-# 1.4.0 (unreleased)
+# 1.4.0 (2026-08-01)
 
 * Web & desktop client:
 	* Fixed: Screen border proportions now C64 accurate.
