@@ -1504,7 +1504,17 @@ async def ws_gateway(request):
     """GET /v1/gateway — the interactive session (WebSocket)."""
     ws = web.WebSocketResponse(heartbeat=30)
     await ws.prepare(request)
-    peer = request.remote or "api"
+    # ⚠ Resolve the address through _client_ip, NOT the raw peer. This took the peer
+    # directly, which in production is the cloudflared container — so every audit
+    # entry written during an interactive session recorded 172.18.0.4 instead of the
+    # visitor, and this is where a session spends its whole life. Only
+    # `session_started` escaped, because that is written during the HTTP
+    # POST /v1/session, which did call the helper (#135).
+    #
+    # The lesson is not "one handler was wrong" — it is that a helper existing is
+    # not the same as a helper being used. Two call sites had it right and the
+    # busiest one did not, for as long as the ip field has existed.
+    peer = _client_ip(request)
 
     # First message must authenticate.
     session = None

@@ -378,5 +378,122 @@ class TheDocumentationMatchesTheRegistry(unittest.TestCase):
                          'documented events that no longer exist: %s' % unknown)
 
 
+class _FakeRequest:
+    """Enough of an aiohttp request for `_client_ip`: headers and a peer."""
+
+    def __init__(self, remote=None, **headers):
+        self.remote = remote
+        self.headers = {k.replace('_', '-'): v for k, v in headers.items()}
+
+
+class TheAuditedAddressIsTheVisitorNotTheProxy(unittest.TestCase):
+    """#135. Every `via=api` entry recorded `172.18.0.4` — the cloudflared
+    container — for as long as the `ip` field had existed.
+
+    ⚠ WHY NOTHING CAUGHT IT. The suite asserted that events are written and that
+    they carry `ip` and `via`, and `ViaAndIpComeFromTheSession` above builds a
+    session with an address handed straight to it. None of that exercises the
+    step where the address is DERIVED FROM A REQUEST, so a handler reading the
+    peer instead of the forwarded header passed every existing test. Asserting a
+    field is present is not asserting it is right.
+    """
+
+    def test_cloudflare_header_wins(self):
+        self.assertEqual(
+            api._client_ip(_FakeRequest(remote='172.18.0.4',
+                                        CF_Connecting_IP='198.51.100.7')),
+            '198.51.100.7')
+
+    def test_forwarded_for_is_used_when_cloudflare_header_is_absent(self):
+        self.assertEqual(
+            api._client_ip(_FakeRequest(remote='172.18.0.4',
+                                        X_Forwarded_For='198.51.100.8')),
+            '198.51.100.8')
+
+    def test_forwarded_for_is_a_chain_and_only_the_first_entry_is_the_client(self):
+        """The client appends to XFF too, so every entry after the first is a hop.
+        Taking the last would record our own edge; taking the whole string would
+        record a list where a filterable address belongs."""
+        self.assertEqual(
+            api._client_ip(_FakeRequest(remote='172.18.0.4',
+                                        X_Forwarded_For='198.51.100.9, 10.0.0.1, 172.18.0.4')),
+            '198.51.100.9')
+
+    def test_cloudflare_header_beats_forwarded_for(self):
+        self.assertEqual(
+            api._client_ip(_FakeRequest(remote='172.18.0.4',
+                                        CF_Connecting_IP='198.51.100.7',
+                                        X_Forwarded_For='203.0.113.1')),
+            '198.51.100.7')
+
+    def test_the_peer_is_the_fallback_for_a_direct_connection(self):
+        """No proxy in front — the peer IS the client, and must still be recorded.
+        This is also why the fix cannot regress: with no headers present the
+        behaviour is exactly what it replaced."""
+        self.assertEqual(api._client_ip(_FakeRequest(remote='198.51.100.10')),
+                         '198.51.100.10')
+
+    def test_ipv6_survives_intact(self):
+        """Production's first correct entry was IPv6; a naive split on ':' to strip
+        a port would have destroyed it."""
+        v6 = '2a0e:cb01:ae:be00:8c22:4322:1ec2:990f'
+        self.assertEqual(api._client_ip(_FakeRequest(remote='172.18.0.4',
+                                                     CF_Connecting_IP=v6)), v6)
+
+    def test_the_gateway_resolves_the_address_rather_than_taking_the_peer(self):
+        """⚠ A STRUCTURAL check, and it earns its place. The bug was not in the
+        helper — the helper was always correct — it was one handler not calling
+        it. The suite runs no sockets, so this pins the regression at its actual
+        location: `ws_gateway` must resolve through `_client_ip` and must not read
+        `request.remote` itself.
+
+        If the gateway is ever rewritten to take a real request in a socket test,
+        replace this with that test.
+        """
+        import inspect
+        # ⚠ Strip comments before looking. The fix's own comment NAMES the thing it
+        # replaced, so a naive substring search fails on the explanation of the bug
+        # rather than on the bug — which it duly did the first time this ran.
+        src = '\n'.join(l.split('#')[0] for l in
+                        inspect.getsource(api.ws_gateway).splitlines())
+        self.assertIn('_client_ip(request)', src,
+                      'ws_gateway must resolve the client address, not take the peer')
+        self.assertNotIn('request.remote', src,
+                         'ws_gateway reads the peer again — that is #135 returning')
+
+
+class TheAdminApiRecordsTheVisitorNotTheWebsite(unittest.TestCase):
+    """The SECOND instance of #135, found by sweeping for the same mistake and
+    confirmed on production: `registration_requested` and six sibling events were
+    stamped 172.18.0.3 — the website container — while `login_succeeded` beside
+    them carried real addresses, because sign-in was the one route that passed an
+    address explicitly.
+
+    The server's peer on this API is always the website, so the website forwards
+    the address it resolved and the server prefers it."""
+
+    def test_the_forwarded_header_is_preferred_over_the_peer(self):
+        self.assertEqual(
+            srv._api_caller_ip(_FakeRequest(remote='172.18.0.3',
+                                            X_Compunet_Client_IP='198.51.100.11')),
+            '198.51.100.11')
+
+    def test_the_peer_remains_the_fallback(self):
+        """An older website that sends no header must not break — it simply gets
+        the behaviour this replaced, rather than something worse."""
+        self.assertEqual(srv._api_caller_ip(_FakeRequest(remote='172.18.0.3')),
+                         '172.18.0.3')
+
+    def test_no_admin_route_reads_the_peer_directly_any_more(self):
+        """The structural half. Seven call sites had `ip=request.remote`; the
+        helper only helps if they all go through it, and a new route added later
+        is exactly how this comes back."""
+        import inspect
+        src = '\n'.join(l.split('#')[0] for l in
+                        inspect.getsource(srv).splitlines())
+        self.assertNotIn('ip=request.remote', src,
+                         'an admin route audits the peer instead of the visitor')
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2 if '-v' in sys.argv else 1)

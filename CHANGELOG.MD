@@ -1,3 +1,12 @@
+# 1.5.0 (unreleased)
+
+* Server:
+	* Fixed: The audit log recorded an internal address instead of the user's for
+	  almost every entry.  Anything done from the web or Electron client was logged
+	  against the connection tunnel, and registrations, password changes and admin
+	  actions against the website itself.  Only sign-ins were correct.  Existing
+	  entries cannot be corrected - the real addresses were never recorded.
+
 # 1.4.0 (2026-08-01)
 
 * Web & desktop client:

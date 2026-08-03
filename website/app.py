@@ -11,8 +11,9 @@ import time
 from urllib.parse import urlencode
 
 import requests
-from flask import (Flask, Response, flash, get_flashed_messages, redirect,
-                   render_template, request, session, url_for)
+from flask import (Flask, Response, flash, get_flashed_messages,
+                   has_request_context, redirect, render_template, request,
+                   session, url_for)
 
 import config
 
@@ -119,10 +120,23 @@ PASSWORD_RE = re.compile(r'^[A-Z0-9]{1,6}$')
 # ============================================================
 
 def _api_headers():
-    return {
+    headers = {
         'Authorization': f'Bearer {config.get("COMPUNET_API_KEY")}',
         'Content-Type': 'application/json',
     }
+    # ⚠ Forward the VISITOR's address on every call. The server's peer on the
+    # admin API is always this container, so without it every event the server
+    # records on our behalf — a registration, a password change, an admin edit —
+    # is stamped 172.18.0.3, the website itself. That is what production showed
+    # for `registration_requested` (#135).
+    #
+    # Set HERE rather than as an `ip` field in each request body: sign-in already
+    # did it that way and it stayed correct precisely because it was the one
+    # route anybody looked at. Seven others did not, which is the argument for
+    # putting it where every present and future call inherits it.
+    if has_request_context():
+        headers['X-Compunet-Client-IP'] = _client_ip()
+    return headers
 
 
 def _api_get(path):
