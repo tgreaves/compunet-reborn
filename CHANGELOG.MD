@@ -16,6 +16,20 @@
 	  against the connection tunnel, and registrations, password changes and admin
 	  actions against the website itself.  Only sign-ins were correct.  Existing
 	  entries cannot be corrected - the real addresses were never recorded.
+* Tests:
+	* Fixed: The server test suite did almost nothing on a clean checkout and said
+	  OK while doing it.  61 of test_api_binding's 92 tests and 10 of test_audit's
+	  skipped because the account they log in as lives in a gitignored file, and a
+	  skip reads as a pass (#137).  A fixture account is now supplied when one is
+	  missing; a machine that already has a working TEST account is untouched.
+	* Fixed: The tracked content fixture recorded its sub-directory paths with
+	  Windows separators, which do not resolve on macOS or Linux.  Every test that
+	  walked into a sub-directory failed there - the whole of test_terminal and 41
+	  of test_tree's 55 (#138).  The tree writer already normalised these; the
+	  fixture predated it.
+	* Fixed: test_audit could not deliver mail on Python 3.14, because sending
+	  schedules the recipient's notification on the event loop and the harness
+	  provided none.  It reported itself as the audit gap it was written to guard.
 * Specification:
 	* §8.4.3 now requires a client offering the editor to provide a way to author
 	  reverse video, recommends CTRL+9 / CTRL+0, and states the mode's lifetime:

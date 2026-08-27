@@ -14,6 +14,7 @@ independently and asserted to produce the event. A future binding that reuses th
 core inherits the coverage for free; one that reimplements an action fails here.
 """
 
+import asyncio
 import json
 import os
 import shutil
@@ -34,7 +35,12 @@ import partyline as pl            # noqa: E402
 
 api._bind_server(srv)
 
-USER, PASSWORD = 'TEST', 'SECRET'
+# ⚠ As in test_api_binding: supply the account only if this machine lacks one.
+sys.path.insert(0, _HERE)
+import fixture_account                  # noqa: E402
+fixture_account.ensure(srv)
+
+USER, PASSWORD = fixture_account.USER, fixture_account.PASSWORD
 
 
 class AuditTestCase(unittest.TestCase):
@@ -46,10 +52,27 @@ class AuditTestCase(unittest.TestCase):
         self._saved_mail = srv.MAIL_DIR
         srv.AUDIT_LOG_PATH = os.path.join(self._tmp, 'audit.jsonl')
         srv.MAIL_DIR = os.path.join(self._tmp, 'mail')
+        # ⚠ A LOOP MUST EXIST, because delivering mail schedules the recipient's
+        # notification with `asyncio.get_event_loop().create_task(...)`
+        # (_complete_mail_send). In the server that call is always reached from
+        # inside a request handler, so a running loop is there; a test calling
+        # the sync function directly has none, and from Python 3.14 that is a
+        # RuntimeError rather than a warning — which surfaced as "Binding B mail
+        # must be audited" and read exactly like the bug the test guards.
+        # Providing the loop keeps the assertion honest without softening the
+        # server to suit the harness.
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
 
     def tearDown(self):
         srv.AUDIT_LOG_PATH = self._saved_path
         srv.MAIL_DIR = self._saved_mail
+        # Notification tasks were scheduled, never run; cancel them so closing
+        # the loop does not warn about pending work.
+        for task in asyncio.all_tasks(self._loop):
+            task.cancel()
+        asyncio.set_event_loop(None)
+        self._loop.close()
         shutil.rmtree(self._tmp, ignore_errors=True)
 
     def events(self, name=None):
