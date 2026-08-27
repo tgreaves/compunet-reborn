@@ -264,3 +264,7 @@ and the C64's screen-editor behaviour.)
 `$12` turns reverse video on and `$92` turns it off. While on, each rendered cell uses the
 **inverted** glyph (§5.4). `$0D`/carriage return clears the reverse attribute (as on the
 C64). A client **MUST** track this attribute per the control codes and apply it per cell.
+
+⚠ A client that offers the **editor** must also be able to **author** this, not merely render it
+— see §8.4.3, which carries the keys, the mode's lifetime, and the encoding trap that comes of
+§A.5 documenting reverse as bit 7 of the screen code.

@@ -177,7 +177,11 @@ var Renderer = class {
     const g = cells.map((c) => ({ ...c }));
     if (cursor) {
       const i = row * COLS + col;
-      if (g[i]) g[i] = { ...g[i], fg: cursor.colour, rv: cursor.reverse ? 1 : 0 };
+      if (g[i]) g[i] = {
+        ...g[i],
+        fg: cursor.colour,
+        rv: g[i].rv ^ (cursor.reverse ? 1 : 0)
+      };
     }
     this.renderGrid(g, background);
     this.setBorder(border);
@@ -335,6 +339,15 @@ var EditorBuffer = class {
     this.colourOn = true;
     /** f5 "on/off auto-repeat": when off, held keys do not repeat. */
     this.autoRepeat = true;
+    /** ⚠ CTRL+9 / CTRL+0 — reverse video ($12/$92, §5.7), and like the pen colour
+     *  it is NOT in the help frame (§8.4.3) because it is not an editor command.
+     *  Verified in the ROM: the editor's key loop hands anything below $85 to
+     *  CHROUT ($888F -> JSR $FFD2), so $12/$92 reach the KERNAL's own reverse
+     *  handling unfiltered — the same route the colour keys take.
+     *
+     *  ⚠ A MODE, not a character. It stays on until $92 or a CARRIAGE RETURN, so
+     *  it spans cells and lives on the buffer rather than on any one of them. */
+    this.reverse = false;
     /** The page as last STORED, for RUN ("restore original"). */
     this.original = null;
     // --- cursor blink (§8.4.3) -----------------------------------------------
@@ -585,7 +598,12 @@ var EditorBuffer = class {
     this.touch();
     const i = this.row * PAGE_COLS + this.col;
     const fg = this.colourOn ? p.colour : p.cells[i].fg;
-    p.cells[i] = { g: charToGlyph(ch, this.lowerCase), fg, bg: p.background, rv: 0 };
+    p.cells[i] = {
+      g: charToGlyph(ch, this.lowerCase),
+      fg,
+      bg: p.background,
+      rv: this.reverse ? 1 : 0
+    };
     if (++this.col >= PAGE_COLS) {
       this.col = 0;
       this.moveRow(1);
@@ -628,8 +646,15 @@ var EditorBuffer = class {
     this.touch();
     p.cells[this.row * PAGE_COLS + this.col] = { g: 32, fg: p.colour, bg: p.background, rv: 0 };
   }
+  /** ⚠ A CARRIAGE RETURN CLEARS REVERSE (§5.7), as it does on the C64.
+   *
+   *  This is not cosmetic: the server's encoder emits a `$92` before every CR
+   *  (`_encode_cells`) and resets its own flag there, so a client that let the
+   *  mode survive a newline would disagree with its own wire format — the page
+   *  would come back un-reversed from that line on. */
   newline() {
     this.col = 0;
+    this.reverse = false;
     this.moveRow(1);
   }
   moveRow(d) {
@@ -668,7 +693,7 @@ var EditorBuffer = class {
     const i = this.row * PAGE_COLS + this.col;
     this.touch();
     const fg = this.colourOn ? p.colour : p.cells[i].fg;
-    p.cells[i] = { g: code & 255, fg, bg: p.background, rv: 0 };
+    p.cells[i] = { g: code & 255, fg, bg: p.background, rv: this.reverse ? 1 : 0 };
     if (++this.col >= PAGE_COLS) {
       this.col = 0;
       this.moveRow(1);
@@ -1106,10 +1131,13 @@ setInterval(() => {
   buf.tickCursor();
   renderEditor();
 }, CURSOR_BLINK_MS);
+var syncEditorTools = () => {
+};
 function renderEditor() {
   const p = buf.page();
   edRenderer.renderEditorPage(p.cells, p.background, p.border, buf.row, buf.col, buf.cursorState());
   $("edMeta").textContent = `page ${buf.cur + 1}/${buf.pages.length}` + (buf.editing ? ` \xB7 EDIT ${buf.row + 1},${buf.col + 1}` : "") + (p.raw ? " \xB7 captured" : "");
+  syncEditorTools();
 }
 var pendingUpload = null;
 var pendingDownloadKind = "P";
@@ -2216,6 +2244,13 @@ window.addEventListener("keydown", (e) => {
       e.preventDefault();
       return;
     }
+    if (e.ctrlKey && !e.altKey && (e.key === "9" || e.key === "0")) {
+      buf.reverse = e.key === "9";
+      render();
+      status(`Reverse ${buf.reverse ? "on" : "off"}`);
+      e.preventDefault();
+      return;
+    }
     if (e.shiftKey && !e.ctrlKey && !e.altKey && !buf.lowerCase && /^[A-Za-z]$/.test(e.key)) {
       buf.typeGlyph(64 + (e.key.toUpperCase().charCodeAt(0) - 64));
       render();
@@ -2368,10 +2403,19 @@ function buildEditorTools() {
   showBuffer();
   const swatches = $("edSwatches");
   const target = () => $("edTarget").value;
+  const revBtn = $("edReverse");
   const paint = () => {
     const p = buf.page();
     const cur = target() === "pen" ? p.colour : target() === "screen" ? p.background : p.border;
     [...swatches.children].forEach((el, i) => el.classList.toggle("on", i === cur));
+    revBtn.classList.toggle("on", buf.reverse);
+    revBtn.textContent = buf.reverse ? "on" : "off";
+  };
+  syncEditorTools = paint;
+  revBtn.onclick = () => {
+    buf.reverse = !buf.reverse;
+    render();
+    status(`Reverse ${buf.reverse ? "on" : "off"}`);
   };
   assets.palette.forEach((css, i) => {
     const b = document.createElement("button");
