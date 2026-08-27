@@ -66,7 +66,13 @@ import api_binding as api              # noqa: E402
 
 api._bind_server(srv)
 
-USER, PASSWORD = 'TEST', 'SECRET'
+# ⚠ Supply the login account when this machine has none (#137). A machine with a
+# working TEST account keeps using it — see tests/fixture_account.py.
+sys.path.insert(0, _HERE)
+import fixture_account                  # noqa: E402
+fixture_account.ensure(srv)
+
+USER, PASSWORD = fixture_account.USER, fixture_account.PASSWORD
 JUNGLE, GRAPHICS, THE_ZOO, MORE_DIR = 600, 601, 699, 909
 
 
