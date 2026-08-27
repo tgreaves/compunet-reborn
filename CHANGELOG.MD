@@ -29,6 +29,17 @@
 	  fixture predated it.  test_tree now guards every shipped tree against both
 	  a Windows separator and a sub-directory entry pointing nowhere, walking to
 	  any depth - the first pass at this missed four entries three levels down.
+	* Fixed: A sub-directory whose path was recorded with Windows separators was
+	  invisible to the server on macOS and Linux, and a sub-directory that could
+	  not be found was skipped without a word - so a whole branch of the service
+	  disappeared and the only symptom was a listing that was shorter than it
+	  should be (#141).  The reader now accepts either separator and says which
+	  page it could not follow.  New: server/check_content_tree.py reports both
+	  faults for any tree, without needing the server running.
+	* Fixed: The example content tree shipped three sub-directory entries -
+	  GRAPHICS, MUSIC and DEMOS - pointing at files that were never in it.  An
+	  operator starting from data.example got three empty branches and no
+	  indication why.
 	* Fixed: test_audit could not deliver mail on Python 3.14, because sending
 	  schedules the recipient's notification on the event loop and the harness
 	  provided none.  It reported itself as the audit gap it was written to guard.

@@ -631,10 +631,31 @@ class CompunetDirectory:
         slug = re.sub(r'[^a-z0-9\-]', '', slug)
         return slug.strip('-') or 'untitled'
 
+    @staticmethod
+    def _resolve_content_path(rel):
+        """Resolve a `directory` value against ROOT_DIR, whatever wrote it.
+
+        ⚠ A SUB-DIRECTORY RECORDED WITH A WINDOWS SEPARATOR IS INVISIBLE HERE.
+        `os.path.join(root, 'jungle\\directory.json')` on POSIX yields a path
+        whose last component is the literal string `jungle\directory.json`, and
+        nothing on disk matches it — so the entire sub-tree silently vanishes
+        from the service while its files sit there.
+
+        The tree WRITER has normalised to forward slashes since it learned this
+        ($_save_directory: "those do not resolve on the Linux host that actually
+        serves this tree"), but the reader did not, which left every tree
+        written before that fix quietly broken (#141). The tracked test fixture
+        was one of them and nobody noticed for months (#138).
+
+        `/` is not legal in a Windows filename, so rewriting the separator can
+        never corrupt a name that was legitimate.
+        """
+        return os.path.join(ROOT_DIR, rel.replace('\\', '/'))
+
     def _build_flat_page(self, node, parent, base_dir):
         """Build a page from flat JSON node, resolving paths from its folder."""
         if 'directory' in node:
-            dir_json_path = os.path.join(ROOT_DIR, node['directory'])
+            dir_json_path = self._resolve_content_path(node['directory'])
             page_dir = os.path.dirname(dir_json_path)
         else:
             page_slug = self._make_slug(node['title'])
@@ -682,8 +703,21 @@ class CompunetDirectory:
 
         # If page is also a directory, load sub-directory JSON
         if 'directory' in node:
-            dir_json_path = os.path.join(ROOT_DIR, node['directory'])
+            dir_json_path = self._resolve_content_path(node['directory'])
             sub_base_dir = os.path.dirname(dir_json_path)
+            # ⚠ SAY SO when it does not resolve. This branch used to have no
+            # `else`: a sub-directory that could not be found was skipped in
+            # silence, so an entire branch of the service disappeared and the
+            # only symptom was a listing that was simply shorter than it should
+            # be — nothing to correlate against. A missing FRAME has warned
+            # since forever, one code path below; a missing sub-directory costs
+            # far more and said nothing (#141).
+            if not os.path.exists(dir_json_path):
+                log.warning('CONTENT: page %s "%s" points at a sub-directory '
+                            'that does not exist: %s (from %r) — everything '
+                            'below it is unreachable',
+                            node.get('page_num'), node.get('title'),
+                            dir_json_path, node['directory'])
             if os.path.exists(dir_json_path):
                 with open(dir_json_path, 'r') as f:
                     sub_data = json.load(f)
