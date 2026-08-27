@@ -62,4 +62,4 @@ client/c64/src/partyline/build/
 
 # Web client build artifacts (only app.bundle.js is tracked)
 client/web/dist/*.map
-client/web/dist/iff.test.mjs
+client/web/dist/*.test.mjs
