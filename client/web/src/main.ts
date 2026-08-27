@@ -420,6 +420,17 @@ setInterval(() => {
   renderEditor();
 }, CURSOR_BLINK_MS);
 
+/** ⚠ The editor's toolbar is DERIVED from editor state, not pushed into.
+ *
+ *  Assigned by buildEditorTools() and called from renderEditor(), so the
+ *  palette and the reverse toggle always show what the editor actually holds.
+ *  Pushing from each call site is what left the swatches stale: only a swatch
+ *  click repainted them, while CTRL+digit, f7/f8, LAST/NEXT (colour, screen and
+ *  border are all per-page) and GET all changed the same values silently. Five
+ *  routes against the one that remembered — and the sixth would have forgotten
+ *  too. It costs a handful of classList toggles a frame. */
+let syncEditorTools: () => void = () => { /* replaced once the tools exist */ };
+
 function renderEditor(): void {
   const p = buf.page();
   edRenderer.renderEditorPage(p.cells, p.background, p.border, buf.row, buf.col, buf.cursorState());
@@ -428,6 +439,7 @@ function renderEditor(): void {
   $('edMeta').textContent = `page ${buf.cur + 1}/${buf.pages.length}`
     + (buf.editing ? ` · EDIT ${buf.row + 1},${buf.col + 1}` : '')
     + (p.raw ? ' · captured' : '');
+  syncEditorTools();
 }
 
 /** Open the metadata form. The BODY comes from the editor buffer (§8.4.1) —
@@ -1706,6 +1718,20 @@ window.addEventListener('keydown', (e) => {
       status(`Pen colour ${bank[Number(e.key) - 1]}`);
       e.preventDefault(); return;
     }
+    // ⚠ CTRL+9 / CTRL+0 turn REVERSE VIDEO on and off ($12/$92, §5.7). Like the
+    // colour keys above this is a machine function rather than an editor
+    // command, which is why neither appears in the help frame (§A.9): verified
+    // in the ROM, the editor's key loop hands anything below $85 to CHROUT
+    // ($888F -> JSR $FFD2), so both codes reach the KERNAL untouched.
+    //
+    // A MODE, not a character — it holds until CTRL+0 or RETURN, so it is set
+    // on the buffer and read by every subsequent keystroke.
+    if (e.ctrlKey && !e.altKey && (e.key === '9' || e.key === '0')) {
+      buf.reverse = e.key === '9';
+      render();
+      status(`Reverse ${buf.reverse ? 'on' : 'off'}`);
+      e.preventDefault(); return;
+    }
     // ⚠ SHIFT + letter types a GRAPHICS character, as on the C64 — the keys are
     // the primary route and the picker is only an addition (§8.4.3). PETSCII
     // $C1-$DA (shifted letters) map to screen codes $41-$5A (§5.3), which is
@@ -1872,11 +1898,24 @@ function buildEditorTools(): void {
   const swatches = $('edSwatches');
   const target = () => $<HTMLSelectElement>('edTarget').value;
 
+  const revBtn = $<HTMLButtonElement>('edReverse');
+
   const paint = (): void => {
     // Show which colour is current for whatever the dropdown is pointing at.
     const p = buf.page();
     const cur = target() === 'pen' ? p.colour : target() === 'screen' ? p.background : p.border;
     [...swatches.children].forEach((el, i) => el.classList.toggle('on', i === cur));
+    // ⚠ Read from the buffer, never from the button's own history: the mode is
+    // also cleared by RETURN (§5.7), which no click handler would ever see.
+    revBtn.classList.toggle('on', buf.reverse);
+    revBtn.textContent = buf.reverse ? 'on' : 'off';
+  };
+  syncEditorTools = paint;
+
+  revBtn.onclick = () => {
+    buf.reverse = !buf.reverse;
+    render();
+    status(`Reverse ${buf.reverse ? 'on' : 'off'}`);
   };
 
   assets.palette.forEach((css, i) => {
