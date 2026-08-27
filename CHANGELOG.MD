@@ -26,7 +26,9 @@
 	  Windows separators, which do not resolve on macOS or Linux.  Every test that
 	  walked into a sub-directory failed there - the whole of test_terminal and 41
 	  of test_tree's 55 (#138).  The tree writer already normalised these; the
-	  fixture predated it.
+	  fixture predated it.  test_tree now guards every shipped tree against both
+	  a Windows separator and a sub-directory entry pointing nowhere, walking to
+	  any depth - the first pass at this missed four entries three levels down.
 	* Fixed: test_audit could not deliver mail on Python 3.14, because sending
 	  schedules the recipient's notification on the event loop and the harness
 	  provided none.  It reported itself as the audit gap it was written to guard.

@@ -76,6 +76,77 @@ class TheShippedTreesHaveUniquePageNumbers(unittest.TestCase):
                          'entries not reachable by their own page number')
 
 
+class TheShippedTreesUsePortablePaths(unittest.TestCase):
+    """A sub-directory recorded with a Windows separator is INVISIBLE on the
+    host that serves this tree.
+
+    `content.test` recorded its children as `jungle\\directory.json`. That
+    resolves on Windows and nowhere else, so on macOS and on the Linux host the
+    sub-tree simply was not there — the whole of `test_terminal` and 41 of this
+    file's 55 tests failed, and `test_api_binding` reported entries missing by
+    page number (#138). The tree WRITER already normalises this and says why;
+    the tracked fixture predated it.
+
+    ⚠ Walk to ANY DEPTH. The first pass at this fixed `root.json` and
+    `jungle/directory.json` and declared victory, because the check only looked
+    two levels down — `jungle/the-zoo/directory.json` kept four more, and every
+    test still passed because nothing happened to descend that far. A guard that
+    stops where the bug was last seen is not a guard.
+    """
+
+    TREES = ('data/content.test', 'data.example')
+
+    def test_no_sub_directory_path_uses_a_windows_separator(self):
+        offenders = []
+        for rel in self.TREES:
+            for base, _dirs, files in os.walk(os.path.join(_SERVER, rel)):
+                for name in files:
+                    if not name.endswith('.json'):
+                        continue
+                    path = os.path.join(base, name)
+                    with open(path, encoding='utf-8') as f:
+                        try:
+                            data = json.load(f)
+                        except ValueError:
+                            continue
+                    if not isinstance(data, dict):
+                        continue
+                    for page in data.get('pages', []):
+                        target = isinstance(page, dict) and page.get('directory')
+                        if target and '\\' in target:
+                            offenders.append('%s -> %s'
+                                             % (os.path.relpath(path, _SERVER), target))
+        self.assertEqual([], offenders,
+                         'sub-directory paths that will not resolve off Windows')
+
+    def test_every_sub_directory_path_exists_on_disk(self):
+        """The other half: a path that resolves but points nowhere is the same
+        invisible sub-tree, and separator-only checking would not catch it."""
+        missing = []
+        for rel in self.TREES:
+            root = os.path.join(_SERVER, rel)
+            content_root = os.path.join(root, 'root')
+            if not os.path.isdir(content_root):
+                continue
+            for base, _dirs, files in os.walk(content_root):
+                for name in files:
+                    if name != 'directory.json' and name != 'root.json':
+                        continue
+                    path = os.path.join(base, name)
+                    with open(path, encoding='utf-8') as f:
+                        try:
+                            data = json.load(f)
+                        except ValueError:
+                            continue
+                    for page in data.get('pages', []):
+                        target = isinstance(page, dict) and page.get('directory')
+                        if target and not os.path.exists(
+                                os.path.join(content_root, target)):
+                            missing.append('%s -> %s'
+                                           % (os.path.relpath(path, _SERVER), target))
+        self.assertEqual([], missing, 'sub-directory entries pointing nowhere')
+
+
 class ADuplicatePageNumberIsRefused(unittest.TestCase):
     """⚠ Page numbers are the tree's identity: `GOTO` resolves through them and
     every edit addresses a page by one. A repeated number is therefore ambiguous,
