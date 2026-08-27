@@ -24,7 +24,7 @@
       "frames": [
         "frame-1.seq"
       ],
-      "directory": "jungle\\directory.json"
+      "directory": "jungle/directory.json"
     },
     {
       "page_num": 900,
@@ -34,7 +34,7 @@
       "price": 0,
       "life": 0,
       "keyword": "PARTYLINE",
-      "directory": "partyline\\directory.json"
+      "directory": "partyline/directory.json"
     },
     {
       "page_num": 800,

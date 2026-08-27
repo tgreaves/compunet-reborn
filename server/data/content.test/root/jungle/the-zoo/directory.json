@@ -27,7 +27,7 @@
       "author": "PIMAN",
       "price": 0,
       "life": 99,
-      "directory": "jungle\\the-zoo\\march\\directory.json"
+      "directory": "jungle/the-zoo/march/directory.json"
     },
     {
       "page_num": 706,
@@ -36,7 +36,7 @@
       "author": "PIMAN",
       "price": 0,
       "life": 99,
-      "directory": "jungle\\the-zoo\\april\\directory.json"
+      "directory": "jungle/the-zoo/april/directory.json"
     },
     {
       "page_num": 710,
@@ -45,7 +45,7 @@
       "author": "PIMAN",
       "price": 0,
       "life": 99,
-      "directory": "jungle\\the-zoo\\may\\directory.json"
+      "directory": "jungle/the-zoo/may/directory.json"
     },
     {
       "page_num": 714,
@@ -54,7 +54,7 @@
       "author": "PIMAN",
       "price": 0,
       "life": 99,
-      "directory": "jungle\\the-zoo\\july\\directory.json"
+      "directory": "jungle/the-zoo/july/directory.json"
     },
     {
       "page_num": 718,
