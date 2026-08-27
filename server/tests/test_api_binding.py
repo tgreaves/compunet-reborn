@@ -454,6 +454,41 @@ class FrameFidelity(unittest.TestCase):
             self.assertEqual(got['rv'], sent['rv'], 'reverse at %d' % i)
             self.assertEqual(got['fg'], sent['fg'], 'colour at %d' % i)
 
+    def test_a_reversed_run_is_bracketed_by_12_and_92(self):
+        """§5.7: reverse is a MODE on the wire, not a property carried by each
+        cell — `$12` opens a run and `$92` closes it. The round-trip test above
+        would still pass if the encoder invented some other mechanism; this pins
+        the bytes, because a real C64 has no other way to read them."""
+        cells = [{'g': 0x20, 'fg': 1, 'bg': 0, 'rv': 0} for _ in range(960)]
+        for c in range(3):
+            cells[c] = {'g': 0x01, 'fg': 1, 'bg': 0, 'rv': 1}
+        out = api._encode_frame(self._grid(cells))
+        self.assertIn(b'\x12', out, 'no reverse-on code emitted at all')
+        self.assertEqual(out.count(b'\x12'), 1, 'one run should mean one switch')
+        self.assertLess(out.index(b'\x12'), out.index(b'\x92'),
+                        'reverse switched off before it was switched on')
+        self.assertLess(out.index(b'\x92'), out.index(b'\x0d'),
+                        'the run must close before the line ends')
+
+    def test_reverse_never_survives_a_carriage_return(self):
+        """§5.7 — a CR clears the attribute, and the encoder resets its own flag
+        there. The web editor's newline() clears its typing mode for exactly
+        this reason: without it the page would upload un-reversed from that line
+        on while the editor went on showing the mode as still active."""
+        cells = [{'g': 0x20, 'fg': 1, 'bg': 0, 'rv': 0} for _ in range(960)]
+        for i in range(2 * 40):
+            cells[i] = {'g': 0x01, 'fg': 1, 'bg': 0, 'rv': 1}
+        out = api._encode_frame(self._grid(cells))
+        reverse = False
+        for i, b in enumerate(out[4:], start=4):
+            if b == 0x12:
+                reverse = True
+            elif b == 0x92:
+                reverse = False
+            elif b == 0x0d:
+                self.assertFalse(reverse,
+                                 'reverse left switched on across the CR at byte %d' % i)
+
     def test_raw_round_trips_byte_identically(self):
         """F26/§8.4.2: an unedited captured page republishes unchanged."""
         import base64

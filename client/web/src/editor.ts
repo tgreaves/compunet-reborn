@@ -124,6 +124,15 @@ export class EditorBuffer {
   colourOn = true;
   /** f5 "on/off auto-repeat": when off, held keys do not repeat. */
   autoRepeat = true;
+  /** ⚠ CTRL+9 / CTRL+0 — reverse video ($12/$92, §5.7), and like the pen colour
+   *  it is NOT in the help frame (§8.4.3) because it is not an editor command.
+   *  Verified in the ROM: the editor's key loop hands anything below $85 to
+   *  CHROUT ($888F -> JSR $FFD2), so $12/$92 reach the KERNAL's own reverse
+   *  handling unfiltered — the same route the colour keys take.
+   *
+   *  ⚠ A MODE, not a character. It stays on until $92 or a CARRIAGE RETURN, so
+   *  it spans cells and lives on the buffer rather than on any one of them. */
+  reverse = false;
   /** The page as last STORED, for RUN ("restore original"). */
   private original: Cell[] | null = null;
 
@@ -373,7 +382,11 @@ export class EditorBuffer {
     const i = this.row * PAGE_COLS + this.col;
     // f6 off: the character changes, the colour under it does not.
     const fg = this.colourOn ? p.colour : p.cells[i].fg;
-    p.cells[i] = { g: charToGlyph(ch, this.lowerCase), fg, bg: p.background, rv: 0 };
+    p.cells[i] = { g: charToGlyph(ch, this.lowerCase), fg, bg: p.background,
+                   rv: this.reverse ? 1 : 0 };
+    // ⚠ The wrap does NOT clear reverse — only a CR does (§5.7). Running off
+    // the right-hand edge is not a newline, and a bar drawn to the screen edge
+    // is exactly the artwork that would break if it were.
     if (++this.col >= PAGE_COLS) { this.col = 0; this.moveRow(1); }
   }
 
@@ -406,7 +419,13 @@ export class EditorBuffer {
     p.cells[this.row * PAGE_COLS + this.col] = { g: 0x20, fg: p.colour, bg: p.background, rv: 0 };
   }
 
-  newline(): void { this.col = 0; this.moveRow(1); }
+  /** ⚠ A CARRIAGE RETURN CLEARS REVERSE (§5.7), as it does on the C64.
+   *
+   *  This is not cosmetic: the server's encoder emits a `$92` before every CR
+   *  (`_encode_cells`) and resets its own flag there, so a client that let the
+   *  mode survive a newline would disagree with its own wire format — the page
+   *  would come back un-reversed from that line on. */
+  newline(): void { this.col = 0; this.reverse = false; this.moveRow(1); }
 
   moveRow(d: number): void { this.row = Math.max(0, Math.min(PAGE_ROWS - 1, this.row + d)); }
   moveCol(d: number): void { this.col = Math.max(0, Math.min(PAGE_COLS - 1, this.col + d)); }
@@ -438,7 +457,7 @@ export class EditorBuffer {
     const i = this.row * PAGE_COLS + this.col;
     this.touch();
     const fg = this.colourOn ? p.colour : p.cells[i].fg;
-    p.cells[i] = { g: code & 0xFF, fg, bg: p.background, rv: 0 };
+    p.cells[i] = { g: code & 0xFF, fg, bg: p.background, rv: this.reverse ? 1 : 0 };
     if (++this.col >= PAGE_COLS) { this.col = 0; this.moveRow(1); }
   }
 

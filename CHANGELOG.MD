@@ -1,11 +1,31 @@
 # 1.5.0 (unreleased)
 
+* Web & desktop client:
+	* New: Reverse video can now be typed in the editor - CTRL+9 turns it on,
+	  CTRL+0 off, and RETURN clears it, as on a real C64.  There is a toggle in
+	  the editor's tool panel too.  Until now the editor could display a reversed
+	  page but could not compose one (#136).
+	* Fixed: The editor's colour swatches did not follow the keyboard.  Setting
+	  the pen with CTRL+1-8, the screen or border with f7/f8, or moving between
+	  pages left the highlight showing whichever colour was last clicked.
+	* Fixed: The editor cursor blinked the wrong way round on a cell that was
+	  already reversed.  It could not be seen until reverse became typeable.
 * Server:
 	* Fixed: The audit log recorded an internal address instead of the user's for
 	  almost every entry.  Anything done from the web or Electron client was logged
 	  against the connection tunnel, and registrations, password changes and admin
 	  actions against the website itself.  Only sign-ins were correct.  Existing
 	  entries cannot be corrected - the real addresses were never recorded.
+* Specification:
+	* §8.4.3 now requires a client offering the editor to provide a way to author
+	  reverse video, recommends CTRL+9 / CTRL+0, and states the mode's lifetime:
+	  it ends at RETURN, and a line wrap does not end it.  It also warns that
+	  §A.5 records reverse as bit 7 of the screen code, which a client holding
+	  cells rather than screen codes must not copy - in the reference client that
+	  bit selects the character set instead.
+	* §8.4.3 now also requires that a palette, picker or mode indicator reflect
+	  current editor state rather than its own last click.
+	* §5.7 points at the authoring requirement; CONFORMANCE.md gains two checks.
 
 # 1.4.0 (2026-08-01)
 
