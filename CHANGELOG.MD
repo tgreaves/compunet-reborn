@@ -1,3 +1,44 @@
+# 1.5.0 (2026-08-31)
+
+* Web & desktop client:
+	* New: Reverse video can now be typed in the editor — CTRL+9 turns it on,
+	  CTRL+0 off, and RETURN clears it, as on a real C64, and there is a toggle in
+	  the tool panel.  The editor could display a reversed page but not compose
+	  one (#136).
+	* Fixed: The editor's colour swatches showed whichever colour was last
+	  clicked, ignoring CTRL+1-8, f7/f8 and moving between pages.
+	* Fixed: The editor cursor blinked the wrong way round on a cell that was
+	  already reversed.
+* Server:
+	* Fixed: The audit log recorded an internal address instead of the user's for
+	  almost every entry — only sign-ins were correct.  Existing entries cannot be
+	  corrected; the real addresses were never recorded.
+	* Fixed: A sub-directory recorded with Windows path separators was invisible
+	  on macOS and Linux, and one that could not be found was skipped without a
+	  word — so a whole branch of the service disappeared, with no symptom but a
+	  listing that was shorter than it should be (#141).
+	* New: server/check_content_tree.py reports both faults for any content tree,
+	  without needing the server running.
+	* Fixed: The example content tree listed GRAPHICS, MUSIC and DEMOS as
+	  sub-directories it never contained, so an operator starting from
+	  data.example got three empty branches and no indication why.
+* Tests:
+	* Fixed: On a clean checkout the server suite skipped 71 of its tests and said
+	  OK while doing it, because the account they log in as lives in a gitignored
+	  file and a skip reads as a pass.  One is now supplied when the machine has
+	  none; a machine with a working TEST account is untouched (#137).
+	* Fixed: The tracked content fixture used Windows path separators, so every
+	  test that walked into a sub-directory failed on macOS and Linux (#138).
+* Specification:
+	* §8.4.3 now requires a client offering the editor to provide a way to author
+	  reverse video, recommends CTRL+9 / CTRL+0, and states that the mode ends at
+	  RETURN but not at a line wrap.  It warns that §A.5 records reverse as bit 7
+	  of the screen code, which a client holding cells must not copy — there that
+	  bit selects the character set instead.
+	* §8.4.3 now also requires that a palette, picker or mode indicator reflect
+	  current editor state rather than its own last click.
+	* §5.7 points at the authoring requirement; CONFORMANCE.md gains two checks.
+
 # 1.4.0 (2026-08-01)
 
 * Web & desktop client:

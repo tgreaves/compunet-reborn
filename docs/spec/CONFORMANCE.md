@@ -91,6 +91,16 @@ marked **⚠** are the ones known to have been got wrong in practice.
       cyan. Type a character, change the pen, type another: they must differ. A client that
       implements only the help frame's keys can produce **white text and nothing else**, which
       looks like a working editor until you try to author a coloured page.
+- [ ] **⚠ Reverse video can be typed at all** (§8.4.3). `CTRL`+`9`, type, `CTRL`+`0`, type: the
+      two runs must differ. Then check the **lifetime**, which is where this goes wrong — press
+      `RETURN` and the mode must clear (§5.7), and type past column 40 with it on, where the wrap
+      must **not** clear it. A client that renders reverse perfectly on pages it receives can
+      still be unable to author a single reversed cell, and nothing on screen says so.
+- [ ] **⚠ Any palette, picker or mode indicator follows the keys** (§8.4.3). Set the pen with
+      `CTRL`+digit and watch the swatches; press f7/f8 with the target on screen or border; page
+      with `LAST`/`NEXT`, which changes all three at once. An affordance that repaints only on its
+      own click reports the previous state confidently, and the reverse toggle is worse than the
+      palette here because `RETURN` changes the mode with no input the control can observe.
 - [ ] **⚠ Changing the screen colour actually changes the screen** (§8.4.3). Press f7 and watch
       the whole 40×24 area, not the status line: if the model holds a background per cell, the
       page field and the cells will disagree and only newly typed cells change. f8 (border) is

@@ -727,6 +727,7 @@ keys, and a client implementing the editor **SHOULD** provide all seven function
 | **f6** | colour on / off — when off, typing changes the character but not the colour under it |
 | **f7 / f8** | screen and border colour — **each press steps one colour forward** through the palette and wraps; they are not a forward/back pair (verified on the C64: yellow → orange → brown → light red → dark grey…) |
 | **`CTRL`+`1`–`8`** | set the **pen** colour — the colour typed text takes (`CTRL`+`4` is cyan). ⚠ See below |
+| **`CTRL`+`9` / `CTRL`+`0`** | **reverse video** on / off (`$12` / `$92`, §5.7). ⚠ See below |
 
 **⚠ The pen colour is set with `CTRL`+`1`–`8`, and it is NOT in the help frame (normative).**
 A client offering the editor **MUST** provide a way to set the colour typed text takes. On the
@@ -757,6 +758,13 @@ conditions:
   surrounding interface — a toolbar, a menu, a panel beside the page — the same place §4.10 puts
   the client's own furniture, and the same reasoning that keeps the buffer position out of the
   40×24 page (§8.4.2).
+- **⚠ It MUST reflect current state, not its own last click.** An affordance that shows a mode
+  **MUST** derive what it displays from the editor, because the keys change the same state and
+  some of it changes with no input at all — reverse video is cleared by a carriage return (§5.7),
+  which no click handler will ever see. A control that tracks only its own history will sit there
+  reading *on* while typing comes out plain, which is worse than not showing the mode: the user
+  now has a reason to believe the wrong thing. The same applies to a palette, whose highlight must
+  follow `CTRL`+digit, f7/f8 and a page change, not only a click on itself.
 
 **⚠ The same applies to GRAPHICS CHARACTERS, and here the gap is worse.** On the C64 the
 graphics come off the keyboard: `SHIFT`+letter gives one bank and `C=`+letter the other, which
@@ -776,6 +784,32 @@ nobody knows what `$6D` looks like.
 The same two conditions apply as for colour: **additional, not instead of** — whatever the
 keyboard *can* reach it still **MUST** reach — and **an affordance, not a command**, so no
 `GRAPH` or `CHARS` cell appears in the editor's row.
+
+**⚠ REVERSE VIDEO must be authorable, and it is the third of these (normative).** The pattern is
+by now familiar: a machine function the help frame does not list, whose absence leaves an editor
+that looks complete and silently cannot produce something §6 pages routinely contain. On the C64
+it is `CTRL`+`9` on and `CTRL`+`0` off, reaching the KERNAL by the same route as the colour keys —
+verified in the ROM, where the editor's key loop passes anything below `$85` to `CHROUT`
+(`$888F`: `JSR $FFD2`), so `$12`/`$92` are never intercepted by the editor at all. A client
+offering the editor **MUST** provide a way to author reverse video; `CTRL`+`9`/`CTRL`+`0` is
+**RECOMMENDED** because it matches the original exactly.
+
+**⚠ It is a MODE with a LIFETIME, not a property of one cell.** It stays on until `$92` **or a
+carriage return** (§5.7), and a **line wrap does not end it** — running off the right-hand edge is
+not a newline, and a reversed bar drawn to the screen edge is exactly the artwork that would break
+if it were. A client **MUST** clear the mode on `RETURN`: the frame encoder emits `$92` before
+every CR, so an editor whose mode outlived a newline would disagree with its own wire format and
+upload a page un-reversed from that line on, while still showing the mode as active.
+
+**⚠ Do not conflate reverse with the character set.** §A.5 documents screen codes `$80`–`$FF` as
+the reverse-video forms of `$00`–`$7F`, because on hardware reverse **is** bit 7 of the byte in
+screen RAM — the original sets it by hand where `CHROUT` is not involved (`$AA43`:
+`ORA #$80 / STA $07C0,X`). A client holding §6 **cells** rather than screen codes carries reverse
+as a per-cell attribute instead, and its glyph index is then free to mean something else: in the
+reference client bit 7 of the glyph selects the **character set**. Setting bit 7 to obtain reverse
+in such a model silently switches charset — `A` becomes a different glyph entirely — and the
+result looks plausible enough to survive review. Whichever encoding a client picks, capture
+(§8.4.2) must preserve the attribute either way.
 
 This is the general principle of §4.6 applied to the editor: *how* something is invoked is the
 client's business, *what exists to be invoked* is not.

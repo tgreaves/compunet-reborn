@@ -631,10 +631,31 @@ class CompunetDirectory:
         slug = re.sub(r'[^a-z0-9\-]', '', slug)
         return slug.strip('-') or 'untitled'
 
+    @staticmethod
+    def _resolve_content_path(rel):
+        """Resolve a `directory` value against ROOT_DIR, whatever wrote it.
+
+        ⚠ A SUB-DIRECTORY RECORDED WITH A WINDOWS SEPARATOR IS INVISIBLE HERE.
+        `os.path.join(root, 'jungle\\directory.json')` on POSIX yields a path
+        whose last component is the literal string `jungle\directory.json`, and
+        nothing on disk matches it — so the entire sub-tree silently vanishes
+        from the service while its files sit there.
+
+        The tree WRITER has normalised to forward slashes since it learned this
+        ($_save_directory: "those do not resolve on the Linux host that actually
+        serves this tree"), but the reader did not, which left every tree
+        written before that fix quietly broken (#141). The tracked test fixture
+        was one of them and nobody noticed for months (#138).
+
+        `/` is not legal in a Windows filename, so rewriting the separator can
+        never corrupt a name that was legitimate.
+        """
+        return os.path.join(ROOT_DIR, rel.replace('\\', '/'))
+
     def _build_flat_page(self, node, parent, base_dir):
         """Build a page from flat JSON node, resolving paths from its folder."""
         if 'directory' in node:
-            dir_json_path = os.path.join(ROOT_DIR, node['directory'])
+            dir_json_path = self._resolve_content_path(node['directory'])
             page_dir = os.path.dirname(dir_json_path)
         else:
             page_slug = self._make_slug(node['title'])
@@ -682,8 +703,21 @@ class CompunetDirectory:
 
         # If page is also a directory, load sub-directory JSON
         if 'directory' in node:
-            dir_json_path = os.path.join(ROOT_DIR, node['directory'])
+            dir_json_path = self._resolve_content_path(node['directory'])
             sub_base_dir = os.path.dirname(dir_json_path)
+            # ⚠ SAY SO when it does not resolve. This branch used to have no
+            # `else`: a sub-directory that could not be found was skipped in
+            # silence, so an entire branch of the service disappeared and the
+            # only symptom was a listing that was simply shorter than it should
+            # be — nothing to correlate against. A missing FRAME has warned
+            # since forever, one code path below; a missing sub-directory costs
+            # far more and said nothing (#141).
+            if not os.path.exists(dir_json_path):
+                log.warning('CONTENT: page %s "%s" points at a sub-directory '
+                            'that does not exist: %s (from %r) — everything '
+                            'below it is unreachable',
+                            node.get('page_num'), node.get('title'),
+                            dir_json_path, node['directory'])
             if os.path.exists(dir_json_path):
                 with open(dir_json_path, 'r') as f:
                     sub_data = json.load(f)
@@ -3941,6 +3975,24 @@ def _api_check_auth(request):
     return auth == f'Bearer {api_key}'
 
 
+def _api_caller_ip(request):
+    """The VISITOR's address for an admin-API call — not the website container.
+
+    ⚠ Our peer on this API is always the website, so `request.remote` names the
+    website for every event it asks us to record: production had 172.18.0.3
+    against every registration, password change and admin edit, while
+    `login_succeeded` beside them showed real addresses because sign-in was the
+    one route that passed an address explicitly (#135).
+
+    The website now sends the address it resolved from its own forwarded headers
+    on every call. `/api/auth` has always passed it in the request body instead,
+    and that keeps working — callers of this helper may still prefer a body
+    value, and an older website that sends neither falls back to the peer, which
+    is exactly the behaviour being replaced rather than something worse.
+    """
+    return request.headers.get('X-Compunet-Client-IP') or request.remote
+
+
 def _api_load_pending():
     pending_file = os.path.join(CFG_DIR, 'pending.json')
     if os.path.exists(pending_file):
@@ -4050,7 +4102,7 @@ async def api_auth(request):
     # attack that matters most: someone working through a list of user ids,
     # every attempt of which lands on the unknown-user branch and would leave
     # no trace at all.
-    client_ip = body.get('ip') or request.remote
+    client_ip = body.get('ip') or _api_caller_ip(request)
     user = users.get(user_id)
     if user is None:
         audit_log('login_failed', user=user_id, ip=client_ip, reason='no such user')
@@ -4137,7 +4189,7 @@ async def api_create_user(request):
         _api_save_users(users)
 
     log.info('API: created user %s', user_id)
-    audit_log('signup_completed', user=user_id, ip=request.remote)
+    audit_log('signup_completed', user=user_id, ip=_api_caller_ip(request))
     return aiohttp_web.json_response(
         _api_user_public(user_id, users[user_id]), status=201)
 
@@ -4191,9 +4243,9 @@ async def api_update_user(request):
     # self-service in among the credit adjustments and editor grants — the events
     # this log exists to make findable. The caller says which it is.
     if body.get('self_service'):
-        audit_log('password_changed', user=user_id, via='web', ip=request.remote)
+        audit_log('password_changed', user=user_id, via='web', ip=_api_caller_ip(request))
     else:
-        audit_log('user_updated', user=user_id, via='admin', ip=request.remote,
+        audit_log('user_updated', user=user_id, via='admin', ip=_api_caller_ip(request),
                   changed=changes or None)
     return aiohttp_web.json_response(_api_user_public(user_id, users[user_id]))
 
@@ -4211,7 +4263,7 @@ async def api_delete_user(request):
         _api_save_users(users)
 
     log.info('API: deleted user %s', user_id)
-    audit_log('user_deleted', user=user_id, via='admin', ip=request.remote)
+    audit_log('user_deleted', user=user_id, via='admin', ip=_api_caller_ip(request))
     return aiohttp_web.json_response({'status': 'deleted'})
 
 
@@ -4257,7 +4309,7 @@ async def api_create_pending(request):
 
     log.info('API: created pending registration for %s', entry['user_id'])
     audit_log('registration_requested', user=entry['user_id'] or None,
-              via='web', ip=request.remote, email=entry.get('email') or None)
+              via='web', ip=_api_caller_ip(request), email=entry.get('email') or None)
     return aiohttp_web.json_response({'token': token}, status=201)
 
 
@@ -4296,7 +4348,7 @@ async def api_consume_pending(request):
     outcome = request.query.get('outcome', 'rejected')
     if outcome != 'approved':
         audit_log('registration_rejected', user=entry.get('user_id') or None,
-                  via='admin', ip=request.remote)
+                  via='admin', ip=_api_caller_ip(request))
     return aiohttp_web.json_response(entry)
 
 
@@ -4383,7 +4435,7 @@ async def api_broadcast(request):
 
     log.info('BROADCAST: sent=%d errors=%d test_mode=%s subject="%s"',
              sent, len(errors), test_mode, subject)
-    audit_log('broadcast_sent', via='admin', ip=request.remote, subject=subject,
+    audit_log('broadcast_sent', via='admin', ip=_api_caller_ip(request), subject=subject,
               recipients=len(recipients), sent=sent, errors=len(errors),
               test_mode=test_mode)
     return aiohttp_web.json_response({

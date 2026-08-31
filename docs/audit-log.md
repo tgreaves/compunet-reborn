@@ -77,6 +77,25 @@ of `terminal.py`'s events and almost none of Binding A's. Pass `session` and a n
 call site cannot omit them. Where there is no session — the admin REST routes —
 pass `via=` and `ip=` explicitly.
 
+> **⚠ `ip` must be the VISITOR's address, and the peer is never it.** Every way in
+> reaches the server through something else: the web and desktop clients arrive via
+> the Cloudflare tunnel, and the website talks to the admin API from its own
+> container. Reading the socket peer therefore records infrastructure — the tunnel
+> (`172.18.0.4`) or the website (`172.18.0.3`) — against real user actions.
+>
+> Two helpers resolve it and **everything must go through one of them**:
+> `api_binding._client_ip(request)` for Binding B, which prefers `CF-Connecting-IP`
+> then the first entry of `X-Forwarded-For`; and `_api_caller_ip(request)` for the
+> admin API, which reads the `X-Compunet-Client-IP` the website sends. Both fall
+> back to the peer, so a direct connection still records correctly.
+>
+> This was wrong for as long as the field existed (#135), and the reason is worth
+> keeping: **the helper was right, and two of three call sites used it.** Nothing
+> failed, nothing logged an error, and the tests passed — they asserted `ip` was
+> *present*, never that it was *correct*. `test_audit.py` now checks both, including
+> a structural check that no handler reads the peer directly, because the next way
+> this returns is a new route written by someone who has not read this page.
+
 ### `via` values
 
 | Value | Surface |

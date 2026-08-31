@@ -14,6 +14,29 @@ No dependencies — stdlib `unittest`, no sockets, no Electron. `test_api_bindin
 drives `api_binding.handle_message()` directly against the tracked fixture tree
 (`server/data/content.test`), so a full run takes about four seconds.
 
+## The login account
+
+The suites log in as `TEST`/`SECRET`. That account lives in
+`server/cfg/users.json`, which holds live accounts and password hashes and is
+therefore gitignored — so on a clean checkout it does not exist.
+
+`tests/fixture_account.py` supplies one when it is missing, in a temporary
+directory that `srv.CFG_DIR` is pointed at. **A machine that already has a
+working `TEST` account keeps using it**: the real `users.json` is read once to
+answer that question and is never written to, moved or replaced.
+
+⚠ Until this existed the account's absence was invisible. `session()` skips when
+`TEST` cannot log in, and a skip reads as a pass — so **61 of `test_api_binding`'s
+92 tests and 10 of `test_audit`'s did nothing at all** on any machine without a
+hand-built account, while the suite reported `OK`. The one test that logs in
+without going through `session()` failed instead, and its docstring describes a
+real shipped bug, so the natural reading was an audit regression rather than a
+missing fixture (#137).
+
+If you add a test needing more than a plain account with credit, put it in
+`fixture_account.ACCOUNTS` rather than in the test, so every suite keeps
+agreeing about who `TEST` is.
+
 `test_terminal` covers port 6401. ⚠ **It exists because that surface had no tests
 at all**, which is how it kept its own hand-copied reimplementation of the upload
 writer long enough to drift from the shared one in four separate ways — including

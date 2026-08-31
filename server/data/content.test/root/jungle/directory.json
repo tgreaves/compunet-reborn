@@ -26,7 +26,7 @@
       "frames": [
         "frame-1.seq"
       ],
-      "directory": "jungle\\the-zoo\\directory.json"
+      "directory": "jungle/the-zoo/directory.json"
     },
     {
       "page_num": 601,
@@ -38,7 +38,7 @@
       "frames": [
         "frame-1.seq"
       ],
-      "directory": "jungle\\graphics\\directory.json"
+      "directory": "jungle/graphics/directory.json"
     },
     {
       "page_num": 602,
@@ -83,7 +83,7 @@
       "frames": [
         "frame-1.seq"
       ],
-      "directory": "jungle\\ash-and-dave\\directory.json"
+      "directory": "jungle/ash-and-dave/directory.json"
     },
     {
       "page_num": 902,
@@ -128,7 +128,7 @@
       "author": "JUNGLE",
       "price": 0.0,
       "life": 0,
-      "directory": "jungle\\more\\directory.json"
+      "directory": "jungle/more/directory.json"
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "compunet-web-client",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Compunet Reborn reference web client (Binding B / JSON API)",
   "type": "module",
@@ -8,7 +8,9 @@
     "build": "esbuild src/main.ts --bundle --format=esm --sourcemap --outfile=dist/app.bundle.js",
     "watch": "esbuild src/main.ts --bundle --format=esm --sourcemap --watch --outfile=dist/app.bundle.js",
     "typecheck": "tsc --noEmit",
-    "test": "esbuild tests/iff.test.ts --bundle --platform=node --format=esm --outfile=dist/iff.test.mjs && node dist/iff.test.mjs"
+    "test": "npm run test:iff && npm run test:editor",
+    "test:iff": "esbuild tests/iff.test.ts --bundle --platform=node --format=esm --outfile=dist/iff.test.mjs && node dist/iff.test.mjs",
+    "test:editor": "esbuild tests/editor.test.ts --bundle --platform=node --format=esm --outfile=dist/editor.test.mjs && node dist/editor.test.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",

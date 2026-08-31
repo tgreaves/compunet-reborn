@@ -76,6 +76,165 @@ class TheShippedTreesHaveUniquePageNumbers(unittest.TestCase):
                          'entries not reachable by their own page number')
 
 
+class AWindowsWrittenTreeStillLoads(unittest.TestCase):
+    """The reader must accept what older writers produced (#141).
+
+    ⚠ The tracked trees are clean and `TheShippedTreesUsePortablePaths` keeps
+    them that way — but that guards the FIXTURES, not the trees already on disk
+    elsewhere. The writer only started normalising separators after the problem
+    was found, so every tree written before that still records its children as
+    `jungle\\directory.json`, and on this host `os.path.join` turns that into a
+    filename nothing matches. The sub-tree then vanishes from the service with
+    its files intact.
+
+    So this builds the broken shape deliberately, which is the only way it can
+    now occur, and asserts the reader copes.
+    """
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self._tmp = tempfile.mkdtemp(prefix='compunet-winpath-')
+        shutil.copytree(os.path.join(_SERVER, 'data', 'content.test', 'root'),
+                        os.path.join(self._tmp, 'root'))
+        self._saved_root = srv.ROOT_DIR
+        srv.ROOT_DIR = os.path.join(self._tmp, 'root')
+
+    def tearDown(self):
+        import shutil
+        srv.ROOT_DIR = self._saved_root
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _rewrite(self, rel, replacements):
+        path = os.path.join(srv.ROOT_DIR, *rel)
+        with open(path) as f:
+            text = f.read()
+        for old, new in replacements:
+            self.assertIn(old, text, 'fixture no longer contains %r' % old)
+            text = text.replace(old, new)
+        with open(path, 'w') as f:
+            f.write(text)
+
+    def test_the_pages_inside_a_backslash_path_are_still_reachable(self):
+        """⚠ Assert the CONTENTS, not the entry.
+
+        THE ZOO itself survives a broken path — the loader builds the page from
+        the parent's node, so it is still listed and still addressable. What
+        disappears is everything the sub-directory JSON holds, which is the part
+        a user would go looking for. An assertion on `THE_ZOO in d.pages` passes
+        with the bug fully present, and that is worth stating: it is the exact
+        shape of test that let this survive.
+        """
+        self._rewrite(('jungle', 'directory.json'),
+                      [('"jungle/the-zoo/directory.json"',
+                        '"jungle\\\\the-zoo\\\\directory.json"')])
+        d = tree()
+        self.assertIn(THE_ZOO, d.pages, 'THE ZOO itself should never be lost')
+        for page_num, title in ((701, 'MARCH'), (714, 'JULY'), (721, 'ZOO INTERVIEW')):
+            self.assertIn(page_num, d.pages,
+                          '%s (%d) lost to a Windows separator' % (title, page_num))
+
+    def test_the_sub_trees_own_children_survive_too(self):
+        """Normalising only the top level would leave the same hole one level
+        down — which is exactly how the fixture sweep went wrong (#138)."""
+        self._rewrite(('jungle', 'directory.json'),
+                      [('"jungle/the-zoo/directory.json"',
+                        '"jungle\\\\the-zoo\\\\directory.json"')])
+        d = tree()
+        zoo = d.pages[THE_ZOO]
+        self.assertTrue(zoo.children, 'THE ZOO loaded but lost its own children')
+
+    def test_an_unresolvable_sub_directory_is_reported(self):
+        """⚠ The other half, and the reason this went unnoticed for so long:
+        the loader skipped a sub-directory it could not find WITHOUT SAYING SO.
+        The only symptom was a listing that was shorter than it should be."""
+        self._rewrite(('jungle', 'directory.json'),
+                      [('"jungle/the-zoo/directory.json"',
+                        '"jungle/nowhere-at-all/directory.json"')])
+        with self.assertLogs('compunet', level='WARNING') as captured:
+            tree()
+        blob = '\n'.join(captured.output)
+        self.assertIn('nowhere-at-all', blob, 'the broken path is not named')
+        self.assertIn(str(THE_ZOO), blob, 'the page it belongs to is not named')
+
+
+class TheShippedTreesUsePortablePaths(unittest.TestCase):
+    """A sub-directory recorded with a Windows separator is INVISIBLE on the
+    host that serves this tree.
+
+    `content.test` recorded its children as `jungle\\directory.json`. That
+    resolves on Windows and nowhere else, so on macOS and on the Linux host the
+    sub-tree simply was not there — the whole of `test_terminal` and 41 of this
+    file's 55 tests failed, and `test_api_binding` reported entries missing by
+    page number (#138). The tree WRITER already normalises this and says why;
+    the tracked fixture predated it.
+
+    ⚠ Walk to ANY DEPTH. The first pass at this fixed `root.json` and
+    `jungle/directory.json` and declared victory, because the check only looked
+    two levels down — `jungle/the-zoo/directory.json` kept four more, and every
+    test still passed because nothing happened to descend that far. A guard that
+    stops where the bug was last seen is not a guard.
+    """
+
+    # ⚠ `data.example` holds its tree under `content/`, not at its own root.
+    # The first version of this named the directory itself, so the existence
+    # check below hit `if not os.path.isdir(...): continue` and skipped the
+    # whole tree in silence — a guard quietly guarding nothing, which is the
+    # very shape of bug it was written to catch. It was hiding three dangling
+    # entries (GRAPHICS, MUSIC and DEMOS).
+    TREES = ('data/content.test', 'data.example/content')
+
+    def test_no_sub_directory_path_uses_a_windows_separator(self):
+        offenders = []
+        for rel in self.TREES:
+            for base, _dirs, files in os.walk(os.path.join(_SERVER, rel)):
+                for name in files:
+                    if not name.endswith('.json'):
+                        continue
+                    path = os.path.join(base, name)
+                    with open(path, encoding='utf-8') as f:
+                        try:
+                            data = json.load(f)
+                        except ValueError:
+                            continue
+                    if not isinstance(data, dict):
+                        continue
+                    for page in data.get('pages', []):
+                        target = isinstance(page, dict) and page.get('directory')
+                        if target and '\\' in target:
+                            offenders.append('%s -> %s'
+                                             % (os.path.relpath(path, _SERVER), target))
+        self.assertEqual([], offenders,
+                         'sub-directory paths that will not resolve off Windows')
+
+    def test_every_sub_directory_path_exists_on_disk(self):
+        """The other half: a path that resolves but points nowhere is the same
+        invisible sub-tree, and separator-only checking would not catch it."""
+        missing = []
+        for rel in self.TREES:
+            root = os.path.join(_SERVER, rel)
+            content_root = os.path.join(root, 'root')
+            self.assertTrue(os.path.isdir(content_root),
+                            'no tree at %s — this guard would silently pass' % content_root)
+            for base, _dirs, files in os.walk(content_root):
+                for name in files:
+                    if name != 'directory.json' and name != 'root.json':
+                        continue
+                    path = os.path.join(base, name)
+                    with open(path, encoding='utf-8') as f:
+                        try:
+                            data = json.load(f)
+                        except ValueError:
+                            continue
+                    for page in data.get('pages', []):
+                        target = isinstance(page, dict) and page.get('directory')
+                        if target and not os.path.exists(
+                                os.path.join(content_root, target)):
+                            missing.append('%s -> %s'
+                                           % (os.path.relpath(path, _SERVER), target))
+        self.assertEqual([], missing, 'sub-directory entries pointing nowhere')
+
+
 class ADuplicatePageNumberIsRefused(unittest.TestCase):
     """⚠ Page numbers are the tree's identity: `GOTO` resolves through them and
     every edit addresses a page by one. A repeated number is therefore ambiguous,

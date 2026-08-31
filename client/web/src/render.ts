@@ -263,7 +263,14 @@ export class Renderer {
       // ⚠ Both halves matter. Reverse alone leaves the cursor invisible
       // wherever the cell's colour matches the background; the colour alone
       // would not read as a cursor at all.
-      if (g[i]) g[i] = { ...g[i], fg: cursor.colour, rv: cursor.reverse ? 1 : 0 };
+      //
+      // ⚠ XOR, not assignment. The original is `EOR #$80` ($87CC) — it toggles
+      // the cell's OWN reverse bit. Assigning was indistinguishable for as long
+      // as nothing could author a reversed cell; over one it pins the cursor to
+      // a fixed phase, so the blink reads inverted exactly where the user is
+      // working.
+      if (g[i]) g[i] = { ...g[i], fg: cursor.colour,
+                         rv: (g[i].rv ^ (cursor.reverse ? 1 : 0)) as 0 | 1 };
     }
     this.renderGrid(g, background);
     this.setBorder(border);
