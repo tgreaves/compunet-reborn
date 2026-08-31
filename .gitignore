@@ -26,6 +26,10 @@ client/c64/127.0.0.1:*
 server/cfg/users.json
 server/cfg/pending.json
 server/cfg/subscribers.json
+# ⚠ Holds live reset tokens against user IDs — a token in here is a password
+# change waiting to be used. It was merely untracked, which a `git add -A`
+# happily commits; being ignored is what actually keeps it out of the history.
+server/cfg/password-resets.json
 
 # Dynamic server data (not tracked — use data.example/ for templates)
 server/data/mail/
