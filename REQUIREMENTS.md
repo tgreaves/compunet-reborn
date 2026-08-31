@@ -161,12 +161,22 @@ Get-CimInstance Win32_Process -Filter "Name like '%python%'" |
 ## Running the website locally
 
 The website is a separate Flask app with its own virtualenv and its own dependencies
-(`flask`, `requests`, `markdown` — it shares nothing with the server's):
+(`flask`, `requests`, `markdown`, plus `flask-sock` and `websocket-client` for the admin
+Partyline console — it shares nothing with the server's):
 
 ```bash
 cd website && python3 -m venv venv && venv/bin/pip install -r requirements.txt
 ./website.sh start       # Linux/macOS — serves on 6464
 ```
+
+⚠ **The two WebSocket packages are a guarded import, so a venv or an image without them
+starts perfectly and the Partyline console is simply gone** — the page says
+"Partyline console unavailable on this deployment" and `/admin/ws/partyline` is not
+routed. That is deliberate (the whole site must not fail to import over one admin page),
+which also means a missing dependency looks like a feature that was never built. The
+container bind-mounts `app.py` and `templates/`, so most website changes need only a
+restart; **a change that adds a dependency needs `docker compose up -d --build
+compunet-web`.**
 
 It reaches the server's admin REST API at `COMPUNET_API_URL`, defaulting to
 `http://localhost:6403`, so a server on the same machine needs no configuration for the two to

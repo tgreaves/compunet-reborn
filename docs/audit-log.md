@@ -48,6 +48,19 @@ comment saying why:
   `_complete_mail_send`. That duplication is a separate problem; the audit simply
   follows it.
 
+And one action is audited in the right place but **cannot derive `via` and `ip`**
+there:
+
+- **Partyline entry** — `partyline_log('join', …)` is the shared function all four
+  surfaces reach, so `partyline_entered` is written correctly from every one of
+  them. But it never sees a session: each surface holds the address somewhere
+  different, so the caller must hand `via=` and `ip=` over as named arguments
+  (never inside `**details`, which would put an address into `partyline.jsonl`,
+  the chat history). Until the admin console was proxied through the website
+  (#144) no caller passed either, so every `partyline_entered` in the older
+  history says `"via": null` with no address at all — the one event that cannot
+  answer "from where".
+
 ---
 
 ## Fields
@@ -83,11 +96,19 @@ pass `via=` and `ip=` explicitly.
 > container. Reading the socket peer therefore records infrastructure — the tunnel
 > (`172.18.0.4`) or the website (`172.18.0.3`) — against real user actions.
 >
-> Two helpers resolve it and **everything must go through one of them**:
-> `api_binding._client_ip(request)` for Binding B, which prefers `CF-Connecting-IP`
-> then the first entry of `X-Forwarded-For`; and `_api_caller_ip(request)` for the
-> admin API, which reads the `X-Compunet-Client-IP` the website sends. Both fall
-> back to the peer, so a direct connection still records correctly.
+> One definition resolves it and **everything must go through it**:
+> `compunet_server.client_ip_from_request(request)`, which prefers
+> `CF-Connecting-IP`, then the first entry of `X-Forwarded-For`, then the peer — so
+> a direct connection still records correctly. `api_binding._client_ip(request)`
+> delegates to it rather than repeating the rule, and `_api_caller_ip(request)`
+> covers the admin API's own case by reading the `X-Compunet-Client-IP` the website
+> sends.
+>
+> The website's WebSocket proxy is the same problem one layer further out: the
+> admin console's socket is opened by the website container, so the upstream
+> handshake carries `X-Forwarded-For: <the admin's address>` and
+> `client_ip_from_request` picks it up. Without that, every `partyline_entered`
+> from the console would record the website.
 >
 > This was wrong for as long as the field existed (#135), and the reason is worth
 > keeping: **the helper was right, and two of three call sites used it.** Nothing

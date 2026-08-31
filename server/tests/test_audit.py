@@ -50,6 +50,10 @@ class AuditTestCase(unittest.TestCase):
         self._tmp = tempfile.mkdtemp(prefix='compunet-audit-')
         self._saved_path = srv.AUDIT_LOG_PATH
         self._saved_mail = srv.MAIL_DIR
+        # ⚠ partyline.jsonl too: exercising a join wrote a "TEST joined" line
+        # into the REAL chat log, which the admin viewer then showed as history.
+        self._saved_pline = pl.PARTYLINE_LOG_PATH
+        pl.PARTYLINE_LOG_PATH = os.path.join(self._tmp, 'partyline.jsonl')
         srv.AUDIT_LOG_PATH = os.path.join(self._tmp, 'audit.jsonl')
         srv.MAIL_DIR = os.path.join(self._tmp, 'mail')
         # ⚠ A LOOP MUST EXIST, because delivering mail schedules the recipient's
@@ -67,6 +71,7 @@ class AuditTestCase(unittest.TestCase):
     def tearDown(self):
         srv.AUDIT_LOG_PATH = self._saved_path
         srv.MAIL_DIR = self._saved_mail
+        pl.PARTYLINE_LOG_PATH = self._saved_pline
         # Notification tasks were scheduled, never run; cancel them so closing
         # the loop does not warn about pending work.
         for task in asyncio.all_tasks(self._loop):
@@ -217,6 +222,37 @@ class EverySurfaceAudits(AuditTestCase):
         entered = self.events('partyline_entered')
         self.assertEqual(len(entered), 1)
         self.assertEqual(entered[0]['kind'], 'partyline')
+
+    def test_partyline_entry_records_where_it_came_from(self):
+        """⚠ `partyline_log` NEVER SEES A SESSION, so unlike every other event
+        here its `via` and `ip` cannot be derived — each surface holds the address
+        somewhere different and has to hand them over. Every partyline_entered
+        written before the console was proxied (#144) said `"via": null` with no
+        address at all: the one event that could not answer "from where"."""
+        pl.partyline_log('join', user='TEST', via='admin', ip='203.0.113.7')
+        entered = self.events('partyline_entered')
+        self.assertEqual(len(entered), 1)
+        self.assertEqual(entered[0]['via'], 'admin')
+        self.assertEqual(entered[0]['ip'], '203.0.113.7')
+
+    def test_an_unknown_address_is_omitted_rather_than_written_as_null(self):
+        """A surface that cannot supply one must not write an explicit null: the
+        audit filters treat a present key as a value to match on."""
+        pl.partyline_log('join', user='TEST')
+        entered = self.events('partyline_entered')[0]
+        self.assertNotIn('via', entered)
+        self.assertNotIn('ip', entered)
+
+    def test_the_partyline_chat_log_never_carries_an_address(self):
+        """⚠ `via`/`ip` are named parameters, not part of `**details`, so they
+        cannot reach partyline.jsonl — which the admin viewer reads as chat
+        history. Addresses belong in the audit log and nowhere else."""
+        pl.partyline_log('join', user='TEST', via='admin', ip='203.0.113.7')
+        with open(pl.PARTYLINE_LOG_PATH) as f:
+            written = f.read()
+        self.assertIn('TEST', written)
+        self.assertNotIn('203.0.113.7', written)
+        self.assertNotIn('admin', written)
 
     def test_a_download_is_audited_when_it_is_taken(self):
         s = self.api_session()

@@ -113,7 +113,9 @@ Set `COMPUNET_CLIENT_URL` on **compunet-web** to the address your client API is 
 site simply omits the link — which is correct for a deployment that does not host a client.
 
 ⚠ The **REST API on 6403 is for the website only** and reaches it over the internal network.
-It does not need publishing, and should not be exposed.
+It does not need publishing, and should not be exposed. That includes its Partyline WebSocket:
+the admin console at `/admin/partyline` opens a same-origin socket that the **website** proxies
+to 6403, so no browser needs a route to that port and the API key never leaves the server.
 
 See `.env.example` for required configuration variables.
 

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 PARTYLINE_LOG_PATH = os.path.join(os.path.dirname(__file__), 'data', 'partyline.jsonl')
 
 
-def partyline_log(event, user=None, **details):
+def partyline_log(event, user=None, via=None, ip=None, **details):
     """Append an event to the partyline log (JSON-lines format).
 
     ⚠ A `join` is ALSO an audit event, recorded here rather than by the callers.
@@ -29,11 +29,23 @@ def partyline_log(event, user=None, **details):
     terminal and Binding B by registering themselves — but only the first two
     audited it, so entering Partyline from the web client left no trace (#127).
     This is the one point they share.
+
+    ⚠ `via` and `ip` CANNOT be derived here, because this function never sees a
+    session: each surface holds the address in a different place, so the caller
+    has to hand them over. Every `partyline_entered` written before this recorded
+    `"via": null` and no address at all — the one audit event that could not
+    answer "from where", on the day the rest of the log was fixed to (#127,
+    #144). They are named parameters rather than part of `details` so they cannot
+    leak into partyline.jsonl: the audit log is where addresses belong, and the
+    partyline log is read by the admin viewer as chat history.
     """
     if event == 'join' and user:
         try:
             from compunet_server import audit_log
-            audit_log('partyline_entered', user=user, via=details.get('via'))
+            # Omit rather than pass None: `entry.update(details)` would write an
+            # explicit null, which the audit filters treat as a value.
+            extra = {k: v for k, v in (('via', via), ('ip', ip)) if v}
+            audit_log('partyline_entered', user=user, **extra)
         except ImportError:      # partyline used standalone
             pass
     entry = {
@@ -588,10 +600,13 @@ async def _cmd_quit(writer, user_id):
     partyline_log('leave', user=user_id, room=room)
 
 
-async def handle_session(reader, writer, user_id, amiga=False):
-    """Handle a partyline session. Returns when user quits."""
+async def handle_session(reader, writer, user_id, amiga=False, via=None, ip=None):
+    """Handle a partyline session. Returns when user quits.
+
+    `via` and `ip` are only carried through to the join audit — see partyline_log.
+    """
     logger.info("User %s entering partyline", user_id)
-    partyline_log('join', user=user_id)
+    partyline_log('join', user=user_id, via=via, ip=ip)
 
     # Check ban list
     if _is_banned(user_id):
@@ -661,7 +676,7 @@ async def handle_session(reader, writer, user_id, amiga=False):
             logger.info("User %s removed from partyline (cleanup)", user_id)
 
 
-async def handle_amiga_session(reader, writer, user_id):
+async def handle_amiga_session(reader, writer, user_id, via=None, ip=None):
     """Partyline for the Amiga CnetTty viewer ("Scrollback v1.0", Zugger '89).
 
     The 8-byte link header has already been sent (framed) by the caller. This runs the raw
@@ -681,7 +696,7 @@ async def handle_amiga_session(reader, writer, user_id):
         writer.write(b'\x01\x01\x01')          # arm markers for link_drain_preamble
         await writer.drain()
         await _drain_raw(reader, 6, timeout=2.0)   # its 0x01 x6 reply
-        await handle_session(reader, writer, user_id, amiga=True)
+        await handle_session(reader, writer, user_id, amiga=True, via=via, ip=ip)
     except _AmigaQuit:
         client_left = True                     # user hit "Done"; client already tore down
     except (ConnectionResetError, BrokenPipeError, OSError):
@@ -704,11 +719,13 @@ async def handle_amiga_session(reader, writer, user_id):
             pass
 
 
-async def handle_web_session(ws, user_id):
+async def handle_web_session(ws, user_id, via=None, ip=None):
     """Handle a partyline session from a WebSocket client.
 
     Messages to the client are sent as WS text frames.
     Messages from the client arrive as WS text frames.
+
+    `via` and `ip` are only carried through to the join audit — see partyline_log.
     """
     import aiohttp.web as aiohttp_web
 
@@ -741,12 +758,23 @@ async def handle_web_session(ws, user_id):
                     break
         except (asyncio.CancelledError, ConnectionResetError):
             pass
+        finally:
+            # ⚠ SIGNAL EOF, or the session outlives the socket. read_line treats
+            # an empty read as a disconnect, and this queue is the only thing
+            # that can produce one: with the browser gone the socket delivers
+            # nothing more, so the main loop falls back on its 60-second
+            # keepalive and writes *PING into a queue no one is draining. The
+            # user stays listed in *WHO — and messages sent to them vanish — for
+            # the twenty pings it takes to give up, twenty minutes. Nobody met
+            # this while the admin console could not connect at all (#144).
+            in_queue.put_nowait(b'')     # put_nowait: unbounded, and this may
+                                         # run while the task is being cancelled
 
     sender_task = asyncio.create_task(ws_sender())
     receiver_task = asyncio.create_task(ws_receiver())
 
     try:
-        await handle_session(reader, writer, user_id)
+        await handle_session(reader, writer, user_id, via=via, ip=ip)
     finally:
         sender_task.cancel()
         receiver_task.cancel()

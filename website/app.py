@@ -7,8 +7,9 @@ import json
 import os
 import re
 import secrets
+import threading
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import requests
 from flask import (Flask, Response, flash, get_flashed_messages,
@@ -17,8 +18,24 @@ from flask import (Flask, Response, flash, get_flashed_messages,
 
 import config
 
+# ⚠ GUARDED, and it must stay guarded. These two only serve the admin Partyline
+# console; a checkout or a container that predates them must still run the whole
+# site rather than fail to import — the same reasoning as the server's guarded
+# Binding B import, and it is also what keeps website/tests runnable without
+# installing them. `sock` being None is a supported state: the console then says
+# so instead of offering a socket that cannot open.
+try:
+    from flask_sock import Sock
+    import websocket as ws_client
+except ImportError:                                  # pragma: no cover
+    Sock = None
+    ws_client = None
+
 app = Flask(__name__)
 app.secret_key = config.get('WEBSITE_SECRET_KEY', 'dev-secret-change-me')
+
+# WebSocket routing for the admin Partyline console (see admin_ws_partyline).
+sock = Sock(app) if Sock is not None else None
 
 # ⚠ The site's only file upload is a directory header frame, which may not
 # exceed 512 bytes. Cap the request body well below anything worth buffering so
@@ -1317,13 +1334,116 @@ def admin_partyline():
     if denied:
         return denied
 
-    api_key = config.get('COMPUNET_API_KEY')
-    ws_url = config.get('PARTYLINE_WS_URL', '')
-    if not ws_url:
-        api_url = config.get('COMPUNET_API_URL', 'http://localhost:6403')
-        ws_url = api_url.replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/partyline'
-    return render_template('admin_partyline.html', api_key=api_key, ws_url=ws_url,
-                           user_id=session['user_id'])
+    # ⚠ NEITHER THE KEY NOR AN UPSTREAM URL GOES TO THE BROWSER any more. The page
+    # used to receive COMPUNET_API_KEY as a JavaScript literal and send it as a
+    # query parameter, and it was pointed at the server's own port through a public
+    # hostname; the socket is proxied by this site now (#144). The page opens a
+    # same-origin socket and needs to be told nothing.
+    return render_template('admin_partyline.html',
+                           proxy_available=sock is not None)
+
+
+def _partyline_ws_refusal(origin, user_id):
+    """Why this WebSocket may not be opened, or None if it may.
+
+    ⚠ A WEBSOCKET IS NOT PROTECTED BY THE CSRF TOKEN OR THE SAME-ORIGIN POLICY.
+    The browser sends the session cookie on the handshake whatever page opened it
+    and there is no form to carry a token, so any site could open this socket in a
+    signed-in admin's browser and read Partyline (cross-site WebSocket hijacking).
+    `Origin` is set by the browser and cannot be forged by page script, so it is
+    the check that fits — SESSION_COOKIE_SAMESITE=Lax does not help here.
+
+    A separate function so it can be tested without a socket: flask-sock offers no
+    test client, and an untested gate is how the hole would come back.
+    """
+    if user_id != 'ADMIN':
+        return 'not an administrator'
+    if not origin:
+        # A browser always sends it. A tool that does not is not a browser, and
+        # this endpoint exists only for the admin console page.
+        return 'no origin'
+    allowed = {urlsplit(config.get('WEBSITE_BASE_URL', '')).netloc,
+               urlsplit(request.host_url).netloc}
+    if urlsplit(origin).netloc not in {a for a in allowed if a}:
+        return 'cross-site origin'
+    return None
+
+
+def _partyline_upstream_url():
+    """The admin API's Partyline socket, on the internal network.
+
+    COMPUNET_API_URL is a container address (`http://compunet-server:6403`), which
+    is the point: the browser never needs a route to 6403, so it stays unpublished.
+    """
+    api_url = config.get('COMPUNET_API_URL', 'http://localhost:6403').rstrip('/')
+    return (api_url.replace('https://', 'wss://').replace('http://', 'ws://')
+            + '/ws/partyline')
+
+
+if sock is not None:
+    @sock.route('/admin/ws/partyline')
+    def admin_ws_partyline(ws):
+        """Proxy the admin console's Partyline socket to the server's admin API.
+
+        browser ──(session cookie, same origin)──▶ here ──(API key)──▶ 6403
+
+        Two legs, two directions, so one thread pumps upstream→browser while this
+        one pumps browser→upstream. Either side closing ends both.
+        """
+        refusal = _partyline_ws_refusal(request.headers.get('Origin'),
+                                        session.get('user_id'))
+        if refusal:
+            app.logger.warning('partyline proxy refused: %s', refusal)
+            ws.close(1008, refusal)          # 1008 = policy violation
+            return
+
+        query = urlencode({'user_id': session['user_id'],
+                           'token': config.get('COMPUNET_API_KEY', '')})
+        try:
+            # The admin's own address, so the server's partyline_entered audit
+            # records the person and not this container (#135 was the same bug one
+            # layer down). X-Forwarded-For is what client_ip_from_request reads.
+            upstream = ws_client.create_connection(
+                '%s?%s' % (_partyline_upstream_url(), query),
+                header={'X-Forwarded-For': _client_ip()},
+                timeout=None, enable_multithread=True)
+        except Exception as e:                # noqa: BLE001 — any failure is "no console"
+            app.logger.error('partyline proxy could not reach the server: %s', e)
+            ws.close(1011, 'upstream unavailable')    # 1011 = internal error
+            return
+
+        def browser_to_server():
+            try:
+                while True:
+                    data = ws.receive()
+                    if data is None:          # browser closed
+                        break
+                    upstream.send(data)
+            except Exception:                 # noqa: BLE001
+                pass
+            finally:
+                try:
+                    upstream.close()
+                except Exception:             # noqa: BLE001
+                    pass
+
+        pump = threading.Thread(target=browser_to_server, daemon=True)
+        pump.start()
+        try:
+            while True:
+                message = upstream.recv()
+                if message == '' or message is None:   # server closed
+                    break
+                if isinstance(message, bytes):
+                    message = message.decode('utf-8', 'replace')
+                ws.send(message)
+        except Exception:                     # noqa: BLE001
+            pass
+        finally:
+            try:
+                upstream.close()
+            except Exception:                 # noqa: BLE001
+                pass
 
 
 @app.route('/admin/audit')

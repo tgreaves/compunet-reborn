@@ -100,8 +100,9 @@ Constraints fixed before the build, which remain rules rather than history:
 - **The X.25 binding is frozen, not deprecated.** The C64 and Amiga ROM clients keep speaking
   X.25-over-TCP on port 6400 unchanged. Binding B is strictly **additive** (§1.8).
 - **Do not disturb the admin API.** The website depends on an aiohttp HTTP API on **port 6403**
-  (`/api/auth`, `/api/users`, `/api/pending`, `/api/broadcast`, `/api/audit`,
-  `/api/ws/partyline`). That is account/admin management — a different concern. The client API
+  (`/api/auth`, `/api/users`, `/api/pending`, `/api/broadcast`, `/api/audit`, and
+  `/ws/partyline` — a WebSocket, registered outside the `/api` prefix). That is
+  account/admin management — a different concern. The client API
   **must not** rename, move, reshape, or share a route namespace with those `/api/*` routes;
   it uses `/v1/*` on its own port.
 - **No duplicated content logic.** Binding B must remain a *serializer* over

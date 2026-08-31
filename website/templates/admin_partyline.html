@@ -60,13 +60,26 @@
     const msgInput = document.getElementById('msg-input');
     const sendBtn = document.getElementById('send-btn');
     const status = document.getElementById('status');
-    const apiKey = '{{ api_key }}';
-    const wsUrl = '{{ ws_url }}';
+
+    {% if not proxy_available %}
+    status.textContent = 'Partyline console unavailable on this deployment';
+    status.style.color = 'var(--c64-red)';
+    msgInput.disabled = true;
+    sendBtn.disabled = true;
+    return;
+    {% endif %}
+
+    // Same origin, and carrying nothing: the site proxies this to the server's
+    // admin API, which is not reachable from a browser. The identity comes from
+    // the session cookie the handshake already sends, so there is no user_id or
+    // token here to tamper with — both used to be in this URL.
+    const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://')
+                  + location.host + '/admin/ws/partyline';
 
     let ws = null;
 
     function connect() {
-        ws = new WebSocket(wsUrl + '?user_id={{ user_id }}&token=' + encodeURIComponent(apiKey));
+        ws = new WebSocket(wsUrl);
         ws.onopen = function() {
             status.textContent = 'Connected to Partyline';
             status.style.color = 'var(--c64-green)';

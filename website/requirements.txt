@@ -1,3 +1,15 @@
 flask>=3.0
 requests>=2.31
 markdown>=3.5
+
+# The admin Partyline console proxies a WebSocket to the server's admin API, so
+# that 6403 stays on the internal network and the API key stays server-side
+# (#144). flask-sock serves the browser side and works under the Werkzeug
+# development server; websocket-client opens the upstream leg.
+#
+# ⚠ Both are baked into the compunet-web IMAGE. The container bind-mounts app.py
+# and templates, so most website changes need only a restart — a change that adds
+# a dependency needs `docker compose up -d --build compunet-web` or the site
+# starts without the console.
+flask-sock>=0.7
+websocket-client>=1.7

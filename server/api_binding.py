@@ -112,16 +112,16 @@ def _client_ip(request):
     X-Forwarded-For is a CHAIN — the client appends to it too, so only the first
     entry is meaningful and the rest are hops. Falls back to the peer, which is
     correct for a direct connection.
+
+    The rule itself lives in `compunet_server.client_ip_from_request`, because the
+    admin API needs the same answer and two copies of a header-precedence rule is
+    how one of them ends up wrong. Imported lazily: compunet_server imports this
+    module during startup wiring.
     """
-    cf = request.headers.get('CF-Connecting-IP', '').strip()
-    if cf:
-        return cf
-    xff = request.headers.get('X-Forwarded-For', '')
-    if xff:
-        first = xff.split(',')[0].strip()
-        if first:
-            return first
-    return request.remote or 'api'
+    from compunet_server import client_ip_from_request
+    # "api" rather than empty, because this value becomes session.client_ip and
+    # that sentinel is what the log has always carried for an unknown caller.
+    return client_ip_from_request(request) or 'api'
 
 
 def _credentials_ok(user_id, password, client_ip='api'):
@@ -967,7 +967,9 @@ async def partyline_enter(session, ws, msg_id=None):
     writer = _WsPartylineWriter(ws, pl)
     session._pl_writer = writer
     pl._users[session.user_id] = {"writer": writer, "alias": None, "room": "Lobby"}
-    pl.partyline_log('join', user=session.user_id)
+    pl.partyline_log('join', user=session.user_id,
+                     via=getattr(session, 'audit_via', None),
+                     ip=getattr(session, 'client_ip', None))
     log.info('PARTYLINE(api): %s entering', session.user_id)
 
     await ws.send_json({"type": "partyline.entered", "id": msg_id, "room": "Lobby"})

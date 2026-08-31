@@ -1,5 +1,17 @@
 # 1.5.0 (2026-08-31)
 
+* Website:
+	* Fixed: The admin Partyline console could not connect at all — it opened its
+	  chat socket at an address that is not published, so the page sat on
+	  "Connecting...".  The website carries the socket now and needs no
+	  configuration; PARTYLINE_WS_URL is no longer read (#144).
+	* Fixed: That socket carried the admin API key from the browser, and the page
+	  contained the key in plain text.  ⚠ If you used this console on a shared
+	  machine, treat COMPUNET_API_KEY as exposed and change it.
+	* Fixed: The console chose for itself which user it joined Partyline as; who you
+	  are now comes from your signed-in session.
+	* Fixed: Closing the console left you listed in Partyline for up to twenty
+	  minutes, with messages to you vanishing.  You now leave as the page closes.
 * Web & desktop client:
 	* New: Reverse video can now be typed in the editor — CTRL+9 turns it on,
 	  CTRL+0 off, and RETURN clears it, as on a real C64, and there is a toggle in
@@ -13,6 +25,8 @@
 	* Fixed: The audit log recorded an internal address instead of the user's for
 	  almost every entry — only sign-ins were correct.  Existing entries cannot be
 	  corrected; the real addresses were never recorded.
+	* Fixed: Partyline entries recorded neither which client someone joined from nor
+	  their address — the one action that could not answer "from where".
 	* Fixed: A sub-directory recorded with Windows path separators was invisible
 	  on macOS and Linux, and one that could not be found was skipped without a
 	  word — so a whole branch of the service disappeared, with no symptom but a

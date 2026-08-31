@@ -1259,7 +1259,8 @@ class TerminalSession:
 
         # Register with partyline
         pl._users[self.user_id] = {"writer": None, "alias": None, "room": "lobby"}
-        pl.partyline_log('join', user=self.user_id)
+        pl.partyline_log('join', user=self.user_id,
+                         via=cs.audit_via(self), ip=self.client_ip)
 
         # Chat history buffer (server-side, scrollable)
         chat_lines = []  # full history (up to 500 lines)

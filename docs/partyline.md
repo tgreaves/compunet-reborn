@@ -143,7 +143,16 @@ Exits Partyline and returns to the Compunet terminal. Broadcasts: `{USERNAME} ha
 - **Clients:** three front-ends share the same `partyline.handle_session` logic —
   - **C64:** `client/c64/src/partyline/partyline.s` — 6502 program downloaded to the C64 on demand (screen rendering, keyboard input, ACIA comms). PETSCII text.
   - **Amiga:** the resident **CnetTty** viewer ("Scrollback v1.0", Zugger '89) — no program is downloaded; the client's link path hands the live connection to it. ASCII text. See [amiga-client.md](amiga-client.md) and [../client/amiga/vintage/tools/re/cnettty-re.md](../client/amiga/vintage/tools/re/cnettty-re.md).
-  - **Web:** WebSocket admin client (`handle_web_session`).
+  - **Web:** the admin console at `/admin/partyline` on the website
+    (`handle_web_session`). Its socket is **proxied by the website**: the browser opens a
+    same-origin `wss://…/admin/ws/partyline`, the website checks the session cookie and the
+    `Origin`, then opens the upstream leg to the server's `/ws/partyline` on port 6403 with
+    the admin API key and an `X-Forwarded-For` carrying the admin's own address (#144).
+    ⚠ The browser leg carries **no credential and no user_id** — it used to carry both,
+    which meant 6403 had to be published and the API key was rendered into the page. A
+    WebSocket handshake sends the session cookie whatever page opened it and no CSRF token
+    can ride along, so the `Origin` check in `_partyline_ws_refusal` is the only thing
+    preventing another site from reading Partyline through a signed-in admin's browser.
 
 ### Communication Protocol
 

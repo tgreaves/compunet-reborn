@@ -258,6 +258,33 @@ def audit_via(session):
         return 'amiga'
     return None
 
+
+def client_ip_from_request(request):
+    """The address of the person making an HTTP/WebSocket request, not the hop.
+
+    ⚠ `request.remote` is a PROXY in every real deployment. Production reaches
+    this server through a Cloudflare tunnel, and the admin console reaches 6403
+    from the website container, so the peer is a container address either way and
+    recording it puts 172.18.0.x against the whole internet (#135).
+
+    CF-Connecting-IP first: Cloudflare sets it and it holds exactly one address.
+    X-Forwarded-For is a CHAIN — the client can append to it too — so only the
+    first entry means anything. Falls back to the peer, correct for a direct
+    connection.
+
+    This is the one definition; `api_binding._client_ip` delegates here so the
+    two bindings cannot drift apart on what an address is.
+    """
+    cf = (request.headers.get('CF-Connecting-IP') or '').strip()
+    if cf:
+        return cf
+    xff = request.headers.get('X-Forwarded-For') or ''
+    first = xff.split(',')[0].strip()
+    if first:
+        return first
+    return request.remote or ''
+
+
 # Server configuration
 TCP_PORT = 6400
 API_PORT = 6403
@@ -3774,12 +3801,16 @@ async def tcp_handler(reader, writer):
                                     # Run the raw preamble + ASCII chat + 0x02 teardown.
                                     session._amiga_partyline = False
                                     log.info('TCP: entering AMIGA partyline for user=%s', session.user_id)
-                                    await partyline.handle_amiga_session(reader, writer, session.user_id)
+                                    await partyline.handle_amiga_session(
+                                        reader, writer, session.user_id,
+                                        via=audit_via(session), ip=session.client_ip)
                                     log.info('TCP: exited AMIGA partyline, resuming X.25 for user=%s', session.user_id)
                                     continue
                                 log.info('TCP: entering partyline mode for user=%s', session.user_id)
                                 await asyncio.sleep(1.0)
-                                await partyline.handle_session(reader, writer, session.user_id)
+                                await partyline.handle_session(
+                                    reader, writer, session.user_id,
+                                    via=audit_via(session), ip=session.client_ip)
                                 log.info('TCP: exited partyline mode, resuming X.25 for user=%s', session.user_id)
                                 continue
 
@@ -4445,21 +4476,36 @@ async def api_broadcast(request):
 
 
 async def api_ws_partyline(request):
-    """WebSocket endpoint for admin partyline access."""
+    """WebSocket endpoint for admin partyline access.
+
+    ⚠ THE CALLER IS THE WEBSITE, NOT A BROWSER. 6403 is reachable only on the
+    compose network (README: "the REST API on 6403 is for the website only"), and
+    the admin console proxies this socket at /admin/ws/partyline so the API key
+    never reaches a browser and the identity comes from the signed session cookie
+    rather than a query parameter (#144).
+
+    `user_id` is still read from the query because that is how the website tells
+    us WHO it authenticated — it is not a claim from the browser. Anything holding
+    the API key can already act as any user across this whole API, so this adds no
+    authority; it simply means the audit trail says who it was.
+    """
     # Auth via query param (WebSocket can't use headers easily)
     api_key = os.environ.get('COMPUNET_API_KEY', '')
     token = request.query.get('token', '')
     if not api_key or token != api_key:
         return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
     user_id = request.query.get('user_id', 'ADMIN').upper()
+    # The website forwards the admin's own address; without it every
+    # partyline_entered from this door would record the website container.
+    client_ip = client_ip_from_request(request)
     ws = aiohttp_web.WebSocketResponse()
     if not ws.can_prepare(request):
         log.warning('WebSocket partyline: cannot prepare (missing upgrade headers)')
         return aiohttp_web.json_response({'error': 'WebSocket upgrade required'}, status=400)
     await ws.prepare(request)
-    log.info('WebSocket partyline client connected: user=%s', user_id)
+    log.info('WebSocket partyline client connected: user=%s ip=%s', user_id, client_ip)
     try:
-        await partyline.handle_web_session(ws, user_id)
+        await partyline.handle_web_session(ws, user_id, via='admin', ip=client_ip)
     except Exception as e:
         log.error('WebSocket partyline error: %s', e)
     log.info('WebSocket partyline client disconnected: user=%s', user_id)
@@ -4472,10 +4518,14 @@ async def api_get_audit(request):
     ⚠ Every other /api route guards itself and this one did not. The audit log
     records `user` and `ip` against connects, page reads, purchases, uploads,
     mail sends and password resets — who read what, from where, and when. On a
-    deployment that publishes 6403 (the Cloudflare tunnel exposes it as
-    api.compunet.live) an unguarded handler served all of that to anyone who
-    guessed the path. It was missed because the endpoint only READS, and a
+    deployment that publishes 6403 an unguarded handler served all of that to
+    anyone who guessed the path, and production DID publish it for a while, as
+    api.compunet.live. It was missed because the endpoint only READS, and a
     read-only endpoint feels harmless right up until you notice what it reads.
+
+    That tunnel route is gone and 6403 is internal again — the admin console
+    reaches it from the website container (#144) — but the guard stays, because
+    "not currently published" is a deployment fact, not a property of the code.
     """
     if not _api_check_auth(request):
         return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
