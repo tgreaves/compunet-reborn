@@ -146,8 +146,12 @@ Exits Partyline and returns to the Compunet terminal. Broadcasts: `{USERNAME} ha
   - **Web:** the admin console at `/admin/partyline` on the website
     (`handle_web_session`). Its socket is **proxied by the website**: the browser opens a
     same-origin `wss://…/admin/ws/partyline`, the website checks the session cookie and the
-    `Origin`, then opens the upstream leg to the server's `/ws/partyline` on port 6403 with
-    the admin API key and an `X-Forwarded-For` carrying the admin's own address (#144).
+    `Origin`, then opens the upstream leg to the server's `/ws/partyline` on port 6403.
+    That leg carries two **headers**, the same pair as every other admin API call:
+    `Authorization: Bearer <key>` and `X-Compunet-Client-IP: <the admin's own address>`,
+    so the join is audited against the person rather than the website container (#144).
+    ⚠ Neither may become a query parameter: aiohttp logs the query string, so a key sent
+    that way is written into the server's access log on every connect.
     ⚠ The browser leg carries **no credential and no user_id** — it used to carry both,
     which meant 6403 had to be published and the API key was rendered into the page. A
     WebSocket handshake sends the session cookie whatever page opened it and no CSRF token

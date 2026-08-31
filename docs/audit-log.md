@@ -104,11 +104,18 @@ pass `via=` and `ip=` explicitly.
 > covers the admin API's own case by reading the `X-Compunet-Client-IP` the website
 > sends.
 >
-> The website's WebSocket proxy is the same problem one layer further out: the
-> admin console's socket is opened by the website container, so the upstream
-> handshake carries `X-Forwarded-For: <the admin's address>` and
-> `client_ip_from_request` picks it up. Without that, every `partyline_entered`
-> from the console would record the website.
+> The admin console's WebSocket is the same problem one layer further out: the
+> socket is opened by the website container, so the upstream handshake sends
+> `X-Compunet-Client-IP: <the admin's address>` — the same header as every other
+> admin call — and `api_ws_partyline` resolves it with `_api_caller_ip`. Without
+> that, every `partyline_entered` from the console would record the website.
+>
+> ⚠ **That handshake's credential is a HEADER, never a query parameter**
+> (`Authorization: Bearer …`, again as every other admin call). aiohttp writes the
+> query string into its access log, so a key sent there is recorded in plain text
+> on every connect — which is what the browser's version of this socket did, for
+> as long as it existed. Nothing on this API takes a credential from a query
+> string any more, and a test asserts it.
 >
 > This was wrong for as long as the field existed (#135), and the reason is worth
 > keeping: **the helper was right, and two of three call sites used it.** Nothing

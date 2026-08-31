@@ -263,17 +263,19 @@ def client_ip_from_request(request):
     """The address of the person making an HTTP/WebSocket request, not the hop.
 
     ⚠ `request.remote` is a PROXY in every real deployment. Production reaches
-    this server through a Cloudflare tunnel, and the admin console reaches 6403
-    from the website container, so the peer is a container address either way and
-    recording it puts 172.18.0.x against the whole internet (#135).
+    this server through a Cloudflare tunnel, so the peer is a container address
+    and recording it puts 172.18.0.x against the whole internet (#135).
 
     CF-Connecting-IP first: Cloudflare sets it and it holds exactly one address.
     X-Forwarded-For is a CHAIN — the client can append to it too — so only the
     first entry means anything. Falls back to the peer, correct for a direct
     connection.
 
-    This is the one definition; `api_binding._client_ip` delegates here so the
-    two bindings cannot drift apart on what an address is.
+    This is the one definition for traffic arriving from OUTSIDE;
+    `api_binding._client_ip` delegates here so the two bindings cannot drift apart
+    on what an address is. The admin API on 6403 has its own answer,
+    `_api_caller_ip`, because its peer is always the website and the website names
+    the visitor explicitly (`X-Compunet-Client-IP`).
     """
     cf = (request.headers.get('CF-Connecting-IP') or '').strip()
     if cf:
@@ -4487,17 +4489,25 @@ async def api_ws_partyline(request):
     `user_id` is still read from the query because that is how the website tells
     us WHO it authenticated — it is not a claim from the browser. Anything holding
     the API key can already act as any user across this whole API, so this adds no
-    authority; it simply means the audit trail says who it was.
+    authority; it simply means the audit trail says who it was. A user ID is not a
+    secret, so the query is a fine place for it.
     """
-    # Auth via query param (WebSocket can't use headers easily)
-    api_key = os.environ.get('COMPUNET_API_KEY', '')
-    token = request.query.get('token', '')
-    if not api_key or token != api_key:
+    # ⚠ THE KEY GOES IN A HEADER, as it does on every other route here. It was a
+    # query parameter ("WebSocket can't use headers easily") because the caller
+    # used to be a BROWSER, and a browser cannot set handshake headers — but the
+    # caller is the website's proxy now (#144), which can. aiohttp writes the
+    # query string into the access log, so every attempt to open the console left
+    # the key in the server's own log, in plain text:
+    #     "GET /ws/partyline?user_id=ADMIN&token=<the key> HTTP/1.1" 101
+    # The `token=` form is REMOVED rather than deprecated: while it is still
+    # accepted, something goes on using it and the log goes on holding the key.
+    if not _api_check_auth(request):
         return aiohttp_web.json_response({'error': 'unauthorized'}, status=401)
     user_id = request.query.get('user_id', 'ADMIN').upper()
-    # The website forwards the admin's own address; without it every
-    # partyline_entered from this door would record the website container.
-    client_ip = client_ip_from_request(request)
+    # The website forwards the admin's own address, in the header the rest of
+    # this API already uses for it; without it every partyline_entered from this
+    # door would record the website container (#135).
+    client_ip = _api_caller_ip(request)
     ws = aiohttp_web.WebSocketResponse()
     if not ws.can_prepare(request):
         log.warning('WebSocket partyline: cannot prepare (missing upgrade headers)')

@@ -1380,6 +1380,23 @@ def _partyline_upstream_url():
             + '/ws/partyline')
 
 
+def _partyline_upstream_headers(client_ip):
+    """Handshake headers for the upstream leg — the same two every admin API call
+    sends.
+
+    ⚠ THE KEY IS A HEADER, NEVER A QUERY PARAMETER. The server logged the query
+    string of this handshake, so a key sent that way ended up in its access log in
+    plain text on every connect. A browser could not set handshake headers, which
+    is why it was ever a query parameter; this leg is opened by
+    `websocket-client`, which can.
+    """
+    return {'Authorization': 'Bearer %s' % config.get('COMPUNET_API_KEY', ''),
+            # The visitor's address, in the header the admin API reads it from
+            # everywhere else — otherwise partyline_entered records this
+            # container instead of the admin (#135).
+            'X-Compunet-Client-IP': client_ip}
+
+
 if sock is not None:
     @sock.route('/admin/ws/partyline')
     def admin_ws_partyline(ws):
@@ -1397,15 +1414,14 @@ if sock is not None:
             ws.close(1008, refusal)          # 1008 = policy violation
             return
 
-        query = urlencode({'user_id': session['user_id'],
-                           'token': config.get('COMPUNET_API_KEY', '')})
+        # Only the user ID travels in the query — it is not a secret, and it is
+        # how the server learns who WE authenticated. The key and the address are
+        # headers; see _partyline_upstream_headers.
+        query = urlencode({'user_id': session['user_id']})
         try:
-            # The admin's own address, so the server's partyline_entered audit
-            # records the person and not this container (#135 was the same bug one
-            # layer down). X-Forwarded-For is what client_ip_from_request reads.
             upstream = ws_client.create_connection(
                 '%s?%s' % (_partyline_upstream_url(), query),
-                header={'X-Forwarded-For': _client_ip()},
+                header=_partyline_upstream_headers(_client_ip()),
                 timeout=None, enable_multithread=True)
         except Exception as e:                # noqa: BLE001 — any failure is "no console"
             app.logger.error('partyline proxy could not reach the server: %s', e)

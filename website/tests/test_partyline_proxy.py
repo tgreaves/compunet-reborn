@@ -142,6 +142,57 @@ class TheUpstreamLegStaysInternal(unittest.TestCase):
         self.assertTrue(self.upstream('http://x:6403').endswith('/ws/partyline'))
 
 
+class TheKeyTravelsInAHeaderNotAQueryString(unittest.TestCase):
+    """⚠ The server writes the query string of this handshake into its access
+    log, so a key sent that way sits in the log in plain text on every connect —
+    which is what the browser's version of this socket did, and the reason the
+    log had to be read to notice. A query parameter is the wrong place for a
+    credential even on an internal network: logs are copied, shipped and kept."""
+
+    def setUp(self):
+        self._saved = os.environ.get('COMPUNET_API_KEY')
+        os.environ['COMPUNET_API_KEY'] = 'upstream-key'
+
+    def tearDown(self):
+        if self._saved is None:
+            os.environ.pop('COMPUNET_API_KEY', None)
+        else:
+            os.environ['COMPUNET_API_KEY'] = self._saved
+
+    def test_the_key_is_a_bearer_header(self):
+        headers = site._partyline_upstream_headers('198.51.100.4')
+        self.assertEqual('Bearer upstream-key', headers['Authorization'])
+
+    def test_the_visitors_address_uses_the_admin_apis_own_header(self):
+        """`X-Compunet-Client-IP` is what `_api_caller_ip` reads on every other
+        admin call; the socket must not invent a second convention."""
+        headers = site._partyline_upstream_headers('198.51.100.4')
+        self.assertEqual('198.51.100.4', headers['X-Compunet-Client-IP'])
+
+    def test_no_key_appears_in_the_upstream_url(self):
+        self.assertNotIn('upstream-key', site._partyline_upstream_url())
+
+    def test_the_handler_puts_only_the_user_id_in_the_query(self):
+        """⚠ A STRUCTURAL check, because the alternative is a socket test the
+        suite cannot run. The credential was in this query string for three
+        releases and nothing failed; what noticed it was reading a log line."""
+        if site.sock is None:
+            self.skipTest('proxy not available in this environment')
+        import inspect
+        # ⚠ NOT `site.admin_ws_partyline` — flask-sock's route decorator returns
+        # None, so that module attribute IS None. The registered view is its
+        # wrapper, and @wraps leaves the real function on __wrapped__.
+        view = site.app.view_functions['admin_ws_partyline']
+        # Strip comments: the ones here NAME the parameter that was removed, so a
+        # naive search would fail on the explanation rather than on the mistake.
+        src = '\n'.join(l.split('#')[0] for l in
+                        inspect.getsource(view.__wrapped__).splitlines())
+        self.assertIn("urlencode({'user_id'", src)
+        self.assertNotIn('token', src,
+                         'the upstream query carries a credential again')
+        self.assertIn('_partyline_upstream_headers', src)
+
+
 class TheBrowserIsToldNothing(unittest.TestCase):
     """⚠ The page used to receive the admin API key as a JavaScript literal.
     Anyone who could see that page — or a saved copy of it, or a browser

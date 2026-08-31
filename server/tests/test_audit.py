@@ -543,6 +543,31 @@ class TheAdminApiRecordsTheVisitorNotTheWebsite(unittest.TestCase):
         self.assertEqual(srv._api_caller_ip(_FakeRequest(remote='172.18.0.3')),
                          '172.18.0.3')
 
+    def test_the_partyline_socket_takes_the_forwarded_address_too(self):
+        """⚠ The WebSocket is an admin route like any other, and it is the one
+        whose address matters most: every `partyline_entered` from the console
+        comes through it. Structural, because the suite runs no sockets — it must
+        resolve through `_api_caller_ip` and must not read the peer itself."""
+        import inspect
+        src = '\n'.join(l.split('#')[0] for l in
+                        inspect.getsource(srv.api_ws_partyline).splitlines())
+        self.assertIn('_api_caller_ip(request)', src)
+        self.assertNotIn('request.remote', src)
+
+    def test_the_partyline_socket_authorises_by_header_not_query(self):
+        """⚠ aiohttp logs the query string, so the key this handshake used to
+        carry there was written into the server's own access log in plain text on
+        every connect:
+            "GET /ws/partyline?user_id=ADMIN&token=<the key> HTTP/1.1" 101
+        A user ID in the query is fine. A credential never is."""
+        import inspect
+        src = '\n'.join(l.split('#')[0] for l in
+                        inspect.getsource(srv.api_ws_partyline).splitlines())
+        self.assertIn('_api_check_auth(request)', src)
+        self.assertNotIn('token', src,
+                         'the partyline socket reads a credential from the query '
+                         'again — that lands in the access log')
+
     def test_no_admin_route_reads_the_peer_directly_any_more(self):
         """The structural half. Seven call sites had `ip=request.remote`; the
         helper only helps if they all go through it, and a new route added later

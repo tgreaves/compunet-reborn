@@ -5,9 +5,11 @@
 	  chat socket at an address that is not published, so the page sat on
 	  "Connecting...".  The website carries the socket now and needs no
 	  configuration; PARTYLINE_WS_URL is no longer read (#144).
-	* Fixed: That socket carried the admin API key from the browser, and the page
-	  contained the key in plain text.  ⚠ If you used this console on a shared
-	  machine, treat COMPUNET_API_KEY as exposed and change it.
+	* Fixed: That socket carried the admin API key from the browser — in the page
+	  source, and in a URL the server then wrote into its own log on every attempt
+	  to connect.  ⚠ If you ever opened this console, treat COMPUNET_API_KEY as
+	  exposed and change it.  The key now stays on the server and travels in a
+	  header, which is not logged.
 	* Fixed: The console chose for itself which user it joined Partyline as; who you
 	  are now comes from your signed-in session.
 	* Fixed: Closing the console left you listed in Partyline for up to twenty
