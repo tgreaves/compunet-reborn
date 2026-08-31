@@ -637,7 +637,7 @@ class CompunetDirectory:
 
         ⚠ A SUB-DIRECTORY RECORDED WITH A WINDOWS SEPARATOR IS INVISIBLE HERE.
         `os.path.join(root, 'jungle\\directory.json')` on POSIX yields a path
-        whose last component is the literal string `jungle\directory.json`, and
+        whose last component is the literal string `jungle\\directory.json`, and
         nothing on disk matches it — so the entire sub-tree silently vanishes
         from the service while its files sit there.
 
