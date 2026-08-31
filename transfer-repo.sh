@@ -38,8 +38,15 @@ echo "==> Adding remote '$REMOTE_URL'..."
 docker exec -w /repo "$CONTAINER_NAME" git remote add origin "$REMOTE_URL"
 
 echo "==> Pushing branches to remote..."
+# Explicit refspecs: several branches here share a name with a tag (v1.0.0,
+# v1.2.1, …), so a bare "git push origin v1.2.2" would be ambiguous the moment a
+# matching tag is created. refs/heads/… names the branch and nothing else.
+PUSH_REFSPECS=""
+for b in $BRANCHES; do
+    PUSH_REFSPECS="$PUSH_REFSPECS refs/heads/$b:refs/heads/$b"
+done
 docker exec -w /repo "$CONTAINER_NAME" \
-    sh -c 'GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" git push origin '"$BRANCHES"''
+    sh -c 'GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" git push origin '"$PUSH_REFSPECS"''
 docker exec -w /repo "$CONTAINER_NAME" \
     sh -c 'GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" git push origin --tags'
 
