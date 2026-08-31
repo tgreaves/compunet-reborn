@@ -1,54 +1,39 @@
-# 1.5.0 (unreleased)
+# 1.5.0 (2026-08-31)
 
 * Web & desktop client:
-	* New: Reverse video can now be typed in the editor - CTRL+9 turns it on,
-	  CTRL+0 off, and RETURN clears it, as on a real C64.  There is a toggle in
-	  the editor's tool panel too.  Until now the editor could display a reversed
-	  page but could not compose one (#136).
-	* Fixed: The editor's colour swatches did not follow the keyboard.  Setting
-	  the pen with CTRL+1-8, the screen or border with f7/f8, or moving between
-	  pages left the highlight showing whichever colour was last clicked.
+	* New: Reverse video can now be typed in the editor — CTRL+9 turns it on,
+	  CTRL+0 off, and RETURN clears it, as on a real C64, and there is a toggle in
+	  the tool panel.  The editor could display a reversed page but not compose
+	  one (#136).
+	* Fixed: The editor's colour swatches showed whichever colour was last
+	  clicked, ignoring CTRL+1-8, f7/f8 and moving between pages.
 	* Fixed: The editor cursor blinked the wrong way round on a cell that was
-	  already reversed.  It could not be seen until reverse became typeable.
+	  already reversed.
 * Server:
 	* Fixed: The audit log recorded an internal address instead of the user's for
-	  almost every entry.  Anything done from the web or Electron client was logged
-	  against the connection tunnel, and registrations, password changes and admin
-	  actions against the website itself.  Only sign-ins were correct.  Existing
-	  entries cannot be corrected - the real addresses were never recorded.
+	  almost every entry — only sign-ins were correct.  Existing entries cannot be
+	  corrected; the real addresses were never recorded.
+	* Fixed: A sub-directory recorded with Windows path separators was invisible
+	  on macOS and Linux, and one that could not be found was skipped without a
+	  word — so a whole branch of the service disappeared, with no symptom but a
+	  listing that was shorter than it should be (#141).
+	* New: server/check_content_tree.py reports both faults for any content tree,
+	  without needing the server running.
+	* Fixed: The example content tree listed GRAPHICS, MUSIC and DEMOS as
+	  sub-directories it never contained, so an operator starting from
+	  data.example got three empty branches and no indication why.
 * Tests:
-	* Fixed: The server test suite did almost nothing on a clean checkout and said
-	  OK while doing it.  61 of test_api_binding's 92 tests and 10 of test_audit's
-	  skipped because the account they log in as lives in a gitignored file, and a
-	  skip reads as a pass (#137).  A fixture account is now supplied when one is
-	  missing; a machine that already has a working TEST account is untouched.
-	* Fixed: The tracked content fixture recorded its sub-directory paths with
-	  Windows separators, which do not resolve on macOS or Linux.  Every test that
-	  walked into a sub-directory failed there - the whole of test_terminal and 41
-	  of test_tree's 55 (#138).  The tree writer already normalised these; the
-	  fixture predated it.  test_tree now guards every shipped tree against both
-	  a Windows separator and a sub-directory entry pointing nowhere, walking to
-	  any depth - the first pass at this missed four entries three levels down.
-	* Fixed: A sub-directory whose path was recorded with Windows separators was
-	  invisible to the server on macOS and Linux, and a sub-directory that could
-	  not be found was skipped without a word - so a whole branch of the service
-	  disappeared and the only symptom was a listing that was shorter than it
-	  should be (#141).  The reader now accepts either separator and says which
-	  page it could not follow.  New: server/check_content_tree.py reports both
-	  faults for any tree, without needing the server running.
-	* Fixed: The example content tree shipped three sub-directory entries -
-	  GRAPHICS, MUSIC and DEMOS - pointing at files that were never in it.  An
-	  operator starting from data.example got three empty branches and no
-	  indication why.
-	* Fixed: test_audit could not deliver mail on Python 3.14, because sending
-	  schedules the recipient's notification on the event loop and the harness
-	  provided none.  It reported itself as the audit gap it was written to guard.
+	* Fixed: On a clean checkout the server suite skipped 71 of its tests and said
+	  OK while doing it, because the account they log in as lives in a gitignored
+	  file and a skip reads as a pass.  One is now supplied when the machine has
+	  none; a machine with a working TEST account is untouched (#137).
+	* Fixed: The tracked content fixture used Windows path separators, so every
+	  test that walked into a sub-directory failed on macOS and Linux (#138).
 * Specification:
 	* §8.4.3 now requires a client offering the editor to provide a way to author
-	  reverse video, recommends CTRL+9 / CTRL+0, and states the mode's lifetime:
-	  it ends at RETURN, and a line wrap does not end it.  It also warns that
-	  §A.5 records reverse as bit 7 of the screen code, which a client holding
-	  cells rather than screen codes must not copy - in the reference client that
+	  reverse video, recommends CTRL+9 / CTRL+0, and states that the mode ends at
+	  RETURN but not at a line wrap.  It warns that §A.5 records reverse as bit 7
+	  of the screen code, which a client holding cells must not copy — there that
 	  bit selects the character set instead.
 	* §8.4.3 now also requires that a palette, picker or mode indicator reflect
 	  current editor state rather than its own last click.
