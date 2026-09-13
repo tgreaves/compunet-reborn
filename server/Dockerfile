@@ -16,11 +16,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # `ModuleNotFoundError: No module named 'header_frame'`. A source checkout cannot
 # catch it — the modules are right there — so nothing fails until deployment.
 # Adding an import to compunet_server.py means adding the file to this list.
-# The current runtime set is: x25_protocol, partyline, terminal, api_binding,
-# header_frame, header_preview (partyline and terminal import compunet_server
-# back; api_binding pulls in partyline).
+# The current runtime set is: x25_protocol, partyline, federation, terminal,
+# api_binding, header_frame, header_preview (partyline and terminal import
+# compunet_server back; api_binding pulls in partyline and federation, and
+# federation pulls in partyline).
 COPY server/compunet_server.py server/x25_protocol.py server/partyline.py \
-     server/terminal.py server/api_binding.py \
+     server/federation.py server/terminal.py server/api_binding.py \
      server/header_frame.py server/header_preview.py ./
 # ⚠ The web client ships INSIDE the server image so the client API can serve it
 # from its own origin (see make_app's web_client_dir). One hostname through the

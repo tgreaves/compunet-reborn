@@ -1035,6 +1035,56 @@ A Tier 3 client **MUST** implement the raw line protocol and the activation/tear
 least one transport variant. *(Non-normative: the detailed C64 memory map and the resident
 Amiga viewer "CnetTty" are platform mechanics — see `docs/partyline.md`.)*
 
+### 8.5.1 Federation
+
+**Federation** is a second link subsystem: chat carried by a server **outside** Compunet. To a
+client it is Partyline — the same `L` entry (§7.4), the same download-and-run activation, the
+same raw `CR`-terminated line session, the same `*quit` → `*EXIT` teardown. **A client needs no
+new code for it, and MUST NOT try to tell the two apart:** which service an `L` entry leads to
+is the server's business, and it is decided server-side (in the reference server, by a `link`
+field on the directory entry, which never reaches the wire).
+
+What differs is what the lines *mean*, and a conforming client must not assume otherwise:
+
+- **The commands are not Partyline's, and none of them is the server's to answer.** `*who`,
+  `*alias`, `*enter` and the rest belong to Partyline's server; a federation server has its own
+  set, or none. A client **MUST** pass every input line through verbatim — `*quit` included —
+  and **MUST NOT** interpret, complete, or offer `*`-commands of its own, because it cannot know
+  what is valid there. The reference server forwards everything and interprets nothing.
+- **Only the host ends the session.** It does so on an in-game command or event, or by
+  dropping the connection; either way the client receives `*EXIT`. A client **MUST NOT** offer
+  a local way out — no RUN/STOP, no ESC — because a stray keypress would drop a player from the
+  game, and the original Federation terminal had none. *(This section previously required the
+  opposite — a client-side exit, with the C64 sending `*quit` on RUN/STOP. That was wrong: it was
+  Partyline's exit carried over, and it posted `*quit` to the game as chat.)* The Amiga CnetTty
+  viewer's Done gadget is the original viewer's own and is unchanged.
+- **There is no guaranteed opening listing.** §8.5's rule still applies — render whatever the
+  server pushes — but a federation server may push nothing at all until someone speaks.
+- **`*EXIT` is the ONLY sentinel, and lines starting with `*` are otherwise ordinary text.**
+  §8.5's `*PING` keepalive does not exist here — the server sends none, and a client **MUST NOT**
+  expect one or treat `*PING` as anything but chat. The reference server converts remote text to
+  PETSCII rather than passing it through, precisely so a remote line reading `*EXIT` cannot end
+  the session behind its back; a client **MUST NOT** assume the far end is well-behaved either.
+- **The link can end at the other end.** When the federation server closes the connection the
+  reference server writes one explanatory line and then `*EXIT`, so an ended session looks
+  exactly like a user-initiated quit.
+- **The C64 program is not Partyline's.** The link downloads `pegterm.prg`, the Federation
+  terminal: black screen, grey text, a full-width output area and a one-line input row. A
+  single RETURN sends the line (not §8.5's double-RETURN), and there is no `*save`. Cursor up
+  splits the output area: scrollback above a solid bar, live output below; it closes when
+  scrolling down brings the scrollback back to the live output. How a line
+  is committed is a client choice; the wire carries the same `CR`-terminated line either way.
+
+Binding B carries Federation with the **same** `partyline.*` vocabulary (§8.5, api/README §5) —
+it is the same chat window on screen. `partyline.entering`, `partyline.entered` and
+`partyline.left` carry a `service` field (`"partyline"` or `"federation"`) so a client that
+wants to label the window can; a client that ignores it behaves correctly. `partyline.leave`
+is refused in Federation (`invalid`), for the reason above.
+
+Federation is **optional server configuration**, not a protocol tier: where no federation server
+is configured, activating the entry says so on one line and exits. **No client is required to
+implement anything beyond §8.5 to use it.**
+
 ## 8.6 UCAT, VOTE, and LIFE
 
 Three commands round out the interactive tier: `C` (UCAT), `V` (VOTE), and `X` (LIFE). They

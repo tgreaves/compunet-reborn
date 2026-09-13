@@ -220,7 +220,7 @@ letter alone:
 | `P` | Program / telesoftware | download (§8.3) |
 | `PP` | Protected program | download; original required the modem as a dongle |
 | `S` | Sequential file (word-processor format) | download / view |
-| `L` | Link | activate the link subsystem (§8.5 — Partyline on the modern server) |
+| `L` | Link | activate the link subsystem (§8.5 — Partyline or Federation on the modern server) |
 | `F` | IFF/ILBM picture (§7.4.1) | download and display the picture — Amiga and web; **refused to the C64** |
 | `A` | Action: executable, run on arrival (§7.4.1) | download and immediately execute — **machine-specific; deliberately not served, and refused** |
 

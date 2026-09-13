@@ -1186,21 +1186,12 @@ class TerminalSession:
                 crc &= 0xFFFF
         return crc
 
-    async def _enter_partyline(self):
-        """Enter partyline with a custom terminal UI."""
-        import partyline as pl
-        cs = _get_server()
+    async def _draw_chat_ui(self, title, status):
+        """Draw the chat window: scrollback box, input box, title and status line.
 
-        # Check ban
-        if pl._is_banned(self.user_id):
-            await self.cursor_to(24, 0)
-            await self.send(COL_WHITE)
-            await self.send_text('YOU ARE BANNED FROM PARTYLINE'.ljust(39))
-            await self.read_key()
-            await self.render_directory()
-            return
-
-        # Draw partyline UI (shifted mode for mixed case chat)
+        Shared by Partyline and Federation — the frame is the same window, only
+        what fills it differs.
+        """
         await self.send(CLR)
         # Draw borders in uppercase mode (one switch), then switch to shifted for text
         await self.set_charset('upper')
@@ -1243,19 +1234,35 @@ class TerminalSession:
         await self.send(b'\x60' * 35)
         await self.send(b'\xbd')
 
-        # Switch to shifted mode for text (partyline uses mixed case)
+        # Switch to shifted mode for text (chat is mixed case)
         await self.set_charset('lower')
 
         # Row 0: title
         await self.cursor_to(0, 0)
         await self.send(COL_BLUE)
-        await self.send_text('  PARTYLINE')
+        await self.send_text('  ' + title)
         await self.send(CR)
 
         # Row 24: status
         await self.cursor_to(24, 0)
         await self.send(COL_WHITE)
-        await self.send_text('*HELP for commands  ESC to quit'.ljust(39))
+        await self.send_text(status.ljust(39))
+
+    async def _enter_partyline(self):
+        """Enter partyline with a custom terminal UI."""
+        import partyline as pl
+        cs = _get_server()
+
+        # Check ban
+        if pl._is_banned(self.user_id):
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text('YOU ARE BANNED FROM PARTYLINE'.ljust(39))
+            await self.read_key()
+            await self.render_directory()
+            return
+
+        await self._draw_chat_ui('PARTYLINE', '*HELP for commands  ESC to quit')
 
         # Register with partyline
         pl._users[self.user_id] = {"writer": None, "alias": None, "room": "lobby"}
@@ -1462,6 +1469,157 @@ class TerminalSession:
         await self.read_key()
 
         # Return to directory
+        await self.render_directory()
+
+    async def _enter_federation(self):
+        """Enter Federation with the chat UI, proxying to the federation server.
+
+        Nothing here interprets what the user types: every line goes upstream
+        verbatim. There is no local way out — the host ends the session.
+        """
+        import federation as fed
+        cs = _get_server()
+
+        try:
+            link = await fed.Link.open(self.user_id, via=cs.audit_via(self),
+                                       ip=self.client_ip)
+        except fed.FederationUnavailable as exc:
+            await self.cursor_to(24, 0)
+            await self.send(COL_WHITE)
+            await self.send_text(str(exc).upper().ljust(39))
+            await self.read_key()
+            await self.render_directory()
+            return
+
+        await self._draw_chat_ui('FEDERATION II', '')
+
+        chat_lines = []      # full history
+        scroll_offset = 0    # 0 = showing latest, >0 = scrolled back
+
+        async def redraw_chat():
+            total = len(chat_lines)
+            end = total - scroll_offset
+            start = max(0, end - 15)
+            for i in range(15):
+                await self.cursor_to(2 + i, 3)
+                line_idx = start + i
+                if line_idx < end and line_idx < total:
+                    await self.send(COL_BLUE)
+                    await self.send_text(chat_lines[line_idx][:35].ljust(35))
+                else:
+                    await self.send_text(' ' * 35)
+
+        async def add_chat_line(text):
+            while len(text) > 35:
+                chat_lines.append(text[:35])
+                text = text[35:]
+            chat_lines.append(text)
+            while len(chat_lines) > 500:
+                chat_lines.pop(0)
+            if scroll_offset == 0:
+                await redraw_chat()
+
+        # ⚠ A dedicated reader task, not a cancelled readline: cancelling a
+        # StreamReader mid-line discards what it has already buffered, so a line
+        # arriving while the user types would come back truncated.
+        msg_queue = asyncio.Queue()
+
+        async def pump():
+            while True:
+                line = await link.readline()
+                if line is None:
+                    await msg_queue.put(None)
+                    return
+                await msg_queue.put(line)
+
+        pump_task = asyncio.create_task(pump())
+
+        input_buf = ''
+        input_col = 0
+        input_row = 0
+        await self.cursor_to(19, 4)
+
+        try:
+            while True:
+                done, pending = await asyncio.wait(
+                    [asyncio.ensure_future(self.reader.read(1)),
+                     asyncio.ensure_future(msg_queue.get())],
+                    return_when=asyncio.FIRST_COMPLETED)
+
+                for task in pending:
+                    task.cancel()
+
+                for task in done:
+                    result = task.result()
+
+                    if result is None:
+                        # The federation server hung up.
+                        await add_chat_line('Federation link closed.')
+                        raise StopIteration()
+                    elif isinstance(result, str):
+                        await add_chat_line(result)
+                        await self.cursor_to(19 + input_row, 4 + input_col)
+                    elif isinstance(result, bytes):
+                        if not result:
+                            raise ConnectionResetError()
+                        key = result[0]
+
+                        # ⚠ No ESC or RUN/STOP exit: a stray keypress must
+                        # not drop a player from the game.
+                        if key == KEY_CRSR_UP:
+                            max_scroll = max(0, len(chat_lines) - 15)
+                            if scroll_offset < max_scroll:
+                                scroll_offset += 1
+                                await redraw_chat()
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+                        elif key == KEY_CRSR_DOWN:
+                            if scroll_offset > 0:
+                                scroll_offset -= 1
+                                await redraw_chat()
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+                        elif key == KEY_RETURN:
+                            text = input_buf.strip()
+                            if text:
+                                import partyline as pl
+                                # Verbatim: nothing typed is ours to interpret.
+                                await link.send(pl.petscii_to_ascii(
+                                    bytes([ord(c) for c in text])))
+                            input_buf = ''
+                            input_col = 0
+                            input_row = 0
+                            for r in range(19, 23):
+                                await self.cursor_to(r, 4)
+                                await self.send_text(' ' * 35)
+                            await self.cursor_to(19, 4)
+                        elif key == KEY_DEL:
+                            if input_buf:
+                                input_buf = input_buf[:-1]
+                                if input_col > 0:
+                                    input_col -= 1
+                                else:
+                                    input_row = max(0, input_row - 1)
+                                    input_col = 34
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+                                await self.send(b'\x20')
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+                        elif key >= 0x20 and len(input_buf) < 140:
+                            input_buf += chr(key)
+                            await self.send(bytes([key]))
+                            input_col += 1
+                            if input_col >= 35:
+                                input_col = 0
+                                input_row += 1
+                                if input_row >= 4:
+                                    input_row = 3
+                                await self.cursor_to(19 + input_row, 4 + input_col)
+
+        except (StopIteration, asyncio.CancelledError,
+                ConnectionResetError, BrokenPipeError, OSError):
+            pass
+        finally:
+            pump_task.cancel()
+            await link.close()
+
         await self.render_directory()
 
     async def _render_editor_frame(self):
@@ -2874,9 +3032,12 @@ class TerminalSession:
                         json.dump(users, f)
                     cs.audit_log('page_bought', session=self,
                                  page=child.page_num, title=child.title, price=child.price)
-                # Type L (link): enter partyline
+                # Type L (link): enter the service the entry names (§7.4)
                 if child.page_type == 'L':
-                    await self._enter_partyline()
+                    if getattr(child, 'link', None) == 'federation':
+                        await self._enter_federation()
+                    else:
+                        await self._enter_partyline()
                 # Program page: trigger XMODEM download
                 elif child.page_type == 'P' and child.frames:
                     await self._xmodem_send(child)

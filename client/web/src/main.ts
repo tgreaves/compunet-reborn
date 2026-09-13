@@ -293,21 +293,32 @@ function onMessage(m: ServerMsg): void {
       // Mail sent: the result is an ack, not a listing — hand focus back here.
       if (submitting) { submitting = false; setFocus('net'); }
       break;
+    // ⚠ Federation (§8.5.1) arrives through the PARTYLINE messages, because it is
+    // the same chat window on screen. `service` says which one; a client that
+    // ignored it would still work, and would simply mislabel the pane.
     case 'partyline.entering':
-      status('Joining Partyline…');
+      status(isFed(m) ? 'Joining Federation…' : 'Joining Partyline…');
       break;
     case 'partyline.entered':
-      setChatVisible(true); updateBar();
-      chatLog('*** Partyline — room ' + (m as { room: string }).room + ' ***');
-      status('In Partyline. *help for commands, *quit to leave.');
+      setChatVisible(true, isFed(m) ? 'federation' : 'partyline'); updateBar();
+      if (chatService === 'federation') {
+        // ⚠ NO command hint and no way out: the game ends the session.
+        status('In Federation II.');
+      } else {
+        chatLog('*** Partyline — room ' + (m as { room: string }).room + ' ***');
+        status('In Partyline. *help for commands, *quit to leave.');
+      }
       break;
     case 'partyline':
       chatLog((m as { line: string }).line);
       break;
-    case 'partyline.left':
+    case 'partyline.left': {
+      // May arrive UNSOLICITED: a federation server can hang up on its own.
+      const left = chatService === 'federation' ? 'Left Federation.' : 'Left Partyline.';
       setChatVisible(false); updateBar();
-      status('Left Partyline.');
+      status(left);
       break;
+    }
     case 'error': {
       const err = m as { code: string; message?: string };
       status('⚠ ' + err.code + (err.message ? ': ' + err.message : ''), true);
@@ -609,8 +620,17 @@ const editorActions: Record<string, () => void> = {
   DOS: () => status('DOS is not available in a sandboxed browser client'),
 };
 
-// --- Partyline chat panel (§8.5) -------------------------------------------
+// --- Partyline / Federation chat panel (§8.5, §8.5.1) -----------------------
 let inParty = false;
+/** Which service the chat pane is showing. Federation is a link to a server
+ *  outside Compunet: same window, same messages, different owner of the
+ *  commands — so the pane must not offer Partyline's. */
+let chatService: 'partyline' | 'federation' = 'partyline';
+
+/** `service` on a partyline.* message, absent on an older server. */
+function isFed(m: ServerMsg): boolean {
+  return (m as { service?: string }).service === 'federation';
+}
 
 /** Partyline TAKES OVER the Compunet pane rather than opening beside it (§4.10):
  *  on the C64 the link loads a chat program that occupies the screen, and the
@@ -618,11 +638,12 @@ let inParty = false;
  *  none of the normal commands, so a tiled Compunet pane would show an empty
  *  row anyway. The editor pane, if open, is unaffected — it is a separate
  *  context and Partyline never displaced it on the original either. */
-function setChatVisible(on: boolean): void {
+function setChatVisible(on: boolean, service: 'partyline' | 'federation' = 'partyline'): void {
   inParty = on;
+  if (on) chatService = service;
   $('chat').hidden = !on;
   $('screenWrap').hidden = on;
-  $('netTitle').textContent = on ? 'Partyline' : 'Compunet';
+  $('netTitle').textContent = on ? (chatService === 'federation' ? 'Federation II' : 'Partyline') : 'Compunet';
   if (on) {
     setFocus('net');                       // the pane is live; the chat owns it
     $<HTMLInputElement>('chatInput').value = '';
@@ -1477,7 +1498,9 @@ function updateBar(): void {
     else edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background, buf.lowerCase);
   }
 
-  $('netMeta').textContent = mode === 'idle' ? 'not connected' : nctx;
+  // Federation shares the partyline context; its title alone names it.
+  const fedChat = nctx === 'partyline' && chatService === 'federation';
+  $('netMeta').textContent = mode === 'idle' ? 'not connected' : (fedChat ? '' : nctx);
   $('hint').textContent = focusPane === 'editor'
     ? 'Editor focused · ←/→ scroll the row · Enter runs it · EDIT then type · ESC stops editing'
     : '↑/↓ highlight an entry · ←/→ scroll the row · Enter runs it · F7/F8 cycle the right column';
@@ -1540,6 +1563,7 @@ function endSession(msg: string): void {
   pendingMailListing = null;
   setChatVisible(false);
   inParty = false;
+  chatService = 'partyline';
   $<HTMLButtonElement>('connect').disabled = false;
   $('credit').textContent = '';
   render();
