@@ -70,10 +70,26 @@ all slots full (triggering protocol reset). **Deadlock.**
 | 2-3 | TX IRQ control |
 
 ### VICE's SwiftLink Emulation
-VICE emulates the 6551 connected via ip232 (TCP socket to tcpser). Critical
-behaviour: **VICE only checks the ip232 socket for new data when the emulated
-CPU accesses ACIA registers ($DE00-$DE03)**. This means the NMI handler's reads
-of $DE01/$DE00 are what keep the receive cycle alive.
+VICE emulates the 6551 connected via ip232 (TCP socket to tcpser).
+
+> **Corrected.** This section used to say VICE only checks the socket when the
+> CPU accesses $DE00-$DE03. VICE's source (`aciacore.c`) says otherwise.
+
+- **Receive is paced by a timer, not by register access.** `int_acia_rx` fires
+  once per character time at the programmed rate, takes at most one byte from
+  the socket, sets RDRF and raises the interrupt.
+- **SwiftLink mode doubles the 6551 rate table**, as the real cartridge's
+  3.6864 MHz crystal does. The ROM's `$1F` (19200 in the table) runs at
+  **38400**: ~3840 bytes/s, ~64 per 60 Hz jiffy. Measured in a VICE session:
+  ~60 per jiffy.
+- **A byte that arrives while RDRF is still set is discarded** (overrun).
+  Receive "stops" if nothing reads $DE00 — not because polling stops.
+
+The X.25 path survives this because the server sends one packet (at most 100
+payload bytes) and waits for its ACK before the next, so the ring never holds
+more than one packet. Code that reads the ring with no such flow control, such
+as a raw line session, must drain ~64 bytes per jiffy for as long as the server
+keeps sending, or the 256-byte ring laps and loses 256 bytes at a time.
 
 ## Working Implementation — Polling-Based ACIA Driver
 
@@ -127,7 +143,7 @@ Called just before dialling (NOT during phone number input — causes garbage):
 ```
     ; Reset ACIA
     STA $DE00           ; soft reset
-    LDA #$1F            ; 19200 baud, 8N1, internal clock
+    LDA #$1F            ; 19200 in the table (38400 on SwiftLink), 8N1
     STA $DE03           ; control register
     LDA #$09            ; DTR active + RX NMI enabled
     STA $DE02           ; command register
@@ -282,9 +298,10 @@ tcpser connects to the Compunet server at the address dialled (e.g., 127.0.0.1:6
 
 ## Key Lessons Learned
 
-1. **VICE's socket polling** requires real ACIA register access. If you intercept
-   reads via a software handler without touching $DE00-$DE03, VICE stops polling
-   the ip232 socket and no more bytes arrive. The NMI handler's reads keep it alive.
+1. **Read $DE00 for every byte.** If you intercept reads via a software handler
+   without touching $DE00, RDRF stays set and VICE discards every later byte as
+   an overrun. (This lesson used to blame VICE's socket polling; see
+   *VICE's SwiftLink Emulation*.)
 
 2. **NMI re-arm** is essential after TX. VICE's edge detection can get stuck after
    writing to $DE00. The $DE02 toggle ($01 then $09) re-arms it.
