@@ -173,6 +173,7 @@ wants.
 | `session` | Connecting, authenticating, accounts |
 | `admin` | Administrative action. The events an audit log exists for |
 | `partyline` | Chat, including moderation |
+| `federation` | Links out to a chat server that is not ours |
 | `operational` | Server faults, not user actions. No `user` |
 
 ### Every event
@@ -223,6 +224,10 @@ wants.
 - `partyline_kicked`
 - `partyline_unbanned`
 
+### `federation`
+
+- `federation_entered`
+
 ### `browse`
 
 - `mail_opened`
@@ -259,6 +264,12 @@ rejection — approving consumes the token and then creates the account, rejecti
 consumes it and creates nothing. The caller passes `?outcome=approved` so the two
 are distinguishable; an approval is recorded as `signup_completed` when the account
 is created.
+
+**`federation_entered` is the only Federation event**, and it carries `server` — the address
+the link was opened to. What is said over that link happens on a server that is not ours; we
+record that we opened a door and for whom, which is the part we can answer for. It is written
+by `federation.Link.open`, the one function every surface goes through, so unlike
+`partyline_entered` it has `via` and `ip` from the start.
 
 **Declined downloads are not recorded.** `page_downloaded` fires when the user
 accepts and the bytes are handed over. A decline means they obtained nothing.

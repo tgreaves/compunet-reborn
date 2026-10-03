@@ -62,6 +62,7 @@ client/c64/logs/
 
 # Local scripts
 transfer-repo.sh
+client/c64/src/federation/build/
 client/c64/src/partyline/build/
 
 # Web client build artifacts (only app.bundle.js is tracked)

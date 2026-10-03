@@ -225,6 +225,18 @@ The server does not report these; a client that ignores them looks fine and lose
       reference server had this wrong until 2026-07-30. The mirror-image mistake on *upload*
       (sizing every body from 4–7) is documented in §8.3.2 and shipped once already: if you
       implement one direction from the other, you will reproduce one of the two.
+- [ ] **⚠ A link entry is not necessarily Partyline** (§8.5.1). The same `L` entry now also
+      reaches Federation, a chat server outside Compunet, and the wire does not say which — by
+      design. So a client **MUST NOT** interpret, complete, or offer `*`-commands of its own in a
+      link session: `*who` and `*alias` are Partyline's server's, and offering them where they
+      mean nothing produces a UI that lies about what is available. Pass every input line
+      through verbatim — `*quit` included, since it means nothing there — and **do not offer a
+      local way out**: only the host ends a Federation session, and a stray RUN/STOP or ESC
+      would drop a player from the game. Reusing Partyline's exit is the easy mistake; an
+      earlier revision of this list made it, and the C64 posted `*quit` to the game as chat.
+      Symmetrically, **remote text is text**: `*EXIT` is the only sentinel a link session has
+      (Federation sends no `*PING`), and a client that treats any `*`-prefixed line as one can
+      be ended, or silently desynchronised, by a chat message.
 - [ ] **A download is not complete because the client stopped receiving.** Verify the received
       length against the descriptor's size field, and treat a short transfer as a failure. A
       client that writes whatever arrived and reports success turns a desynchronised stream

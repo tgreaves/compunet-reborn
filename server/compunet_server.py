@@ -42,6 +42,7 @@ import datetime
 from pathlib import Path
 import markdown
 import aiohttp
+import federation
 import header_frame
 import header_preview
 import partyline
@@ -95,8 +96,8 @@ AUDIT_LOG_PATH = os.path.join(os.path.dirname(__file__), 'data', 'audit.jsonl')
 #: `kind` exists so the viewer can separate the signal from the volume: `browse` is
 #: every page view from three surfaces and dominates the log, while `admin` is the
 #: handful of events anyone auditing actually wants.
-AUDIT_KINDS = ('content', 'mail', 'session', 'admin', 'partyline', 'browse',
-               'operational')
+AUDIT_KINDS = ('content', 'mail', 'session', 'admin', 'partyline', 'federation',
+               'browse', 'operational')
 
 AUDIT_EVENTS = {
     # Reading. High volume, deliberately its own kind so it can be excluded.
@@ -143,6 +144,10 @@ AUDIT_EVENTS = {
     'partyline_kicked':     'partyline',
     'partyline_banned':     'partyline',
     'partyline_unbanned':   'partyline',
+
+    # Federation. The chat itself happens on another server; what we can record
+    # is that we opened a link for this user, and to where.
+    'federation_entered':   'federation',
 
     # Server faults, not user actions. No `user`.
     'missing_frame':        'operational',
@@ -520,7 +525,7 @@ def make_space_run(count):
 
 class CompunetPage:
     """A page in the Compunet directory tree."""
-    
+
     def __init__(self, page_num, title, page_type='T', size=0, author='SYSTEM', price=0.0, life=0, vote=0, keyword=None):
         self.page_num = page_num
         self.title = title
@@ -535,12 +540,12 @@ class CompunetPage:
         self.children = []
         self.frames = []    # list of bytes objects (raw frame data)
         self.parent = None
-    
+
     def has_subdir(self):
         if len(self.children) > 0:
             return True
         return self.page_type == 'D' and getattr(self, 'dynamic', None) is not None
-    
+
     def type_string(self):
         """Generate the type suffix shown in directory listings."""
         s = self.page_type
@@ -703,6 +708,9 @@ class CompunetDirectory:
         page.parent = parent
         page._dir_path = page_dir
         page.dynamic = node.get('dynamic', None)
+        # Which raw-mode service an `L` entry drops into (§7.4). Absent means
+        # Partyline: every link page predates Federation and stays as it was.
+        page.link = node.get('link', None)
         page.uploaded = node.get('uploaded', None)
         page.machine_type = node.get('machine_type', 'c64')  # absent -> C64 (existing content)
         self._register_page(page)
@@ -847,6 +855,8 @@ def build_directory_json(page, root_dir):
             node['keyword'] = child.keyword
         if getattr(child, 'dynamic', None):
             node['dynamic'] = child.dynamic
+        if getattr(child, 'link', None):
+            node['link'] = child.link
         if getattr(child, 'uploaded', None):
             node['uploaded'] = child.uploaded
         if getattr(child, 'machine_type', 'c64') != 'c64':
@@ -1401,34 +1411,34 @@ class CompunetSession:
         self.audit_via = None
         self.client_ip = None
         self._users = self._load_users()
-    
+
     def _load_users(self):
         users_file = os.path.join(CFG_DIR, 'users.json')
         if os.path.exists(users_file):
             with open(users_file, 'r') as f:
                 return json.load(f)
         return {}
-    
+
     def _hash_password(self, password):
         """Hash a password with SHA-256."""
         return hashlib.sha256(password.encode('utf-8')).hexdigest()
-    
+
     def handle_login(self, user_id, password):
         """Process login. Returns response bytes or None on failure."""
         self.last_response_type = None  # Reset per-command for WS prefix detection
         user_id = user_id.upper().strip()
         password = password.upper().strip()
-        
+
         user = self._users.get(user_id)
         if user is None:
             log.info('Login failed (unknown user): %s', user_id)
             return self._make_error(ascii_to_petscii('INVALID ID OR PASSWORD'))
-        
+
         # Compare hashed password
         if user['password'] != self._hash_password(password):
             log.info('Login failed (bad password): %s', user_id)
             return self._make_error(ascii_to_petscii('INVALID ID OR PASSWORD'))
-        
+
         self.user_id = user_id
         self.authenticated = True
         self.credit = user.get('credit', 0.0)
@@ -1439,7 +1449,7 @@ class CompunetSession:
         audit_log('session_started', session=self)
         _user_connect(user_id)
         return self._make_welcome_frame(user)
-    
+
     def handle_command(self, data):
         """
         Process a command packet from the client.
@@ -1451,12 +1461,12 @@ class CompunetSession:
         self.tcp_ack_prefix = False     # TCP: prepend '@' ack before the frame (ID / mail-send)
         if len(data) == 0:
             return self._make_error(b'NO COMMAND')
-        
+
         cmd = data[0]
         params = data[1:] if len(data) > 1 else b''
-        
+
         log.info('Command: %s (%02X) params=%s', chr(cmd), cmd, params.hex() if params else '')
-        
+
         if cmd == CMD_DIR:
             return self._cmd_dir(params)
         elif cmd == CMD_SHOW:
@@ -1485,7 +1495,7 @@ class CompunetSession:
             return self._cmd_more(params)
         else:
             return self._make_error(ascii_to_petscii('UNKNOWN COMMAND'))
-    
+
     def _can_upload_here(self):
         """May the current user upload / create directories in the current page?
 
@@ -1583,13 +1593,13 @@ class CompunetSession:
         """Handle GOTO for WebSocket clients."""
         self.last_response_type = None
         return self._goto_page(page_num)
-    
+
     def handle_select(self, index):
         """Handle selection of a directory entry by index."""
         if 0 <= index < len(self.current_page.children):
             self.selected_entry = index
         return b''  # No response needed for selection change
-    
+
     def _cmd_dir(self, params):
         """'D' command — show frame or advance to next page.
 
@@ -1627,6 +1637,9 @@ class CompunetSession:
         if self.selected_entry < len(visible_children):
             child = visible_children[self.selected_entry]
             if child.page_type == 'L' and child.frames:
+                # Which raw-mode service this link leads to. The flag below says
+                # "leave X.25 when the download completes"; this says where to.
+                self._link_service = getattr(child, 'link', None) or 'partyline'
                 if getattr(self, 'is_amiga', False):
                     # Amiga: the CnetTty viewer ("Scrollback v1.0") is resident and does NOT
                     # load 6502 code. Send only the 8-byte link header its download_link
@@ -1700,7 +1713,7 @@ class CompunetSession:
             self.dir_page_offset = offset + 11
             self.selected_entry = 0
             return self._make_dir_response()
-    
+
     def _cmd_show(self, params):
         """SHOW/DIR command ('P') - show current page.
 
@@ -1765,7 +1778,7 @@ class CompunetSession:
                     return self._cmd_ucat_more()
             return self._render_ucat()
         return self._make_dir_response()
-    
+
     def _cmd_more(self, params):
         """MORE/DONE command - show next frame, or complete upload."""
         if self.pending_send is not None:
@@ -1786,7 +1799,7 @@ class CompunetSession:
                 self.show_frame_index += 1
                 return self._send_current_frame()
         return bytes([RESP_ACK])
-    
+
     def _send_current_frame(self):
         """Send the current frame being viewed.
 
@@ -1899,7 +1912,7 @@ class CompunetSession:
                      frame_file, len(frame_data), has_more)
             return bytes(frame_data)
         return b'\x00'
-    
+
     def _cmd_accnt(self):
         """ACCNT command - return credit balance as ASCII text.
 
@@ -1914,7 +1927,7 @@ class CompunetSession:
         if self.credit < 0:
             credit_str = '-' + credit_str
         return ascii_to_petscii(credit_str.ljust(10))
-    
+
     def _cmd_id(self, params):
         """ID command ('I') — look up user IDs.
 
@@ -2134,7 +2147,7 @@ class CompunetSession:
             self.selected_entry = 0
             self.dir_page_offset = 0
         return self._make_dir_response()
-    
+
     def _cmd_vote(self, params):
         """VOTE command. Params: 2-digit entry index + 1-digit score (1-9).
 
@@ -2209,7 +2222,7 @@ class CompunetSession:
         votes_path = VOTES_PATH
         with open(votes_path, 'w') as f:
             json.dump(votes, f, indent=2)
-    
+
     def _cmd_mail(self):
         """MAIL command - show mailbox or advance mail page.
 
@@ -2946,7 +2959,7 @@ class CompunetSession:
                  self.user_id, len(user_pages),
                  self._ucat_offset + 1, self._ucat_offset + len(visible))
         return bytes(data)
-    
+
     def _make_dir_response(self):
         """Build directory response in the 6-part format for 'P' command."""
         # Reload content tree from disk (picks up changes without restart)
@@ -2960,10 +2973,10 @@ class CompunetSession:
         self.dir_displayed = True
         self.last_response_type = RESP_DIR
         return self._make_page_response()
-    
+
     def _make_page_response(self):
         """Build the 6-part page response that the terminal client expects.
-        
+
         Format verified from terminal disassembly:
           Part 1: Frame header [PETSCII...] $00 — stored at $D000, displayed
           Part 2: Routing text [line1 $0D line2 $0D] or $00 — stored at $D300
@@ -2975,10 +2988,10 @@ class CompunetSession:
                   Stream ends when ACIA_PROCESS_CMD returns C=1 (no more data)
         """
         page = self.current_page
-        log.info('DIR: source=root.json page="%s" (page_num=%d, children=%d)', 
+        log.info('DIR: source=root.json page="%s" (page_num=%d, children=%d)',
                  page.title, page.page_num, len(page.children))
         data = bytearray()
-        
+
         # --- Part 1: Frame header ---
         # PETSCII frame data stored at $D000, displayed via CHROUT after template.
         # Start with uppercase charset to ensure consistent rendering.
@@ -3075,7 +3088,7 @@ class CompunetSession:
         children = page.children[offset:]
         has_more = len(children) > 11
         visible = children[:11] if has_more else children
-        
+
         if not visible:
             # Full-width placeholder entry. The Amiga client parses body rows with
             # FIXED-WIDTH fields (col A 6 + col B 16 + 1 separator = 23 chars before it
@@ -3143,14 +3156,14 @@ class CompunetSession:
                 if child.life > 0:
                     data.extend(ascii_to_petscii('  ' + str(child.life).rjust(3)))
                 data.append(0x0D)
-        
+
         log.info('PAGE response: %d bytes hex=%s', len(data), data.hex())
         return bytes(data)
-    
+
     def _make_frame_response(self, frame_data):
         """Wrap frame data in a response packet."""
         return bytes([RESP_FRAME]) + frame_data
-    
+
     def _make_info_frame(self, message):
         """Build a simple info frame displaying a message."""
         frame = bytearray()
@@ -3348,7 +3361,7 @@ class CompunetSession:
         frame = frame.replace(b'{PB6}', pb6)
 
         return frame
-    
+
     def _make_error(self, message_petscii):
         """Build an error response."""
         return bytes([RESP_ERROR]) + message_petscii + b'\x00'
@@ -3360,7 +3373,7 @@ class CompunetSession:
 
 async def tcp_handler(reader, writer):
     """Handle a TCP connection from a real C64 via WiFi modem/tcpser.
-    
+
     Protocol flow:
     1. Wait for handshake ($20 from client)
     2. Respond with handshake ($20)
@@ -3384,7 +3397,7 @@ async def tcp_handler(reader, writer):
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 15)
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 4)
-    
+
     directory = CompunetDirectory()
     session = CompunetSession(directory)
     session.client_ip = addr[0] if addr else ''
@@ -3481,7 +3494,7 @@ async def tcp_handler(reader, writer):
         x25.connected = True
 
         log.info('TCP: handshake complete, entering negotiation phase...')
-        
+
         # ============================================================
         # Phase 2: Protocol negotiation + Login
         #
@@ -3496,12 +3509,12 @@ async def tcp_handler(reader, writer):
         # keep the connection alive (send periodic bytes) until it
         # finishes and returns to the caller.
         # ============================================================
-        
+
         rx_buffer = bytearray()
         negotiation_done = False
         login_done = False
         ident_received = False
-        
+
         while not login_done:
             try:
                 data = await asyncio.wait_for(reader.read(256), timeout=120.0)
@@ -3511,11 +3524,11 @@ async def tcp_handler(reader, writer):
             if not data:
                 log.info('TCP: connection closed during negotiation/login')
                 return
-            
+
             rx_buffer.extend(data)
-            
+
             log.debug('TCP RX: %d bytes: %s', len(data), data.hex())
-            
+
             # Phase 2a: Look for CNET identification
             if not ident_received and b'CNET' in rx_buffer:
                 log.info('TCP: *** CNET identification received ***')
@@ -3524,7 +3537,7 @@ async def tcp_handler(reader, writer):
                 for i, field in enumerate(fields):
                     printable_field = ''.join(chr(b) if 32 <= b < 127 else f'[{b:02X}]' for b in field)
                     log.info('TCP:   field[%d]: %r (%s)', i, printable_field, field.hex())
-                
+
                 # Classify the client. C64/Reborn identify with "{hash}/100" (contains
                 # '/'); the native Amiga client sends "C CNET\r" TWICE plus a 14-zero
                 # field and has NO '/'. The client may deliver these in separate TCP
@@ -3599,9 +3612,9 @@ async def tcp_handler(reader, writer):
                 log.info('TCP TX: sent "*CON\\r" connection signal')
                 login_done = True  # Exit negotiation, enter command loop
                 break
-        
+
         log.info('TCP: entering command loop')
-        
+
         # ============================================================
         # Phase 4: Command loop
         # The ROM sends X.25 framed packets. The COM token from the ROM
@@ -3615,7 +3628,7 @@ async def tcp_handler(reader, writer):
         #   payload[15+] = System info
         # ============================================================
         authenticated = False
-        
+
         while True:
             try:
                 data = await asyncio.wait_for(reader.read(256), timeout=1200.0)
@@ -3625,7 +3638,7 @@ async def tcp_handler(reader, writer):
             if not data:
                 log.info('TCP: connection closed by client')
                 break
-            
+
             log.debug('TCP RX: %d bytes: %s', len(data), data.hex())
             packets = x25.feed_data(data)
             # Prepend any packets stashed during ACK wait
@@ -3636,7 +3649,7 @@ async def tcp_handler(reader, writer):
             for token, seq, payload in packets:
                 log.info('TCP: packet token=$%02X seq=$%02X payload=%d bytes',
                          token, seq, len(payload))
-                
+
                 # ROM COM packets use token $43 ('C')
                 if token == 0x43 and len(payload) >= 1:
                     # payload[0] = command byte (Z=$5A, etc.)
@@ -3646,13 +3659,13 @@ async def tcp_handler(reader, writer):
                     log.info('TCP: COM seq=$%02X cmd=$%02X (%s) data=%s',
                              seq, cmd_byte, chr(cmd_byte) if 32 <= cmd_byte < 127 else '?',
                              cmd_payload.hex())
-                    
+
                     if cmd_byte == 0x5A and not authenticated:
                         # LOGIN packet: cmd_payload = [Z, user(8), pass(6), sysinfo...]
                         log.info('TCP: *** PROCESSING LOGIN ***')
                         user_id = bytes(cmd_payload[1:9]).decode('latin-1').strip()
                         password = bytes(cmd_payload[9:15]).decode('latin-1').strip()
-                        
+
                         # CNLOAD flag at offset 25-26 from start of cmd_payload
                         # These are the terminal version hash stored at $A000/$A001
                         cnload_1 = cmd_payload[25] if len(cmd_payload) > 25 else 0
@@ -3665,7 +3678,7 @@ async def tcp_handler(reader, writer):
                         log.info('TCP:   user=%r cnload_bytes=$%02X/$%02X (skip=%s, server_hash=$%02X/$%02X)',
                                  user_id, cnload_1, cnload_2, skip_linking,
                                  TERMINAL_HASH[0], TERMINAL_HASH[1])
-                        
+
                         async with _lock_users:
                             response = session.handle_login(user_id, password)
                         if not session.authenticated:
@@ -3695,7 +3708,7 @@ async def tcp_handler(reader, writer):
                             writer.close()
                             await writer.wait_closed()
                             return
-                        
+
                         authenticated = True
                         _user_connect(session.user_id)
                         log.info('TCP: login OK!')
@@ -3749,11 +3762,11 @@ async def tcp_handler(reader, writer):
                             if not skip_linking:
                                 log.info('LINKING: sent terminal (%d bytes, %d packets)',
                                          len(linking_stream), pkt_num)
-                    
+
                     elif cmd_byte == 0x5A and authenticated:
                         # Retransmitted login packet — ignore it
                         log.debug('TCP: ignoring retransmitted login packet')
-                    
+
                     elif authenticated:
                         # Any activity from user confirms they're online
                         _user_connect(session.user_id)
@@ -3798,22 +3811,24 @@ async def tcp_handler(reader, writer):
                             # Enter partyline mode after LINK download
                             if getattr(session, '_enter_partyline', False):
                                 session._enter_partyline = False
+                                service = getattr(session, '_link_service', 'partyline')
+                                module = federation if service == 'federation' else partyline
                                 if getattr(session, '_amiga_partyline', False):
                                     # Amiga: the 8-byte link header was just sent (no EOS).
                                     # Run the raw preamble + ASCII chat + 0x02 teardown.
                                     session._amiga_partyline = False
-                                    log.info('TCP: entering AMIGA partyline for user=%s', session.user_id)
-                                    await partyline.handle_amiga_session(
+                                    log.info('TCP: entering AMIGA %s for user=%s', service, session.user_id)
+                                    await module.handle_amiga_session(
                                         reader, writer, session.user_id,
                                         via=audit_via(session), ip=session.client_ip)
-                                    log.info('TCP: exited AMIGA partyline, resuming X.25 for user=%s', session.user_id)
+                                    log.info('TCP: exited AMIGA %s, resuming X.25 for user=%s', service, session.user_id)
                                     continue
-                                log.info('TCP: entering partyline mode for user=%s', session.user_id)
+                                log.info('TCP: entering %s mode for user=%s', service, session.user_id)
                                 await asyncio.sleep(1.0)
-                                await partyline.handle_session(
+                                await module.handle_session(
                                     reader, writer, session.user_id,
                                     via=audit_via(session), ip=session.client_ip)
-                                log.info('TCP: exited partyline mode, resuming X.25 for user=%s', session.user_id)
+                                log.info('TCP: exited %s mode, resuming X.25 for user=%s', service, session.user_id)
                                 continue
 
                 elif token == 0x40 and session._program_download_pending:
@@ -3978,7 +3993,7 @@ async def tcp_handler(reader, writer):
 
                 else:
                     log.debug('TCP: other token=$%02X seq=$%02X', token, seq)
-    
+
     except (ConnectionResetError, BrokenPipeError) as e:
         log.info('TCP: connection error: %s', e)
     finally:

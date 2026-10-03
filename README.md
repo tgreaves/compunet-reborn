@@ -24,6 +24,7 @@ The official live instance is running at [https://compunet.live/](https://compun
 - User-generated content (The Jungle) with voting
 - Custom PETSCII headers on directories you own, uploaded from the website
 - Partyline multi-user chat with rooms
+- Federation: chat links out to a server beyond Compunet
 - WHO IS ONLINE (live user list)
 - WHAT'S NEW (most recent uploads)
 - GOTO keyword navigation
@@ -231,6 +232,7 @@ See [docs/spec/api/](docs/spec/api/README.md).
 
 - **[client/c64/src/](client/c64/src/)** — C64 client source (6502 assembly, ca65)
 - **[client/c64/src/partyline/](client/c64/src/partyline/)** — Partyline chat client
+- **[client/c64/src/federation/](client/c64/src/federation/)** — Federation chat client
 - **[client/c64/src/gen_sfx.py](client/c64/src/gen_sfx.py)** — PRG builder (BASIC stub + relocator)
 - **[client/c64/vintage/](client/c64/vintage/)** — Original C64 reverse engineering artefacts
 - **[client/amiga/src/](client/amiga/src/)** — Reconstructed native Amiga client (C, vbcc)
@@ -245,6 +247,7 @@ See [docs/spec/api/](docs/spec/api/README.md).
 - **[server/api_binding.py](server/api_binding.py)** — Client API, Binding B (JSON over WebSocket + REST, port 6404)
 - **[server/terminal.py](server/terminal.py)** — PETSCII terminal mode (port 6401)
 - **[server/partyline.py](server/partyline.py)** — Multi-user partyline chat
+- **[server/federation.py](server/federation.py)** — Federation link: proxies a session to a chat server outside this repository
 - **[server/cfg/](server/cfg/)** — Configuration (users, terminal.bin, templates)
 - **[server/data/](server/data/)** — Runtime content (not tracked in git; `content.test/` is,
   as the fixture tree the tests run against)
@@ -286,6 +289,7 @@ for t in server/tests/test_*.py; do python "$t" || break; done
 - **[docs/MODEM.md](docs/MODEM.md)** — C64 hardware layer (ACIA driver)
 - **[docs/ROM-REWRITE.md](docs/ROM-REWRITE.md)** — C64 ROM/PRG build structure
 - **[docs/partyline.md](docs/partyline.md)** — Partyline UX design + C64/Amiga platform mechanics
+- **[docs/federation.md](docs/federation.md)** — Federation link: configuring it, what it sends, what it records
 - **[docs/amiga-client.md](docs/amiga-client.md)** — recovered Amiga client analysis / reconstruction record
 - **[docs/amiga-modern-ux.md](docs/amiga-modern-ux.md)** — Modern-UX proposal for the Amiga client
 - **[docs/historical/](docs/historical/)** — Retired investigation notes and completed implementation plans

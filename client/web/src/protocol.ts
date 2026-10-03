@@ -75,15 +75,21 @@ export interface DownloadDataMsg {
 export interface ErrorMsg { type: 'error'; id?: number | string; code: string; message?: string; }
 export interface AckMsg { type: 'ack'; id?: number | string; of?: string; }
 export interface PartylineMsg { type: 'partyline'; line: string; }
-export interface PartylineEnteredMsg { type: 'partyline.entered'; id?: number | string; room: string; }
-export interface PartylineLeftMsg { type: 'partyline.left'; id?: number | string; }
+/** `service` distinguishes Partyline from Federation (§8.5.1), which shares
+ *  these messages because it is the same chat window. Optional: absent means
+ *  Partyline, so a client may ignore it and still behave correctly. */
+export type ChatService = 'partyline' | 'federation';
+export interface PartylineEnteringMsg { type: 'partyline.entering'; id?: number | string; service?: ChatService; }
+export interface PartylineEnteredMsg { type: 'partyline.entered'; id?: number | string; room: string; service?: ChatService; }
+export interface PartylineLeftMsg { type: 'partyline.left'; id?: number | string; service?: ChatService; }
 export interface NoticeMsg { type: 'notice'; kind: string; [k: string]: unknown; }
 
 /** Any message the server may send over the gateway. */
 export type ServerMsg =
   | ReadyMsg | DirectoryMsg | FrameMsg | AccountMsg | IdLookupMsg
   | DownloadMsg | DownloadDataMsg
-  | ErrorMsg | AckMsg | PartylineMsg | PartylineEnteredMsg | PartylineLeftMsg | NoticeMsg
+  | ErrorMsg | AckMsg | PartylineMsg | PartylineEnteringMsg | PartylineEnteredMsg
+  | PartylineLeftMsg | NoticeMsg
   | { type: string;[k: string]: unknown };
 
 /** Commands the client sends (spec §4 of the binding). */

@@ -1,0 +1,14 @@
+{
+  "pages": [
+    {
+      "page_num": 501,
+      "title": "PLAY FEDERATION",
+      "type": "L",
+      "link": "federation",
+      "author": "SYSTEM",
+      "price": 0,
+      "life": 0,
+      "frames": ["pegterm.prg"]
+    }
+  ]
+}

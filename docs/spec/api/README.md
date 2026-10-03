@@ -424,6 +424,17 @@ carry input; `partyline.leave` (or `*quit`) replies `partyline.left` and normal 
 immediately. Rooms, `*`-commands, bans, and broadcast are the server's existing partyline
 subsystem — this binding only adapts the transport.
 
+**Federation** (§8.5.1) reaches the client through **exactly these messages**: it is the same
+chat window, so it reuses `partyline`, `partyline.send`/`partyline.command` and
+`partyline.leave` rather than growing a parallel vocabulary. `partyline.entering`,
+`partyline.entered` and `partyline.left` carry `"service"` — `"partyline"` or `"federation"` —
+for a client that wants to label the window; ignoring the field is correct behaviour. Two
+differences are the client's business: `*`-commands are the remote server's, so **do not
+interpret or offer them** (`partyline.send` and `partyline.command` are forwarded identically,
+`*quit` included), and a `partyline.left` may arrive **unsolicited** when the federation server
+hangs up — which is the **only** way a Federation session ends. `partyline.leave` is refused
+there with `invalid`; a client **MUST NOT** offer a way out of its own (§8.5.1).
+
 ## 6. Push events (server → client, no `id`)
 
 - `{ "type":"partyline", "line":"…" }` — a raw Partyline chat/system line (§8.5). On entry the

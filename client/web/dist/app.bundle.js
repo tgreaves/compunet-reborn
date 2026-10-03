@@ -1054,23 +1054,32 @@ function onMessage(m) {
         setFocus("net");
       }
       break;
+    // ⚠ Federation (§8.5.1) arrives through the PARTYLINE messages, because it is
+    // the same chat window on screen. `service` says which one; a client that
+    // ignored it would still work, and would simply mislabel the pane.
     case "partyline.entering":
-      status("Joining Partyline\u2026");
+      status(isFed(m) ? "Joining Federation\u2026" : "Joining Partyline\u2026");
       break;
     case "partyline.entered":
-      setChatVisible(true);
+      setChatVisible(true, isFed(m) ? "federation" : "partyline");
       updateBar();
-      chatLog("*** Partyline \u2014 room " + m.room + " ***");
-      status("In Partyline. *help for commands, *quit to leave.");
+      if (chatService === "federation") {
+        status("In Federation II.");
+      } else {
+        chatLog("*** Partyline \u2014 room " + m.room + " ***");
+        status("In Partyline. *help for commands, *quit to leave.");
+      }
       break;
     case "partyline":
       chatLog(m.line);
       break;
-    case "partyline.left":
+    case "partyline.left": {
+      const left = chatService === "federation" ? "Left Federation." : "Left Partyline.";
       setChatVisible(false);
       updateBar();
-      status("Left Partyline.");
+      status(left);
       break;
+    }
     case "error": {
       const err = m;
       status("\u26A0 " + err.code + (err.message ? ": " + err.message : ""), true);
@@ -1301,11 +1310,16 @@ var editorActions = {
   DOS: () => status("DOS is not available in a sandboxed browser client")
 };
 var inParty = false;
-function setChatVisible(on) {
+var chatService = "partyline";
+function isFed(m) {
+  return m.service === "federation";
+}
+function setChatVisible(on, service = "partyline") {
   inParty = on;
+  if (on) chatService = service;
   $("chat").hidden = !on;
   $("screenWrap").hidden = on;
-  $("netTitle").textContent = on ? "Partyline" : "Compunet";
+  $("netTitle").textContent = on ? chatService === "federation" ? "Federation II" : "Partyline" : "Compunet";
   if (on) {
     setFocus("net");
     $("chatInput").value = "";
@@ -2010,7 +2024,8 @@ function updateBar() {
     if (rowMessage.editor) edRenderer?.renderPrompt(rowMessage.editor, buf.page().background, buf.lowerCase);
     else edRenderer?.renderDuckshoot(rows.editor.words, rows.editor.ix, buf.page().background, buf.lowerCase);
   }
-  $("netMeta").textContent = mode === "idle" ? "not connected" : nctx;
+  const fedChat = nctx === "partyline" && chatService === "federation";
+  $("netMeta").textContent = mode === "idle" ? "not connected" : fedChat ? "" : nctx;
   $("hint").textContent = focusPane === "editor" ? "Editor focused \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 EDIT then type \xB7 ESC stops editing" : "\u2191/\u2193 highlight an entry \xB7 \u2190/\u2192 scroll the row \xB7 Enter runs it \xB7 F7/F8 cycle the right column";
 }
 function netBackground() {
@@ -2045,6 +2060,7 @@ function endSession(msg) {
   pendingMailListing = null;
   setChatVisible(false);
   inParty = false;
+  chatService = "partyline";
   $("connect").disabled = false;
   $("credit").textContent = "";
   render();

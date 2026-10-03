@@ -1,3 +1,15 @@
+# Unreleased
+
+* Federation:
+	* New: FEDERATION II on the main menu links out to a chat server beyond
+	  Compunet.  Enter it as you would Partyline — a link page that loads its own
+	  client — and everything you type goes to that server, commands included.
+	  Compunet's own Partyline commands mean nothing there.  It works from the
+	  C64, the Amiga, the terminal and the web client.
+	* Where no federation server is configured, entering says so and returns you
+	  to the directory.  If the far end goes away mid-session you are told, and
+	  put back on Compunet rather than left waiting.
+
 # 1.5.0 (2026-08-31)
 
 * Website:
