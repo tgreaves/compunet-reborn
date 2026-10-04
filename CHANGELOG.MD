@@ -1,3 +1,16 @@
+# 1.6.0 (unreleased)
+
+* Documentation:
+	* Fixed: The modem notes (`docs/MODEM.md`) described VICE's SwiftLink
+	  emulation wrongly.  They said VICE only fetches new data when the C64 reads
+	  the ACIA, so reading it "kept receive alive".  In fact VICE delivers one
+	  byte per character time on a timer — about 64 bytes per jiffy at the
+	  client's 38400 baud in SwiftLink mode — and throws away any byte that
+	  arrives before the last one was read.  This matters to anyone writing a C64
+	  program that receives a raw stream, as Partyline does: it must keep up, or
+	  the 256-byte receive buffer overflows and data is lost.  Thanks to Nick
+	  Osborn (#148).
+
 # 1.5.0 (2026-08-31)
 
 * Website:
