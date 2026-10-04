@@ -10,6 +10,31 @@
 	  program that receives a raw stream, as Partyline does: it must keep up, or
 	  the 256-byte receive buffer overflows and data is lost.  Thanks to Nick
 	  Osborn (#148).
+	* Fixed: The same mistaken explanation had spread through the protocol notes
+	  (`docs/PROTOCOL.md`) and the C64 client's source comments, and the modem
+	  notes described a C64 driver that had not existed since May: a receive
+	  buffer at the wrong address, and an "essential" NMI re-arm that the
+	  client no longer does.  PROTOCOL.md also described server delays (250 ms
+	  before a reply, 50 ms between packets) that do not exist — delivery is
+	  paced only by the client's acknowledgements — and gave the wrong starting
+	  value for the ACK packet's CRC.  All now match the code (#149).
+	* Changed: The modem notes now describe connecting VICE straight to the
+	  server, which is how it has worked for some time, and keep tcpser as the
+	  legacy alternative it is (#149).
+* Specification:
+	* Fixed: §2.9 said a client that fails to acknowledge a packet "will stall
+	  the stream".  It does not: the server waits five seconds, then sends the
+	  next packet anyway (#149).
+	* Fixed: §2.8 said "the window size is 4", contradicting §2.9's "no
+	  windowing".  There is no window: the server sends one packet and waits for
+	  its acknowledgement.  The 4 was the original ROM's (#149).
+	* Fixed: §2.6 blamed bit-7 loss on VICE's SwiftLink emulation, and read as
+	  though the server rejected a bad CRC.  The loss was in the old
+	  ip232/tcpser setup, and the server logs a CRC mismatch but accepts the
+	  packet — so a client's CRC being accepted proves nothing (#149).
+	* New: §8.5 now says the Partyline raw session is not paced: the server
+	  sends each line as soon as it has it, and a client must keep up.  Two new
+	  CONFORMANCE.md checks cover this and the CRC point above (#149).
 
 # 1.5.0 (2026-08-31)
 

@@ -21,7 +21,8 @@ Command tokens:
 
 CRC: CRC-CCITT polynomial $1021, init $40E6 (from ROM at $9ABC)
 
-Sequence numbers: range $20-$5F, window size 4
+Sequence numbers: range $20-$5F. The ROM's window was 4; Reborn does not use it —
+the server is stop-and-wait (one DAT per ACK), and WINDOW_SIZE is never read.
 
 Connection handshake:
   Client sends $20 (space) via modem register 3
@@ -305,8 +306,10 @@ class X25Connection:
             crc_lo_rx = raw_pkt[-1]
 
             # Verify CRC (init $00/$00 over all bytes except CRC)
-            # Note: VICE SwiftLink strips bit 7 from transmitted bytes, so CRC
-            # bytes arrive with bit 7 cleared. Accept if masking bit 7 matches.
+            # Compared modulo bit 7: uploads made through VICE's ip232 protocol and
+            # tcpser arrived with bit 7 cleared (docs/historical/UPLOAD-BIT7-
+            # INVESTIGATION.md). VICE's SwiftLink emulation itself sends all 8 bits.
+            # A mismatch is only logged — the packet is processed regardless.
             crc_hi, crc_lo = crc_ccitt(raw_pkt[:-2], crc_hi=0x00, crc_lo=0x00)
             if (crc_hi & 0x7F) != (crc_hi_rx & 0x7F) or (crc_lo & 0x7F) != (crc_lo_rx & 0x7F):
                 log.warning('X25 RX: CRC mismatch! expected=%02X%02X got=%02X%02X pkt=%s',

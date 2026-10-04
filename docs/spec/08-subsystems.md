@@ -967,6 +967,14 @@ it with `D`+index (§7.4).
   The server pushes lines as events occur (messages, joins, command replies); the client
   sends a completed input line when the user commits it (the original clients transmit on a
   double-RETURN). Only printable ASCII (`$20`–`$7E`) is exchanged.
+  **⚠ Nothing paces the raw session.** §2.9's ACK pacing does not apply here: there are no
+  packets to acknowledge, and the server writes each line as soon as it has it (a busy room
+  is a burst of lines). The client **MUST** consume incoming bytes at the rate they arrive.
+  *(Non-normative: a client reading a TCP socket gets this for free — TCP holds what it has
+  not read. A client behind a fixed receive buffer does not: the C64 client's 256-byte ring
+  fills at ~64 bytes per 60 Hz jiffy at 38400 baud and silently loses 256 bytes if it laps.
+  The framed protocol never exposed this because only one packet is ever in flight;
+  `docs/MODEM.md`, *VICE's SwiftLink Emulation*.)*
   **⚠ Draw the chat surface in the lowercase/mixed set (`$0E`).** That range includes lower case,
   and the server uses it — `Users in partyline:-`, `Alias set to TESTER`. The uppercase/graphics
   set has no lower case at all, so rendering chat in it flattens everything to capitals and the

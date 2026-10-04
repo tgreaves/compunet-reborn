@@ -44,6 +44,15 @@ emits/accepts **and** explained both clients' behaviour. The cross-reference in
 5. Non-standard Amiga colour mapping → shown to be the `g_palette` pen remap; §5.5 keeps the
    standard C64 palette.
 6. `CMD_EDITR = $45` constant vs `E` = LEAVE in dispatch → §4.4 states `E` = LEAVE.
+7. §2.8 *"window size is 4"* vs §2.9 *"no windowing"* (#149) → §2.8 states there is no window:
+   `WINDOW_SIZE` is defined in `x25_protocol.py` and never read, and the server sends one
+   `DAT` per ACK. The 4 was the original ROM's.
+8. §2.9's timeout note said the server *"continues"* and that a missing ACK *"will stall the
+   stream"* (#149) → `send_pkt_with_ack` ignores `wait_for_ack`'s result, so the stream
+   continues after 5 s; §2.9 now says so.
+9. §2.6 attributed bit-7 loss to VICE's SwiftLink emulation and implied the bit-7 comparison
+   gated acceptance (#149) → VICE sends 8 bits at 8-bit word length; the loss was the
+   ip232/tcpser path; `feed_data` logs a mismatch and processes the packet regardless.
 
 ## Residual gaps and caveats (honest limitations)
 

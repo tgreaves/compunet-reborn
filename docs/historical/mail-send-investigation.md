@@ -1,5 +1,11 @@
 # Investigation: MAIL SEND ACK Delivery Failure
 
+> **Read with care (2026-10, #149).** This record attributes behaviour to *VICE's socket
+> polling* — VICE fetching ip232 data only when the C64 touches the ACIA registers. That was
+> not how VICE works: it delivers received bytes on a timer, one per character time. The
+> observations here are kept as they were made; the explanation is corrected in
+> [MODEM.md](../MODEM.md), *VICE's SwiftLink Emulation*.
+
 ## Problem
 
 After the client sends the 'U' ($55) MAIL SEND command, the server responds
