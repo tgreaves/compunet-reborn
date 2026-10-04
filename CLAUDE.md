@@ -76,7 +76,7 @@ era C64 does not). If a task appears to require a C64 feature, STOP and raise it
    hash is a compatibility token, not a build fingerprint, and `gen_version.py` rewrites
    `client_version.txt` unconditionally — so a plain `make` publishes a new value and every
    existing C64 client is told it is out of date. `compunet.s` has had comment-only edits since
-   the shipped binaries were built, so its current hash (`1A6A04`) deliberately differs from the
+   the shipped binaries were built, so its current hash (`AD4F00`) deliberately differs from the
    published `800CAD`. **Build with `make HASH=800cad`** unless you actually intend to break
    compatibility, and check `git status server/cfg/client_version.txt` is clean afterwards.
 4. **The Electron app must ALWAYS be rebuilt IN FULL after any change under `client/web/src/`**,

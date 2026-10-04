@@ -299,11 +299,51 @@ cd client/c64/src && make HASH=800cad
 The hash is a **compatibility token**, not a build fingerprint: the client sends it at
 identification and the server compares it against `server/cfg/client_version.txt`, so changing it
 tells every existing client it is out of date. `compunet.s` has since had comment-and-naming-only
-edits, so the value it now hashes to (`1A6A04`) no longer matches the `800CAD` the shipped
+edits, so the value it now hashes to (`AD4F00`) no longer matches the `800CAD` the shipped
 binaries and the server use — deliberately, because a comment change must not cost every user a
 download. `gen_version.py` rewrites `client_version.txt` unconditionally, so a plain `make`
 publishes the new value and forces that download. Pin it until you actually mean to break
 compatibility.
+
+⚠ **A rebuild also stamps the CURRENT `VERSION` into the binaries.** `gen_version.py` writes
+`VERSION` into the start-up banner, so rebuilding unchanged code after a version bump still
+changes the `.prg`/`.crt`/`.d64` — by exactly the version digits. To prove a comment-only change
+is harmless, build a scratch copy with `VERSION` set to the one the committed binaries carry
+and compare: every artefact, `terminal.bin` included, must be byte-identical.
+
+### On Windows
+
+None of the four tools is on a stock machine, and cc65 is not in winget:
+
+```powershell
+winget install --id ezwinports.make      --scope user --accept-source-agreements --accept-package-agreements
+winget install --id VICE-Team.VICE.GTK3  --scope user --accept-source-agreements --accept-package-agreements   # c1541
+```
+
+cc65: unpack the official Windows snapshot, `cc65-snapshot-win64.zip` from
+[sourceforge.net/projects/cc65](https://sourceforge.net/projects/cc65/files/), anywhere without
+spaces (e.g. `%LOCALAPPDATA%\cc65`), and put its `bin` on `PATH`. winget puts `make` and VICE
+under `%LOCALAPPDATA%\Microsoft\WinGet\Packages\…` and, as with `gh`, a running shell may not
+see them on `PATH` — prepend the directories rather than reinstalling.
+
+⚠ **The Makefile calls `python3`, and on Windows that is the Store stub** — even with a real
+Python installed (see *Python* above). Make reports `Error 9009` from `gen_version.py`. A shell
+script or alias named `python3` does not help: Windows `make` runs simple commands directly with
+`CreateProcess`, which only finds `.exe` files. Give it one, outside the Python install:
+
+```bash
+PY="$(cygpath -u "$LOCALAPPDATA")/Programs/Python/Python312"
+mkdir -p ~/bin-shim && cp "$PY/python.exe" ~/bin-shim/python3.exe
+export PYTHONHOME="$(cygpath -m "$PY")"       # the copy needs this to find its library
+export PATH="$HOME/bin-shim:$PY:$PATH"
+```
+
+⚠ **Write `PATH` entries in Git Bash as `/c/…`, never `C:/…`.** `PATH` is colon-separated, so
+`C:/Users/…/bin-shim` splits at the drive colon into two meaningless entries — silently, so the
+stub wins and the build fails exactly as if the shim were not there.
+
+`c1541` prints `opening dynamic library opencbm.dll failed!` on every run. That is about real
+1541 drives over a cable, not disk images; ignore it.
 
 ## vbcc — Amiga client
 

@@ -5657,7 +5657,7 @@ L_B9E5:
 ; =================================================================
 ; ACIA DRIVER — SwiftLink/6551 hardware layer
 ; =================================================================
-; Located after terminal code (at $BE03+)
+; Linked directly after the ROM code (compunet.cfg), inside $8000-$9FFF
 ; Called from ROM via JMP trampolines at MODEM_REG_WRITE/MODEM_REG_READ
 ;
 ; This replaces the original Compunet brick modem hardware layer.
@@ -5709,8 +5709,9 @@ ACIA_INIT:
     LDA #$CF
     STA NMI_VECTOR+1
     STA $FFFB          ; Hardware NMI vector (high)
-    ; Configure ACIA: 19200 baud, 8N1, DTR active, RTS low, RX NMI enabled
-    ; Write CMD=$09 first (never de-assert RTS — bridge uses RTS handshake)
+    ; Configure ACIA: 19200 in the 6551 table (38400 on SwiftLink), 8N1,
+    ; DTR active, RTS low, RX NMI enabled. CMD=$09 keeps RTS asserted — never
+    ; de-assert it (the bridge uses the RTS handshake)
     LDA #$1F
     STA ACIA_CTRL
     LDA #$09
@@ -5723,7 +5724,7 @@ ACIA_INIT:
 ; =================================================================
 ; NMI_HANDLER — Receive interrupt handler
 ; Fires when ACIA receives a byte. Stores in ring buffer.
-; Disables/re-enables RX IRQ around read (prevents re-entrancy).
+; Does not touch the command register (no $DE02 toggling).
 ; =================================================================
 NMI_HANDLER:
     PHA
@@ -5738,7 +5739,7 @@ NMI_HANDLER:
     LDA ACIA_STATUS                     ; Check if ACIA has data
     AND #$08                            ; RDRF set?
     BEQ @not_acia                       ; No — just RTI
-    LDA ACIA_DATA                       ; Read data (clears RDRF + IRQ)
+    LDA ACIA_DATA                       ; Read data (clears RDRF; status read cleared IRQ)
     LDX NMI_BUF_TAIL
     STA NMI_BUF,X                      ; Store in ring buffer
     INC NMI_BUF_TAIL                   ; Advance tail
@@ -5800,7 +5801,7 @@ ACIA_REG_READ:
     RTS
 
 @status:
-    ; Poke ACIA to trigger VICE socket poll, then check buffer
+    ; Status read (does not make VICE deliver bytes — it receives on a timer)
     LDA ACIA_STATUS
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
@@ -5815,7 +5816,7 @@ ACIA_REG_READ:
 
 @rxbyte:
     ; Poll ACIA directly — don't rely on NMI for receive
-    LDA ACIA_STATUS                     ; Triggers VICE socket check
+    LDA ACIA_STATUS                     ; Status, for the RDRF check
     AND #$08                            ; RDRF?
     BEQ @empty
     LDA ACIA_DATA                       ; Read byte directly from ACIA
@@ -5900,7 +5901,7 @@ ACIA_DIAL:
     LDX #$00
     LDY #$00
 @wait_resp:
-    LDA ACIA_STATUS                     ; Poke VICE to check socket
+    LDA ACIA_STATUS                     ; Not needed (VICE receives on a timer)
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
     BNE @got_resp_byte
@@ -6508,7 +6509,7 @@ ACIA_FLOW_CONTROL:
 
 ; --- Get one byte (non-blocking, C=1 if empty) ---
 @get_byte:
-    LDA ACIA_STATUS                     ; Poke VICE to trigger socket poll
+    LDA ACIA_STATUS                     ; Status, for the RDRF check below
     PHA                                 ; Save status for RDRF check
     LDA NMI_BUF_HEAD
     CMP NMI_BUF_TAIL
@@ -6739,7 +6740,7 @@ ACIA_PROCESS_CMD:
 
 .ifdef AUTO_CONNECT
 ; Hardcoded server address for auto-connect builds
-; MUST be placed before NMI_BUF ($CE00) to avoid buffer overlap
+; In the ACIA segment (ROM image), clear of NMI_BUF ($C500)
 auto_connect_addr:
     .byte 22                            ; length
     .byte "vme.compunet.live:6400"

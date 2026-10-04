@@ -303,7 +303,9 @@ $01 [06] [$20] [$20] [seq_being_acked] [CRC_hi] [CRC_lo] $02
 - Token: $20 (ACK)
 - Fixed byte: $20
 - Seq: sequence number from the received DAT packet
-- CRC: CRC-CCITT with init $40/$E6
+- CRC: CRC-CCITT with init $00/$00 (see *CRC Init* below; this line used to say
+  $40/$E6, which is what the ROM loads but not what the CRC effectively starts from —
+  `ACIA_SEND_ACK` initialises `$C21D/$C21E` to $00/$00)
 
 **Flow**:
 1. Server sends DAT packet with sequence number
@@ -315,7 +317,12 @@ $01 [06] [$20] [$20] [seq_being_acked] [CRC_hi] [CRC_lo] $02
 - Only DAT token ($22) packets trigger ACK
 - EOS (zero-length DAT) does NOT trigger ACK — client treats as stream end
 - COM echoes and error tokens do NOT trigger ACK
-- Server timeout: 5 seconds (logs warning on timeout, continues)
+- Server timeout: 5 seconds. On timeout the server carries on and sends the next
+  packet unacknowledged (`send_pkt_with_ack` does not check the result of
+  `wait_for_ack`), so a client that never ACKs is slowed by 5 s per packet, not stopped
+- Stop-and-wait: one DAT, then wait for its ACK (or the timeout). The ROM's window
+  of 4 (*Flow Control* above) is not used, and the server never sends an ACK packet for
+  the client's packets (its "accept" after a whole uploaded frame is a DAT, not an ACK)
 
 This replaces the original fixed-delay approach (500ms between packets) and
 enables full-speed transfers regardless of emulator baud rate settings.
@@ -1763,11 +1770,10 @@ X.25 handshake).
 
 Responses larger than 100 bytes are split into multiple X.25 DAT packets:
 
-- **MAX_PAYLOAD = 100 bytes** — keeps wire-encoded packets (after byte stuffing)
-  within the 256-byte NMI ring buffer
-- **250ms pre-response delay** — allows client to finish TX and re-arm NMI edge
-  detection before first response byte arrives
-- **50ms inter-packet delay** — prevents NMI buffer overflow between packets
+- **MAX_PAYLOAD = 100 bytes** — keeps wire-encoded packets (after byte stuffing,
+  worst case ~210 bytes) within the 256-byte NMI ring buffer
+- **ACK pacing** — each packet waits for the client's ACK (*ACK-Based Flow Control*
+  above), so the ring only ever holds one packet
 - **End-of-stream (EOS) marker** — a zero-length DAT packet (just framing +
   header + CRC, no payload) sent after the final data packet
 
@@ -1783,16 +1789,23 @@ continues reading. On EOS or timeout, it returns SEC.
 for connection loss. Under normal operation the EOS marker provides immediate
 stream termination without timeout delay.
 
-### Post-TX NMI Re-arm
+### Post-TX NMI Re-arm (retired)
 
-VICE's 6551 emulation can lose NMI edge detection during byte transmission.
-`ACIA_SEND_PACKET` includes a post-TX sequence that:
-
-1. Reads ACIA_STATUS and drains any stray byte from the RX register
-2. Toggles ACIA_CMD to disable/re-enable RX IRQ (re-arms NMI edge)
-3. Polls ACIA_STATUS 256 times (triggers VICE socket polling, ~1.3ms settle)
-
-This ensures reliable NMI triggering for the first response byte after TX.
+> **Corrected (#149).** This section, and the *Multi-Packet Response Delivery* list
+> above, described mechanisms that no longer exist:
+>
+> - `ACIA_SEND_PACKET` was said to end with a post-transmit sequence — drain a stray
+>   byte, toggle `ACIA_CMD` to "re-arm the NMI edge", and poll `ACIA_STATUS` 256 times to
+>   "trigger VICE socket polling". It has none: it returns as soon as the `$02` end
+>   marker is sent. `ACIA_CMD` is written once in the whole client, in `ACIA_INIT`. The
+>   toggling was removed in `35b62fc` (C64 Ultimate bridge compatibility).
+> - The server was said to wait 250 ms before a response and 50 ms between packets, to
+>   give the client time to re-arm the NMI and to stop the ring overflowing. It does
+>   neither: delivery is paced only by the client's ACKs.
+> - "VICE socket polling" is not how VICE works (checked against its source back to
+>   2020). It delivers received bytes on a timer, one per character time; reading
+>   `ACIA_STATUS` does nothing to make a byte arrive. See *VICE's SwiftLink Emulation*
+>   in [MODEM.md](MODEM.md).
 
 ### Known Protocol Deviations
 

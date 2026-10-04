@@ -178,10 +178,20 @@ A receiver **MAY** verify by re-running the CRC over the whole content including
 received CRC bytes: with init `$0000`, a valid packet yields a `$0000` residual (the
 zero-residual property of CRC-CCITT).
 
-*(Non-normative compatibility note: VICE's SwiftLink emulation strips bit 7 from
-transmitted bytes, so CRC bytes can arrive with bit 7 cleared. The server therefore
-compares CRCs modulo bit 7. A pure-TCP client is not affected and SHOULD send correct
-8-bit CRC bytes.)*
+*(Non-normative compatibility note: the reference server does **not** reject a packet
+whose CRC fails — it logs a warning and processes the packet anyway (PROTOCOL.md, *Known
+Protocol Deviations*) — and it compares modulo bit 7, so a mismatch confined to bit 7 is
+not even logged. The bit-7 tolerance dates from C64 uploads made through VICE's ip232
+protocol and tcpser, which arrived with bit 7 cleared; connecting VICE directly to the
+server over TCP preserves all 8 bits (`docs/historical/UPLOAD-BIT7-INVESTIGATION.md`). A
+client SHOULD send correct 8-bit CRC bytes.)*
+
+> **Corrected.** This note used to say *"VICE's SwiftLink emulation strips bit 7 from
+> transmitted bytes"*. It does not: at the client's 8-bit word length VICE's ACIA sends
+> `txdata & datamask` with `datamask = $FF` (`int_acia_tx`, `src/aciacore.c`), and the
+> project's own investigation placed the loss in the ip232/tcpser path. It also read as
+> though the bit-7 comparison decided whether a packet was accepted; it only decides
+> whether a mismatch is logged.
 
 ## 2.7 Worked examples
 
@@ -210,7 +220,20 @@ wire    : $01 <byte-stuffed content> $02
 ## 2.8 Sequence numbers
 
 - Sequence numbers occupy the range **`$20`–`$5F`** inclusive. Incrementing past `$5F`
-  wraps back to `$20`. The window size is 4.
+  wraps back to `$20`.
+- **There is no window.** The server → client direction is stop-and-wait (§2.9): the
+  server waits for each `DAT`'s ACK (up to its 5-second timeout) before sending the next,
+  so a client that ACKs promptly needs to hold only one packet at a time. The server never sends an ACK (`$20`) packet for the
+  client's packets — the "accept" it returns after a whole uploaded frame is an
+  application-level `DAT` (§8.3.2), not a transport ACK — so nothing at this layer paces
+  client → server; TCP does.
+
+  > **Corrected.** This section used to say *"The window size is 4"*, which contradicted
+  > §2.9's *"no windowing"*. The 4 is the original ROM's protocol engine (a 4-slot packet
+  > buffer, `$C210`/`$C211`; PROTOCOL.md *Flow Control*). Reborn does not use it in either
+  > direction: `WINDOW_SIZE = 4` in `x25_protocol.py` is defined and never read. Do not
+  > read it as permission to send ahead — four 100-byte packets, stuffed, can exceed the
+  > C64 client's 256-byte receive ring.
 - The server's transmit sequence starts at **`$21`** (it reserves `$20` to avoid a
   collision with the login echo; see §3).
 - A client **MUST** echo the received `DAT` sequence number in the ACK it returns (§2.9)
@@ -223,7 +246,7 @@ wire    : $01 <byte-stuffed content> $02
 ## 2.9 Flow control (ACK pacing)
 
 Reborn paces the server → client data stream with a stop-and-wait ACK, so a slow client is
-never overrun regardless of link speed:
+not overrun regardless of link speed — provided it ACKs within the server's timeout (below):
 
 1. The server sends a `DAT` (`$22`) packet with sequence `seq`.
 2. The client receives it, de-stuffs it, and validates the **CRC**. It does *not* validate
@@ -250,8 +273,16 @@ Rules a conforming client **MUST** follow:
   treats it as "stream complete" (see §4, §6).
 - Command echoes and error responses are not acknowledged.
 
-*(Non-normative: the server waits up to 5 seconds for each ACK; on timeout it logs a
-warning and continues. A client that fails to ACK will stall the stream at that packet.)*
+*(Non-normative: the server waits up to 5 seconds for each ACK. On timeout it **carries on
+and sends the next packet** — `send_pkt_with_ack` does not check the result of
+`wait_for_ack`. A client that fails to ACK therefore sees each packet delayed by 5 seconds,
+not a stalled stream; and a client that takes longer than 5 seconds to ACK can receive the
+next packet while still holding the last.)*
+
+> **Corrected.** This note used to say the server *"logs a warning and continues"* and that
+> a client that fails to ACK *"will stall the stream at that packet"*. The two contradicted
+> each other, and the second was wrong: the stream does not stall. (The timeout is logged at
+> debug level, not as a warning.)
 
 ## 2.10 Connection handshake
 

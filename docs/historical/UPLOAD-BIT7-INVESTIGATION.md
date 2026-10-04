@@ -1,5 +1,9 @@
 # Upload Bit 7 Stripping — Investigation
 
+> **Read with care (2026-10, #149).** The *Root Cause* and *Recommended Fix* sections below
+> blame VICE's ACIA emulation; the *Resolution* at the end supersedes them — the loss was in
+> the ip232/tcpser path, and VICE's ACIA sends all 8 bits at 8-bit word length.
+
 ## Symptom
 
 Program uploads (P-type, client→server) arrive with bit 7 cleared on all

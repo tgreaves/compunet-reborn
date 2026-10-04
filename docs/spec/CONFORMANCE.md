@@ -217,6 +217,17 @@ The server does not report these; a client that ignores them looks fine and lose
       is worse — the reference server raised on any payload over 250 and dropped the
       connection mid-transfer, which the Amiga reported as "Fatal error: Comms problem".
       The CRC covers the truncated value, so both sides must truncate identically.
+- [ ] **⚠ Your CRC being accepted proves nothing** (§2.6). The reference server does not reject
+      a packet whose CRC fails — it logs a warning and processes it — so a client that computes
+      the CRC wrongly works perfectly against it and fails against any receiver that checks.
+      Verify your sent CRCs with the §2.6 residual test, or against the worked bytes in §2.7.
+- [ ] **⚠ The Partyline raw session is NOT ACK-paced** (§8.5). Once the session switches to raw
+      lines, nothing waits for the client: the server writes each line as it has it, and a busy
+      room arrives as a burst. A client that reads a TCP socket is safe because TCP buffers what
+      it has not read. A client behind a **fixed receive buffer** — any retro-platform client,
+      or one built on a ring like the C64's 256 bytes — must drain at line rate or silently lose
+      data. Testing against the framed protocol will not show it: §2.9 keeps only one packet in
+      flight, so the buffer never fills there.
 - [ ] **⚠ The download descriptor's bytes 4–7 are read per machine, not one way** (§8.3.1).
       Byte 0 selects: C64 takes the 16-bit size at **6–7** (4–5 being its load address), while
       Amiga and ST take a 32-bit **big-endian** size at **4–7**. Reading the C64 field on a 68k

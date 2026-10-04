@@ -22,9 +22,9 @@
 | §2.3 | Byte stuffing (`$01–$03` → `$03`+`b+$20`) | `x25_protocol.py` `_byte_stuff`, de-stuff loop in `feed_data` |
 | §2.4 | Content layout `[len][token][seq][payload][crc×2]` | `x25_protocol.py` `make_data_packet`, `feed_data` parse |
 | §2.5 | Tokens `ACK=$20`, `DAT=$22`, `COM=$43` | `x25_protocol.py` `TOKEN_*`; **COM acted on as `$43`** `compunet_server.py` (`token == 0x43`) |
-| §2.6 | CRC-CCITT `$1021`, init `$0000`, zero-residual | `x25_protocol.py` `crc_ccitt` (call sites pass `0x00,0x00`) |
-| §2.8 | Sequence `$20–$5F`, wrap, window 4 | `x25_protocol.py` `SEQ_MIN`/`SEQ_MAX`/`WINDOW_SIZE`, `_advance_seq` |
-| §2.9 | ACK pacing; EOS not ACKed; 5 s timeout | `compunet_server.py` `wait_for_ack`, `send_pkt_with_ack` |
+| §2.6 | CRC-CCITT `$1021`, init `$0000`, zero-residual; mismatch logged not rejected, compared mod bit 7 | `x25_protocol.py` `crc_ccitt` (call sites pass `0x00,0x00`); mismatch check in `feed_data` |
+| §2.8 | Sequence `$20–$5F`, wrap; no window (stop-and-wait; server sends no ACKs) | `x25_protocol.py` `SEQ_MIN`/`SEQ_MAX`, `_advance_seq` (`WINDOW_SIZE` defined, never read; `make_ack` never called by `compunet_server.py`) |
+| §2.9 | ACK pacing; EOS not ACKed; 5 s timeout, then the next packet is sent anyway | `compunet_server.py` `wait_for_ack`, `send_pkt_with_ack` |
 | §2.10 | Handshake byte `$20` | `x25_protocol.py` `make_handshake`, `check_handshake` |
 
 ## §3 — Session lifecycle
@@ -90,7 +90,7 @@
 | §8.2 | Mail = 6-part directory | `compunet_server.py` `_cmd_mail`, `_cmd_mail_show` |
 | §8.3.1 | Program download header; `$40`/`$41` tokens | `compunet_server.py` `_send_current_frame` (type `P`); `token == 0x40`/`0x41` branches |
 | §8.3.2 | Upload / mail-send; validation stream | `compunet_server.py` `_cmd_upload`, `_cmd_upload_content`, `_cmd_mail_send` |
-| §8.5 | Partyline; link entry; raw session | `compunet_server.py` `_cmd_dir` (type `L`, `is_amiga` branch); `server/partyline.py` `handle_session`/`handle_amiga_session` |
+| §8.5 | Partyline; link entry; raw session (not ACK-paced; `send_line` just writes and drains) | `compunet_server.py` `_cmd_dir` (type `L`, `is_amiga` branch); `server/partyline.py` `handle_session`/`handle_amiga_session` |
 | §8.6 | UCAT / VOTE / LIFE | `compunet_server.py` `_cmd_ucat`, `_cmd_vote`, `_cmd_buy` (the `X` handler is misnamed `_cmd_buy` but implements LIFE/EXTEND) |
 
 ## §A — Appendices (data provenance)

@@ -1,5 +1,11 @@
 # Investigation: CPU JAM Crash at ~200 Bytes
 
+> **Read with care (2026-10, #149).** This record attributes behaviour to *VICE's socket
+> polling* — VICE fetching ip232 data only when the C64 touches the ACIA registers. That was
+> not how VICE works: it delivers received bytes on a timer, one per character time. The
+> observations here are kept as they were made; the explanation is corrected in
+> [MODEM.md](../MODEM.md), *VICE's SwiftLink Emulation*.
+
 ## Summary
 
 The C64 client crashes with a CPU JAM (illegal opcode execution) when receiving
