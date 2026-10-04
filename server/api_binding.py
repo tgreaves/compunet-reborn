@@ -24,6 +24,8 @@ import logging
 
 from aiohttp import web, WSMsgType
 
+import federation
+
 log = logging.getLogger('compunet.api')
 
 # Bound lazily to symbols from compunet_server to avoid an import cycle
@@ -1042,7 +1044,8 @@ def _serialize_state(session, raw, msg_id=None):
         # An `L` entry was selected; the gateway completes the join (§8.5). The
         # link-header/program bytes Binding A sends here are transport-specific
         # and are not carried into Binding B.
-        return {"type": "partyline.entering", "id": msg_id}
+        return {"type": "partyline.entering", "id": msg_id,
+                "service": getattr(session, '_link_service', 'partyline')}
     if getattr(session, '_program_download_pending', False):
         return _download_json(session, msg_id)
     if getattr(session, 'mail_mode', False):
@@ -1573,13 +1576,23 @@ async def ws_gateway(request):
 
             # Partyline is async (it pushes) so it is handled here, not in the
             # sync dispatcher.
+            # The same commands drive Federation — it is the same chat window on
+            # screen — so which service the user is in decides where they land.
             if t in ("partyline.send", "partyline.command"):
-                reply = await partyline_input(session, str(msg.get("text", "")), mid)
+                if getattr(session, '_fed_link', None) is not None:
+                    reply = await federation.web_input(session, str(msg.get("text", "")), mid)
+                else:
+                    reply = await partyline_input(session, str(msg.get("text", "")), mid)
                 if reply:
                     await ws.send_json(reply)
                 continue
             if t == "partyline.leave":
-                await ws.send_json(await partyline_leave(session, mid))
+                # ⚠ Federation is left only when the host ends the session.
+                if getattr(session, '_fed_link', None) is not None:
+                    await ws.send_json({"type": "error", "id": mid, "code": "invalid",
+                                        "message": "the game ends the session"})
+                else:
+                    await ws.send_json(await partyline_leave(session, mid))
                 continue
 
             reply = handle_message(session, msg)
@@ -1595,19 +1608,29 @@ async def ws_gateway(request):
                 await ws.close()
                 return ws
 
-            # Selecting an `L` (link) entry activates Partyline (§7.4/§8.5).
+            # Selecting an `L` (link) entry activates Partyline — or Federation,
+            # when the entry names it (§7.4/§8.5).
             if getattr(session, '_enter_partyline', False):
                 session._enter_partyline = False
-                err = await partyline_enter(session, ws)
+                if getattr(session, '_link_service', 'partyline') == 'federation':
+                    err = await federation.web_enter(session, ws)
+                else:
+                    err = await partyline_enter(session, ws)
                 if err:
                     await ws.send_json(err)
     except Exception as e:
         log.info('API gateway loop ended for %s: %s', session.user_id, e)
     finally:
-        # Never leave a ghost in the partyline roster (§8.5).
+        # Never leave a ghost in the partyline roster (§8.5), nor a federation
+        # socket with nobody on this end of it.
         if session is not None and getattr(session, '_pl_writer', None) is not None:
             try:
                 await partyline_leave(session)
+            except Exception:
+                pass
+        if session is not None and getattr(session, '_fed_link', None) is not None:
+            try:
+                await federation.web_leave(session)
             except Exception:
                 pass
         # ⚠ Mark the user offline and audit the session end. This binding did
